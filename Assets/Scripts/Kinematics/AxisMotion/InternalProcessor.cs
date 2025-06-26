@@ -314,7 +314,7 @@ public class InternalProcessor : AxisMotionBase
             actionIo.StartInput = ScriptableObject.CreateInstance<TagInfo>();
             actionIo.StartInput.Database = unitSetting.Database;
             actionIo.StartInput.MechId = unitSetting.mechId;
-            if (action.start[0] == '-')
+            if ((action.start != "") && (action.start[0] == '-'))
             {
                 actionIo.StartInput.Tag = action.start.Substring(1);
                 actionIo.isInputRvs = true;
