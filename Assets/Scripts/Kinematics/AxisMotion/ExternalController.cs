@@ -12,6 +12,8 @@ public class ExternalController : AxisMotionBase
 
     protected TagInfo actTag;
 
+    protected float rate;
+
     // Start is called before the first frame update
     protected override void Start()
     {
@@ -33,6 +35,8 @@ public class ExternalController : AxisMotionBase
         actTag.Database = unitSetting.Database;
         actTag.MechId = unitSetting.mechId;
         actTag.Tag = unitSetting.actionSetting.tag;
+
+        rate = (float)unitSetting.actionSetting.rate;
     }
 
     /// <summary>
@@ -40,7 +44,7 @@ public class ExternalController : AxisMotionBase
     /// </summary>
     protected override void MyFixedUpdate()
     {
-        var data = GlobalScript.GetTagData(actTag);
+        var data = GlobalScript.GetTagData(actTag) / rate;
         if (isRotate)
         {
             moveObject.transform.localEulerAngles = moveDir * data;

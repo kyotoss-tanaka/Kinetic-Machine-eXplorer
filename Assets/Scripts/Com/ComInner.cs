@@ -106,10 +106,11 @@ public class ComInner : ComBaseScript
     /// </summary>
     System.Diagnostics.Stopwatch swTiming = new();
 
-
+    [SerializeField]
+    public int timeRate = 1;
 
     [SerializeField]
-    public int actNo = 19;
+    public int actNo = 0;
     [SerializeField]
     public long time = 0;
     [SerializeField]
@@ -159,12 +160,15 @@ public class ComInner : ComBaseScript
         base.RenewData();
         var sw = new System.Diagnostics.Stopwatch();
         sw.Start();
+
+        var timeRate = this.timeRate < 1 ? 1 : this.timeRate;
+        var time = swTiming.ElapsedMilliseconds / timeRate;
         try
         {
             // I/Oタイミングセット
             foreach (var timing in timings)
             {
-                var now = swTiming.ElapsedMilliseconds % timing.cycle;
+                var now = time % timing.cycle;
                 var value = 0;
                 if (timing.on < timing.off)
                 {
@@ -188,7 +192,7 @@ public class ComInner : ComBaseScript
             {
                 var input = act.timings[act.no].input;
                 var output = act.timings[act.no].output;
-                act.nowCycle = (int)(swTiming.ElapsedMilliseconds % act.cycle);
+                act.nowCycle = (int)(time % act.cycle);
                 if (GlobalScript.tagDatas[Name][act.mechId][input].Value == 1)
                 {
                     // ON中完了信号待ち
@@ -243,7 +247,7 @@ public class ComInner : ComBaseScript
                         outputs.Add(0);
                     }
                 }
-                time = act.nowCycle;
+                this.time = act.nowCycle;
                 no = act.no;
                 for (var i = 0; i < inputs.Count; i++)
                 {
@@ -252,8 +256,9 @@ public class ComInner : ComBaseScript
                 }
             }
         }
-        catch
+        catch (Exception ex)
         {
+            
         }
         processTime = sw.ElapsedMilliseconds;
     }
@@ -267,9 +272,12 @@ public class ComInner : ComBaseScript
     {
         foreach (var tag in tags)
         {
-            if (GlobalScript.tagDatas[tag.Database][tag.MechId].ContainsKey(tag.Tag))
+            if (GlobalScript.tagDatas[tag.Database].ContainsKey(tag.MechId))
             {
-                GlobalScript.tagDatas[tag.Database][tag.MechId][tag.Tag].Value = tag.Value;
+                if (GlobalScript.tagDatas[tag.Database][tag.MechId].ContainsKey(tag.Tag))
+                {
+                    GlobalScript.tagDatas[tag.Database][tag.MechId][tag.Tag].Value = tag.Value;
+                }
             }
         }
     }

@@ -12,6 +12,9 @@ public class SuctionScript : UseTagBaseScript
     private TagInfo Tag;
 
     [SerializeField]
+    private TagInfo Output;
+
+    [SerializeField]
     public Vector3 posOffset;
 
     [SerializeField]
@@ -58,12 +61,13 @@ public class SuctionScript : UseTagBaseScript
 
     protected override void OnCollisionStay(Collision collision)
     {
-        if (GlobalScript.GetTagData(Tag) >= 1)
+        var value = GlobalScript.GetTagData(Tag);
+        if (value >= 1)
         {
             var script = collision.gameObject.GetComponentInParent<ObjectScript>();
             if ((script != null) && !SuckObjects.Contains(script.gameObject))
             {
-//                script.transform.parent = unitSetting.moveObject.transform;
+                //                script.transform.parent = unitSetting.moveObject.transform;
                 script.transform.parent = transform;
                 var rigi = script.GetComponentInChildren<Rigidbody>();
                 rigi.useGravity = false;
@@ -83,6 +87,7 @@ public class SuctionScript : UseTagBaseScript
                 SuckObjects.Add(script.gameObject);
             }
         }
+        GlobalScript.SetTagData(Output, value);
     }
 
     /// <summary>
@@ -99,6 +104,10 @@ public class SuctionScript : UseTagBaseScript
         Tag.Database = unitSetting.Database;
         Tag.MechId = unitSetting.mechId;
         Tag.Tag = s.tag;
+        Output = ScriptableObject.CreateInstance<TagInfo>();
+        Output.Database = unitSetting.Database;
+        Output.MechId = unitSetting.mechId;
+        Output.Tag = s.tag_output;
         posFixed = new Vector3
         {
             x = s.pos_fixed[0],

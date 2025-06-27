@@ -263,6 +263,10 @@ namespace Parameters
         /// </summary>
         public string tag { get; set; }
         /// <summary>
+        /// 動作タグ倍率
+        /// </summary>
+        public int rate { get; set; }
+        /// <summary>
         /// 通信遅れ時間
         /// </summary>
         public int delay { get; set; }
@@ -780,6 +784,10 @@ namespace Parameters
         /// 生成タグ
         /// </summary>
         public string tag { get; set; }
+        /// <summary>
+        /// 出力タグ
+        /// </summary>
+        public string tag_output { get; set; }
         /// <summary>
         /// 固定(位置)
         /// </summary>
