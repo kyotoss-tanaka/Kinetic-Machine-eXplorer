@@ -25,6 +25,11 @@ public class ObjectScript : BaseBehaviour
     public bool IsGrabbable;
 
     /// <summary>
+    /// 重力使用
+    /// </summary>
+    public bool IsGravity;
+
+    /// <summary>
     /// オブジェクトID
     /// </summary>
     public int id;
@@ -52,6 +57,7 @@ public class ObjectScript : BaseBehaviour
         {
             rigi = this.gameObject.AddComponent<Rigidbody>();
         }
+        rigi.useGravity = IsGravity;
         if (IsGrabbable)
         {
             // 掴める

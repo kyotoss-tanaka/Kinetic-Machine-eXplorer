@@ -24,9 +24,6 @@ public class KinematicsBase : UseTagBaseScript
     #endregion クラス
 
     #region 変数
-    [SerializeField]
-    protected bool IsCollision = false;
-
     /// <summary>
     /// ベースオブジェクト
     /// </summary>

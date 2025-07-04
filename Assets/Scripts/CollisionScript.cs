@@ -6,6 +6,17 @@ using static KssBaseScript;
 
 public class CollisionScript : KssBaseScript
 {
+    private Material redMaterial;
+    private Material yellowMaterial;
+
+    protected override void Start()
+    {
+        base.Start();
+
+        redMaterial = (Material)Resources.Load("Materials/RedMaterial");
+        yellowMaterial = (Material)Resources.Load("Materials/YellowMaterial");
+    }
+
     protected override void MyFixedUpdate()
     {
         base.MyFixedUpdate();
@@ -28,26 +39,35 @@ public class CollisionScript : KssBaseScript
                     }
                 }
             }
+            else
+            {
+            }
         }
     }
 
     protected override void OnTriggerEnter(Collider collider)
     {
         var mesh = collider.gameObject.GetComponentInChildren<MeshRenderer>();
-        var obj = (Material)Resources.Load("Materials/RedMaterial");
-        SetMaterial(mesh, obj);
+        if (mesh == null)
+        {
+            mesh = FindNearestParentMeshRenderer(collider.transform);
+        }
+        SetMaterial(mesh, redMaterial);
     }
 
     protected override void OnTriggerExit(Collider collider)
     {
         var mesh = collider.gameObject.GetComponentInChildren<MeshRenderer>();
-        var obj = (Material)Resources.Load("Materials/YellowMaterial");
-        SetMaterial(mesh, obj);
+        if (mesh == null)
+        {
+            mesh = FindNearestParentMeshRenderer(collider.transform);
+        }
+        SetMaterial(mesh, yellowMaterial);
     }
 
     private void SetMaterial(MeshRenderer mesh, Material obj)
     {
-        if (GlobalScript.isCollision)
+        if (GlobalScript.isCollision && (mesh != null))
         {
             if (!GlobalScript.dctMaterial.ContainsKey(mesh))
             {
@@ -64,5 +84,19 @@ public class CollisionScript : KssBaseScript
                 mesh.material = obj;
             }
         }
+    }
+
+    private MeshRenderer FindNearestParentMeshRenderer(Transform start)
+    {
+        Transform current = start.parent;
+        while (current != null)
+        {
+            var renderer = current.GetComponent<MeshRenderer>();
+            if (renderer != null)
+                return renderer;
+
+            current = current.parent;
+        }
+        return null;
     }
 }

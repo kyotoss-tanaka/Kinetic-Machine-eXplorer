@@ -3,7 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
-public class ExternalController : AxisMotionBase
+public class MotionExternal : AxisMotionBase
 {
     /// <summary>
     /// キャンバス表示
@@ -44,7 +44,7 @@ public class ExternalController : AxisMotionBase
     /// </summary>
     protected override void MyFixedUpdate()
     {
-        var data = GlobalScript.GetTagData(actTag) / rate;
+        var data = GlobalScript.GetTagData(actTag) / (rate == 0 ? 1000f : rate);
         if (isRotate)
         {
             moveObject.transform.localEulerAngles = moveDir * data;

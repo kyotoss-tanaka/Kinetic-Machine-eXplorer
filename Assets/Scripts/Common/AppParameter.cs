@@ -255,6 +255,14 @@ namespace Parameters
         /// </summary>
         public int axis { get; set; }
         /// <summary>
+        /// 回転方向
+        /// </summary>
+        public int dir { get; set; }
+        /// <summary>
+        /// オフセット
+        /// </summary>
+        public int offset { get; set; }
+        /// <summary>
         /// 加速度設定 0:加速度(G) 1:時間
         /// </summary>
         public int acl { get; set; }
@@ -275,6 +283,10 @@ namespace Parameters
         /// </summary>
         public int cycle { get; set; }
         /// <summary>
+        /// 動作ファイル
+        /// </summary>
+        public bool file { get; set; }
+        /// <summary>
         /// 動作設定
         /// </summary>
         public List<UnitAction> actions { get; set; }
@@ -283,14 +295,21 @@ namespace Parameters
         {
             get
             {
-                return mode == 0 || mode == 1;
+                return (mode == 0 || mode == 1) && !file;
             }
         }
         public bool isExternal
         {
             get
             {
-                return mode == 2 || mode == 3;
+                return (mode == 2 || mode == 3) && !file;
+            }
+        }
+        public bool isActionTable
+        {
+            get
+            {
+                return file;
             }
         }
         public bool isRobo
@@ -686,7 +705,10 @@ namespace Parameters
         /// オフセット(角度)
         /// </summary>
         public List<float> rot { get; set; }
-
+        /// <summary>
+        /// 重力使用
+        /// </summary>
+        public bool gravity { get; set; }
         public bool isGrabbable
         {
             get
@@ -945,6 +967,10 @@ namespace Parameters
         /// カウンタ用出力タグ
         /// </summary>
         public string outputCnt { get; set; }
+        /// <summary>
+        /// サイクルタグ
+        /// </summary>
+        public string cycle { get; set; }
     }
 
     [Serializable]
@@ -955,5 +981,20 @@ namespace Parameters
         public bool isRelease { get; set; }
         public bool isVR { get; set; }
         public bool isMR { get; set; }
+    }
+
+    [Serializable]
+    public class ActionData
+    {
+        public decimal time { get; set; }
+        public decimal value { get; set; }
+    }
+
+    [Serializable]
+    public class ActionTableData
+    {
+        public string mechId { get; set; } = "";
+        public string name { get; set; } = "";
+        public List<ActionData> datas { get; set; } = new();
     }
 }

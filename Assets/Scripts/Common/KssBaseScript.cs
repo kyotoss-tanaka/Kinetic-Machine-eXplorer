@@ -53,6 +53,7 @@ public class KssBaseScript : BaseBehaviour
     /// <summary>
     /// キャンバス表示
     /// </summary>
+    [SerializeField]
     protected virtual bool isCanvas { get { return false; } }
 
     /// <summary>

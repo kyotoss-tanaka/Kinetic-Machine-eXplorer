@@ -77,6 +77,10 @@ public static class GlobalScript
         /// </summary>
         public TagInfo cntOut;
         /// <summary>
+        /// 内部サイクル
+        /// </summary>
+        public TagInfo cycle;
+        /// <summary>
         /// 現在の値
         /// </summary>
         public bool value;
@@ -170,6 +174,11 @@ public static class GlobalScript
     public static List<CallbackTag> callbackTags { get; set; } = new List<CallbackTag>();
 
     /// <summary>
+    /// 動作テーブル情報
+    /// </summary>
+    public static List<ActionTableData> actionTableDatas { get; set; } = new List<ActionTableData>();
+
+    /// <summary>
     /// 衝突時ロック用
     /// </summary>
     public static object objColLock = new object();
@@ -204,6 +213,11 @@ public static class GlobalScript
     /// デバッグ出力用カウンタ最大値
     /// </summary>
     private static int debugCountMax = 10;
+
+    /// <summary>
+    /// 内部時間
+    /// </summary>
+    public static long innerCycle = 0;
 
     /// <summary>
     /// 辞書をすべて削除
@@ -612,7 +626,7 @@ public static class GlobalScript
     /// <returns></returns>
     public static List<GameObject> CreateSwitchModel()
     {
-        return Resources.LoadAll<GameObject>("Prefabs/Device").ToList().FindAll(d => d.name.Contains("Switch"));
+        return LoadPrefabObject("Prefabs/Device", "Switch", true);
     }
 
     /// <summary>
@@ -621,7 +635,18 @@ public static class GlobalScript
     /// <returns></returns>
     public static List<GameObject> CreateSignalTowerModel()
     {
-        return Resources.LoadAll<GameObject>("Prefabs/Device").ToList().FindAll(d => d.name.Contains("SignalTower"));
+        return LoadPrefabObject("Prefabs/Device", "SignalTower", true);
+    }
+
+    /// <summary>
+    /// プレハブをロードする
+    /// </summary>
+    /// <param name="path"></param>
+    /// <param name="name"></param>
+    /// <returns></returns>
+    public static List<GameObject> LoadPrefabObject(string path, string name, bool contains = false)
+    {
+        return Resources.LoadAll<GameObject>(path).ToList().FindAll(d => !contains ? d.name == name : d.name.Contains(name));
     }
 
     /// <summary>

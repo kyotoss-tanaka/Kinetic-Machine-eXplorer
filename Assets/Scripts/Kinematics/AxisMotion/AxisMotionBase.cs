@@ -11,6 +11,7 @@ using System.Reflection;
 using UnityEngine.UI;
 //using static OVRPlugin;
 using static KssMeshColliderEditorCommon;
+using static OVRPlugin;
 
 public class AxisMotionBase : KinematicsBase
 {
@@ -44,6 +45,11 @@ public class AxisMotionBase : KinematicsBase
     /// 動作用
     /// </summary>
     protected Rigidbody rb;
+
+    /// <summary>
+    /// サイクルタグ
+    /// </summary>
+    protected TagInfo? cycleTag;
 
     /// <summary>
     /// 動作あり
@@ -283,12 +289,61 @@ public class AxisMotionBase : KinematicsBase
                     }
                 }
                 */
-                var meshColliderBuilder = unitSetting.moveObject.AddComponent<SAMeshColliderBuilder>();
-                meshColliderBuilder.reducerProperty.shapeType = SAColliderBuilderCommon.ShapeType.Mesh;
-                meshColliderBuilder.reducerProperty.meshType = SAColliderBuilderCommon.MeshType.Raw;
-                meshColliderBuilder.rigidbodyProperty.isCreate = false;
-                meshColliderBuilder.colliderProperty.convex = false;
-                KssMeshColliderBuilderInspector.Process(meshColliderBuilder);
+
+                if ((Application.platform == RuntimePlatform.Android) || (Application.platform == RuntimePlatform.IPhonePlayer))
+                {
+                    // VRでは無視
+                }
+                else
+                {
+                    // WindowsではCollider作成
+                    var meshColliderBuilder = unitSetting.moveObject.AddComponent<SAMeshColliderBuilder>();
+                    meshColliderBuilder.reducerProperty.shapeType = SAColliderBuilderCommon.ShapeType.Mesh;
+//                    meshColliderBuilder.reducerProperty.meshType = SAColliderBuilderCommon.MeshType.Raw;
+                    meshColliderBuilder.reducerProperty.meshType = SAColliderBuilderCommon.MeshType.ConvexHull;
+                    meshColliderBuilder.rigidbodyProperty.isCreate = false;
+                    meshColliderBuilder.colliderProperty.convex = false;
+                    meshColliderBuilder.colliderProperty.isTrigger = false;
+                    KssMeshColliderBuilderInspector.Process(meshColliderBuilder);
+                    foreach (var col in this.GetComponentsInChildren<MeshCollider>())
+                    {
+                        try
+                        {
+                            if (col == null || col.sharedMesh == null) continue;
+                            AddFakeThickness(col.sharedMesh);
+                            var verts = col.sharedMesh.vertices;
+                            float minZ = verts.Min(v => v.z);
+                            float maxZ = verts.Max(v => v.z);
+                            float thickness = Mathf.Abs(maxZ - minZ);
+                            int triangleCount = col.sharedMesh.triangles.Length / 3;
+                            var message = "";
+                            if (IsMesh3D(col.sharedMesh, ref message) && (triangleCount <= 255 * 10))
+                            {
+                                try
+                                {
+                                    col.convex = true;
+                                    col.isTrigger = true;
+                                }
+                                catch (System.Exception ex)
+                                {
+                                    Debug.LogWarning($"Convex設定に失敗: {col.name}, 理由: {ex.Message}");
+                                    col.convex = false;
+                                    col.isTrigger = false;
+                                }
+                            }
+                            else
+                            {
+//                                Debug.Log($"convexスキップ: {col.name}, triangle: {triangleCount}, thickness: {thickness}");
+                            }
+                        }
+                        catch (System.Exception ex)
+                        {
+                            Debug.LogWarning($"Convex設定に失敗: {col.name}, 理由: {ex.Message}");
+                            col.convex = false;
+                            col.isTrigger = false;
+                        }
+                    }
+                }
             }
         }
         if (unitSetting.moveObject != null)
@@ -298,7 +353,7 @@ public class AxisMotionBase : KinematicsBase
             {
                 rb = unitSetting.moveObject.transform.AddComponent<Rigidbody>();
             }
-            if (IsCollision)
+            if (unitSetting.isCollision)
             {
                 unitSetting.moveObject.transform.AddComponent<CollisionScript>();
             }
@@ -314,6 +369,52 @@ public class AxisMotionBase : KinematicsBase
 //            rb.collisionDetectionMode = CollisionDetectionMode.Continuous;
 //            rb.interpolation = RigidbodyInterpolation.Interpolate;
         }
+    }
+
+    /// <summary>
+    /// メッシュが3Dかチェック
+    /// </summary>
+    /// <param name="mesh"></param>
+    /// <returns></returns>
+    private bool IsMesh3D(UnityEngine.Mesh mesh, ref string message)
+    {
+        if (mesh == null || mesh.vertexCount < 4) return false;
+
+        var verts = mesh.vertices;
+        var min = verts[0];
+        var max = verts[0];
+
+        foreach (var v in verts)
+        {
+            min = Vector3.Min(min, v);
+            max = Vector3.Max(max, v);
+        }
+
+        float thicknessZ = Mathf.Abs(max.z - min.z);
+        float thicknessY = Mathf.Abs(max.y - min.y);
+        float thicknessX = Mathf.Abs(max.x - min.x);
+
+        message = (thicknessX * thicknessX * 1000000 + thicknessY * thicknessY * 1000000 + thicknessZ * thicknessZ * 1000000).ToString();
+
+        // 最小でも3方向にある程度の広がりがないと凸包は失敗する可能性
+        return (thicknessX > 1e-4f && thicknessY > 1e-4f && thicknessZ > 1e-4f);
+    }
+
+    /// <summary>
+    /// 厚みを加える
+    /// </summary>
+    /// <param name="mesh"></param>
+    /// <param name="offset"></param>
+    private void AddFakeThickness(UnityEngine.Mesh mesh, float offset = 0.0001f)
+    {
+        Vector3[] verts = mesh.vertices;
+        for (int i = 0; i < verts.Length; i++)
+        {
+            verts[i].z += UnityEngine.Random.Range(-offset, offset); // Z方向に厚み
+        }
+        mesh.vertices = verts;
+        mesh.RecalculateBounds();
+        mesh.RecalculateNormals();
     }
 
     /// <summary>

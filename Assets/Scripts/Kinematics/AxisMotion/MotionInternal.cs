@@ -4,7 +4,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using System.Diagnostics;
 
-public class InternalProcessor : AxisMotionBase
+public class MotionInternal : AxisMotionBase
 {
     /// <summary>
     /// キャンバス表示
@@ -161,32 +161,38 @@ public class InternalProcessor : AxisMotionBase
 
             for (int elapsedT = 0; elapsedT < totalTime; elapsedT++)
             {
-                float move;
-
-                // tは台形左側の三角形内
-                if (elapsedT <= aclTime)
+                if (stroke == 0)
                 {
-                    move = (acc_Msec * elapsedT * elapsedT) / 2f;
-                    move = Mathf.Round(move * (st / stroke) * 100000f) / 100000f;
+                    actCurve.Add(0);
                 }
-                // 台形左側の三角形 + tは台形真ん中の四角形内
-                else if (elapsedT > aclTime && elapsedT <= sub_mMoveT_mTb)
-                {
-                    move = strokeA + maxSpd * (elapsedT - aclTime);
-                    move = Mathf.Round(move * (st / stroke) * 100000f) / 100000f;
-                }
-                // 台形左側の三角形 + 台形真ん中の四角形 + tは台形右側の三角形内
-                else if (sub_mMoveT_mTb < elapsedT && elapsedT != beforMMoveT)
-                {
-                    move = strokeAB + (maxV_Msec_Double - dcc_Msec * (elapsedT + sub_mTb_mMoveT)) * (elapsedT + sub_mTb_mMoveT) / 2f;
-                    move = Mathf.Round(move * (st / stroke) * 100000f) / 100000f;
-                }
-                // tは終点：台形自体の面積(全ストローク)
                 else
                 {
-                    move = Mathf.Round(st * 100000f) / 100000f;
+                    float move;
+                    // tは台形左側の三角形内
+                    if (elapsedT <= aclTime)
+                    {
+                        move = (acc_Msec * elapsedT * elapsedT) / 2f;
+                        move = Mathf.Round(move * (st / stroke) * 100000f) / 100000f;
+                    }
+                    // 台形左側の三角形 + tは台形真ん中の四角形内
+                    else if (elapsedT > aclTime && elapsedT <= sub_mMoveT_mTb)
+                    {
+                        move = strokeA + maxSpd * (elapsedT - aclTime);
+                        move = Mathf.Round(move * (st / stroke) * 100000f) / 100000f;
+                    }
+                    // 台形左側の三角形 + 台形真ん中の四角形 + tは台形右側の三角形内
+                    else if (sub_mMoveT_mTb < elapsedT && elapsedT != beforMMoveT)
+                    {
+                        move = strokeAB + (maxV_Msec_Double - dcc_Msec * (elapsedT + sub_mTb_mMoveT)) * (elapsedT + sub_mTb_mMoveT) / 2f;
+                        move = Mathf.Round(move * (st / stroke) * 100000f) / 100000f;
+                    }
+                    // tは終点：台形自体の面積(全ストローク)
+                    else
+                    {
+                        move = Mathf.Round(st * 100000f) / 100000f;
+                    }
+                    actCurve.Add(move);
                 }
-                actCurve.Add(move);
             }
         }
     }
@@ -217,26 +223,31 @@ public class InternalProcessor : AxisMotionBase
     /// <summary>
     /// 動作関連I/O
     /// </summary>
+    [SerializeField]
     private List<ActionIo> actionIos = new List<ActionIo>();
 
     /// <summary>
     /// 動作曲線情報
     /// </summary>
+    [SerializeField]
     private List<ActionCurveInfo> actionCurveInfos = new List<ActionCurveInfo>();
 
     /// <summary>
     /// 動作中曲線
     /// </summary>
+    [SerializeField]
     private ActionCurveInfo actionCurve = new ActionCurveInfo();
 
     /// <summary>
     /// 動作曲線情報
     /// </summary>
+    [SerializeField]
     private List<CamPosInfo> camPosInfos = new List<CamPosInfo>();
 
     /// <summary>
     /// 定数
     /// </summary>
+    [SerializeField]
     private bool isMoving = false;
 
     /// <summary>
@@ -267,12 +278,19 @@ public class InternalProcessor : AxisMotionBase
     /// <summary>
     /// 現在時間
     /// </summary>
+    [SerializeField]
     private long nowTime;
 
     /// <summary>
     /// 前回時間
     /// </summary>
+    [SerializeField]
     private long prvTime;
+
+    /// <summary>
+    /// 時間オフセット
+    /// </summary>
+    private long timeOffset;
 
     /// <summary>
     /// 浮動小数点の誤差が乗るので別に持たせておく
@@ -296,6 +314,10 @@ public class InternalProcessor : AxisMotionBase
         // データ初期化
         actionIos.Clear();
         isMoving = false;
+
+        // サイクルタグ設定
+        var tag = GlobalScript.callbackTags.Find(d => d.database == unitSetting.Database);
+        cycleTag = tag == null ? null : (tag.cycle.Tag == "" ? null : tag.cycle);
 
         // 通信遅れ時間
         delayTime = unitSetting.actionSetting.delay;
@@ -443,11 +465,12 @@ public class InternalProcessor : AxisMotionBase
                     break;
                 }
             }
+            timeOffset = cycleTag == null ? 0 : GlobalScript.GetTagData(cycleTag);
         }
         else
         {
             // 経過測定
-            nowTime = sw.ElapsedMilliseconds;
+            nowTime = (cycleTag == null ? sw.ElapsedMilliseconds : GlobalScript.GetTagData(cycleTag)) - timeOffset;
             // 通信遅れ時間込みで終了IOをON
             if (nowTime >= actionCurve.actCurve.Count - delayTime)
             {
@@ -489,37 +512,44 @@ public class InternalProcessor : AxisMotionBase
             }
             else
             {
-                if (isRotate)
+                try
                 {
-                    // 回転動作
-                    moveObject.transform.localEulerAngles = actionCurve.startPos * Thousand + pos * moveDir;
-                    innerPosition = actionCurve.startPos * Thousand + pos * moveDir;
-                    nowPos = Vector3.Distance(Vector3.zero, moveObject.transform.localEulerAngles);
-                    if (chuckSetting != null)
+                    if (isRotate)
                     {
-                        foreach (var child in chuckSetting.children)
+                        // 回転動作
+                        moveObject.transform.localEulerAngles = actionCurve.startPos * Thousand + pos * moveDir;
+                        innerPosition = actionCurve.startPos * Thousand + pos * moveDir;
+                        nowPos = Vector3.Distance(Vector3.zero, moveObject.transform.localEulerAngles);
+                        if (chuckSetting != null)
                         {
-                            child.setting.moveObject.transform.localEulerAngles = moveObject.transform.localEulerAngles * child.dir + child.offset * moveDir / Thousand;
+                            foreach (var child in chuckSetting.children)
+                            {
+                                child.setting.moveObject.transform.localEulerAngles = moveObject.transform.localEulerAngles * child.dir + child.offset * moveDir / Thousand;
+                            }
+                        }
+                    }
+                    else
+                    {
+                        // 直線動作
+                        /*
+                        var position = transform.TransformPoint(actionCurve.startPos + pos * moveDir / Thousand);
+                        rb.MovePosition(position);
+                        */
+                        moveObject.transform.localPosition = actionCurve.startPos + pos * moveDir / Thousand;
+                        innerPosition = actionCurve.startPos + pos * moveDir / Thousand;
+                        nowPos = Vector3.Distance(Vector3.zero, moveObject.transform.localPosition) * Thousand;
+                        if (chuckSetting != null)
+                        {
+                            foreach (var child in chuckSetting.children)
+                            {
+                                child.setting.moveObject.transform.localPosition = moveObject.transform.localPosition * child.dir + child.offset * moveDir / Thousand;
+                            }
                         }
                     }
                 }
-                else
+                catch (Exception ex)
                 {
-                    // 直線動作
-                    /*
-                    var position = transform.TransformPoint(actionCurve.startPos + pos * moveDir / Thousand);
-                    rb.MovePosition(position);
-                    */
-                    moveObject.transform.localPosition = actionCurve.startPos + pos * moveDir / Thousand;
-                    innerPosition = actionCurve.startPos + pos * moveDir / Thousand;
-                    nowPos = Vector3.Distance(Vector3.zero, moveObject.transform.localPosition) * Thousand;
-                    if (chuckSetting != null)
-                    {
-                        foreach (var child in chuckSetting.children)
-                        {
-                            child.setting.moveObject.transform.localPosition = moveObject.transform.localPosition * child.dir + child.offset * moveDir / Thousand;
-                        }
-                    }
+                    UnityEngine.Debug.Log($"エラー：ユニット名「{unitSetting.name}」: {ex.Message}");
                 }
             }
         }

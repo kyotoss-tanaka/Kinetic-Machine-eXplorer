@@ -15,8 +15,7 @@ using TMPro;
 using Oculus.Platform;
 using Application =UnityEngine.Application;
 using Oculus.Interaction;
-
-
+using UnityEngine.UI;
 
 #if UNITY_EDITOR
 using UnityEditor;
@@ -138,10 +137,6 @@ public class MainProcess : KssBaseScript
         bool isControl = inputActions.Keyboard.ControlKey.IsPressed();
         bool isShift = inputActions.Keyboard.ShiftKey.IsPressed();
 
-        // 衝突
-        GlobalScript.isCollision = Keyboard.current.cKey.isPressed;
-
-
         // 現在のキー状態取得
         if (Keyboard.current.rKey.wasPressedThisFrame)
         {
@@ -223,7 +218,7 @@ public class MainProcess : KssBaseScript
             {
                 Vector2 mousePos = Mouse.current.position.ReadValue();
                 Ray ray = Camera.main.ScreenPointToRay(mousePos);
-                if (Physics.Raycast(ray, out RaycastHit hit))
+                if (Physics.Raycast(ray, out RaycastHit hit, 10, LayerMask.GetMask("Default"), QueryTriggerInteraction.Collide))
                 {
                     clickedGameObject = hit.collider.gameObject;
                 }
@@ -245,12 +240,21 @@ public class MainProcess : KssBaseScript
                         // ゲームオブジェクトの名前を出力
                         Debug.Log(clickedGameObject.name);
                     }
-                    else if(selectedScript != null)
+                    else if (selectedScript != null)
                     {
                         //　マウスアップ
                         selectedScript.OnMouseUp();
                         selectedScript = null;
                     }
+                }
+                else
+                {
+                    if (cameraController != null)
+                    {
+                        cameraController.SetTargetPosition(clickedGameObject.transform.position);
+                    }
+                    // ゲームオブジェクトの名前を出力
+                    Debug.Log(clickedGameObject.name);
                 }
             }
         }

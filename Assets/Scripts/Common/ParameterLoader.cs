@@ -10,6 +10,7 @@ using Unity.VisualScripting;
 using static UnityEngine.UI.CanvasScaler;
 using System.Collections;
 using NUnit.Framework;
+using UnityEngine.UI;
 
 namespace Parameters
 {
@@ -58,15 +59,22 @@ namespace Parameters
         private List<SwitchSetting> switchSettings;
         private List<SignalTowerSetting> towerSettings;
         private List<DebugSetting> debugSettings;
+        private List<ActionTableData> actionTableDatas;
         private BuildConfig buildConfig;
         private bool IsLoading = false;
         private bool IsPrmLoading = false;
+
+        private GameObject canvaObj;
+        private GameObject uiObj;
+        private Toggle toggle;
 
         void Awake()
         {
             Debug.Log($"***** Start Load *****");
 
             StartCoroutine(LoadParameter());
+
+            CreateCanvas();
         }
 
         /// <summary>
@@ -117,6 +125,50 @@ namespace Parameters
                 {
                     yield return null; // 1フレーム待
                 }
+
+                Debug.Log($"***** Set Debug Info *****");
+                // 折り返し用データ
+                GlobalScript.actionTableDatas = actionTableDatas;
+                GlobalScript.callbackTags.Clear();
+                foreach (var setting in debugSettings)
+                {
+                    var db = postgresSettings.Find(d => d.Name == setting.database);
+                    if (db != null)
+                    {
+                        var tag = new GlobalScript.CallbackTag();
+                        tag.database = setting.database;
+                        tag.input = ScriptableObject.CreateInstance<TagInfo>();
+                        tag.input.Database = setting.database;
+                        tag.input.MechId = setting.mechId;
+                        tag.input.Tag = setting.input;
+                        tag.output = ScriptableObject.CreateInstance<TagInfo>();
+                        tag.output.Database = setting.database;
+                        tag.output.MechId = setting.mechId;
+                        tag.output.Tag = setting.output;
+                        tag.cntIn = ScriptableObject.CreateInstance<TagInfo>();
+                        tag.cntIn.Database = setting.database;
+                        tag.cntIn.MechId = setting.mechId;
+                        tag.cntIn.Tag = setting.inputCnt;
+                        tag.cntOut = ScriptableObject.CreateInstance<TagInfo>();
+                        tag.cntOut.Database = setting.database;
+                        tag.cntOut.MechId = setting.mechId;
+                        tag.cntOut.Tag = setting.outputCnt;
+                        tag.cycle = ScriptableObject.CreateInstance<TagInfo>();
+                        tag.cycle.Database = setting.database;
+                        tag.cycle.MechId = setting.mechId;
+                        if (db.isInner)
+                        {
+                            tag.cycle.Tag = setting.cycle == "" ? "_innerCycle" : setting.cycle;
+                        }
+                        else
+                        {
+                            tag.cycle.Tag = setting.cycle == "" ? "" : setting.cycle;
+                        }
+                        tag.stopwatch = new System.Diagnostics.Stopwatch();
+                        GlobalScript.callbackTags.Add(tag);
+                    }
+                }
+
                 Debug.Log($"***** Set Database *****");
                 foreach (var p in postgresSettings)
                 {
@@ -262,10 +314,9 @@ namespace Parameters
                             {
                                 w = new ObjEntry { key = wk.work };
                                 works.Add(w);
-
+                                w.obj = Instantiate(work[0].gameObject);
+                                w.obj.SetActive(false);
                             }
-                            w.obj = Instantiate(work[0].gameObject);
-                            w.obj.SetActive(false);
                         }
                     }
                     // デバッグモード時
@@ -530,13 +581,19 @@ namespace Parameters
                             if (unitSetting.actionSetting.isInternal)
                             {
                                 // 内部動作なら
-                                var instance = unitSetting.unitObject.AddComponent<InternalProcessor>();
+                                var instance = unitSetting.unitObject.AddComponent<MotionInternal>();
                                 instance.SetUnitSettings(unitSetting, chuckSetting);
                             }
                             else if (unitSetting.actionSetting.isExternal)
                             {
                                 // 外部動作なら
-                                var instance = unitSetting.unitObject.AddComponent<ExternalController>();
+                                var instance = unitSetting.unitObject.AddComponent<MotionExternal>();
+                                instance.SetUnitSettings(unitSetting, chuckSetting);
+                            }
+                            else if (unitSetting.actionSetting.isActionTable)
+                            {
+                                // 動作テーブルなら
+                                var instance = unitSetting.unitObject.AddComponent<MotionActionTable>();
                                 instance.SetUnitSettings(unitSetting, chuckSetting);
                             }
                             else if (unitSetting.actionSetting.isRobo)
@@ -706,37 +763,10 @@ namespace Parameters
                 {
                     prefabObj.SetActive(false);
                 }
-
-                // 折り返し用データ
-                GlobalScript.callbackTags.Clear();
-                foreach (var setting in debugSettings)
-                {
-                    var db = postgresSettings.Find(d => d.Name == setting.database);
-                    if (db != null)
-                    {
-                        var tag = new GlobalScript.CallbackTag();
-                        tag.database = setting.database;
-                        tag.input = ScriptableObject.CreateInstance<TagInfo>();
-                        tag.input.Database = setting.database;
-                        tag.input.MechId = setting.mechId;
-                        tag.input.Tag = setting.input;
-                        tag.output = ScriptableObject.CreateInstance<TagInfo>();
-                        tag.output.Database = setting.database;
-                        tag.output.MechId = setting.mechId;
-                        tag.output.Tag = setting.output;
-                        tag.cntIn = ScriptableObject.CreateInstance<TagInfo>();
-                        tag.cntIn.Database = setting.database;
-                        tag.cntIn.MechId = setting.mechId;
-                        tag.cntIn.Tag = setting.inputCnt;
-                        tag.cntOut = ScriptableObject.CreateInstance<TagInfo>();
-                        tag.cntOut.Database = setting.database;
-                        tag.cntOut.MechId = setting.mechId;
-                        tag.cntOut.Tag = setting.outputCnt;
-                        tag.stopwatch = new System.Diagnostics.Stopwatch();
-                        GlobalScript.callbackTags.Add(tag);
-                    }
-                }
             }
+            // イベント登録
+            toggle.onValueChanged.RemoveAllListeners();
+            toggle.onValueChanged.AddListener(toggle_onValueChanged);
             IsLoading = false;
         }
 
@@ -830,6 +860,8 @@ namespace Parameters
             debugSettings = (List<DebugSetting>)await GlobalScript.LoadListJson<List<DebugSetting>>("DebugInfo");
             Debug.Log($"***** Parameter Load : BuildConfig *****");
             buildConfig = (BuildConfig)await GlobalScript.LoadListJson<BuildConfig>("BuildConfig");
+            Debug.Log($"***** Parameter Load : ActionTable *****");
+            actionTableDatas = (List<ActionTableData>)await GlobalScript.LoadListJson<List<ActionTableData>>("ActionTableInfo");
             IsPrmLoading = false;
         }
 
@@ -903,6 +935,37 @@ namespace Parameters
                 }
             }
             return false;
+        }
+
+
+        /// <summary>
+        /// キャンバス追加
+        /// </summary>
+        private void CreateCanvas()
+        {
+            // キャンバス取得
+            var canvasObjs = GameObject.FindObjectsByType<GameObject>(FindObjectsSortMode.None).Where(d => d.name == "Canvas").ToList();
+            canvaObj = canvasObjs.Count == 0 ? new GameObject("Canvas", typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster)) : canvasObjs[0];
+            var prefabs = GlobalScript.LoadPrefabObject("Prefabs/Canvas", "ColliderSetting");
+            if (prefabs.Count > 0)
+            {
+                uiObj = Instantiate(prefabs[0]);
+                uiObj.transform.parent = canvaObj.transform;
+                ((RectTransform)uiObj.transform).anchoredPosition = new Vector2(-((RectTransform)uiObj.transform).rect.width / 2, -((RectTransform)uiObj.transform).rect.height / 2);
+
+                // コンポネント取得
+                toggle = uiObj.GetComponentInChildren<Toggle>();
+            }
+        }
+
+        /// <summary>
+        /// トグル変更イベント
+        /// </summary>
+        /// <param name="value"></param>
+        private void toggle_onValueChanged(bool value)
+        {
+            // 衝突
+            GlobalScript.isCollision = value;
         }
 
         /// <summary>

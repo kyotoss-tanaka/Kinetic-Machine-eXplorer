@@ -14,6 +14,12 @@ public class ObjectFactoryScript : UseTagBaseScript
     private bool IsGrabbable = true;
 
     /// <summary>
+    /// 重力を使用するか
+    /// </summary>
+    [SerializeField]
+    private bool IsGravity = true;
+
+    /// <summary>
     ///  タイマー
     /// </summary>
     [SerializeField]
@@ -109,12 +115,15 @@ public class ObjectFactoryScript : UseTagBaseScript
     {
         var obj = Instantiate(work);
         obj.transform.parent = objBase.transform;
-        obj.transform.localPosition = Vector3.Scale(CreatePoint, transform.localScale);
-        obj.transform.localEulerAngles = Vector3.Scale(CreateRotate, transform.localScale);
+//        obj.transform.localPosition = Vector3.Scale(CreatePoint, transform.localScale);
+//        obj.transform.localEulerAngles = Vector3.Scale(CreateRotate, transform.localScale);
+        obj.transform.localPosition = CreatePoint;
+        obj.transform.localEulerAngles = CreateRotate;
         obj.SetActive(true);
         var script = obj.AddComponent<ObjectScript>();
         script.AliveDistance = AliveDistance;
         script.IsGrabbable = IsGrabbable;
+        script.IsGravity = IsGravity;
     }
 
     /// <summary>
@@ -157,6 +166,7 @@ public class ObjectFactoryScript : UseTagBaseScript
 
         var wk = (WorkCreateSetting)obj;
         IsGrabbable = wk.isGrabbable;
+        IsGravity = wk.gravity;
         IsTimer = wk.isTimer;
         WorkName = wk.work;
         CreatePoint = new Vector3

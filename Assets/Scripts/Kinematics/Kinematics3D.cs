@@ -148,7 +148,6 @@ public class Kinematics3D : KinematicsBase
     public override void SetParameter(List<Component> components, List<KssPartsBase> scriptables, List<KssInstanceIds> kssInstanceIds, JsonElement root)
     {
         base.SetParameter(components, scriptables, kssInstanceIds, root);
-        IsCollision = GetBooleanFromPrm(root, "IsCollision");
         X = GetTagInfoFromPrm(scriptables, kssInstanceIds, root, "X");
         Y = GetTagInfoFromPrm(scriptables, kssInstanceIds, root, "Y");
         Z = GetTagInfoFromPrm(scriptables, kssInstanceIds, root, "Z");

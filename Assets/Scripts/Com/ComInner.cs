@@ -3,9 +3,11 @@ using Parameters;
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text.Json;
+using TMPro;
 using UnityEngine;
-using UnityEngine.Windows;
+using UnityEngine.UI;
 
 public class ComInner : ComBaseScript
 {
@@ -13,6 +15,14 @@ public class ComInner : ComBaseScript
     [Serializable]
     private class ActionTiming
     {
+        /// <summary>
+        /// 機番
+        /// </summary>
+        public string name;
+        /// <summary>
+        /// 機番
+        /// </summary>
+        public int index;
         /// <summary>
         /// 機番
         /// </summary>
@@ -90,6 +100,18 @@ public class ComInner : ComBaseScript
     public string Name { get { return Server + ":" + Port.ToString(); } }
 
     /// <summary>
+    /// 時間停止
+    /// </summary>
+    [SerializeField]
+    private bool isStop = false;
+
+    /// <summary>
+    /// 時間比率
+    /// </summary>
+    [SerializeField]
+    public float timeRate = 1;
+
+    /// <summary>
     /// タイミング設定
     /// </summary>
     [SerializeField]
@@ -106,13 +128,20 @@ public class ComInner : ComBaseScript
     /// </summary>
     System.Diagnostics.Stopwatch swTiming = new();
 
-    [SerializeField]
-    public int timeRate = 1;
+    /// <summary>
+    /// 現在の時間
+    /// </summary>
+    private long elapsedMilliseconds = 0;
+
+    /// <summary>
+    /// 前回の時間
+    /// </summary>
+    private long prvElapsedMilliseconds = 0;
 
     [SerializeField]
-    public int actNo = 0;
+    public int actIndex = 0;
     [SerializeField]
-    public long time = 0;
+    public long actCycle = 0;
     [SerializeField]
     public int no = 0;
     [SerializeField]
@@ -120,6 +149,30 @@ public class ComInner : ComBaseScript
     [SerializeField]
     public List<int> outputs = new();
 
+    /// <summary>
+    /// 表示用
+    /// </summary>
+    private GameObject uiObj;
+    private GameObject canvaObj;
+    private Toggle toggle;
+    private Slider slider;
+    private TextMeshProUGUI text;
+    private Button button;
+    private TMP_InputField input;
+    private TextMeshProUGUI cycle;
+    private TMP_InputField inputStep;
+    private Button buttonNext;
+    private Button buttonPrev;
+
+    /// <summary>
+    /// 表示サイクル
+    /// </summary>
+    private int viewCycle = 1000;
+
+    /// <summary>
+    /// コマ送りステップ
+    /// </summary>
+    private int step = 0;
 
     // Start is called before the first frame update
     protected override void Start()
@@ -133,6 +186,9 @@ public class ComInner : ComBaseScript
             GlobalScript.inners.Add(Name, this);
         }
         swTiming.Start();
+
+        // 表示追加
+        CreateCanvas();
     }
 
     /// <summary>
@@ -153,6 +209,21 @@ public class ComInner : ComBaseScript
     }
 
     /// <summary>
+    /// 削除時
+    /// </summary>
+    protected override void OnDestroy()
+    {
+        base.OnDestroy();
+
+        // 表示を削除しておく
+        toggle.onValueChanged.RemoveAllListeners();
+        slider.onValueChanged.RemoveAllListeners();
+        button.onClick.RemoveAllListeners();
+        input.onValueChanged.RemoveAllListeners();
+        Destroy(uiObj);
+    }
+
+    /// <summary>
     /// データ更新
     /// </summary>
     public override void RenewData()
@@ -161,8 +232,27 @@ public class ComInner : ComBaseScript
         var sw = new System.Diagnostics.Stopwatch();
         sw.Start();
 
-        var timeRate = this.timeRate < 1 ? 1 : this.timeRate;
-        var time = swTiming.ElapsedMilliseconds / timeRate;
+        // 経過時間作成
+        var lap = swTiming.ElapsedMilliseconds;
+        if (step != 0)
+        {
+            elapsedMilliseconds += step;
+            step = 0;
+        }
+        else
+        {
+            elapsedMilliseconds = (long)((lap - prvElapsedMilliseconds) * (isStop ? 0 : timeRate)) + elapsedMilliseconds;
+        }
+        prvElapsedMilliseconds = lap;
+        var time = (int)elapsedMilliseconds;
+        foreach (var tags in GlobalScript.callbackTags)
+        {
+            GlobalScript.SetTagData(tags.cycle, (int)time);
+        }
+
+        // 表示セット
+        cycle.text = $"Cycle Time : {(time % viewCycle)} msec";
+
         try
         {
             // I/Oタイミングセット
@@ -188,17 +278,23 @@ public class ComInner : ComBaseScript
             }
 
             // 動作設定セット
+            var onTags = new List<TagInfo>();
+            var offTags = new List<TagInfo>();
             foreach (var act in acts)
             {
                 var input = act.timings[act.no].input;
                 var output = act.timings[act.no].output;
                 act.nowCycle = (int)(time % act.cycle);
+                if ((input == "") || (output == ""))
+                {
+                    continue;
+                }
                 if (GlobalScript.tagDatas[Name][act.mechId][input].Value == 1)
                 {
                     // ON中完了信号待ち
                     if (GlobalScript.tagDatas[Name][act.mechId][output].Value == 1)
                     {
-                        GlobalScript.tagDatas[Name][act.mechId][input].Value = 0;
+                        offTags.Add(GlobalScript.tagDatas[Name][act.mechId][input]);
                         act.no = (act.no + 1) % act.timings.Count;
                     }
                 }
@@ -219,7 +315,7 @@ public class ComInner : ComBaseScript
                             // 通常処理
                             if (trg >= act.prvCycle && trg < act.nowCycle)
                             {
-                                GlobalScript.tagDatas[Name][act.mechId][input].Value = 1;
+                                onTags.Add(GlobalScript.tagDatas[Name][act.mechId][input]);
                             }
                         }
                         else
@@ -227,16 +323,25 @@ public class ComInner : ComBaseScript
                             // 反転処理
                             if ((trg >= act.prvCycle) || (trg <= act.nowCycle))
                             {
-                                GlobalScript.tagDatas[Name][act.mechId][input].Value = 1;
+                                onTags.Add(GlobalScript.tagDatas[Name][act.mechId][input]);
                             }
                         }
                     }
                 }
                 act.prvCycle = act.nowCycle;
             }
-            if (acts.Count > actNo)
+            // 一括出力
+            foreach (var tag in onTags)
             {
-                var act = acts[actNo];
+                tag.Value = 1;
+            }
+            foreach (var tag in offTags)
+            {
+                tag.Value = 0;
+            }
+            if (acts.Count > actIndex)
+            {
+                var act = acts[actIndex];
                 if (inputs.Count != act.timings.Count)
                 {
                     outputs.Clear();
@@ -247,7 +352,7 @@ public class ComInner : ComBaseScript
                         outputs.Add(0);
                     }
                 }
-                this.time = act.nowCycle;
+                this.actCycle = act.nowCycle;
                 no = act.no;
                 for (var i = 0; i < inputs.Count; i++)
                 {
@@ -315,12 +420,12 @@ public class ComInner : ComBaseScript
         SetParameter(No, Cycle, Server, Port, Database, User, Password, isClientMode, dataExchange);
 
         // 初期タグ作成
+        if (!GlobalScript.tagDatas.ContainsKey(Name))
+        {
+            GlobalScript.tagDatas.Add(Name, new Dictionary<string, Dictionary<string, TagInfo>>());
+        }
         foreach (var inner in innerSettings)
         {
-            if (!GlobalScript.tagDatas.ContainsKey(Name))
-            {
-                GlobalScript.tagDatas.Add(Name, new Dictionary<string, Dictionary<string, TagInfo>>());
-            }
             if (!GlobalScript.tagDatas[Name].ContainsKey(inner.mechId))
             {
                 GlobalScript.tagDatas[Name].Add(inner.mechId, new Dictionary<string, TagInfo>());
@@ -328,6 +433,17 @@ public class ComInner : ComBaseScript
             if (!GlobalScript.tagDatas[Name][inner.mechId].ContainsKey(inner.tag))
             {
                 GlobalScript.tagDatas[Name][inner.mechId].Add(inner.tag, ScriptableObject.CreateInstance<TagInfo>());
+            }
+        }
+        foreach (var tags in GlobalScript.callbackTags)
+        {
+            if (!GlobalScript.tagDatas[Name].ContainsKey(tags.cycle.MechId))
+            {
+                GlobalScript.tagDatas[Name].Add(tags.cycle.MechId, new Dictionary<string, TagInfo>());
+            }
+            if (!GlobalScript.tagDatas[Name][tags.cycle.MechId].ContainsKey(tags.cycle.Tag))
+            {
+                GlobalScript.tagDatas[Name][tags.cycle.MechId].Add(tags.cycle.Tag, ScriptableObject.CreateInstance<TagInfo>());
             }
         }
 
@@ -352,6 +468,8 @@ public class ComInner : ComBaseScript
         {
             var act = new ActionTiming
             {
+                name = actionSetting.name,
+                index = actionSettings.IndexOf(actionSetting),
                 mechId = actionSetting.mechId,
                 cycle = actionSetting.cycle,
                 timings = new()
@@ -367,7 +485,143 @@ public class ComInner : ComBaseScript
                 };
                 act.timings.Add(timing);
             }
-            acts.Add(act);
+            if (act.timings.Count > 0)
+            {
+                acts.Add(act);
+            }
+        }
+    }
+
+    /// <summary>
+    /// キャンバス追加
+    /// </summary>
+    private void CreateCanvas()
+    {
+        // キャンバス取得
+        var canvasObjs = GameObject.FindObjectsByType<GameObject>(FindObjectsSortMode.None).Where(d => d.name == "Canvas").ToList();
+        canvaObj = canvasObjs.Count == 0 ? new GameObject("Canvas", typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster)) : canvasObjs[0];
+        var prefabs = GlobalScript.LoadPrefabObject("Prefabs/Canvas", "ComInner");
+        if (prefabs.Count > 0)
+        {
+            uiObj = Instantiate(prefabs[0]);
+            uiObj.transform.parent = canvaObj.transform;
+            ((RectTransform)uiObj.transform).anchoredPosition = new Vector2(((RectTransform)uiObj.transform).rect.width / 2, -((RectTransform)uiObj.transform).rect.height / 2);
+
+            // コンポネント取得
+            toggle = uiObj.GetComponentInChildren<Toggle>();
+            slider = uiObj.GetComponentInChildren<Slider>();
+            text = uiObj.GetComponentsInChildren<TextMeshProUGUI>().Where(d => d.name == "ComInnerText").ToList()[0];
+            button = uiObj.GetComponentsInChildren<Button>().Where(d => d.name == "ComInnerButton").ToList()[0];
+            input = uiObj.GetComponentsInChildren<TMP_InputField>().Where(d => d.name == "ComInnerInput").ToList()[0];
+            cycle = uiObj.GetComponentsInChildren<TextMeshProUGUI>().Where(d => d.name == "ComInnerCycle").ToList()[0]; ;
+            buttonPrev = uiObj.GetComponentsInChildren<Button>().Where(d => d.name == "ComInnerPrevButton").ToList()[0];
+            buttonNext = uiObj.GetComponentsInChildren<Button>().Where(d => d.name == "ComInnerNextButton").ToList()[0];
+            inputStep = uiObj.GetComponentsInChildren<TMP_InputField>().Where(d => d.name == "ComInnerStep").ToList()[0];
+
+            // イベント登録
+            toggle.onValueChanged.AddListener(toggle_onValueChanged);
+            slider.onValueChanged.AddListener(slider_onValueChanged);
+            button.onClick.AddListener(button_onClick);
+            input.onValueChanged.AddListener(input_onValueChanged);
+            buttonPrev.onClick.AddListener(buttonPrev_onClick);
+            buttonNext.onClick.AddListener(buttonNext_onClick);
+            inputStep.onValueChanged.AddListener(inputStep_onValueChanged);
+
+            // 初期値セット
+            slider.value = 1;
+            slider.maxValue = 5;
+            slider.minValue = 0;
+            input.text = acts.Count > 0 ? acts[0].cycle.ToString() : "1000";
+            inputStep.text = "10";
+        }
+    }
+
+    /// <summary>
+    /// トグル変更イベント
+    /// </summary>
+    /// <param name="value"></param>
+    private void toggle_onValueChanged(bool value)
+    {
+        isStop = value;
+    }
+
+    /// <summary>
+    /// スライダー値変更イベント
+    /// </summary>
+    /// <param name="value"></param>
+    private void slider_onValueChanged(float value)
+    {
+        timeRate = value;
+        text.text = value.ToString("0.00");
+    }
+
+    /// <summary>
+    /// ボタンクリックイベント
+    /// </summary>
+    private void button_onClick()
+    {
+        slider.value = 1;
+    }
+
+    /// <summary>
+    /// 値取得
+    /// </summary>
+    /// <param name="text"></param>
+    private void input_onValueChanged(string text)
+    {
+        int value = 0;
+        if (int.TryParse(text, out value))
+        {
+            if (value <= 0)
+            {
+                input.text = acts.Count > 0 ? acts[0].cycle.ToString() : "1000";
+            }
+            else
+            {
+                viewCycle = value;
+            }
+        }
+    }
+
+    /// <summary>
+    /// ボタンクリックイベント
+    /// </summary>
+    private void buttonPrev_onClick()
+    {
+        toggle.isOn = true;
+        int value = 0;
+        if (int.TryParse(inputStep.text, out value))
+        {
+            step = -value;
+        }
+    }
+
+    /// <summary>
+    /// ボタンクリックイベント
+    /// </summary>
+    private void buttonNext_onClick()
+    {
+        toggle.isOn = true;
+        int value = 0;
+        if (int.TryParse(inputStep.text, out value))
+        {
+            step = value;
+        }
+    }
+
+    /// <summary>
+    /// 値取得
+    /// </summary>
+    /// <param name="text"></param>
+    private void inputStep_onValueChanged(string text)
+    {
+        int value = 0;
+        if (int.TryParse(text, out value))
+        {
+            if (value <= 0)
+            {
+                inputStep.text = "1";
+            }
         }
     }
 }
