@@ -454,6 +454,7 @@ namespace Parameters
                         var unit = unitSettings.Find(d => (d.mechId == sw.mechId) && (d.name == sw.name));
                         if ((unit != null) && ((unit.group == null) || (unit.group == "")))
                         {
+                            unit.parent = unit.parent == "" ? "_switch" + (switchSettings.IndexOf(sw) + 1) : unit.parent;
                             if (allObjects.Find(d => d.name == unit.parent) == null)
                             {
                                 // モデルが存在しないので作成
