@@ -26,18 +26,54 @@ public class SuctionScript : UseTagBaseScript
     [SerializeField]
     public Vector3 rotFixed;
 
+    [SerializeField]
+    public bool IsDebug;
+
+    [SerializeField]
+    public bool IsNowSuck;
+
+    [SerializeField]
+    public bool IsSuck;
+
     /// <summary>
     /// 吸引中オブジェクト
     /// </summary>
     private List<GameObject> SuckObjects = new List<GameObject>();
 
     /// <summary>
+    /// 吸引中段ボール
+    /// </summary>
+    private List<CardboardScript> SuckCardboards = new List<CardboardScript>();
+
+    /// <summary>
+    /// 衝突検知用
+    /// </summary>
+    private Rigidbody rigi;
+
+    /// <summary>
+    /// 起動時処理
+    /// </summary>
+    protected override void Start()
+    {
+        base.Start();
+    }
+
+    /// <summary>
     /// サイクル処理
     /// </summary>
     protected override void MyFixedUpdate()
     {
+        IsSuck = (GlobalScript.GetTagData(Tag) != 0) || IsDebug;
+        if (rigi.IsSleeping())
+        {
+            rigi.WakeUp();
+        }
+
+        // 吸引時のみ衝突有
+        //        this.rigi.detectCollisions = IsSuck;
+        // ワーク処理
         SuckObjects.RemoveAll(d => d == null);
-        if (SuckObjects.Count > 0 && (GlobalScript.GetTagData(Tag) == 0))
+        if ((SuckObjects.Count > 0) && !IsSuck)
         {
             // 吸引OFF
             foreach (var suck in SuckObjects)
@@ -49,6 +85,19 @@ public class SuctionScript : UseTagBaseScript
             }
             SuckObjects.Clear();
         }
+        // 段ボール処理
+        SuckCardboards.RemoveAll(d => d == null);
+        if ((SuckCardboards.Count > 0) && !IsSuck)
+        {
+            // 吸引OFF
+            foreach (var suck in SuckCardboards)
+            {
+                suck.ResetSuction(this);
+            }
+            SuckCardboards.Clear();
+        }
+        IsNowSuck = (IsSuck && ((SuckObjects.Count > 0) || (SuckCardboards.Count > 0))) ? true : false;
+        GlobalScript.SetTagData(Output, SuckObjects.Count > 0 ? 1 : 0);
     }
 
     /// <summary>
@@ -61,33 +110,53 @@ public class SuctionScript : UseTagBaseScript
 
     protected override void OnCollisionStay(Collision collision)
     {
-        var value = GlobalScript.GetTagData(Tag);
-        if (value >= 1)
+        if (IsSuck)
         {
-            var script = collision.gameObject.GetComponentInParent<ObjectScript>();
-            if ((script != null) && !SuckObjects.Contains(script.gameObject))
+            // 通常ワーク
+            var objScript = collision.gameObject.GetComponentInParent<ObjectScript>();
+            var cbScript = collision.gameObject.GetComponentInParent<CardboardScript>();
+            if ((objScript != null) && !SuckObjects.Contains(objScript.gameObject))
             {
+                if ((cbScript != null) && (SuckCardboards.Contains(cbScript)))
+                {
+                    return;
+                }
                 //                script.transform.parent = unitSetting.moveObject.transform;
-                script.transform.parent = transform;
-                var rigi = script.GetComponentInChildren<Rigidbody>();
+                objScript.transform.parent = transform;
+                var rigi = objScript.GetComponentInChildren<Rigidbody>();
                 rigi.useGravity = false;
                 rigi.isKinematic = true;
-                script.transform.localPosition = new Vector3
+                objScript.transform.localPosition = new Vector3
                 {
-                    x = posFixed.x == 1 ? posOffset.x : script.transform.localPosition.x,
-                    y = posFixed.y == 1 ? posOffset.y : script.transform.localPosition.y,
-                    z = posFixed.z == 1 ? posOffset.z : script.transform.localPosition.z,
+                    x = posFixed.x == 1 ? posOffset.x * objScript.transform.localScale.x : objScript.transform.localPosition.x,
+                    y = posFixed.y == 1 ? posOffset.y * objScript.transform.localScale.y : objScript.transform.localPosition.y,
+                    z = posFixed.z == 1 ? posOffset.z * objScript.transform.localScale.z : objScript.transform.localPosition.z,
                 };
-                script.transform.localEulerAngles = new Vector3
+                objScript.transform.localEulerAngles = new Vector3
                 {
-                    x = rotFixed.x == 1 ? rotOffset.x : script.transform.localEulerAngles.x,
-                    y = rotFixed.y == 1 ? rotOffset.y : script.transform.localEulerAngles.y,
-                    z = rotFixed.z == 1 ? rotOffset.z : script.transform.localEulerAngles.z,
+                    x = rotFixed.x == 1 ? rotOffset.x * objScript.transform.localScale.x : objScript.transform.localEulerAngles.x,
+                    y = rotFixed.y == 1 ? rotOffset.y * objScript.transform.localScale.y : objScript.transform.localEulerAngles.y,
+                    z = rotFixed.z == 1 ? rotOffset.z * objScript.transform.localScale.z : objScript.transform.localEulerAngles.z,
                 };
-                SuckObjects.Add(script.gameObject);
+                SuckObjects.Add(objScript.gameObject);
+                if (cbScript != null)
+                {
+                    // 段ボールなら
+                    foreach (ContactPoint contact in collision.contacts)
+                    {
+                        var parts = contact.otherCollider.transform.parent.gameObject;
+                        if (parts != null)
+                        {
+                            if (cbScript.SetSuction(this, parts))
+                            {
+                                SuckCardboards.Add(cbScript);
+                            }
+                            break;
+                        }
+                    }
+                }
             }
         }
-        GlobalScript.SetTagData(Output, value);
     }
 
     /// <summary>
@@ -98,6 +167,9 @@ public class SuctionScript : UseTagBaseScript
     public override void SetParameter(UnitSetting unitSetting, object obj)
     {
         base.SetParameter(unitSetting, obj);
+
+        rigi = GetComponent<Rigidbody>();
+        rigi.sleepThreshold = 0;
 
         var s = (SuctionSetting)obj;
         Tag = ScriptableObject.CreateInstance<TagInfo>();
@@ -122,15 +194,15 @@ public class SuctionScript : UseTagBaseScript
         };
         posOffset = new Vector3
         {
-            x = s.pos[0] * transform.localScale.x,
-            y = s.pos[1] * transform.localScale.y,
-            z = s.pos[2] * transform.localScale.z
+            x = s.pos[0],
+            y = s.pos[1],
+            z = s.pos[2]
         };
         rotOffset = new Vector3
         {
-            x = s.rot[0] * transform.localScale.x,
-            y = s.rot[1] * transform.localScale.y,
-            z = s.rot[2] * transform.localScale.z
+            x = s.rot[0],
+            y = s.rot[1],
+            z = s.rot[2]
         };
         var meshs = transform.GetComponentsInChildren<MeshCollider>();
         if (meshs.Length == 0)

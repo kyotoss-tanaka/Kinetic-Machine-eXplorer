@@ -8,12 +8,30 @@ public class EventPropagation : KssBaseScript
     /// 親スクリプト
     /// </summary>
     private List<KssBaseScript> parentScripts = new List<KssBaseScript>();
-    protected override void Start()
-    {
-        base.Start();
 
-        // 親スクリプト
-        parentScripts = transform.parent.GetComponentsInChildren<KssBaseScript>().Where(d => d.transform == transform.parent).ToList();
+    /// <summary>
+    /// ロード完了
+    /// </summary>
+    private bool isLoaded = false;
+
+    /// <summary>
+    /// 更新処理
+    /// </summary>
+    protected override void MyFixedUpdate()
+    {
+        base.MyFixedUpdate();
+
+        if (!GlobalScript.isLoaded || GlobalScript.isReqLoadEvent)
+        {
+            isLoaded = false;
+            GlobalScript.isReqLoadEvent = false;
+        }
+        else if (!isLoaded)
+        {
+            isLoaded = true;
+            // 親スクリプト
+            parentScripts = transform.parent.GetComponentsInChildren<KssBaseScript>().Where(d => d.transform == transform.parent).ToList();
+        }
     }
 
     public override void OnMouseDown()
@@ -31,6 +49,24 @@ public class EventPropagation : KssBaseScript
         foreach (var script in parentScripts)
         {
             script.OnMouseUp();
+        }
+    }
+
+    public override void OnMouseEnter()
+    {
+        base.OnMouseEnter();
+        foreach (var script in parentScripts)
+        {
+            script.OnMouseEnter();
+        }
+    }
+
+    public override void OnMouseExit()
+    {
+        base.OnMouseExit();
+        foreach (var script in parentScripts)
+        {
+            script.OnMouseExit();
         }
     }
 }

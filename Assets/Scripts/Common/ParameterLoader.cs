@@ -11,6 +11,7 @@ using static UnityEngine.UI.CanvasScaler;
 using System.Collections;
 using NUnit.Framework;
 using UnityEngine.UI;
+using TMPro;
 
 namespace Parameters
 {
@@ -26,6 +27,9 @@ namespace Parameters
             public string key;
             public GameObject obj;
         }
+
+        private bool isDebug = false;
+        private System.Diagnostics.Stopwatch swDebug = new System.Diagnostics.Stopwatch();
 
         /// <summary>
         /// 動作可能オブジェクト名
@@ -56,25 +60,49 @@ namespace Parameters
         private List<SensorSetting> sensorSettings;
         private List<SuctionSetting> suctionSettings;
         private List<ShapeSetting> shapeSettings;
+        private List<ExMechSetting> exMechSettings;
         private List<SwitchSetting> switchSettings;
         private List<SignalTowerSetting> towerSettings;
+        private List<LedSetting> ledSettings;
+        private List<CardboardSetting> cardboardSettings;
         private List<DebugSetting> debugSettings;
         private List<ActionTableData> actionTableDatas;
-        private BuildConfig buildConfig;
-        private bool IsLoading = false;
         private bool IsPrmLoading = false;
 
+        // シェーダー
+        private HashSet<Material> allMaterials = new HashSet<Material>();
+        private Shader clipShader;
+        private Shader standardShader;
+
+        // パラメータ描画用
         private GameObject canvaObj;
-        private GameObject uiObj;
-        private Toggle toggle;
+        // 衝突検知
+        private GameObject uiCollision;
+        // 断面切断
+        private CanvasMenuViewScript viewScript;
+        private GameObject uiView;
+        // プログレスバー
+        private GameObject uiProgress;
+        private Slider prgSlider;
+        private TextMeshProUGUI prgText;
+        private TextMeshProUGUI prgText2;
+
+        // マテリアルキャッシュ
+        private Dictionary<string, Material> materialCache = new Dictionary<string, Material>();
 
         void Awake()
         {
-            Debug.Log($"***** Start Load *****");
+            DebugLog($"***** Start Load *****");
 
-            StartCoroutine(LoadParameter());
+            // シェーダーロード
+            clipShader = Shader.Find("Custom/ClipTransparent");
+            standardShader = Shader.Find("Standard");
 
+            // キャンバス生成
             CreateCanvas();
+
+            // ロード開始
+            StartCoroutine(LoadParameter());
         }
 
         /// <summary>
@@ -83,6 +111,14 @@ namespace Parameters
         /// <returns></returns>
         private IEnumerator LoadParameter()
         {
+            // ロード開始
+            GlobalScript.isLoading = true;
+            // デバッグ時間開始
+            swDebug.Restart();
+            SetProgress(0);
+            SetProgressLabel("Loading Prefab Files");
+            DebugLog($"***** Load Start *****", true);
+
             // データ削除
             yield return null; // 1フレーム待
             GlobalScript.ClearDictionary();
@@ -95,7 +131,7 @@ namespace Parameters
             globalSetting = globalSettings.Count > 0 ? globalSettings[0] : new GameObject("GlobalSetting");
             try
             {
-                Debug.Log($"***** Load Prefab Model *****");
+                DebugLog($"***** Load Prefab Model *****");
                 if (prefabs.Count == 0)
                 {
                     prefabs = GlobalScript.CreateInitialModel();
@@ -111,13 +147,13 @@ namespace Parameters
                     towerPrefabs = GlobalScript.CreateSignalTowerModel();
                 }
                 // 各種設定ファイルロード
-                Debug.Log($"***** Parameter Load *****");
+                DebugLog($"***** Parameter Load *****");
                 IsPrmLoading = true;
                 LoadParameterFiles();
             }
             catch (Exception ex)
             {
-                Debug.Log($"***** " + ex.Message + " *****");
+                DebugLog($"***** " + ex.Message + " *****");
             }
             {
                 // パラメータロード待ち
@@ -126,7 +162,7 @@ namespace Parameters
                     yield return null; // 1フレーム待
                 }
 
-                Debug.Log($"***** Set Debug Info *****");
+                DebugLog($"***** Set Debug Info *****");
                 // 折り返し用データ
                 GlobalScript.actionTableDatas = actionTableDatas;
                 GlobalScript.callbackTags.Clear();
@@ -137,19 +173,19 @@ namespace Parameters
                     {
                         var tag = new GlobalScript.CallbackTag();
                         tag.database = setting.database;
-                        tag.input = ScriptableObject.CreateInstance<TagInfo>();
+                        tag.input = ScriptableObject.CreateInstance<GlobalScript.CbTagInfo>();
                         tag.input.Database = setting.database;
                         tag.input.MechId = setting.mechId;
                         tag.input.Tag = setting.input;
-                        tag.output = ScriptableObject.CreateInstance<TagInfo>();
+                        tag.output = ScriptableObject.CreateInstance<GlobalScript.CbTagInfo>();
                         tag.output.Database = setting.database;
                         tag.output.MechId = setting.mechId;
                         tag.output.Tag = setting.output;
-                        tag.cntIn = ScriptableObject.CreateInstance<TagInfo>();
+                        tag.cntIn = ScriptableObject.CreateInstance<GlobalScript.CbTagInfo>();
                         tag.cntIn.Database = setting.database;
                         tag.cntIn.MechId = setting.mechId;
                         tag.cntIn.Tag = setting.inputCnt;
-                        tag.cntOut = ScriptableObject.CreateInstance<TagInfo>();
+                        tag.cntOut = ScriptableObject.CreateInstance<GlobalScript.CbTagInfo>();
                         tag.cntOut.Database = setting.database;
                         tag.cntOut.MechId = setting.mechId;
                         tag.cntOut.Tag = setting.outputCnt;
@@ -164,12 +200,11 @@ namespace Parameters
                         {
                             tag.cycle.Tag = setting.cycle == "" ? "" : setting.cycle;
                         }
-                        tag.stopwatch = new System.Diagnostics.Stopwatch();
                         GlobalScript.callbackTags.Add(tag);
                     }
                 }
 
-                Debug.Log($"***** Set Database *****");
+                DebugLog($"***** Set Database *****");
                 foreach (var p in postgresSettings)
                 {
                     var ex = dataExSettings.Find(d => d.dbNo == p.No);
@@ -197,17 +232,35 @@ namespace Parameters
                         var db = (ComInner)globalSetting.AddComponent<ComInner>();
                         db.SetParameter(p.No, p.Cycle, p.Server, p.Port, p.Database, p.User, p.Password, p.isClientMode, ex, innerSettings, actionSettings);
                     }
+                    else if (p.isDirectMode)
+                    {
+                        // 直接通信モード
+                        foreach (var direct in p.directDatas)
+                        {
+                            if (direct.isMcProtocol)
+                            {
+                                var db = (ComMcProtocol)globalSetting.AddComponent<ComMcProtocol>();
+                                db.SetParameter(p.No, p.Cycle, p.Server, p.Port, p.Database, p.User, p.Password, p.isClientMode, ex, direct);
+                            }
+                            else if (direct.isMicks)
+                            {
+                                var db = (ComMicks)globalSetting.AddComponent<ComMicks>();
+                                db.SetParameter(p.No, p.Cycle, p.Server, p.Port, p.Database, p.User, p.Password, p.isClientMode, ex, direct);
+                            }
+                        }
+                    }
                 }
-
+                /*
                 // 無視オブジェクト無効化
                 if (buildConfig.isRelease)
                 {
                     // リリースモード時
-                    Debug.Log($"***** Hidden Models *****");
+                    DebugLog($"***** Hidden Models *****");
                     foreach (var prefab in prefabs)
                     {
                         if (prefab.name[0] != '_')
                         {
+                            // 生成用ワーク保持
                             foreach (var wk in wkSettings)
                             {
                                 var work = prefab.GetComponentsInChildren<Transform>().ToList().FindAll(d => d.name == wk.work);
@@ -224,7 +277,30 @@ namespace Parameters
                                     w.obj.SetActive(false);
                                 }
                             }
-
+                            // 生成用段ボール保持
+                            foreach (var cb in cardboardSettings)
+                            {
+                                var unit = unitSettings.Find(d => (d.mechId == cb.mechId) && (d.name == cb.name));
+                                if (unit != null)
+                                {
+                                    var cardboard = prefab.GetComponentsInChildren<Transform>().ToList().FindAll(d => d.name == unit.parent);
+                                    if (cardboard.Count > 0)
+                                    {
+                                        cardboard[0].transform.parent = prefabObj.transform;
+                                        var c = works.Find(d => d.key == cb.name);
+                                        if (c == null)
+                                        {
+                                            c = new ObjEntry { key = cb.name };
+                                            works.Add(c);
+                                        }
+                                        c.obj = Instantiate(cardboard[0].gameObject);
+                                        var cbs =  c.obj.AddComponent<CardboardScript>();
+                                        cbs.SetParameter(unit, cb);
+                                        c.obj.SetActive(false);
+                                    }
+                                }
+                            }
+                            // 非表示モデル
                             foreach (var m in hiddenSettings)
                             {
                                 if (m.isEnable)
@@ -278,8 +354,9 @@ namespace Parameters
                         }
                     }
                 }
+                */
 
-                Debug.Log($"***** Load Prefab Model *****");
+                DebugLog($"***** Load Prefab Model *****");
                 foreach (var prefab in prefabs)
                 {
                     if (prefab.name[0] != '_')
@@ -302,8 +379,9 @@ namespace Parameters
                 }
 
                 // 無視オブジェクト無効化
-                if (!buildConfig.isRelease)
+//                if (!buildConfig.isRelease)
                 {
+                    // 生成用ワーク保持
                     foreach (var wk in wkSettings)
                     {
                         var work = GameObject.FindObjectsByType<GameObject>(FindObjectsSortMode.None).ToList().FindAll(d => d.name == wk.work);
@@ -319,8 +397,31 @@ namespace Parameters
                             }
                         }
                     }
+                    // 生成用段ボール保持
+                    foreach (var cb in cardboardSettings)
+                    {
+                        var unit = unitSettings.Find(d => (d.mechId == cb.mechId) && (d.name == cb.name));
+                        if (unit != null)
+                        {
+                            var cardboard = GameObject.FindObjectsByType<GameObject>(FindObjectsSortMode.None).ToList().FindAll(d => d.name == unit.parent);
+                            if (cardboard.Count > 0)
+                            {
+                                var c = works.Find(d => d.key == cb.name);
+                                if (c == null)
+                                {
+                                    cardboard[0].transform.parent = prefabObj.transform;
+                                    c = new ObjEntry { key = cb.name };
+                                    works.Add(c);
+                                    c.obj = Instantiate(cardboard[0].gameObject);
+                                    var cbs = c.obj.AddComponent<CardboardScript>();
+                                    cbs.SetParameter(unit, cb);
+                                    c.obj.SetActive(false);
+                                }
+                            }
+                        }
+                    }
                     // デバッグモード時
-                    Debug.Log($"***** Hidden Models *****");
+                    DebugLog($"***** Hidden Models *****");
                     // 無視オブジェクト無効化
                     foreach (var m in hiddenSettings)
                     {
@@ -384,12 +485,15 @@ namespace Parameters
                 var names = new List<string>();
                 foreach (var unitSetting in unitSettings)
                 {
+                    // ユニット設定にDB情報セット
                     var db = postgresSettings.Find(d => d.No == unitSetting.dbNo);
                     if (db != null)
                     {
                         unitSetting.Database = db.Name;
                     }
-                    if ((unitSetting.parent != null) || (unitSetting.parent != null))
+                    /*
+                     * 必要ない可能性が高いので無効化
+                    if (unitSetting.parent != null)
                     {
                         if (!names.Contains(unitSetting.parent))
                         {
@@ -404,11 +508,21 @@ namespace Parameters
                             names.Add(unitSetting.parent);
                         }
                     }
+                    */
+                    if (SetProgress(unitSettings.IndexOf(unitSetting) / (unitSettings.Count * 3f)))
+                    {
+                        yield return null; // 1フレーム待
+                    }
                 }
 
                 // ユニットオブジェクト先に生成しておく
                 movableObjs.Clear();
                 undefinedUnits.Clear();
+                // 段ボールはユニットは作成しない
+                foreach (var cb in cardboardSettings)
+                {
+                    unitSettings.RemoveAll(d => d.name == cb.name);
+                }
                 foreach (var unitSetting in unitSettings)
                 {
                     unitSetting.unitObject = new GameObject(unitSetting.name);
@@ -476,6 +590,7 @@ namespace Parameters
                         var unit = unitSettings.Find(d => (d.mechId == st.mechId) && (d.name == st.name));
                         if ((unit != null) && ((unit.group == null) || (unit.group == "")))
                         {
+                            unit.parent = unit.parent == "" ? "_signalTower" + (towerSettings.IndexOf(st) + 1) : unit.parent;
                             if (allObjects.Find(d => d.name == unit.parent) == null)
                             {
                                 // モデルが存在しないので作成
@@ -488,13 +603,13 @@ namespace Parameters
                         }
                     }
                 }
-
                 // 親モデルに動作スクリプトを付与
-                Debug.Log($"***** Load Units *****");
+                DebugLog($"***** Load Units *****");
+                SetProgressLabel("Loading Units");
+                // 親モデル検索用 ※ループ内から移動(ユニットを先に作成しているので問題ない？)
+                allObjects = GameObject.FindObjectsByType<GameObject>(FindObjectsSortMode.None).ToList();
                 foreach (var unitSetting in unitSettings)
                 {
-                    // 親モデル検索用
-                    allObjects = GameObject.FindObjectsByType<GameObject>(FindObjectsSortMode.None).ToList();
                     unitSetting.childrenObject = new List<GameObject>();
                     var gameObjects = allObjects.FindAll(d => d.name == unitSetting.parent);
                     if(gameObjects.Count == 0)
@@ -504,7 +619,7 @@ namespace Parameters
                         dummy.name = unitSetting.name;
                         dummy.isStatic = true;
                         gameObjects.Add(dummy);
-                        Debug.Log($"エラー：ユニット名「{unitSetting.name}」の親モデル「{unitSetting.parent}」が存在しません。");
+                        DebugLog($"エラー：ユニット名「{unitSetting.name}」の親モデル「{unitSetting.parent}」が存在しません。");
                     }
                     if (gameObjects.Count > 0)
                     {
@@ -547,14 +662,15 @@ namespace Parameters
                             else
                             {
                                 Debug.Log($"エラー：ユニット名「{unitSetting.name}」の親モデル「{unitSetting.parent}」がグループ[{unitSetting.group}]に存在しません。");
+                                continue;
                             }
                         }
                         // ロボット紐づけ
                         unitSetting.robotSetting = robotSettings.Find(d => (d.mechId == unitSetting.mechId) && (d.name == unitSetting.name));
                         // ワーク生成設定紐づけ
-                        unitSetting.workSetting = wkSettings.Find(d => (d.mechId == unitSetting.mechId) && (d.name == unitSetting.name));
+                        unitSetting.workSettings = wkSettings.FindAll(d => (d.mechId == unitSetting.mechId) && (d.name == unitSetting.name));
                         // ワーク削除設定紐づけ
-                        unitSetting.workDeleteSetting = wkDeleteSettings.Find(d => (d.mechId == unitSetting.mechId) && (d.name == unitSetting.name));
+                        unitSetting.workDeleteSettings = wkDeleteSettings.FindAll(d => (d.mechId == unitSetting.mechId) && (d.name == unitSetting.name));
                         // センサ設定紐づけ
                         unitSetting.sensorSettings = sensorSettings.FindAll(d => (d.mechId == unitSetting.mechId) && (d.name == unitSetting.name));
                         // 吸引設定紐づけ
@@ -565,6 +681,23 @@ namespace Parameters
                         unitSetting.switchSetting = switchSettings.Find(d => (d.mechId == unitSetting.mechId) && (d.name == unitSetting.name));
                         // シグナルタワー設定紐づけ
                         unitSetting.towerSetting = towerSettings.Find(d => (d.mechId == unitSetting.mechId) && (d.name == unitSetting.name));
+                        // LED設定紐づけ
+                        unitSetting.ledSetting = ledSettings.Find(d => (d.mechId == unitSetting.mechId) && (d.name == unitSetting.name));
+                        // 機構拡張設定紐づけ
+                        unitSetting.exMechSetting = exMechSettings.Find(d => (d.mechId == unitSetting.mechId) && (d.name == unitSetting.name));
+                        if (unitSetting.exMechSetting != null)
+                        {
+                            // 機構拡張設定
+                            foreach (var data in unitSetting.exMechSetting.datas)
+                            {
+                                // モデルを設定しておく
+                                data.gameObject = allObjects.FindAll(d => d.name == data.model).Find(d => GetScenePath(d).Contains(data.group));
+                                foreach (var child in data.children)
+                                {
+                                    child.gameObject = allObjects.FindAll(d => d.name == child.model).Find(d => GetScenePath(d).Contains(child.group));
+                                }
+                            }
+                        }
                         // チャック設定更新
                         var chuckSetting = chuckUnitSettings.Find(d => (d.mechId == unitSetting.mechId) && (d.name == unitSetting.name));
                         if (chuckSetting != null)
@@ -675,6 +808,7 @@ namespace Parameters
                                 (unitSetting.shapeSetting != null) ||           // 形状設定あり
                                 (unitSetting.switchSetting != null) ||          // スイッチ設定あり
                                 (unitSetting.towerSetting != null) ||           // シグナルタワー設定あり
+                                (unitSetting.ledSetting != null) ||             // LED設定あり
                                 (unitSetting.isCollision && !isChuck))          // チャック以外の衝突検知あり
                             {
                                 // 構成のみセット
@@ -693,20 +827,27 @@ namespace Parameters
                     {
 //                        yield return null; // 1フレーム待
                     }
+                    // プログレスバー設定
+                    if (SetProgress((unitSettings.IndexOf(unitSetting) + unitSettings.Count) / (unitSettings.Count * 3f)))
+                    {
+                        yield return null; // 1フレーム待
+                    }
                 }
-
                 // 使い勝手向上のため動作可能オブジェクトを移動
                 var allMobableObjs = GameObject.FindObjectsByType<GameObject>(FindObjectsSortMode.None).ToList().FindAll(d => d.name.Contains(movableName + "_"));
+                // 名前順にソート
+                allMobableObjs.Sort((a, b) => a.transform.parent.name.CompareTo(b.transform.parent.name));
                 var moveObjs = new List<GameObject>();
                 foreach (var obj in allMobableObjs)
                 {
-                    var parents = obj.transform.parent.GetComponentsInParent<Transform>().ToList().FindAll(d => d.parent != null).ToList();
+                    // 親子関係を切らないように検索
+                    var parents = obj.transform.parent.GetComponentsInParent<Transform>().Where(d => d.parent != null).ToList();
                     parents.Remove(obj.transform.parent);
                     var isFind = false;
                     foreach (var p in parents)
                     {
-                        var tmp = p.GetComponentsInChildren<Transform>().ToList().FindAll(d => d.parent.transform == p.transform).Find(d => d.name.Contains(movableName + "_"));
-                        if (tmp != null) 
+                        var tmp = p.GetComponentsInChildren<Transform>().Where(d => (d.parent.transform == p.transform) && d.name.Contains(movableName + "_")).ToList();
+                        if (tmp.Count > 0) 
                         {
                             isFind = true;
                             break;
@@ -717,6 +858,10 @@ namespace Parameters
                         // 最上流の動作可能親オブジェクト
                         moveObjs.Add(obj);
                     }
+                    if (SetProgress(2 / 3f + allMobableObjs.IndexOf(obj) / (allMobableObjs.Count * 3f)))
+                    {
+                        yield return null; // 1フレーム待
+                    }
                 }
                 foreach (var m in moveObjs)
                 {
@@ -724,20 +869,80 @@ namespace Parameters
                     var uo = undefinedUnits.Find(d => d.key == mechId)!.obj;
                     var mo = movableObjs.Find(d => d.key == mechId)!.obj;
                     m.transform.parent.transform.parent = m.transform.parent.gameObject.isStatic ? uo.transform : mo.transform;
+                    // 衝突検知は親が持つ
+                    var rbs = m.transform.parent.GetComponentsInChildren<Rigidbody>().ToList();
+                    if (rbs.Count > 1)
+                    {
+                        // 2つ以上のRigidbodyが有った場合は親以外のRigidbodyは削除(衝突検知は親で行う)
+                        var prb = rbs.Find(d => d.transform.parent == m.transform.parent);
+                        if (prb != null)
+                        {
+                            // 最上流のオブジェクト取得
+                            rbs.Remove(prb);
+                            var removeRbs = new List<Rigidbody>();
+                            foreach (var rb in rbs)
+                            {
+                                if (rb.transform.GetComponent<SuctionScript>() == null)
+                                {
+                                    // 吸引以外は無視
+                                    Destroy(rb);
+                                }
+                            }
+                        }
+                    }
                 }
                 foreach (var m in allMobableObjs)
                 {
                     Destroy(m);
                 }
 
+                // シェーダー適用
+                {
+                    allMaterials = new();
+                    var renderers = new List<Renderer>();
+                    renderers.AddRange(prefabObj.GetComponentsInChildren<Renderer>().ToList());
+                    foreach (var m in movableObjs)
+                    {
+                        renderers.AddRange(m.obj.GetComponentsInChildren<Renderer>().ToList());
+                    }
+                    foreach (Renderer renderer in renderers)
+                    {
+                        foreach (Material mat in renderer.materials)
+                        {
+                            if (mat != null)
+                            {
+                                if (mat.shader == standardShader)
+                                {
+                                    allMaterials.Add(mat);
+                                }
+                            }
+                        }
+                    }
+                    //  描画エリア取得
+                    renderers = prefabObj.GetComponentsInChildren<Renderer>().ToList();
+                    if (renderers.Count > 0)
+                    {
+                        // 最初のRendererで初期化
+                        GlobalScript.clipInfo.bounds = renderers[0].bounds;
+                        // 残りのRendererを包含
+                        foreach (Renderer rend in renderers)
+                        {
+                            GlobalScript.clipInfo.bounds.Encapsulate(rend.bounds);
+                        }
+                        // 初期値セット
+                        viewScript.clipToggle_onValueChanged(true);
+                    }
+                }
+
                 // デバッグ情報
-                if (buildConfig.isRelease)
+                if (GlobalScript.buildConfig.isRelease)
                 {
                     // 静的バッチングに変更
                     MeshRenderer[] renderers = prefabObj.GetComponentsInChildren<MeshRenderer>();
                     GameObject[] batchTargets = new GameObject[renderers.Length];
                     for (int i = 0; i < renderers.Length; i++)
                     {
+                        renderers[i].gameObject.isStatic = true;
                         batchTargets[i] = renderers[i].gameObject;
                         // VRは透明オブジェクトを削除
                         if ((Application.platform == RuntimePlatform.Android) || (Application.platform == RuntimePlatform.IPhonePlayer))
@@ -755,7 +960,7 @@ namespace Parameters
                             }
                         }
                     }
-                    // 静的バッチングを実行（親にまとめてバッチング）
+                    // 静的バッチングを実行（親にまとめてバッチング）※tri数が多くなるのと静的バッチングが実行されないので無効化
                     StaticBatchingUtility.Combine(batchTargets, prefabObj);
                 }
 
@@ -764,11 +969,165 @@ namespace Parameters
                 {
                     prefabObj.SetActive(false);
                 }
+                else if(GlobalScript.buildConfig.isCollision)
+                {
+                    SetProgressLabel("Creating All Collision Configurations");
+                    yield return null; // 1フレーム待
+                    GlobalScript.CreateCollider(prefabObj);
+                    foreach (var obj in movableObjs)
+                    {
+                        GlobalScript.CreateCollider(obj.obj);
+                    }
+                }
+            }
+            if (SetProgress(100))
+            {
+                yield return null; // 1フレーム待
             }
             // イベント登録
-            toggle.onValueChanged.RemoveAllListeners();
-            toggle.onValueChanged.AddListener(toggle_onValueChanged);
-            IsLoading = false;
+            viewScript.SetEvents(allMaterials, standardShader, clipShader);
+            GlobalScript.isLoading = false;
+            GlobalScript.isLoaded = true;
+            DebugLog($"***** Load Finished *****", true);
+        }
+
+        /// <summary>
+        /// 動作パラメータのみ更新
+        /// </summary>
+        /// <returns></returns>
+        private IEnumerator LoadActParameter()
+        {
+            swDebug.Restart();
+            DebugLog($"***** Load Start *****", true);
+            var motions = new List<AxisMotionBase>();
+            var works = new List<ObjectScript>();
+            IsPrmLoading = true;
+            LoadParameterFiles();
+            // パラメータロード待ち
+            while (IsPrmLoading)
+            {
+                yield return null; // 1フレーム待
+            }
+            foreach (var obj in movableObjs)
+            {
+                motions.AddRange(obj.obj.GetComponentsInChildren<AxisMotionBase>().ToList());
+                works.AddRange(obj.obj.GetComponentsInChildren<ObjectScript>().ToList());
+            }
+            foreach (var work in works)
+            {
+                Destroy(work.gameObject);
+            }
+            foreach (var p in postgresSettings)
+            {
+                var ex = dataExSettings.Find(d => d.dbNo == p.No);
+                if (p.isPostgres)
+                {
+                    // Postgres
+                    var db = (ComPostgres)globalSetting.GetComponent<ComPostgres>();
+                    if (db == null)
+                    {
+                        db = (ComPostgres)globalSetting.AddComponent<ComPostgres>();
+                    }
+                    db.SetParameter(p.No, p.Cycle, p.Server, p.Port, p.Database, p.User, p.Password, p.isClientMode, ex);
+                }
+                else if (p.isMongo)
+                {
+                    // MongoDB
+                    var db = (ComMongo)globalSetting.GetComponent<ComMongo>();
+                    if (db == null)
+                    {
+                        db = (ComMongo)globalSetting.AddComponent<ComMongo>();
+                    }
+                    db.SetParameter(p.No, p.Cycle, p.Server, p.Port, p.Database, p.User, p.Password, p.isClientMode, ex);
+                }
+                else if (p.isMqtt)
+                {
+                    // MQTT
+                    var db = (ComMqtt)globalSetting.GetComponent<ComMqtt>();
+                    if (db == null)
+                    {
+                        db = (ComMqtt)globalSetting.AddComponent<ComMqtt>();
+                    }
+                    db.SetParameter(p.No, p.Cycle, p.Server, p.Port, p.Database, p.User, p.Password, p.isClientMode, ex);
+                }
+                else if (p.isInner)
+                {
+                    // 内部通信
+                    var db = (ComInner)globalSetting.GetComponent<ComInner>();
+                    if (db == null)
+                    {
+                        db = (ComInner)globalSetting.AddComponent<ComInner>();
+                    }
+                    db.SetParameter(p.No, p.Cycle, p.Server, p.Port, p.Database, p.User, p.Password, p.isClientMode, ex, innerSettings, actionSettings);
+                }
+                else if (p.isDirectMode)
+                {
+                    // 直接通信モード
+                    foreach (var obj in globalSetting.GetComponentsInChildren<ComProtocolBase>())
+                    {
+                        Destroy(obj);
+                    }
+                    foreach (var direct in p.directDatas)
+                    {
+                        if (direct.isMcProtocol)
+                        {
+                            var db = (ComMcProtocol)globalSetting.AddComponent<ComMcProtocol>();
+                            db.SetParameter(p.No, p.Cycle, p.Server, p.Port, p.Database, p.User, p.Password, p.isClientMode, ex, direct);
+                        }
+                        else if (direct.isMicks)
+                        {
+                            var db = (ComMicks)globalSetting.AddComponent<ComMicks>();
+                            db.SetParameter(p.No, p.Cycle, p.Server, p.Port, p.Database, p.User, p.Password, p.isClientMode, ex, direct);
+                        }
+                    }
+                }
+            }
+            foreach (var unitSetting in unitSettings)
+            {
+                if (unitSetting.name == "シート束後端整列")
+                {
+                }
+                var motion = motions.Find(d => (d.unitSetting.mechId == unitSetting.mechId) && (d.unitSetting.name == unitSetting.name));
+                if (motion != null)
+                {
+                    // ロボット紐づけ
+                    motion.unitSetting.robotSetting = robotSettings.Find(d => (d.mechId == unitSetting.mechId) && (d.name == unitSetting.name));
+                    // ワーク生成設定紐づけ
+                    motion.unitSetting.workSettings = wkSettings.FindAll(d => (d.mechId == unitSetting.mechId) && (d.name == unitSetting.name));
+                    // ワーク削除設定紐づけ
+                    motion.unitSetting.workDeleteSettings = wkDeleteSettings.FindAll(d => (d.mechId == unitSetting.mechId) && (d.name == unitSetting.name));
+                    // センサ設定紐づけ
+                    motion.unitSetting.sensorSettings = sensorSettings.FindAll(d => (d.mechId == unitSetting.mechId) && (d.name == unitSetting.name));
+                    // 吸引設定紐づけ
+                    motion.unitSetting.suctionSetting = suctionSettings.Find(d => (d.mechId == unitSetting.mechId) && (d.name == unitSetting.name));
+                    // 物体形状設定紐づけ
+                    motion.unitSetting.shapeSetting = shapeSettings.Find(d => (d.mechId == unitSetting.mechId) && (d.name == unitSetting.name));
+                    // スイッチ設定紐づけ
+                    motion.unitSetting.switchSetting = switchSettings.Find(d => (d.mechId == unitSetting.mechId) && (d.name == unitSetting.name));
+                    // シグナルタワー設定紐づけ
+                    motion.unitSetting.towerSetting = towerSettings.Find(d => (d.mechId == unitSetting.mechId) && (d.name == unitSetting.name));
+                    // LED設定紐づけ
+                    motion.unitSetting.ledSetting = ledSettings.Find(d => (d.mechId == unitSetting.mechId) && (d.name == unitSetting.name));
+                    // 機構拡張設定紐づけ
+                    motion.unitSetting.exMechSetting = exMechSettings.Find(d => (d.mechId == unitSetting.mechId) && (d.name == unitSetting.name));
+                    // 動作設定との紐づけ
+                    motion.unitSetting.actionSetting = actionSettings.Find(d => (d.mechId == unitSetting.mechId) && (d.name == unitSetting.name));
+                    // チャック設定
+                    var chuckSetting = chuckUnitSettings.Find(d => (d.mechId == unitSetting.mechId) && (d.name == unitSetting.name));
+                    if (chuckSetting != null)
+                    {
+                        foreach (var chuck in chuckSetting.children)
+                        {
+                            chuck.setting = unitSettings.Find(d => d.name == chuck.name);
+                        }
+                    }
+                    // 動作設定のみ更新
+                    motion.RenewUnitSetting(true);
+                    motion.RenewChuckSetting(chuckSetting);
+                    motion.RenewMoveDir();
+                }
+            }
+            DebugLog($"***** Load Finished *****", true);
         }
 
         /// <summary>
@@ -776,15 +1135,17 @@ namespace Parameters
         /// </summary>
         public void ReloadParameter()
         {
-            if (!IsLoading)
+            if (!GlobalScript.isLoading)
             {
-                IsLoading = true;
-                Debug.Log($"Start Reload");
+                GlobalScript.isLoading = true;
+                GlobalScript.isLoaded = false;
+                DebugLog($"Start Reload");
                 // 情報削除
-                foreach (var obj in globalSetting.GetComponentsInChildren<ComPostgres>())
+                foreach (var obj in globalSetting.GetComponentsInChildren<ComBaseScript>())
                 {
                     Destroy(obj);
                 }
+                /*
                 foreach (var obj in globalSetting.GetComponentsInChildren<ComMongo>())
                 {
                     Destroy(obj);
@@ -797,6 +1158,7 @@ namespace Parameters
                 {
                     Destroy(obj);
                 }
+                */
                 foreach (var obj in globalSetting.GetComponentsInChildren<Br6DScript>())
                 {
                     Destroy(obj);
@@ -819,49 +1181,71 @@ namespace Parameters
         }
 
         /// <summary>
+        /// 動作パラメータリロード
+        /// </summary>
+        public void ReloadActParameter()
+        {
+            if (!GlobalScript.isLoading)
+            {
+                GlobalScript.isLoading = true;
+                GlobalScript.isLoaded = false;
+                StartCoroutine(LoadActParameter());
+                GlobalScript.isLoading = false;
+                GlobalScript.isLoaded = true;
+                GlobalScript.isReqLoadEvent = true;
+            }
+        }
+
+        /// <summary>
         /// パラメータロード
         /// </summary>
         private async void LoadParameterFiles()
         {
-            Debug.Log($"***** Parameter Load : Postgres *****");
+            DebugLog($"***** Parameter Load : Postgres *****");
             postgresSettings = (List<PostgresSetting>)await GlobalScript.LoadListJson<List<PostgresSetting>>("Postgres");
-            Debug.Log($"***** Parameter Load : DataExchangeInfo *****");
+            DebugLog($"***** Parameter Load : DataExchangeInfo *****");
             dataExSettings = (List<DataExchangeSetting>)await GlobalScript.LoadListJson<List<DataExchangeSetting>>("DataExchangeInfo");
-            Debug.Log($"***** Parameter Load : UnitInfo *****");
+            DebugLog($"***** Parameter Load : UnitInfo *****");
             unitSettings = (List<UnitSetting>)await GlobalScript.LoadListJson<List<UnitSetting>>("UnitInfo");
-            Debug.Log($"***** Parameter Load : ActionInfo *****");
+            DebugLog($"***** Parameter Load : ActionInfo *****");
             actionSettings = (List<UnitActionSetting>)await GlobalScript.LoadListJson<List<UnitActionSetting>>("ActionInfo");
-            Debug.Log($"***** Parameter Load : InnerProcessInfo *****");
+            DebugLog($"***** Parameter Load : InnerProcessInfo *****");
             innerSettings = (List<InnerProcessSetting>)await GlobalScript.LoadListJson<List<InnerProcessSetting>>("InnerProcess");
-            Debug.Log($"***** Parameter Load : HiddenUnitInfo *****");
+            DebugLog($"***** Parameter Load : HiddenUnitInfo *****");
             hiddenSettings = (List<HiddenUnit>)await GlobalScript.LoadListJson<List<HiddenUnit>>("HiddenUnitInfo");
-            Debug.Log($"***** Parameter Load : ChuckUnitInfo *****");
+            DebugLog($"***** Parameter Load : ChuckUnitInfo *****");
             chuckUnitSettings = (List<ChuckUnitSetting>)await GlobalScript.LoadListJson<List<ChuckUnitSetting>>("ChuckUnitInfo");
-            Debug.Log($"***** Parameter Load : RobotInfo *****");
+            DebugLog($"***** Parameter Load : RobotInfo *****");
             robotSettings = (List<RobotSetting>)await GlobalScript.LoadListJson<List<RobotSetting>>("RobotInfo");
-            Debug.Log($"***** Parameter Load : PlanarMotorInfo *****");
+            DebugLog($"***** Parameter Load : PlanarMotorInfo *****");
             pmSettings = (List<PlanarMotorSetting>)await GlobalScript.LoadListJson<List<PlanarMotorSetting>>("PlanarMotorInfo");
-            Debug.Log($"***** Parameter Load : ConveyerInfo *****");
+            DebugLog($"***** Parameter Load : ConveyerInfo *****");
             cvSettings = (List<ConveyerSetting>)await GlobalScript.LoadListJson<List<ConveyerSetting>>("ConveyerInfo");
-            Debug.Log($"***** Parameter Load : WorkCreateInfo *****");
+            DebugLog($"***** Parameter Load : WorkCreateInfo *****");
             wkSettings = (List<WorkCreateSetting>)await GlobalScript.LoadListJson<List<WorkCreateSetting>>("WorkCreateInfo");
-            Debug.Log($"***** Parameter Load : WorkDeleteInfo *****");
+            DebugLog($"***** Parameter Load : WorkDeleteInfo *****");
             wkDeleteSettings = (List<WorkDeleteSetting>)await GlobalScript.LoadListJson<List<WorkDeleteSetting>>("WorkDeleteInfo");
-            Debug.Log($"***** Parameter Load : SensorInfo *****");
+            DebugLog($"***** Parameter Load : SensorInfo *****");
             sensorSettings = (List<SensorSetting>)await GlobalScript.LoadListJson<List<SensorSetting>>("SensorInfo");
-            Debug.Log($"***** Parameter Load : SuctionInfo *****");
+            DebugLog($"***** Parameter Load : SuctionInfo *****");
             suctionSettings = (List<SuctionSetting>)await GlobalScript.LoadListJson<List<SuctionSetting>>("SuctionInfo");
-            Debug.Log($"***** Parameter Load : ShapeInfo *****");
+            DebugLog($"***** Parameter Load : ShapeInfo *****");
             shapeSettings = (List<ShapeSetting>)await GlobalScript.LoadListJson<List<ShapeSetting>>("ShapeInfo");
-            Debug.Log($"***** Parameter Load : SwitchInfo *****");
+            DebugLog($"***** Parameter Load : ExMechInfo *****");
+            exMechSettings = (List<ExMechSetting>)await GlobalScript.LoadListJson<List<ExMechSetting>>("ExMechInfo");
+            DebugLog($"***** Parameter Load : SwitchInfo *****");
             switchSettings = (List<SwitchSetting>)await GlobalScript.LoadListJson<List<SwitchSetting>>("SwitchInfo");
-            Debug.Log($"***** Parameter Load : SignalTowerInfo *****");
+            DebugLog($"***** Parameter Load : SignalTowerInfo *****");
             towerSettings = (List<SignalTowerSetting>)await GlobalScript.LoadListJson<List<SignalTowerSetting>>("SignalTowerInfo");
-            Debug.Log($"***** Parameter Load : DebugInfo *****");
+            DebugLog($"***** Parameter Load : LedInfo *****");
+            ledSettings = (List<LedSetting>)await GlobalScript.LoadListJson<List<LedSetting>>("LedInfo");
+            DebugLog($"***** Parameter Load : CardboardInfo *****");
+            cardboardSettings = (List<CardboardSetting>)await GlobalScript.LoadListJson<List<CardboardSetting>>("CardboardInfo");
+            DebugLog($"***** Parameter Load : DebugInfo *****");
             debugSettings = (List<DebugSetting>)await GlobalScript.LoadListJson<List<DebugSetting>>("DebugInfo");
-            Debug.Log($"***** Parameter Load : BuildConfig *****");
-            buildConfig = (BuildConfig)await GlobalScript.LoadListJson<BuildConfig>("BuildConfig");
-            Debug.Log($"***** Parameter Load : ActionTable *****");
+            DebugLog($"***** Parameter Load : BuildConfig *****");
+            GlobalScript.buildConfig = (BuildConfig)await GlobalScript.LoadListJson<BuildConfig>("BuildConfig");
+            DebugLog($"***** Parameter Load : ActionTable *****");
             actionTableDatas = (List<ActionTableData>)await GlobalScript.LoadListJson<List<ActionTableData>>("ActionTableInfo");
             IsPrmLoading = false;
         }
@@ -925,6 +1309,7 @@ namespace Parameters
                     return true;
                 }
             }
+            /*
             foreach (var tmp in gameObjects)
             {
                 var p = tmp.transform.GetComponentsInParent<Transform>().ToList();
@@ -935,9 +1320,29 @@ namespace Parameters
                     return true;
                 }
             }
-            return false;
+            */
+            g = gameObjects.Find(d => GetScenePath(d).Contains(group));
+            return g != null;
         }
 
+        /// <summary>
+        /// シーンパスを取得する
+        /// </summary>
+        /// <param name="obj"></param>
+        /// <returns></returns>
+        private List<string> GetScenePath(GameObject obj)
+        {
+            var path = new List<string>();
+            path.Add(obj.name);
+            Transform current = obj.transform;
+
+            while (current.parent != null)
+            {
+                current = current.parent;
+                path.Add(current.name);
+            }
+            return path;
+        }
 
         /// <summary>
         /// キャンバス追加
@@ -947,26 +1352,70 @@ namespace Parameters
             // キャンバス取得
             var canvasObjs = GameObject.FindObjectsByType<GameObject>(FindObjectsSortMode.None).Where(d => d.name == "Canvas").ToList();
             canvaObj = canvasObjs.Count == 0 ? new GameObject("Canvas", typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster)) : canvasObjs[0];
-            var prefabs = GlobalScript.LoadPrefabObject("Prefabs/Canvas", "ColliderSetting");
-            if (prefabs.Count > 0)
+            /*
+            var collider = GlobalScript.LoadPrefabObject("Prefabs/Canvas", "ColliderSetting");
+            if (collider.Count > 0)
             {
-                uiObj = Instantiate(prefabs[0]);
-                uiObj.transform.parent = canvaObj.transform;
-                ((RectTransform)uiObj.transform).anchoredPosition = new Vector2(-((RectTransform)uiObj.transform).rect.width / 2, -((RectTransform)uiObj.transform).rect.height / 2);
-
+                uiCollision = Instantiate(collider[0]);
+                uiCollision.transform.SetParent(canvaObj.transform, false);
+                ((RectTransform)uiCollision.transform).anchoredPosition = new Vector2(-((RectTransform)uiCollision.transform).rect.width / 2, -((RectTransform)uiCollision.transform).rect.height / 2);
                 // コンポネント取得
-                toggle = uiObj.GetComponentInChildren<Toggle>();
+                collisionToggle = uiCollision.GetComponentInChildren<Toggle>();
+            }
+            */
+            var clip = GlobalScript.LoadPrefabObject("Prefabs/Canvas", "ViewSetting");
+            if (clip.Count > 0)
+            {
+                uiView = Instantiate(clip[0]);
+                uiView.transform.SetParent(canvaObj.transform, false);
+                viewScript = uiView.AddComponent<CanvasMenuViewScript>();
+            }
+            var progress = GlobalScript.LoadPrefabObject("Prefabs/Canvas", "ProgressSetting");
+            if (progress.Count > 0)
+            {
+                uiProgress = Instantiate(progress[0]);
+                uiProgress.transform.SetParent(canvaObj.transform, false);
+                ((RectTransform)uiProgress.transform).anchoredPosition = new Vector2();
+                // コンポネント取得
+                prgSlider = uiProgress.GetComponentInChildren<Slider>();
+                prgText = uiProgress.GetComponentsInChildren<TextMeshProUGUI>().ToList().Find(d => d.name == "prgText");
+                prgText2 = uiProgress.GetComponentsInChildren<TextMeshProUGUI>().ToList().Find(d => d.name == "prgText2");
             }
         }
 
         /// <summary>
-        /// トグル変更イベント
+        /// プログレスバーセット
         /// </summary>
         /// <param name="value"></param>
-        private void toggle_onValueChanged(bool value)
+        private bool SetProgress(float value)
         {
-            // 衝突
-            GlobalScript.isCollision = value;
+            uiProgress.SetActive(value < 1);
+            if (Math.Abs(prgSlider.value - value) * 100 > 3)
+            {
+                prgSlider.value = value;
+                prgText.text = (value * 100).ToString("0.0") + "%";
+                return true;
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// プログレスラベルセット 
+        /// </summary>
+        private void SetProgressLabel(string text)
+        {
+            prgText2.text = text;
+        }
+
+        /// <summary>
+        /// デバッグログ
+        /// </summary>
+        private void DebugLog(string message, bool isForce = false)
+        {
+            if (isDebug || isForce)
+            {
+                Debug.Log(swDebug.ElapsedMilliseconds + "msec : " + message);
+            }
         }
 
         /// <summary>

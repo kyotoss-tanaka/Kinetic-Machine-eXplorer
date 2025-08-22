@@ -12,6 +12,8 @@ using UnityEngine.UI;
 //using static OVRPlugin;
 using static KssMeshColliderEditorCommon;
 using static OVRPlugin;
+using UnityEngine.UIElements;
+using System.Security.Cryptography;
 
 public class AxisMotionBase : KinematicsBase
 {
@@ -49,12 +51,12 @@ public class AxisMotionBase : KinematicsBase
     /// <summary>
     /// サイクルタグ
     /// </summary>
-    protected TagInfo? cycleTag;
+    protected TagInfo cycleTag;
 
     /// <summary>
     /// 動作あり
     /// </summary>
-    protected bool isAction
+    public bool isAction
     {
         get
         {
@@ -65,7 +67,7 @@ public class AxisMotionBase : KinematicsBase
     /// <summary>
     /// オブジェクト形状あり
     /// </summary>
-    protected bool isShape
+    public bool isShape
     {
         get
         {
@@ -76,7 +78,7 @@ public class AxisMotionBase : KinematicsBase
     /// <summary>
     /// 吸引あり
     /// </summary>
-    protected bool isSuction
+    public bool isSuction
     {
         get
         {
@@ -87,39 +89,40 @@ public class AxisMotionBase : KinematicsBase
     /// <summary>
     /// ワーク生成あり
     /// </summary>
-    protected bool isWorkCreate
+    public bool isWorkCreate
     {
         get
         {
-            return (unitSetting != null) && (unitSetting.workSetting != null);
+            return (unitSetting != null) && (unitSetting.workSettings.Count > 0);
         }
     }
 
     /// <summary>
     /// ワーク削除あり
     /// </summary>
-    protected bool isWorkDelete
+    public bool isWorkDelete
     {
         get
         {
-            return (unitSetting != null) && (unitSetting.workDeleteSetting != null);
+            return (unitSetting != null) && (unitSetting.workDeleteSettings.Count > 0);
         }
     }
 
     /// <summary>
     /// スイッチ
     /// </summary>
-    protected bool isSwitch
+    public bool isSwitch
     {
         get
         {
             return (unitSetting != null) && (unitSetting.switchSetting != null);
         }
     }
+
     /// <summary>
     /// シグナルタワー
     /// </summary>
-    protected bool isSignalTower
+    public bool isSignalTower
     {
         get
         {
@@ -128,9 +131,31 @@ public class AxisMotionBase : KinematicsBase
     }
 
     /// <summary>
+    /// LED
+    /// </summary>
+    public bool isLed
+    {
+        get
+        {
+            return (unitSetting != null) && (unitSetting.ledSetting != null);
+        }
+    }
+
+    /// <summary>
+    /// 機構拡張設定
+    /// </summary>
+    public bool isExMech
+    {
+        get
+        {
+            return (unitSetting != null) && (unitSetting.exMechSetting != null) && (unitSetting.exMechSetting.datas.Count > 0);
+        }
+    }
+
+    /// <summary>
     /// 回転動作
     /// </summary>
-    protected bool isRotate
+    public bool isRotate
     {
         get
         {
@@ -144,7 +169,7 @@ public class AxisMotionBase : KinematicsBase
         if (unitSetting != null)
         {
             // ユニット情報更新
-            renewUnitSetting();
+            RenewMoveDir();
 
             /*
             // 動作用Rigitbodyセット
@@ -179,33 +204,43 @@ public class AxisMotionBase : KinematicsBase
         {
             // 子オブジェクト移動
             child.transform.parent = moveObject.transform;
+            // 子オブジェクトのチャックユニットも移動する必要がある
+            var motion = child.GetComponent<AxisMotionBase>();
+            if (motion != null)
+            {
+                motion.SetChuckParent();
+            }
         }
-
         // チャックオブジェクト設定
         if (chuckSetting != null)
         {
             foreach (var chuck in chuckSetting.children)
             {
                 // 一旦ユニットの親子関係を生成
-                chuck.setting.unitObject.transform.parent = chuck.setting.moveObject.transform.parent;
-                chuck.setting.unitObject.transform.localPosition = chuck.setting.moveObject.transform.localPosition;
-                chuck.setting.unitObject.transform.localEulerAngles = chuck.setting.moveObject.transform.localEulerAngles;
-
-                // 動作オブジェクトを移動
-                chuck.setting.moveObject.transform.parent = chuck.setting.unitObject.transform;
-                chuck.setting.moveObject.transform.localPosition = new Vector3(0, 0, 0);
-                chuck.setting.moveObject.transform.localEulerAngles = new Vector3(0, 0, 0);
-                foreach (var child in chuck.setting.childrenObject)
+                if (chuck.setting.moveObject != null)
                 {
-                    // 子オブジェクト移動
-                    child.transform.parent = chuck.setting.moveObject.transform;
+                    chuck.setting.unitObject.transform.parent = chuck.setting.moveObject.transform.parent;
+                    chuck.setting.unitObject.transform.localPosition = chuck.setting.moveObject.transform.localPosition;
+                    chuck.setting.unitObject.transform.localEulerAngles = chuck.setting.moveObject.transform.localEulerAngles;
+
+                    // 動作オブジェクトを移動
+                    chuck.setting.moveObject.transform.parent = chuck.setting.unitObject.transform;
+                    chuck.setting.moveObject.transform.localPosition = new Vector3(0, 0, 0);
+                    chuck.setting.moveObject.transform.localEulerAngles = new Vector3(0, 0, 0);
+                    foreach (var child in chuck.setting.childrenObject)
+                    {
+                        // 子オブジェクト移動
+                        child.transform.parent = chuck.setting.moveObject.transform;
+                    }
+                    SetCollision(chuck.setting);
+                    // ユニット削除
+                    //                Destroy(chuck.setting.unitObject);
                 }
-                SetCollision(chuck.setting);
-                // ユニット削除
-                //                Destroy(chuck.setting.unitObject);
+                else
+                {
+                }
             }
         }
-
         // 衝突セット
         SetCollision(unitSetting);
     }
@@ -213,7 +248,7 @@ public class AxisMotionBase : KinematicsBase
     /// <summary>
     /// ユニット設定から動作設定更新
     /// </summary>
-    protected virtual void renewUnitSetting()
+    public virtual void RenewMoveDir()
     {
         if (isAction)
         {
@@ -275,7 +310,7 @@ public class AxisMotionBase : KinematicsBase
         // 物体形状設定
         if (!isShape)
         {
-            if (unitSetting.isCollision)
+            if (!GlobalScript.buildConfig.isCollision && unitSetting.isCollision)
             {
                 // 当たり判定追加
                 /*
@@ -297,55 +332,11 @@ public class AxisMotionBase : KinematicsBase
                 else
                 {
                     // WindowsではCollider作成
-                    var meshColliderBuilder = unitSetting.moveObject.AddComponent<SAMeshColliderBuilder>();
-                    meshColliderBuilder.reducerProperty.shapeType = SAColliderBuilderCommon.ShapeType.Mesh;
-//                    meshColliderBuilder.reducerProperty.meshType = SAColliderBuilderCommon.MeshType.Raw;
-                    meshColliderBuilder.reducerProperty.meshType = SAColliderBuilderCommon.MeshType.ConvexHull;
-                    meshColliderBuilder.rigidbodyProperty.isCreate = false;
-                    meshColliderBuilder.colliderProperty.convex = false;
-                    meshColliderBuilder.colliderProperty.isTrigger = false;
-                    KssMeshColliderBuilderInspector.Process(meshColliderBuilder);
-                    foreach (var col in this.GetComponentsInChildren<MeshCollider>())
-                    {
-                        try
-                        {
-                            if (col == null || col.sharedMesh == null) continue;
-                            AddFakeThickness(col.sharedMesh);
-                            var verts = col.sharedMesh.vertices;
-                            float minZ = verts.Min(v => v.z);
-                            float maxZ = verts.Max(v => v.z);
-                            float thickness = Mathf.Abs(maxZ - minZ);
-                            int triangleCount = col.sharedMesh.triangles.Length / 3;
-                            var message = "";
-                            if (IsMesh3D(col.sharedMesh, ref message) && (triangleCount <= 255 * 10))
-                            {
-                                try
-                                {
-                                    col.convex = true;
-                                    col.isTrigger = true;
-                                }
-                                catch (System.Exception ex)
-                                {
-                                    Debug.LogWarning($"Convex設定に失敗: {col.name}, 理由: {ex.Message}");
-                                    col.convex = false;
-                                    col.isTrigger = false;
-                                }
-                            }
-                            else
-                            {
-//                                Debug.Log($"convexスキップ: {col.name}, triangle: {triangleCount}, thickness: {thickness}");
-                            }
-                        }
-                        catch (System.Exception ex)
-                        {
-                            Debug.LogWarning($"Convex設定に失敗: {col.name}, 理由: {ex.Message}");
-                            col.convex = false;
-                            col.isTrigger = false;
-                        }
-                    }
+                    GlobalScript.CreateCollider(unitSetting.moveObject);
                 }
             }
         }
+
         if (unitSetting.moveObject != null)
         {
             rb = unitSetting.moveObject.GetComponent<Rigidbody>();
@@ -353,7 +344,7 @@ public class AxisMotionBase : KinematicsBase
             {
                 rb = unitSetting.moveObject.transform.AddComponent<Rigidbody>();
             }
-            if (unitSetting.isCollision)
+            if (unitSetting.isCollision || GlobalScript.buildConfig.isCollision)
             {
                 unitSetting.moveObject.transform.AddComponent<CollisionScript>();
             }
@@ -418,6 +409,71 @@ public class AxisMotionBase : KinematicsBase
     }
 
     /// <summary>
+    /// チャックユニットの親を設定する
+    /// </summary>
+    public void SetChuckParent()
+    {
+        // チャックオブジェクト設定
+        if (chuckSetting != null)
+        {
+            foreach (var chuck in chuckSetting.children)
+            {
+                // 自分と同じ親に
+                chuck.setting.unitObject.transform.parent = transform.parent;
+            }
+        }
+    }
+
+    /// <summary>
+    /// チャック設定を行う
+    /// </summary>
+    public void RenewChuckSetting(ChuckUnitSetting chuckSetting)
+    {
+        if ((chuckSetting != null) && (this.chuckSetting != null))
+        {
+            foreach (var child in this.chuckSetting.children)
+            {
+                var tmp = chuckSetting.children.Find(d => d.name == child.name);
+                if (tmp != null)
+                {
+                    child.offset = tmp.offset;
+                    child.dir = tmp.dir;
+                    child.rate = tmp.rate;
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// 機構拡張設定
+    /// </summary>
+    private void SetExMechSetting()
+    {
+        // ユニット追加
+        var exObj = new GameObject(unitSetting.name + "(ExMech)");
+        exObj.transform.parent = unitSetting.unitObject.transform;
+        // 親子関係設定
+        foreach (var data in unitSetting.exMechSetting.datas)
+        {
+            if (data.gameObject != null)
+            {
+                data.gameObject.transform.parent = exObj.transform;
+                foreach (var child in data.children)
+                {
+                    child.gameObject.transform.parent = data.gameObject.transform;
+                }
+            }
+            else
+            {
+                Debug.Log($"エラー：ユニット名「{unitSetting.name}」の拡張モデルが存在しません。");
+                return;
+            }
+        }
+        var ex = unitSetting.exMechSetting.datas[0].gameObject.AddComponent<ExMechScript>();
+        ex.SetParameter(unitSetting, unitSetting.exMechSetting);
+    }
+
+    /// <summary>
     /// ユニット情報を外部から設定する
     /// </summary>
     /// <param name="unitSetting"></param>
@@ -432,65 +488,158 @@ public class AxisMotionBase : KinematicsBase
         }
         PreModelRestruct();
 
+        // ユニット設定
+        RenewUnitSetting();
+    }
+
+    /// <summary>
+    /// 動作設定
+    /// </summary>
+    /// <param name="unitSetting"></param>
+
+    public virtual void RenewUnitSetting(bool reload = false)
+    {
+        // コライダーの2登録回避のため削除
+        {
+            if (isShape)
+            {
+                var instance = unitSetting.moveObject.GetComponent<ShapeScript>();
+                if (instance != null)
+                {
+                    foreach (var c in instance.GetComponents<Collider>())
+                    {
+                        Destroy(c);
+                    }
+                }
+            }
+            if (isSuction)
+            {
+                var instance = unitSetting.moveObject.GetComponent<SuctionScript>();
+                if (instance != null)
+                {
+                    foreach (var c in instance.GetComponents<Collider>())
+                    {
+                        Destroy(c);
+                    }
+                }
+            }
+        }
         // 形状設定
         if (isShape)
         {
-            var instance = unitSetting.moveObject.AddComponent<ShapeScript>();
+            var instance = unitSetting.moveObject.GetComponent<ShapeScript>();
+            if (instance != null)
+            {
+                Destroy(instance);
+            }
+            instance = unitSetting.moveObject.AddComponent<ShapeScript>();
             instance.SetParameter(unitSetting, unitSetting.shapeSetting);
         }
         // 吸引設定
         if (isSuction)
         {
-            var instance = unitSetting.moveObject.AddComponent<SuctionScript>();
+            var instance = unitSetting.moveObject.GetComponent<SuctionScript>();
+            if (instance != null)
+            {
+                Destroy(instance);
+            }
+            instance = unitSetting.moveObject.AddComponent<SuctionScript>();
             instance.SetParameter(unitSetting, unitSetting.suctionSetting);
         }
         // ワーク生成設定
         if (isWorkCreate)
         {
             // ワーク生成設定あり
-            var work = transform.AddComponent<ObjectFactoryScript>();
-            work.SetParameter(unitSetting, unitSetting.workSetting);
+            foreach (var wk in unitSetting.workSettings)
+            {
+                var work = transform.GetComponent<ObjectFactoryScript>();
+                if (work != null)
+                {
+                    Destroy(work);
+                }
+                work = transform.AddComponent<ObjectFactoryScript>();
+                work.SetParameter(unitSetting, wk);
+            }
         }
         // ワーク削除設定
         if (isWorkDelete)
         {
-            // ワーク生成設定あり
-            var work = transform.AddComponent<ObjectDeleteScript>();
-            work.SetParameter(unitSetting, unitSetting.workDeleteSetting);
+            // ワーク削除設定あり
+            foreach (var wk in unitSetting.workSettings)
+            {
+                var work = transform.GetComponent<ObjectDeleteScript>();
+                if (work != null)
+                {
+                    Destroy(work);
+                }
+                work = transform.AddComponent<ObjectDeleteScript>();
+                work.SetParameter(unitSetting, wk);
+            }
         }
         // スイッチ設定
         if (isSwitch)
         {
             // スイッチ
-            var sw = unitSetting.moveObject.AddComponent<SwitchScript>();
+            var sw = unitSetting.moveObject.GetComponent<SwitchScript>();
+            if (sw != null)
+            {
+                Destroy(sw);
+            }
+            sw = unitSetting.moveObject.AddComponent<SwitchScript>();
             sw.SetParameter(unitSetting, unitSetting.switchSetting);
         }
         // シグナルタワー設定
         if (isSignalTower)
         {
             // シグナルタワー
-            var st = unitSetting.moveObject.AddComponent<SignalTowerScript>();
+            var st = unitSetting.moveObject.GetComponent<SignalTowerScript>();
+            if (st != null)
+            {
+                Destroy(st);
+            }
+            st = unitSetting.moveObject.AddComponent<SignalTowerScript>();
             st.SetParameter(unitSetting, unitSetting.towerSetting);
         }
-        // センサ生成設定
-        foreach (var sensor in unitSetting.sensorSettings)
+        // LED設定
+        if (isLed)
         {
-            var o = GlobalScript.CreateSensor(this.transform.parent.gameObject, sensor, "CvSensor");
-            o.transform.parent = unitSetting.unitObject.transform;
-            o.transform.localPosition = new Vector3
+            // LED
+            var led = unitSetting.moveObject.GetComponent<LedScript>();
+            if (led != null)
             {
-                x = sensor.pos[0] * transform.localScale.x,
-                y = sensor.pos[2] * transform.localScale.y,
-                z = sensor.pos[1] * transform.localScale.z
-            };
-            o.transform.localEulerAngles = new Vector3
+                Destroy(led);
+            }
+            led = unitSetting.moveObject.AddComponent<LedScript>();
+            led.SetParameter(unitSetting, unitSetting.ledSetting);
+        }
+        if (!reload)
+        {
+            // 機構拡張設定
+            if (isExMech)
             {
-                x = sensor.rot[0] * transform.localScale.x,
-                y = sensor.rot[2] * transform.localScale.y,
-                z = sensor.rot[1] * transform.localScale.z
-            };
-            var ss = o.AddComponent<SensorScript>();
-            ss.SetParameter(unitSetting, sensor);
+                // 機構拡張
+                SetExMechSetting();
+            }
+            // センサ生成設定
+            foreach (var sensor in unitSetting.sensorSettings)
+            {
+                var o = GlobalScript.CreateSensor(this.transform.parent.gameObject, sensor, "CvSensor");
+                o.transform.parent = unitSetting.unitObject.transform;
+                o.transform.localPosition = new Vector3
+                {
+                    x = sensor.pos[0] * transform.localScale.x,
+                    y = sensor.pos[2] * transform.localScale.y,
+                    z = sensor.pos[1] * transform.localScale.z
+                };
+                o.transform.localEulerAngles = new Vector3
+                {
+                    x = sensor.rot[0] * transform.localScale.x,
+                    y = sensor.rot[2] * transform.localScale.y,
+                    z = sensor.rot[1] * transform.localScale.z
+                };
+                var ss = o.AddComponent<SensorScript>();
+                ss.SetParameter(unitSetting, sensor);
+            }
         }
     }
 }

@@ -2,16 +2,22 @@ using System.Collections.Generic;
 using System.Linq;
 using Unity.VisualScripting;
 using UnityEngine;
+using UnityEngine.SocialPlatforms;
 using static KssBaseScript;
+using static OVRPlugin;
 
 public class CollisionScript : KssBaseScript
 {
+    private bool isWork;
+
     private Material redMaterial;
     private Material yellowMaterial;
 
     protected override void Start()
     {
         base.Start();
+
+        isWork = GetComponent<ObjectScript>() != null;
 
         redMaterial = (Material)Resources.Load("Materials/RedMaterial");
         yellowMaterial = (Material)Resources.Load("Materials/YellowMaterial");
@@ -45,29 +51,83 @@ public class CollisionScript : KssBaseScript
         }
     }
 
+    /*
+    protected override void OnCollisionEnter(Collision other)
+    {
+        var work = this.GetComponent<ObjectScript>();
+        if (work == null)
+        {
+            var unit = other.transform.parent.GetComponent<AxisMotionBase>();
+            if (unit != null)
+            {
+                // ユニット取得
+                var mesh = other.gameObject.GetComponentInChildren<MeshRenderer>();
+                if (mesh != null)
+                {
+                    SetMaterial(mesh, redMaterial);
+                }
+            }
+        }
+    }
+
+    protected override void OnCollisionExit(Collision other)
+    {
+        var work = this.GetComponent<ObjectScript>();
+        if (work == null)
+        {
+            var unit = other.transform.parent.GetComponent<AxisMotionBase>();
+            if (unit != null)
+            {
+                // ユニット取得
+                var mesh = other.gameObject.GetComponentInChildren<MeshRenderer>();
+                if (mesh != null)
+                {
+                    SetMaterial(mesh, yellowMaterial);
+                }
+            }
+        }
+    }
+    */
+
     protected override void OnTriggerEnter(Collider collider)
     {
-        var mesh = collider.gameObject.GetComponentInChildren<MeshRenderer>();
-        if (mesh == null)
+        if (GlobalScript.isCollision)
         {
-            mesh = FindNearestParentMeshRenderer(collider.transform);
+            if (!collider.transform.parent.IsChildOf(this.transform) && !isWork)
+            {
+                var mesh = collider.gameObject.GetComponentInChildren<MeshRenderer>();
+                if (mesh == null)
+                {
+                    mesh = FindNearestParentMeshRenderer(collider.transform);
+                }
+                SetMaterial(mesh, redMaterial);
+            }
         }
-        SetMaterial(mesh, redMaterial);
+    }
+
+    protected override void OnTriggerStay(Collider collider)
+    {
     }
 
     protected override void OnTriggerExit(Collider collider)
     {
-        var mesh = collider.gameObject.GetComponentInChildren<MeshRenderer>();
-        if (mesh == null)
+        if (GlobalScript.isCollision)
         {
-            mesh = FindNearestParentMeshRenderer(collider.transform);
+            if (!collider.transform.parent.IsChildOf(this.transform) && !isWork)
+            {
+                var mesh = collider.gameObject.GetComponentInChildren<MeshRenderer>();
+                if (mesh == null)
+                {
+                    mesh = FindNearestParentMeshRenderer(collider.transform);
+                }
+                SetMaterial(mesh, yellowMaterial);
+            }
         }
-        SetMaterial(mesh, yellowMaterial);
     }
 
     private void SetMaterial(MeshRenderer mesh, Material obj)
     {
-        if (GlobalScript.isCollision && (mesh != null))
+        if (mesh != null)
         {
             if (!GlobalScript.dctMaterial.ContainsKey(mesh))
             {

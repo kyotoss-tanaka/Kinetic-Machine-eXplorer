@@ -152,8 +152,9 @@ public class ComInner : ComBaseScript
     /// <summary>
     /// 表示用
     /// </summary>
-    private GameObject uiObj;
     private GameObject canvaObj;
+    private GameObject? uiObj;
+    private CanvasMenuTimeScript timeScript;
     private Toggle toggle;
     private Slider slider;
     private TextMeshProUGUI text;
@@ -185,10 +186,6 @@ public class ComInner : ComBaseScript
         {
             GlobalScript.inners.Add(Name, this);
         }
-        swTiming.Start();
-
-        // 表示追加
-        CreateCanvas();
     }
 
     /// <summary>
@@ -196,15 +193,22 @@ public class ComInner : ComBaseScript
     /// </summary>
     protected override void FixedUpdate()
     {
-        base.FixedUpdate();
-
-        // データ交換処理
-        DataExchangeProcess();
-
-        // データ更新処理
-        lock (objLock)
+        if (GlobalScript.isLoaded)
         {
-            RenewData();
+            base.FixedUpdate();
+
+            // データ交換処理
+            DataExchangeProcess();
+
+            // データ更新処理
+            lock (objLock)
+            {
+                RenewData();
+            }
+        }
+        else
+        {
+            swTiming.Restart();
         }
     }
 
@@ -363,7 +367,7 @@ public class ComInner : ComBaseScript
         }
         catch (Exception ex)
         {
-            
+            UnityEngine.Debug.Log("ComInner : " + ex.Message);
         }
         processTime = sw.ElapsedMilliseconds;
     }
@@ -490,6 +494,8 @@ public class ComInner : ComBaseScript
                 acts.Add(act);
             }
         }
+        // 表示追加
+        CreateCanvas();
     }
 
     /// <summary>
@@ -497,42 +503,46 @@ public class ComInner : ComBaseScript
     /// </summary>
     private void CreateCanvas()
     {
-        // キャンバス取得
-        var canvasObjs = GameObject.FindObjectsByType<GameObject>(FindObjectsSortMode.None).Where(d => d.name == "Canvas").ToList();
-        canvaObj = canvasObjs.Count == 0 ? new GameObject("Canvas", typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster)) : canvasObjs[0];
-        var prefabs = GlobalScript.LoadPrefabObject("Prefabs/Canvas", "ComInner");
-        if (prefabs.Count > 0)
+        if (uiObj == null)
         {
-            uiObj = Instantiate(prefabs[0]);
-            uiObj.transform.parent = canvaObj.transform;
-            ((RectTransform)uiObj.transform).anchoredPosition = new Vector2(((RectTransform)uiObj.transform).rect.width / 2, -((RectTransform)uiObj.transform).rect.height / 2);
+            // キャンバス取得
+            var canvasObjs = GameObject.FindObjectsByType<GameObject>(FindObjectsSortMode.None).Where(d => d.name == "Canvas").ToList();
+            canvaObj = canvasObjs.Count == 0 ? new GameObject("Canvas", typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster)) : canvasObjs[0];
+            var prefabs = GlobalScript.LoadPrefabObject("Prefabs/Canvas", "ComInner");
+            if (prefabs.Count > 0)
+            {
+                uiObj = Instantiate(prefabs[0]);
+                uiObj.transform.SetParent(canvaObj.transform, false);
+                timeScript = uiObj.AddComponent<CanvasMenuTimeScript>();
+                timeScript.SetEvents();
 
-            // コンポネント取得
-            toggle = uiObj.GetComponentInChildren<Toggle>();
-            slider = uiObj.GetComponentInChildren<Slider>();
-            text = uiObj.GetComponentsInChildren<TextMeshProUGUI>().Where(d => d.name == "ComInnerText").ToList()[0];
-            button = uiObj.GetComponentsInChildren<Button>().Where(d => d.name == "ComInnerButton").ToList()[0];
-            input = uiObj.GetComponentsInChildren<TMP_InputField>().Where(d => d.name == "ComInnerInput").ToList()[0];
-            cycle = uiObj.GetComponentsInChildren<TextMeshProUGUI>().Where(d => d.name == "ComInnerCycle").ToList()[0]; ;
-            buttonPrev = uiObj.GetComponentsInChildren<Button>().Where(d => d.name == "ComInnerPrevButton").ToList()[0];
-            buttonNext = uiObj.GetComponentsInChildren<Button>().Where(d => d.name == "ComInnerNextButton").ToList()[0];
-            inputStep = uiObj.GetComponentsInChildren<TMP_InputField>().Where(d => d.name == "ComInnerStep").ToList()[0];
+                // コンポネント取得
+                toggle = uiObj.GetComponentInChildren<Toggle>();
+                slider = uiObj.GetComponentInChildren<Slider>();
+                text = uiObj.GetComponentsInChildren<TextMeshProUGUI>().Where(d => d.name == "ComInnerText").ToList()[0];
+                button = uiObj.GetComponentsInChildren<Button>().Where(d => d.name == "ComInnerButton").ToList()[0];
+                input = uiObj.GetComponentsInChildren<TMP_InputField>().Where(d => d.name == "ComInnerInput").ToList()[0];
+                cycle = uiObj.GetComponentsInChildren<TextMeshProUGUI>().Where(d => d.name == "ComInnerCycle").ToList()[0]; ;
+                buttonPrev = uiObj.GetComponentsInChildren<Button>().Where(d => d.name == "ComInnerPrevButton").ToList()[0];
+                buttonNext = uiObj.GetComponentsInChildren<Button>().Where(d => d.name == "ComInnerNextButton").ToList()[0];
+                inputStep = uiObj.GetComponentsInChildren<TMP_InputField>().Where(d => d.name == "ComInnerStep").ToList()[0];
 
-            // イベント登録
-            toggle.onValueChanged.AddListener(toggle_onValueChanged);
-            slider.onValueChanged.AddListener(slider_onValueChanged);
-            button.onClick.AddListener(button_onClick);
-            input.onValueChanged.AddListener(input_onValueChanged);
-            buttonPrev.onClick.AddListener(buttonPrev_onClick);
-            buttonNext.onClick.AddListener(buttonNext_onClick);
-            inputStep.onValueChanged.AddListener(inputStep_onValueChanged);
+                // イベント登録
+                toggle.onValueChanged.AddListener(toggle_onValueChanged);
+                slider.onValueChanged.AddListener(slider_onValueChanged);
+                button.onClick.AddListener(button_onClick);
+                input.onValueChanged.AddListener(input_onValueChanged);
+                buttonPrev.onClick.AddListener(buttonPrev_onClick);
+                buttonNext.onClick.AddListener(buttonNext_onClick);
+                inputStep.onValueChanged.AddListener(inputStep_onValueChanged);
 
-            // 初期値セット
-            slider.value = 1;
-            slider.maxValue = 5;
-            slider.minValue = 0;
-            input.text = acts.Count > 0 ? acts[0].cycle.ToString() : "1000";
-            inputStep.text = "10";
+                // 初期値セット
+                slider.value = 1;
+                slider.maxValue = 5;
+                slider.minValue = 0;
+                input.text = acts.Count > 0 ? acts[0].cycle.ToString() : "1000";
+                inputStep.text = "10";
+            }
         }
     }
 

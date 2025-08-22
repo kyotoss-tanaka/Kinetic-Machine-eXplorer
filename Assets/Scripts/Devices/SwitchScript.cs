@@ -3,11 +3,7 @@ using Parameters;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
-using System.Security.Cryptography;
-using Unity.VisualScripting;
 using UnityEngine;
-using UnityEngine.EventSystems;
-using UnityEngine.SceneManagement;
 
 public class SwitchScript : KssBaseScript
 {
@@ -26,7 +22,7 @@ public class SwitchScript : KssBaseScript
     /// </summary>
     public enum SwitchColor
     {
-        Red, Green, Blue, Yellow
+        Red, Green, Yellow, Blue, White
     }
 
     /// <summary>
@@ -46,6 +42,12 @@ public class SwitchScript : KssBaseScript
     /// </summary>
     [SerializeField]
     private TagInfo Tag;
+
+    /// <summary>
+    /// B接点
+    /// </summary>
+    [SerializeField]
+    private bool isB = false;
 
     /// <summary>
     /// オルタネートモード
@@ -88,7 +90,7 @@ public class SwitchScript : KssBaseScript
     {
         switchTransform = transform.GetComponentsInChildren<Transform>().Where(d => d.name == "SwitchMain").ToList()[0];
         meshRenderer = switchTransform.GetComponent<MeshRenderer>();
-        meshRenderer.material = Instantiate((Material)Resources.Load("Materials/Switch/" + switchColor.ToString()), switchTransform);
+        meshRenderer.material = Instantiate((Material)Resources.Load("Materials/Color/" + switchColor.ToString()), switchTransform);
         var camera = GameObject.FindObjectsByType<Camera>(FindObjectsSortMode.None).Where(d => d.name == "CenterEyeAnchor").ToList();
         if (camera.Count > 0)
         {
@@ -96,15 +98,28 @@ public class SwitchScript : KssBaseScript
         }
     }
 
+    protected override void OnDestroy()
+    {
+        base.OnDestroy();
+//        Destroy(meshRenderer.material);
+    }
+
     protected override void MyFixedUpdate()
     {
         base.MyFixedUpdate();
-        if (isFirst)
+        if (GlobalScript.isLoaded)
         {
-            // 初回処理
-            isOn = ((Application.platform == RuntimePlatform.Android) || (Application.platform == RuntimePlatform.IPhonePlayer));
-            RenewView();
-            isFirst = false;
+            if (isFirst)
+            {
+                // 初回処理
+                if (switchType == SwitchType.ModelVisible)
+                {
+                    // アンドロイド時はモデルを消しておく
+                    isOn = ((Application.platform == RuntimePlatform.Android) || (Application.platform == RuntimePlatform.IPhonePlayer));
+                }
+                RenewView();
+                isFirst = false;
+            }
         }
     }
 
@@ -169,13 +184,34 @@ public class SwitchScript : KssBaseScript
     }
 
     /// <summary>
+    /// マウス外れ
+    /// </summary>
+    public override void OnMouseExit()
+    {
+        if (!isAlternate)
+        {
+            isOn = false;
+            RenewView();
+        }
+    }
+
+    /// <summary>
     /// スイッチ処理
     /// </summary>
     private void SwitchProcess()
     {
         if (switchType == SwitchType.TagOutput)
         {
-            GlobalScript.SetTagData(Tag, isOn ? 1 : 0);
+            if (isB)
+            {
+                // B接点
+                GlobalScript.SetTagData(Tag, isOn ? 0 : 1);
+            }
+            else
+            {
+                // A接点
+                GlobalScript.SetTagData(Tag, isOn ? 1 : 0);
+            }
         }
         else if (switchType == SwitchType.ObjectClear)
         {
@@ -227,17 +263,22 @@ public class SwitchScript : KssBaseScript
 
         var sw = (SwitchSetting)obj;
         isAlternate = sw.alternate;
+
         if (sw.color == "Green")
         {
             switchColor = SwitchColor.Green;
+        }
+        else if (sw.color == "Yellow")
+        {
+            switchColor = SwitchColor.Yellow;
         }
         else if (sw.color == "Blue")
         {
             switchColor = SwitchColor.Blue;
         }
-        else if (sw.color == "Yellow")
+        else if (sw.color == "White")
         {
-            switchColor = SwitchColor.Yellow;
+            switchColor = SwitchColor.White;
         }
         if (sw.mode == 0)
         {
@@ -247,7 +288,8 @@ public class SwitchScript : KssBaseScript
                 Tag = ScriptableObject.CreateInstance<TagInfo>();
                 Tag.Database = unitSetting.Database;
                 Tag.MechId = unitSetting.mechId;
-                Tag.Tag = sw.tag;
+                Tag.Tag = sw.tag.Replace("-", "");
+                isB = sw.tag[0] == '-';
             }
         }
         else if (sw.mode == 1)

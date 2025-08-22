@@ -374,6 +374,7 @@ public class ComMqtt : ComBaseScript
             }
             catch (Exception ex)
             {
+                UnityEngine.Debug.Log("ComMqtt : " + ex.Message);
             }
             processTime = sw.ElapsedMilliseconds;
         }
@@ -475,6 +476,7 @@ public class ComMqtt : ComBaseScript
         }
         catch (Exception ex)
         {
+           UnityEngine.Debug.Log("ComMqtt : " + ex.Message);
         }
     }
 

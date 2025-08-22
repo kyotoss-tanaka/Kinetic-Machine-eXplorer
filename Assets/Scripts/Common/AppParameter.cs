@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
+using System.Net.Sockets;
 using System.Text.Json.Serialization;
 using UnityEngine;
+using static Parameters.DBSetting;
 
 namespace Parameters
 {
@@ -36,6 +38,37 @@ namespace Parameters
     [Serializable]
     public class PostgresSetting
     {
+        public class KmxDirectData
+        {
+            public eProtocolType protocol { get; set; } = eProtocolType.None;
+            public string IpAddress { get; set; } = "";
+            public int PortNo { get; set; }
+            public int NetAddress { get; set; }
+            public int PcNo { get; set; }
+            public List<KMXDBSetting> tags { get; set; } = new();
+            public bool isMcProtocol
+            {
+                get
+                {
+                    return protocol == eProtocolType.McProtocol || protocol == eProtocolType.McProtocol_UDP;
+                }
+            }
+            public bool isMicks
+            {
+                get
+                {
+                    return protocol == eProtocolType.MICKS;
+                }
+            }
+            public bool isUdp
+            {
+                get
+                {
+                    return protocol == eProtocolType.McProtocol_UDP;
+                }
+            }
+        }
+
         public int No { get; set; }
         public int Type { get; set; }
         public int Cycle { get; set; }
@@ -45,6 +78,8 @@ namespace Parameters
         public string User { get; set; }
         public string Password { get; set; }
         public int ClientMode { get; set; }
+        public int DirectMode { get; set; }
+        public List<KmxDirectData> directDatas { get; set; } = new();
         public string Name
         {
             get
@@ -59,25 +94,32 @@ namespace Parameters
                 return ClientMode == 1;
             }
         }
+        public bool isDirectMode
+        {
+            get
+            {
+                return DirectMode == 1;
+            }
+        }
         public bool isPostgres
         {
             get
             {
-                return Type == 0;
+                return Type == 0 && !isDirectMode;
             }
         }
         public bool isMongo
         {
             get
             {
-                return Type == 1;
+                return Type == 1 && !isDirectMode;
             }
         }
         public bool isMqtt
         {
             get
             {
-                return Type == 2;
+                return Type == 2 && !isDirectMode;
             }
         }
         public bool isInner
@@ -88,7 +130,6 @@ namespace Parameters
             }
         }
     }
-
 
     [Serializable]
     public class DataExchangeSetting
@@ -179,15 +220,16 @@ namespace Parameters
         /// <summary>
         /// ロボット設定
         /// </summary>
+        [SerializeReference]
         public RobotSetting robotSetting;
         /// <summary>
         /// ワーク生成設定
         /// </summary>
-        public WorkCreateSetting workSetting;
+        public List<WorkCreateSetting> workSettings;
         /// <summary>
         /// ワーク生成設定
         /// </summary>
-        public WorkDeleteSetting workDeleteSetting;
+        public List<WorkDeleteSetting> workDeleteSettings;
         /// <summary>
         /// センサ設定
         /// </summary>
@@ -208,6 +250,14 @@ namespace Parameters
         /// シグナルタワー設定
         /// </summary>
         public SignalTowerSetting towerSetting;
+        /// <summary>
+        /// LED設定
+        /// </summary>
+        public LedSetting ledSetting;
+        /// <summary>
+        /// 拡張機構設定
+        /// </summary>
+        public ExMechSetting exMechSetting;
         /// <summary>
         /// 動作オブジェクト
         /// </summary>
@@ -280,7 +330,7 @@ namespace Parameters
         public int delay { get; set; }
         /// <summary>
         /// サイクル時間
-        /// </summary>
+        /// </summary>0
         public int cycle { get; set; }
         /// <summary>
         /// 動作ファイル
@@ -507,9 +557,12 @@ namespace Parameters
     {
         public string name { get; set; }
         public int offset { get; set; }
+        public float rate { get; set; }
         public int dir { get; set; }
         [JsonIgnore]
         public UnitSetting setting { get; set; }
+        [JsonIgnore]
+        public Vector3 startPos { get; set; }
     }
 
     [Serializable]
@@ -859,6 +912,30 @@ namespace Parameters
     }
 
     [Serializable]
+    public class ExMechSetting
+    {
+        public string mechId { get; set; }
+        public string name { get; set; }
+        public int type { get; set; }
+        public List<ExMechModel> datas { get; set; }
+    }
+
+    [Serializable]
+    public class ExMechModel : ExMechChildren
+    {
+        public List<ExMechChildren> children { get; set; } = new();
+    }
+
+    [Serializable]
+    public class ExMechChildren
+    {
+        public string model { get; set; } = "";
+        public string group { get; set; } = "";
+        [JsonIgnore]
+        public GameObject gameObject { get; set; }
+    }
+
+    [Serializable]
     public class SwitchSetting
     {
         /// <summary>
@@ -941,6 +1018,113 @@ namespace Parameters
     }
 
     [Serializable]
+    public class LedSetting
+    {
+        /// <summary>
+        /// 機番
+        /// </summary>
+        public string mechId { get; set; }
+        /// <summary>
+        /// ユニット名
+        /// </summary>
+        public string name { get; set; }
+        /// <summary>
+        /// タワータイプ
+        /// </summary>
+        public int type { get; set; }
+        /// <summary>
+        /// タグデータ
+        /// </summary>
+        public List<LedTagData> ledDatas { get; set; } = new();
+    }
+
+    [Serializable]
+    public class LedTagData
+    {
+        /// <summary>
+        /// 色
+        /// </summary>
+        public string color { get; set; }
+        /// <summary>
+        /// タグ
+        /// </summary>
+        public string tag { get; set; }
+    }
+
+    [Serializable]
+    public class CardboardSetting
+    {
+        /// <summary>
+        /// 機番
+        /// </summary>
+        public string mechId { get; set; }
+        /// <summary>
+        /// ユニット名
+        /// </summary>
+        public string name { get; set; } = "";
+        /// <summary>
+        /// サイクル
+        /// </summary>
+        public int cycle { get; set; }
+        /// <summary>
+        /// サイクル
+        /// </summary>
+        public int cycle2 { get; set; }
+        /// <summary>
+        /// モード
+        /// </summary>
+        public int mode { get; set; }
+        /// <summary>
+        /// L1
+        /// </summary>
+        public string l1_Body { get; set; } = "";
+        /// <summary>
+        /// L1上フラップ
+        /// </summary>
+        public string l1_Top { get; set; } = "";
+        /// <summary>
+        /// L1下フラップ
+        /// </summary>
+        public string l1_Bottom { get; set; } = "";
+        /// <summary>
+        /// L2
+        /// </summary>
+        public string l2_Body { get; set; } = "";
+        /// <summary>
+        /// L2上フラップ
+        /// </summary>
+        public string l2_Top { get; set; } = "";
+        /// <summary>
+        /// L2下フラップ
+        /// </summary>
+        public string l2_Bottom { get; set; } = "";
+        /// <summary>
+        /// W1
+        /// </summary>
+        public string w1_Body { get; set; } = "";
+        /// <summary>
+        /// W1上フラップ
+        /// </summary>
+        public string w1_Top { get; set; } = "";
+        /// <summary>
+        /// W1下フラップ
+        /// </summary>
+        public string w1_Bottom { get; set; } = "";
+        /// <summary>
+        /// We
+        /// </summary>
+        public string w2_Body { get; set; } = "";
+        /// <summary>
+        /// W2上フラップ
+        /// </summary>
+        public string w2_Top { get; set; } = "";
+        /// <summary>
+        /// W2下フラップ
+        /// </summary>
+        public string w2_Bottom { get; set; } = "";
+    }
+
+    [Serializable]
     public class DebugSetting
     {
         /// <summary>
@@ -981,6 +1165,7 @@ namespace Parameters
         public bool isRelease { get; set; }
         public bool isVR { get; set; }
         public bool isMR { get; set; }
+        public bool isCollision { get; set; }
     }
 
     [Serializable]

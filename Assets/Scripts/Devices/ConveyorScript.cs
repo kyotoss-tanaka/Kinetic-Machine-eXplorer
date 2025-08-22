@@ -109,7 +109,8 @@ public class ConveyorScript : KssBaseScript
 
         //消滅したオブジェクトは除去する
         _rigidbodies.RemoveAll(r => r == null);
-
+        /*
+         オブジェクトの方で起床させた
         foreach (var rb in _rigidbodies)
         {
             if (rb.IsSleeping())
@@ -117,6 +118,7 @@ public class ConveyorScript : KssBaseScript
                 rb.WakeUp();
             }
         }
+        */
 
         /*
         // 方向セット

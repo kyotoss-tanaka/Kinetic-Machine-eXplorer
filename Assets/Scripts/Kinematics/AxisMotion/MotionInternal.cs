@@ -307,11 +307,16 @@ public class MotionInternal : AxisMotionBase
     /// <summary>
     /// ユニット設定から動作設定更新
     /// </summary>
-    protected override void renewUnitSetting()
+    public override void RenewMoveDir()
     {
-        base.renewUnitSetting();
+        base.RenewMoveDir();
 
         // データ初期化
+        foreach (var actionIo in actionIos)
+        {
+            Destroy(actionIo.StartInput);
+            Destroy(actionIo.EndOutput);
+        }
         actionIos.Clear();
         isMoving = false;
 
@@ -384,8 +389,17 @@ public class MotionInternal : AxisMotionBase
             else
             {
                 // 加速度設定
-                action.aclVal = action.acl * 9800;
-                action.dclVal = action.dcl * 9800;
+                if (isRotate)
+                {
+                    // ★回転時は加速度は現状無効
+                    action.aclVal = 0;
+                    action.dclVal = 0;
+                }
+                else
+                {
+                    action.aclVal = action.acl * 9800;
+                    action.dclVal = action.dcl * 9800;
+                }
                 // 解の公式における判別式の計算を行う
                 float a = -(1 / action.aclVal + 1 / action.dclVal);
                 float b = 2 * action.time;
@@ -430,13 +444,16 @@ public class MotionInternal : AxisMotionBase
 //    protected override void MyFixedUpdate()
     protected override void FixedUpdate()
     {
+        if (unitSetting.name == "シート束後端整列")
+        {
+        }
         if (moveObject == null)
         {
             return;
         }
         if ((actionIos.Count == 0) || (actionCurve.actCurve == null) || (actionCurve.actionIo == null))
         {
-            renewUnitSetting();
+            RenewMoveDir();
         }
         if (!isMoving)
         {
@@ -505,8 +522,8 @@ public class MotionInternal : AxisMotionBase
                 {
                     // 直線動作
                     var position = transform.TransformPoint(actionCurve.targetPos);
-                    rb.MovePosition(position);
-                    //                    moveObject.transform.localPosition = actionCurve.targetPos;
+                    //rb.MovePosition(position);
+                    moveObject.transform.localPosition = actionCurve.targetPos;
                     innerPosition = actionCurve.targetPos;
                 }
             }
@@ -524,7 +541,7 @@ public class MotionInternal : AxisMotionBase
                         {
                             foreach (var child in chuckSetting.children)
                             {
-                                child.setting.moveObject.transform.localEulerAngles = moveObject.transform.localEulerAngles * child.dir + child.offset * moveDir / Thousand;
+                                child.setting.moveObject.transform.localEulerAngles = moveObject.transform.localEulerAngles * child.dir * child.rate + child.offset * moveDir;
                             }
                         }
                     }
@@ -542,7 +559,7 @@ public class MotionInternal : AxisMotionBase
                         {
                             foreach (var child in chuckSetting.children)
                             {
-                                child.setting.moveObject.transform.localPosition = moveObject.transform.localPosition * child.dir + child.offset * moveDir / Thousand;
+                                child.setting.moveObject.transform.localPosition = moveObject.transform.localPosition * child.dir * child.rate + child.offset * moveDir / Thousand;
                             }
                         }
                     }
@@ -576,7 +593,7 @@ public class MotionInternal : AxisMotionBase
             float dist = 0;
             if (isRotate)
             {
-                dist = Vector3.Distance(campos.Position * Thousand, innerPosition);
+                dist = Vector3.Distance(campos.Position * Thousand, innerPosition) % 360;
             }
             else
             {

@@ -44,8 +44,11 @@ public class Br6DScript : PlanarMotor
                 if (del != null)
                 {
                     Destroy(del);
-                    var s = sh.transform.AddComponent<ObjectDeleteScript>();
-                    s.SetParameter(unitSetting, unitSetting.workDeleteSetting);
+                    foreach (var wk in unitSetting.workDeleteSettings)
+                    {
+                        var s = sh.transform.AddComponent<ObjectDeleteScript>();
+                        s.SetParameter(unitSetting, wk);
+                    }
                 }
                 shuttles.Add(sh);
             }

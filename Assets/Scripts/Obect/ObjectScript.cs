@@ -58,6 +58,7 @@ public class ObjectScript : BaseBehaviour
             rigi = this.gameObject.AddComponent<Rigidbody>();
         }
         rigi.useGravity = IsGravity;
+        rigi.sleepThreshold = 0f;
         if (IsGrabbable)
         {
             // ’Í‚ß‚é
@@ -84,7 +85,11 @@ public class ObjectScript : BaseBehaviour
         {
             Destroy(this.gameObject);
         }
-//        transform.localEulerAngles = this.fixedAngles;
+        if (rigi.IsSleeping() && !rigi.isKinematic)
+        {
+            rigi.WakeUp();
+        }
+        //        transform.localEulerAngles = this.fixedAngles;
     }
 
     /// <summary>

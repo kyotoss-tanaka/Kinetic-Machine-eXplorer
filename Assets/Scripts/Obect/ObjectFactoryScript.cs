@@ -1,6 +1,7 @@
 using Parameters;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text.Json;
 using Unity.VisualScripting;
 using UnityEngine;
@@ -84,7 +85,15 @@ public class ObjectFactoryScript : UseTagBaseScript
     // Start is called before the first frame update
     protected override void Start()
     {
-        objBase = new GameObject("ObjectFuctory");
+        var objFactory = transform.GetComponentsInChildren<Transform>().ToList().Find(d => d.name == "ObjectFuctory");
+        if (objFactory == null)
+        {
+            objBase = new GameObject("ObjectFuctory");
+        }
+        else
+        {
+            objBase = objFactory.gameObject;
+        }
         objBase.transform.parent = transform;
         objBase.transform.position = transform.position;
         objBase.transform.eulerAngles = transform.eulerAngles;
@@ -119,11 +128,23 @@ public class ObjectFactoryScript : UseTagBaseScript
 //        obj.transform.localEulerAngles = Vector3.Scale(CreateRotate, transform.localScale);
         obj.transform.localPosition = CreatePoint;
         obj.transform.localEulerAngles = CreateRotate;
-        obj.SetActive(true);
-        var script = obj.AddComponent<ObjectScript>();
-        script.AliveDistance = AliveDistance;
-        script.IsGrabbable = IsGrabbable;
-        script.IsGravity = IsGravity;
+        // 既に生成済みかチェック(平面距離が1mm以下なら同一オブジェクトとみなす)
+        var near = objBase.transform.GetComponentsInChildren<ObjectScript>().ToList().Find(d => Vector2.Distance(new Vector2(d.transform.localPosition.x, d.transform.localPosition.z), new Vector2(obj.transform.localPosition.x, obj.transform.localPosition.z)) < 0.001f);
+        if (near == null)
+        {
+            obj.SetActive(true);
+            var script = obj.AddComponent<ObjectScript>();
+            script.AliveDistance = AliveDistance;
+            script.IsGrabbable = IsGrabbable;
+            script.IsGravity = IsGravity;
+            var cbs = obj.GetComponent<CardboardScript>();
+            if (cbs != null)
+            {
+                // 設定をコピー
+                var org = work.GetComponent<CardboardScript>();
+                cbs.SetParameter(org);
+            }
+        }
     }
 
     /// <summary>

@@ -5,7 +5,7 @@ using UnityEngine;
 
 public class IrregularityParallel : ParallelLink
 {
-    float ARM1_OFFSET2 = -6.56242787f;
+//    float ARM1_OFFSET2 = -6.56242787f;
 
     /// <summary>
     /// コンストラクタ

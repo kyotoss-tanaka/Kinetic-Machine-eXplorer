@@ -16,6 +16,9 @@ using Oculus.Platform;
 using Application =UnityEngine.Application;
 using Oculus.Interaction;
 using UnityEngine.UI;
+using System.Security.Principal;
+
+
 
 #if UNITY_EDITOR
 using UnityEditor;
@@ -25,6 +28,9 @@ using UnityEditor.Experimental.GraphView;
 [ExecuteInEditMode]
 public class MainProcess : KssBaseScript
 {
+    [SerializeField]
+    List<GlobalScript.CbTagInfo> cbTags;
+
     private bool isVR { get { return (Application.platform == RuntimePlatform.Android) || (Application.platform == RuntimePlatform.IPhonePlayer); } }
     private InputSystem_Actions inputActions;
     private CameraController cameraController = null;
@@ -168,6 +174,16 @@ public class MainProcess : KssBaseScript
             if (parameterLoader != null)
             {
                 isReloading = true;
+                parameterLoader.ReloadActParameter();
+                isReloading = false;
+            }
+        }
+        else if (Keyboard.current.pKey.wasPressedThisFrame)
+        {
+            // P
+            if (parameterLoader != null)
+            {
+                isReloading = true;
                 parameterLoader.ReloadParameter();
                 InitCallbackData();
                 isReloading = false;
@@ -258,19 +274,62 @@ public class MainProcess : KssBaseScript
                 }
             }
         }
+        else
+        {
+            Vector2 mousePos = Mouse.current.position.ReadValue();
+            Ray ray = Camera.main.ScreenPointToRay(mousePos);
+            var script = selectedScript;
+            if (Physics.Raycast(ray, out RaycastHit hit, 10, LayerMask.GetMask("Default"), QueryTriggerInteraction.Collide))
+            {
+                var mouseGameObject = hit.collider.gameObject;
+                if (mouseGameObject != null)
+                {
+                    script = mouseGameObject.GetComponentInChildren<KssBaseScript>();
+                }
+            }
+            if (selectedScript == null)
+            {
+                if (script != null)
+                {
+                    // 初回処理
+                    selectedScript = script;
+                    selectedScript.OnMouseEnter();
+                }
+            }
+            else
+            {
+                if (script != selectedScript)
+                {
+                    if (script == null)
+                    {
+                        selectedScript.OnMouseExit();
+                        selectedScript = null;
+                    }
+                    else
+                    {
+                        selectedScript.OnMouseExit();
+                        selectedScript = script;
+                        selectedScript.OnMouseEnter();
+                    }
+                }
+                else
+                {
+                    selectedScript.OnMouseOver();
+                }
+            }
+        }
     }
 
     private void InitCallbackData()
     {
         // コールバックデータ初期化
+        cbTags = new();
         foreach (var tag in GlobalScript.callbackTags)
         {
             GlobalScript.SetTagData(tag.output, 0);
-            tag.value = false;
+            tag.output.Value = 0;
         }
     }
-
-    List<List<int>> debugData = new List<List<int>>();
 
     /// <summary>
     /// コールバックテスト
@@ -279,29 +338,51 @@ public class MainProcess : KssBaseScript
     {
         if (!isReloading)
         {
+            if (cbTags.Count == 0)
+            {
+                foreach (var tag in GlobalScript.callbackTags)
+                {
+                    tag.output.stopwatch = new();
+                    tag.cntIn.stopwatch = new();
+                    cbTags.Add(tag.output);
+                    cbTags.Add(tag.cntIn);
+                }
+            }
             foreach (var tag in GlobalScript.callbackTags)
             {
                 // 折り返し
-                var input = GlobalScript.GetTagData(tag.input);
-                var output = GlobalScript.GetTagData(tag.output);
-                if (input == output)
+                if ((tag.input.Tag != "") && (tag.output.Tag != ""))
                 {
-                    GlobalScript.SetTagData(tag.output, input == 0 ? 1 : 0);
-                    tag.laps = tag.stopwatch.ElapsedMilliseconds;
-                    tag.stopwatch.Restart();
-                }
-                else
-                {
+                    var input = GlobalScript.GetTagData(tag.input);
+                    var output = GlobalScript.GetTagData(tag.output);
+                    if (input == output)
+                    {
+                        var next = input == 0 ? 1 : 0;
+                        if ((tag.output.Value != next) || (tag.output.stopwatch.ElapsedMilliseconds > 5000))
+                        {
+                            GlobalScript.SetTagData(tag.output, next);
+                            tag.output.SetLaps(tag.output.stopwatch.ElapsedMilliseconds);
+                            tag.output.stopwatch.Restart();
+                            tag.output.Value = next;
+                        }
+                    }
+                    else
+                    {
+                    }
                 }
                 // カウンタ
-                var count = GlobalScript.GetTagData(tag.cntIn);
-                GlobalScript.SetTagData(tag.cntOut, tag.count);
-                debugData.Add(new List<int> { count, tag.count });
-                if (debugData.Count > 1000)
+                if ((tag.cntIn.Tag != "") && (tag.cntOut.Tag != ""))
                 {
-                    debugData.RemoveAt(0);
+                    var count = GlobalScript.GetTagData(tag.cntIn);
+                    if (tag.cntIn.Value != count)
+                    {
+                        tag.cntIn.SetLaps(tag.cntIn.stopwatch.ElapsedMilliseconds);
+                        tag.cntIn.stopwatch.Restart();
+                        tag.cntIn.Value = count;
+                    }
+                    tag.cntOut.Value = (tag.cntOut.Value + 1) % 10000;
+                    GlobalScript.SetTagData(tag.cntOut, tag.cntOut.Value);
                 }
-                tag.count = (tag.count + 1) % 10000;
             }
         }
     }

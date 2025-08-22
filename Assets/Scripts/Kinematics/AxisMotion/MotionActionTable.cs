@@ -57,7 +57,7 @@ public class MotionActionTable : AxisMotionBase
     /// 動作テーブル
     /// </summary>
     [SerializeField]
-    protected ActionTableData? actionTableData;
+    protected ActionTableData actionTableData;
 
     // Start is called before the first frame update
     protected override void Start()
@@ -65,15 +65,15 @@ public class MotionActionTable : AxisMotionBase
         base.Start();
 
         // ユニット設定更新
-        renewUnitSetting();
+        RenewMoveDir();
     }
 
     /// <summary>
     /// ユニット設定から動作設定更新
     /// </summary>
-    protected override void renewUnitSetting()
+    public override void RenewMoveDir()
     {
-        base.renewUnitSetting();
+        base.RenewMoveDir();
 
         // サイクルタグ設定
         var tag = GlobalScript.callbackTags.Find(d => d.database == unitSetting.Database);
@@ -85,19 +85,26 @@ public class MotionActionTable : AxisMotionBase
 
         // テーブル取得
         actionTableData = GlobalScript.actionTableDatas.Find(d => (d.mechId == unitSetting.mechId) && (d.name == unitSetting.name));
-        // 時間ごとにソート
-        actionTableData.datas = actionTableData.datas.OrderBy(d => d.time).ToList();
+        if (actionTableData == null)
+        {
+            actionTableData = new ActionTableData();
+        }
+        else
+        {
+            // 時間ごとにソート
+            actionTableData.datas = actionTableData.datas.OrderBy(d => d.time).ToList();
+        }
     }
 
     /// <summary>
     /// 更新処理
     /// </summary>
     protected override void MyFixedUpdate()
-    {  
+    {
         time = GlobalScript.GetTagData(cycleTag);
         if (!isManual)
         {
-            cycle = time % unitSetting.actionSetting.cycle;
+            cycle = time % (unitSetting.actionSetting.cycle == 0 ? 1000 : unitSetting.actionSetting.cycle);
         }
         if ((actionTableData != null) && (actionTableData.datas.Count > 0))
         {

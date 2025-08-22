@@ -33,7 +33,7 @@ public class ShapeScript : UseTagBaseScript
     public override void SetParameter(UnitSetting unitSetting, object obj)
     {
         base.SetParameter(unitSetting, obj);
-
+        
         var shape = (ShapeSetting)obj;
         foreach (var s in shape.datas)
         {
@@ -41,9 +41,9 @@ public class ShapeScript : UseTagBaseScript
             box.isTrigger = false;
             box.center = new Vector3
             {
-                x = s.center[0] * transform.localScale.x,
-                y = s.center[1] * transform.localScale.y,
-                z = s.center[2] * transform.localScale.z
+                x = s.center[0],
+                y = s.center[1],
+                z = s.center[2]
             };
             box.size = new Vector3
             {

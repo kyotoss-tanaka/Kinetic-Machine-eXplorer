@@ -1,3 +1,4 @@
+using MQTTnet.Server;
 using Parameters;
 using System;
 using System.Collections.Generic;
@@ -54,6 +55,31 @@ public static class GlobalScript
         public Material material;
     }
 
+    [Serializable]
+    public class CbTagInfo : TagInfo
+    {
+        /// <summary>
+        /// ストップウォッチ
+        /// </summary>
+        public System.Diagnostics.Stopwatch stopwatch = new();
+        /// <summary>
+        /// 時間
+        /// </summary>
+        public List<long> laps;
+        public void SetLaps(long laps)
+        {
+            if (this.laps.IsUnityNull())
+            {
+                this.laps = new();
+            }
+            this.laps.Add(laps);
+            if (this.laps.Count > 100)
+            {
+                this.laps.RemoveAt(0);
+            }
+        }
+    }
+
     /// <summary>
     /// コールバックタグデータ
     /// </summary>
@@ -63,39 +89,46 @@ public static class GlobalScript
         /// <summary>
         /// 折り返し用入力
         /// </summary>
-        public TagInfo input;
+        public CbTagInfo input;
         /// <summary>
         /// 折り返し用出力
         /// </summary>
-        public TagInfo output;
+        public CbTagInfo output;
         /// <summary>
         /// カウンタ用入力
         /// </summary>
-        public TagInfo cntIn;
+        public CbTagInfo cntIn;
         /// <summary>
         /// カウンタ用出力
         /// </summary>
-        public TagInfo cntOut;
+        public CbTagInfo cntOut;
         /// <summary>
-        /// 内部サイクル
+        /// サイクルタグ
         /// </summary>
         public TagInfo cycle;
+    }
+    
+    /// <summary>
+    /// 断面表示情報
+    /// </summary>
+    public class ClipInfo
+    {
         /// <summary>
-        /// 現在の値
+        /// 描画エリア
         /// </summary>
-        public bool value;
+        public Bounds bounds;
         /// <summary>
-        /// 現在の値
+        /// X値
         /// </summary>
-        public int count;
+        public float x;
         /// <summary>
-        /// ストップウォッチ
+        /// Y値
         /// </summary>
-        public System.Diagnostics.Stopwatch stopwatch;
+        public float y;
         /// <summary>
-        /// 時間
+        /// Z値
         /// </summary>
-        public long laps { get; set; }
+        public float z;
     }
 
     /// <summary>
@@ -134,6 +167,16 @@ public static class GlobalScript
     public static Dictionary<string, ComInner> inners = new Dictionary<string, ComInner>();
 
     /// <summary>
+    /// MCプロトコル
+    /// </summary>
+    public static Dictionary<string, ComMcProtocol> mcprotocols = new Dictionary<string, ComMcProtocol>();
+
+    /// <summary>
+    /// MICKS通信
+    /// </summary>
+    public static Dictionary<string, ComMicks> mickses = new Dictionary<string, ComMicks>();
+
+    /// <summary>
     /// ワーク
     /// </summary>
     public static Dictionary<string, GameObject> works = new Dictionary<string, GameObject>();
@@ -154,14 +197,34 @@ public static class GlobalScript
     public static object objLock = new object();
 
     /// <summary>
+    /// ビルド設定
+    /// </summary>
+    public static BuildConfig buildConfig = new();
+
+    /// <summary>
     /// ロード中フラグ
     /// </summary>
     public static bool isLoading = false;
 
     /// <summary>
+    /// ロード完了
+    /// </summary>
+    public static bool isLoaded = false;
+
+    /// <summary>
+    /// イベントロード要求
+    /// </summary>
+    public static bool isReqLoadEvent = false;
+
+    /// <summary>
     /// 衝突表示モード
     /// </summary>
     public static bool isCollision = false;
+
+    /// <summary>
+    /// 断面表示情報
+    /// </summary>
+    public static ClipInfo clipInfo = new();
 
     /// <summary>
     /// デバッグ出力用モード
@@ -231,6 +294,8 @@ public static class GlobalScript
         mqtts = new Dictionary<string, ComMqtt>();
         inners = new Dictionary<string, ComInner>();
         opcuas = new Dictionary<string, ComOpcUA>();
+        mcprotocols = new Dictionary<string,ComMcProtocol>();
+        mickses = new Dictionary<string, ComMicks>();
         regObjects = new Dictionary<string, List<GameObject>>();
         regScripts = new Dictionary<string, List<GameObject>>();
     }
@@ -393,6 +458,14 @@ public static class GlobalScript
             else if (inners.ContainsKey(tag.Key))
             {
                 inners[tag.Key].SetDatas(tag.Value);
+            }
+            else if (mcprotocols.ContainsKey(tag.Key))
+            {
+                mcprotocols[tag.Key].SetDatas(tag.Value);
+            }
+            else if (mickses.ContainsKey(tag.Key))
+            {
+                mickses[tag.Key].SetDatas(tag.Value);
             }
         }
     }
@@ -711,6 +784,116 @@ public static class GlobalScript
             };
         }
         return s;
+    }
+
+    /// <summary>
+    /// 衝突検知用コライダー作成
+    /// </summary>
+    /// <returns></returns>
+    public static bool CreateCollider(GameObject model)
+    {
+        var meshColliderBuilder = model.AddComponent<SAMeshColliderBuilder>();
+        meshColliderBuilder.reducerProperty.shapeType = SAColliderBuilderCommon.ShapeType.Mesh;
+        meshColliderBuilder.reducerProperty.meshType = SAColliderBuilderCommon.MeshType.Raw;
+        meshColliderBuilder.splitProperty.splitPrimitiveEnabled = false;
+        //                    meshColliderBuilder.splitProperty.splitPolygonNormalEnabled = false;
+        //                    meshColliderBuilder.splitProperty.splitPolygonNormalAngle = 60;
+        //                    meshColliderBuilder.reducerProperty.meshType = SAColliderBuilderCommon.MeshType.ConvexHull;
+        meshColliderBuilder.rigidbodyProperty.isCreate = false;
+        meshColliderBuilder.colliderProperty.convex = false;
+        meshColliderBuilder.colliderProperty.isTrigger = false;
+        KssMeshColliderBuilderInspector.Process(meshColliderBuilder);
+        var suctions = model.GetComponentsInChildren<SuctionScript>().ToList();
+        foreach (var col in model.GetComponentsInChildren<MeshCollider>())
+        {
+            try
+            {
+                if ((col == null) || (col.sharedMesh == null) || (suctions.Find(d => col.transform.IsChildOf(d.transform)) != null))
+                {
+                    // 吸引は無視
+                    continue;
+                }
+                AddFakeThickness(col.sharedMesh);
+                var verts = col.sharedMesh.vertices;
+                float minZ = verts.Min(v => v.z);
+                float maxZ = verts.Max(v => v.z);
+                float thickness = Mathf.Abs(maxZ - minZ);
+                int triangleCount = col.sharedMesh.triangles.Length / 3;
+                var message = "";
+                if (IsMesh3D(col.sharedMesh, ref message) && (triangleCount <= 255))
+                {
+                    try
+                    {
+                        col.convex = true;
+                        col.isTrigger = true;
+                    }
+                    catch (System.Exception ex)
+                    {
+                        Debug.LogWarning($"Convex設定に失敗: {col.name}, 理由: {ex.Message}");
+                        col.convex = false;
+                        col.isTrigger = false;
+                    }
+                }
+                else
+                {
+                    GameObject.Destroy(col);
+                    //                                Debug.Log($"convexスキップ: {col.name}, triangle: {triangleCount}, thickness: {thickness}");
+                }
+            }
+            catch (System.Exception ex)
+            {
+                Debug.LogWarning($"Convex設定に失敗: {col.name}, 理由: {ex.Message}");
+                col.convex = false;
+                col.isTrigger = false;
+            }
+        }
+        return true;
+    }
+
+    /// <summary>
+    /// メッシュが3Dかチェック
+    /// </summary>
+    /// <param name="mesh"></param>
+    /// <returns></returns>
+    private static bool IsMesh3D(UnityEngine.Mesh mesh, ref string message)
+    {
+        if (mesh == null || mesh.vertexCount < 4) return false;
+
+        var verts = mesh.vertices;
+        var min = verts[0];
+        var max = verts[0];
+
+        foreach (var v in verts)
+        {
+            min = Vector3.Min(min, v);
+            max = Vector3.Max(max, v);
+        }
+
+        float thicknessZ = Mathf.Abs(max.z - min.z);
+        float thicknessY = Mathf.Abs(max.y - min.y);
+        float thicknessX = Mathf.Abs(max.x - min.x);
+
+        message = (thicknessX * thicknessX * 1000000 + thicknessY * thicknessY * 1000000 + thicknessZ * thicknessZ * 1000000).ToString();
+
+        // 最小でも3方向にある程度の広がりがないと凸包は失敗する可能性
+        return (thicknessX > 1e-4f && thicknessY > 1e-4f && thicknessZ > 1e-4f);
+    }
+
+    /// <summary>
+    /// 厚みを加える
+    /// </summary>
+    /// <param name="offset"></param>
+    /// <param name="mesh"></param>
+    private static void AddFakeThickness(UnityEngine.Mesh mesh, float offset = 0.0001f)
+    {
+        Vector3[] verts = mesh.vertices;
+        for (int i = 0; i < verts.Length; i++)
+        {
+            verts[i].z += UnityEngine.Random.Range(-offset, offset); // Z方向に厚み
+        }
+        mesh.vertices = verts;
+        mesh.RecalculateBounds();
+        mesh.RecalculateNormals();
     }
 
     /// <summary>

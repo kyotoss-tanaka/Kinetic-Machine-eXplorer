@@ -20,14 +20,13 @@ public class BaseBehaviour : MonoBehaviour
     protected virtual void OnCollisionStay2D(Collision2D other) { }
     protected virtual void OnCollisionExit(Collision other) { }
     protected virtual void OnCollisionExit2D(Collision2D other) { }
-    protected virtual void OnMouseEnter() { }
-    protected virtual void OnMouseOver() { }
+    public virtual void OnMouseEnter() { }
+    public virtual void OnMouseOver() { }
     public virtual void OnMouseUp() { }
     protected virtual void OnMouseDrag() { }
     public virtual void OnMouseDown() { }
     protected virtual void OnMouseUpAsButton() { }
-    protected virtual void OnMouseExit() { }
-    protected virtual void Update() { }
+    public virtual void OnMouseExit() { }
     protected virtual void LateUpdate() { }
     protected virtual void OnWillRenderObject() { }
     protected virtual void OnPreCull() { }
@@ -46,6 +45,14 @@ public class BaseBehaviour : MonoBehaviour
     protected virtual void OnApplicationFocus(bool focusStatus) { }
     
     private Coroutine updateProceess { get; set; }
+
+    /// <summary>
+    /// 更新処理
+    /// </summary>
+    protected virtual void Update()
+    {
+    }
+
     /// <summary>
     /// 更新処理
     /// </summary>

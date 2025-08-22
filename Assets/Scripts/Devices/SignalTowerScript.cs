@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Security.Cryptography;
+using Unity.VisualScripting;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
@@ -41,6 +42,33 @@ public class SignalTowerScript : KssBaseScript
         GreenMaterial = green == null ? null : green.GetComponent<MeshRenderer>().material;
         BlueMaterial = blue == null ? null : blue.GetComponent<MeshRenderer>().material;
         WhiteMaterial = white == null ? null : white.GetComponent<MeshRenderer>().material;
+    }
+
+    protected override void OnDestroy()
+    {
+        base.OnDestroy();
+        /*
+        if (RedMaterial != null)
+        {
+            Destroy(RedMaterial);
+        }
+        if (YellowMaterial != null)
+        {
+            Destroy(YellowMaterial);
+        }
+        if (GreenMaterial != null)
+        {
+            Destroy(GreenMaterial);
+        }
+        if (BlueMaterial != null)
+        {
+            Destroy(BlueMaterial);
+        }
+        if (WhiteMaterial != null)
+        {
+            Destroy(WhiteMaterial);
+        }
+        */
     }
 
     protected override void MyFixedUpdate()

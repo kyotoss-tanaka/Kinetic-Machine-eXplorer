@@ -10,8 +10,15 @@ public class MotionExternal : AxisMotionBase
     /// </summary>
     protected override bool isCanvas { get { return true; } }
 
+    /// <summary>
+    /// 動作タグ
+    /// </summary>
+    [SerializeField]
     protected TagInfo actTag;
 
+    /// <summary>
+    /// 比率
+    /// </summary>
     protected float rate;
 
     // Start is called before the first frame update
@@ -20,15 +27,15 @@ public class MotionExternal : AxisMotionBase
         base.Start();
 
         // ユニット設定更新
-        renewUnitSetting();
+        RenewMoveDir();
     }
 
     /// <summary>
     /// ユニット設定から動作設定更新
     /// </summary>
-    protected override void renewUnitSetting()
+    public override void RenewMoveDir()
     {
-        base.renewUnitSetting();
+        base.RenewMoveDir();
 
         // 動作タグ設定
         actTag = ScriptableObject.CreateInstance<TagInfo>();
@@ -44,14 +51,28 @@ public class MotionExternal : AxisMotionBase
     /// </summary>
     protected override void MyFixedUpdate()
     {
-        var data = GlobalScript.GetTagData(actTag) / (rate == 0 ? 1000f : rate);
+        var data = (GlobalScript.GetTagData(actTag) / (rate == 0 ? 1000f : rate) + unitSetting.actionSetting.offset / (isRotate ? 1f : 1000f)) * unitSetting.actionSetting.dir;
         if (isRotate)
         {
             moveObject.transform.localEulerAngles = moveDir * data;
+            if (chuckSetting != null)
+            {
+                foreach (var child in chuckSetting.children)
+                {
+                    child.setting.moveObject.transform.localEulerAngles = moveObject.transform.localEulerAngles * child.dir * child.rate + child.offset * moveDir;
+                }
+            }
         }
         else
         {
             moveObject.transform.localPosition = moveDir * data;
+            if (chuckSetting != null)
+            {
+                foreach (var child in chuckSetting.children)
+                {
+                    child.setting.moveObject.transform.localPosition = moveObject.transform.localPosition * child.dir * child.rate + child.offset * moveDir / Thousand;
+                }
+            }
         }
     }
 }

@@ -4,13 +4,16 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Net;
+using System.Text;
 using System.Text.Json;
+using System.Threading.Tasks;
 using System.Xml.Linq;
 using Unity.VisualScripting;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.Networking;
 using static ComOpcUA;
+using static OVRPlugin;
 
 public class ComPostgres : ComBaseScript
 {
@@ -30,9 +33,12 @@ public class ComPostgres : ComBaseScript
     private string url { get { return "http://" + Server + ":1880/api/db/"; } }
 
     /// <summary>
+    /// 処理中
+    /// </summary>
+    private bool isProcessing = false;
+    /// <summary>
     /// DBのデータ
     /// </summary>
-    [Serializable]
     public class LatestData
     {
         public DateTime datetime { get; set; }
@@ -42,9 +48,22 @@ public class ComPostgres : ComBaseScript
         public int data_value { get; set; }
     }
 
+    /// <summary>
+    /// 受信タグ
+    /// </summary>
+    private List<LatestData> tagInfos;
+
+    /// <summary>
+    /// タグ数
+    /// </summary>
+    private int tagCount = 0;
+
+    [SerializeField]
+    int cntTest;
     // Start is called before the first frame update
     protected override void Start()
     {
+        tagInfos = new();
         if ((Application.platform == RuntimePlatform.Android) || (Application.platform == RuntimePlatform.IPhonePlayer))
         {
             //端末がAndroidかiOSだった場合の処理
@@ -67,6 +86,142 @@ public class ComPostgres : ComBaseScript
             StartCoroutine(DataUpdate());
         }
     }
+    /*
+    /// <summary>
+    /// 更新処理
+    /// </summary>
+    protected override void Update()
+    {
+        base.Update();
+        if (IsTask)
+        {
+            if (!isProcessing)
+            {
+                isProcessing = true;
+                _ = DataUpdateTask();
+            }
+            else
+            {
+            }
+        }
+    }
+
+    /// <summary>
+    /// 非同期更新
+    /// </summary>
+    /// <returns></returns>
+    private async Task DataUpdateTask()
+    {
+        if (GlobalScript.isLoaded)
+        {
+            // データ交換処理
+            DataExchangeProcess();
+
+            // データ更新処理
+            await RenewDataAsync();
+        }
+        // 処理完了
+        isProcessing = false;
+    }
+
+    /// <summary>
+    /// 非同期DBアクセス
+    /// </summary>
+    /// <returns></returns>
+    private async Task<bool> RenewDataAsync()
+    {
+        base.RenewData();
+        var sw = new System.Diagnostics.Stopwatch();
+        sw.Start();
+        var connectionString = $"Server={Server};Port={Port};Database={Database};User ID={User};Password={Password};Max Auto Prepare=1;";
+        using (var connection = new NpgsqlConnection(connectionString))
+        {
+            try
+            {
+                // 接続の確立
+                connection.Open();
+                // 書き込み処理
+                if (!isClientMode && writeDatas.Count > 0)
+                {
+                    using (var command = connection.CreateCommand())
+                    {
+                        // 書き込み実行
+                        command.CommandText = "";
+                        foreach (var tag in writeDatas)
+                        {
+                            command.CommandText += $"UPDATE latestdata SET data_value = {tag.Value} where mech_id = '{tag.MechId}' and  event_id = '{tag.Tag}';";
+                        }
+                        command.Prepare();
+                        command.ExecuteNonQuery();
+                        command.Dispose();
+                        writeDatas.Clear();
+                    }
+                }
+                tagInfos = new();
+                // 読み込み処理
+                using (var command = connection.CreateCommand())
+                {
+                    // SELECT文の実行
+                    command.CommandText = "SELECT * FROM latestdata;";
+                    command.Prepare();
+                    using (var reader = command.ExecuteReader())
+                    {
+                        avgProcess = sw.ElapsedMilliseconds;//★
+                        // 1行ずつデータを取得
+                        while (reader.Read())
+                        {
+                            tagInfos.Add(new LatestData
+                            {
+                                mech_id = reader["mech_id"].ToString(),
+                                event_id = reader["event_id"].ToString(),
+                                device_name = reader["device_name"].ToString(),
+                                data_value = int.Parse(reader["data_value"].ToString())
+                            });
+                        }
+                    }
+                }
+                foreach (var tagInfo in tagInfos)
+                {
+                    var mech = tagInfo.mech_id;
+                    var tag = tagInfo.event_id;
+                    if (tagCount != tagInfos.Count)
+                    {
+                        if (!GlobalScript.tagDatas[Name].ContainsKey(mech))
+                        {
+                            // 機番作成
+                            GlobalScript.tagDatas[Name].Add(mech, new Dictionary<string, TagInfo>());
+                        }
+                        if (!GlobalScript.tagDatas[Name][mech].ContainsKey(tag))
+                        {
+                            GlobalScript.tagDatas[Name][mech].Add(tag, ScriptableObject.CreateInstance<TagInfo>());
+                        }
+                        else if (GlobalScript.tagDatas[Name][mech][tag] == null)
+                        {
+                            GlobalScript.tagDatas[Name][mech].Remove(tag);
+                            GlobalScript.tagDatas[Name][mech].Add(tag, ScriptableObject.CreateInstance<TagInfo>());
+                        }
+                    }
+                    var dct = GlobalScript.tagDatas[Name][mech][tag];
+                    dct.name = tag;
+                    dct.Database = Name;
+                    dct.MechId = mech;
+                    dct.Tag = tag;
+                    dct.Device = tagInfo.device_name;
+                    dct.Value = tagInfo.data_value;
+                }
+                tagCount = tagInfos.Count;
+                // DBのデータ作成完了
+                isRcvDb = true;
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError(ex.InnerException.Message);
+            }
+        }
+        processTime = sw.ElapsedMilliseconds;
+        return true;
+    }
+    */
 
     /// <summary>
     /// API通信
@@ -74,27 +229,36 @@ public class ComPostgres : ComBaseScript
     /// <returns></returns>
     private IEnumerator DataUpdate()
     {
-        while (this.enabled)
+        while (true)
         {
-            // データ交換処理
-            DataExchangeProcess();
+            if (this.enabled)
+            {
+                if (GlobalScript.isLoaded)
+                {
+                    // データ交換処理
+                    DataExchangeProcess();
 
-            // データ更新処理
-            lock (objLock)
-            {
-                RenewData();
-            }
-            var sw = new System.Diagnostics.Stopwatch();
-            sw.Start();
-            if (Cycle < 30)
-            {
-                yield return null;
+                    // データ更新処理
+                    RenewData();
+                }
+                var sw = new System.Diagnostics.Stopwatch();
+                sw.Start();
+                if (Cycle < 30)
+                {
+                    yield return new WaitForFixedUpdate();
+                    //yield return null;
+
+                }
+                else
+                {
+                    yield return new WaitForSecondsRealtime(Cycle / 1000f);
+                }
+                waitTime = sw.ElapsedMilliseconds;
             }
             else
             {
                 yield return new WaitForSecondsRealtime(Cycle / 1000f);
             }
-            waitTime = sw.ElapsedMilliseconds;
         }
     }
 
@@ -115,7 +279,7 @@ public class ComPostgres : ComBaseScript
                 {
                     if (GlobalScript.tagDatas[Name].ContainsKey(tag.MechId) && GlobalScript.tagDatas[Name][tag.MechId].ContainsKey(tag.Tag))
                     {
-                        if (GlobalScript.tagDatas[Name][tag.MechId][tag.Tag].Value != tag.Value)
+                        if (isFirst || (GlobalScript.tagDatas[Name][tag.MechId][tag.Tag].Value != tag.Value))
                         {
                             GlobalScript.tagDatas[Name][tag.MechId][tag.Tag].Value = tag.Value;
                             datas.Add(new TagInfoCom { MechId = tag.MechId, Tag = tag.Tag, Value = tag.Value, fValue = tag.fValue, isFloat = tag.isFloat });
@@ -166,77 +330,116 @@ public class ComPostgres : ComBaseScript
         }
         else
         {
-            var sw = new System.Diagnostics.Stopwatch();
-            sw.Start();
-            var connectionString = $"Server={Server};Port={Port};Database={Database};User ID={User};Password={Password};Max Auto Prepare=1;";
-            using (var connection = new NpgsqlConnection(connectionString))
+            if (!isProcessing)
             {
-                try
+                isProcessing = true;
+                if (tagInfos.Count > 0)
                 {
-                    // 接続の確立
-                    connection.Open();
-                    // 書き込み処理
-                    if (!isClientMode && writeDatas.Count > 0)
+                    foreach (var tagInfo in tagInfos)
                     {
-                        using (var command = connection.CreateCommand())
+                        var mech = tagInfo.mech_id;
+                        var tag = tagInfo.event_id;
+                        if (tagCount != tagInfos.Count)
                         {
-                            // 書き込み実行
-                            command.CommandText = "";
-                            foreach (var tag in writeDatas)
+                            if (!GlobalScript.tagDatas[Name].ContainsKey(mech))
                             {
-                                command.CommandText += $"UPDATE latestdata SET data_value = {tag.Value} where mech_id = '{tag.MechId}' and  event_id = '{tag.Tag}';";
+                                // 機番作成
+                                GlobalScript.tagDatas[Name].Add(mech, new Dictionary<string, TagInfo>());
                             }
-                            command.Prepare();
-                            command.ExecuteNonQuery();
-                            command.Dispose();
-                            writeDatas.Clear();
-                        }
-                    }
-                    // 読み込み処理
-                    using (var command = connection.CreateCommand())
-                    {
-                        // SELECT文の実行
-                        command.CommandText = "SELECT * FROM latestdata;";
-                        command.Prepare();
-                        using (var reader = command.ExecuteReader())
-                        {
-                            // 1行ずつデータを取得
-                            while (reader.Read())
+                            if (!GlobalScript.tagDatas[Name][mech].ContainsKey(tag))
                             {
-                                var mech = reader["mech_id"].ToString();
-                                if (!GlobalScript.tagDatas[Name].ContainsKey(mech))
-                                {
-                                    // 機番作成
-                                    GlobalScript.tagDatas[Name].Add(mech, new Dictionary<string, TagInfo>());
-                                }
-                                var tag = reader["event_id"].ToString();
-                                var dev = reader["device_name"].ToString();
-                                var val = int.Parse(reader["data_value"].ToString());
-                                if (!GlobalScript.tagDatas[Name][mech].ContainsKey(tag))
-                                {
-                                    GlobalScript.tagDatas[Name][mech].Add(tag, ScriptableObject.CreateInstance<TagInfo>());
-                                }
-                                else if (GlobalScript.tagDatas[Name][mech][tag] == null)
-                                {
-                                    GlobalScript.tagDatas[Name][mech].Remove(tag);
-                                    GlobalScript.tagDatas[Name][mech].Add(tag, ScriptableObject.CreateInstance<TagInfo>());
-                                }
-                                GlobalScript.tagDatas[Name][mech][tag].name = tag;
-                                GlobalScript.tagDatas[Name][mech][tag].Database = Name;
-                                GlobalScript.tagDatas[Name][mech][tag].MechId = mech;
-                                GlobalScript.tagDatas[Name][mech][tag].Tag = tag;
-                                GlobalScript.tagDatas[Name][mech][tag].Device = dev;
-                                GlobalScript.tagDatas[Name][mech][tag].Value = val;
+                                GlobalScript.tagDatas[Name][mech].Add(tag, ScriptableObject.CreateInstance<TagInfo>());
+                            }
+                            else if (GlobalScript.tagDatas[Name][mech][tag] == null)
+                            {
+                                GlobalScript.tagDatas[Name][mech].Remove(tag);
+                                GlobalScript.tagDatas[Name][mech].Add(tag, ScriptableObject.CreateInstance<TagInfo>());
                             }
                         }
+                        var dct = GlobalScript.tagDatas[Name][mech][tag];
+                        dct.name = tag;
+                        dct.Database = Name;
+                        dct.MechId = mech;
+                        dct.Tag = tag;
+                        dct.Device = tagInfo.device_name;
+                        dct.Value = tagInfo.data_value;
                     }
+                    tagCount = tagInfos.Count;
+                    tagInfos.Clear();
+                    // DBのデータ作成完了
+                    isRcvDb = true;
+                    cntTest = 0;
                 }
-                catch (Exception ex)
+                else
                 {
-                    Debug.LogError(ex.InnerException.Message);
+                    cntTest++;
                 }
+                // DBへのアクセスを別タスクに
+                _ = Task.Run(() =>
+                {
+                    var sw = new System.Diagnostics.Stopwatch();
+                    sw.Start();
+                    var connectionString = $"Server={Server};Port={Port};Database={Database};User ID={User};Password={Password};Max Auto Prepare=1;";
+                    using (var connection = new NpgsqlConnection(connectionString))
+                    {
+                        try
+                        {
+                            // 接続の確立
+                            connection.Open();
+                            // 書き込み処理
+                            lock (objLock)
+                            {
+                                if (!isClientMode && writeDatas.Count > 0)
+                                {
+                                    using (var command = connection.CreateCommand())
+                                    {
+                                        // 書き込み実行
+                                        command.CommandText = "";
+                                        var sb = new StringBuilder();
+                                        foreach (var tag in writeDatas)
+                                        {
+                                            sb.Append($"UPDATE latestdata SET data_value = {tag.Value} where mech_id = '{tag.MechId}' and  event_id = '{tag.Tag}';");
+                                        }
+                                        command.CommandText = sb.ToString();
+                                        command.Prepare();
+                                        command.ExecuteNonQuery();
+                                        command.Dispose();
+                                        writeDatas.Clear();
+                                    }
+                                }
+                            }
+                            // 読み込み処理
+                            tagInfos = new();
+                            using (var command = connection.CreateCommand())
+                            {
+                                // SELECT文の実行
+                                command.CommandText = "SELECT * FROM latestdata;";
+                                command.Prepare();
+                                using (var reader = command.ExecuteReader())
+                                {
+                                    // 1行ずつデータを取得
+                                    while (reader.Read())
+                                    {
+                                        tagInfos.Add(new LatestData
+                                        {
+                                            mech_id = reader.GetString(1),
+                                            event_id = reader.GetString(2),
+                                            device_name = reader.GetString(3),
+                                            data_value = reader.GetInt32(4)
+                                        });
+                                    }
+                                }
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            Debug.LogError(ex.InnerException.Message);
+                        }
+                    }
+                    processTime = sw.ElapsedMilliseconds;
+                    isProcessing = false;
+                });
             }
-            processTime = sw.ElapsedMilliseconds;
         }
     }
 
@@ -259,26 +462,29 @@ public class ComPostgres : ComBaseScript
                 else if (req.responseCode == 200)
                 {
                     // 受信処理
-                    var rcvDatas = JsonSerializer.Deserialize<List<LatestData>>(req.downloadHandler.text);
-                    foreach (var data in rcvDatas)
+                    tagInfos = JsonSerializer.Deserialize<List<LatestData>>(req.downloadHandler.text);
+                    foreach (var data in tagInfos)
                     {
                         var mech = data.mech_id;
-                        if (!GlobalScript.tagDatas[Name].ContainsKey(mech))
-                        {
-                            // 機番作成
-                            GlobalScript.tagDatas[Name].Add(mech, new Dictionary<string, TagInfo>());
-                        }
                         var tag = data.event_id;
                         var dev = data.device_name;
                         var val = int.Parse(data.data_value.ToString());
-                        if (!GlobalScript.tagDatas[Name][mech].ContainsKey(tag))
+                        if (tagInfos.Count != tagCount)
                         {
-                            GlobalScript.tagDatas[Name][mech].Add(tag, ScriptableObject.CreateInstance<TagInfo>());
-                        }
-                        else if (GlobalScript.tagDatas[Name][mech][tag] == null)
-                        {
-                            GlobalScript.tagDatas[Name][mech].Remove(tag);
-                            GlobalScript.tagDatas[Name][mech].Add(tag, ScriptableObject.CreateInstance<TagInfo>());
+                            if (!GlobalScript.tagDatas[Name].ContainsKey(mech))
+                            {
+                                // 機番作成
+                                GlobalScript.tagDatas[Name].Add(mech, new Dictionary<string, TagInfo>());
+                            }
+                            if (!GlobalScript.tagDatas[Name][mech].ContainsKey(tag))
+                            {
+                                GlobalScript.tagDatas[Name][mech].Add(tag, ScriptableObject.CreateInstance<TagInfo>());
+                            }
+                            else if (GlobalScript.tagDatas[Name][mech][tag] == null)
+                            {
+                                GlobalScript.tagDatas[Name][mech].Remove(tag);
+                                GlobalScript.tagDatas[Name][mech].Add(tag, ScriptableObject.CreateInstance<TagInfo>());
+                            }
                         }
                         GlobalScript.tagDatas[Name][mech][tag].name = tag;
                         GlobalScript.tagDatas[Name][mech][tag].Database = Name;
@@ -287,6 +493,9 @@ public class ComPostgres : ComBaseScript
                         GlobalScript.tagDatas[Name][mech][tag].Device = dev;
                         GlobalScript.tagDatas[Name][mech][tag].Value = val;
                     }
+                    tagCount = tagInfos.Count;
+                    // DBのデータ作成完了
+                    isRcvDb = true;
                 }
             }
             catch (Exception ex)

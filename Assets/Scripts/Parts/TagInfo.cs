@@ -46,6 +46,11 @@ public class TagInfo : KssPartsBase
     /// 浮動小数点データ
     /// </summary>
     public bool isFloat;
+
+    /// <summary>
+    /// 備考
+    /// </summary>
+    public string Remarks;
 }
 
 [Serializable]

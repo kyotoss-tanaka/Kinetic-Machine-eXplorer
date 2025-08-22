@@ -10,6 +10,7 @@ public class KssBaseScript : BaseBehaviour
     [Serializable]
     public class DataExchange
     {
+        public int InitValue;
         public TagInfo Input;
         public TagInfo Output;
     }
@@ -64,7 +65,8 @@ public class KssBaseScript : BaseBehaviour
     /// <summary>
     /// ユニット設定
     /// </summary>
-    protected UnitSetting unitSetting;
+    [SerializeField]
+    public UnitSetting unitSetting;
 
     /// <summary>
     /// 表示データ

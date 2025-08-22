@@ -67,6 +67,11 @@ public class ComBaseScript : KssBaseScript
     protected bool isFirst = true;
 
     /// <summary>
+    /// 初回受信完了処理
+    /// </summary>
+    protected bool isRcvDb = false;
+
+    /// <summary>
     /// データ交換設定
     /// </summary>
     protected DataExchangeSetting dataExchange;
@@ -74,12 +79,12 @@ public class ComBaseScript : KssBaseScript
     /// <summary>
     /// データ初期値設定
     /// </summary>
-    private List<DataExchange> initDatas = new List<DataExchange>();
+    protected List<DataExchange> initDatas = new List<DataExchange>();
 
     /// <summary>
     /// データ交換設定
     /// </summary>
-    private List<DataExchange> dataExchanges = new List<DataExchange>();
+    protected List<DataExchange> dataExchanges = new List<DataExchange>();
 
     /// <summary>
     /// 時間計測用
@@ -98,7 +103,7 @@ public class ComBaseScript : KssBaseScript
     /// <summary>
     /// データ交換処理
     /// </summary>
-    protected void DataExchangeProcess()
+    protected virtual void DataExchangeProcess()
     {
         var tags = new List<TagInfo>();
         if (isFirst)
@@ -109,7 +114,6 @@ public class ComBaseScript : KssBaseScript
                 data.Output.Value = data.Input.Value;
                 tags.Add(data.Output);
             }
-            isFirst = false;
         }
         foreach (var data in dataExchanges)
         {
@@ -118,6 +122,8 @@ public class ComBaseScript : KssBaseScript
             tags.Add(data.Output);
         }
         GlobalScript.SetTagDatas(tags);
+        // DBのデータ作成完了していないとスルーされる
+        isFirst = !isRcvDb;
     }
 
     public virtual void RenewData()
@@ -187,6 +193,8 @@ public class ComBaseScript : KssBaseScript
         this.Password = Password;
         this.isClientMode = isClientMode;
         this.dataExchange = dataExchange;
+        initDatas = new();
+        dataExchanges = new();
         if (dataExchange != null)
         {
             foreach (var data in dataExchange.datas)
@@ -213,6 +221,7 @@ public class ComBaseScript : KssBaseScript
                 }
             }
         }
+        isFirst = true;
     }
 
     /// <summary>

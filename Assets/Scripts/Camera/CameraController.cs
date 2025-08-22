@@ -1,5 +1,6 @@
 using Meta.XR.InputActions;
 using System.Linq;
+using UnityEditor;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
@@ -127,25 +128,28 @@ public class CameraController : MonoBehaviour
 
     public void MouseUpdate()
     {
-        Vector2 scrollDelta = Mouse.current.scroll.ReadValue();
-        float scrollWheel = scrollDelta.y;
-        if (scrollWheel != 0.0f)
+        if (EditorApplication.isPlaying || Keyboard.current.ctrlKey.isPressed)
         {
-            MouseWheel(scrollWheel);
+            Vector2 scrollDelta = Mouse.current.scroll.ReadValue();
+            float scrollWheel = scrollDelta.y;
+            if (scrollWheel != 0.0f)
+            {
+                MouseWheel(scrollWheel);
+            }
+
+            var mouse = Mouse.current;
+
+            // ボタンが押されたら現在のマウス位置を保存
+            if (mouse.leftButton.wasPressedThisFrame ||
+                mouse.rightButton.wasPressedThisFrame ||
+                mouse.middleButton.wasPressedThisFrame)
+            {
+                preMousePos = mouse.position.ReadValue();
+            }
+
+            // ドラッグ処理（あなたの既存関数に合わせて）
+            MouseDrag(mouse.position.ReadValue());
         }
-
-        var mouse = Mouse.current;
-
-        // ボタンが押されたら現在のマウス位置を保存
-        if (mouse.leftButton.wasPressedThisFrame ||
-            mouse.rightButton.wasPressedThisFrame ||
-            mouse.middleButton.wasPressedThisFrame)
-        {
-            preMousePos = mouse.position.ReadValue();
-        }
-
-        // ドラッグ処理（あなたの既存関数に合わせて）
-        MouseDrag(mouse.position.ReadValue());
     }
 
     private void MouseWheel(float delta)
