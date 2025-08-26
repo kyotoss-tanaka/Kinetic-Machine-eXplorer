@@ -22,6 +22,14 @@ namespace Parameters
         /// </summary>
         MPX_PI,
         /// <summary>
+        /// MPX-R2
+        /// </summary>
+        MPX_R2,
+        /// <summary>
+        /// MPX-R3
+        /// </summary>
+        MPX_R3,
+        /// <summary>
         /// êÏèdÉpÉâÉåÉã
         /// </summary>
         YF03N4,
@@ -609,6 +617,12 @@ namespace Parameters
 
                     case "MPX-PI":
                         return RobotType.MPX_PI;
+
+                    case "MPX-R2":
+                        return RobotType.MPX_R2;
+
+                    case "MPX-R3":
+                        return RobotType.MPX_R3;
 
                     case "YF03N4":
                         return RobotType.YF03N4;

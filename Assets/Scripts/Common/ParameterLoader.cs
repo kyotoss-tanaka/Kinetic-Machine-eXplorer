@@ -606,13 +606,13 @@ namespace Parameters
                 // 親モデルに動作スクリプトを付与
                 DebugLog($"***** Load Units *****");
                 SetProgressLabel("Loading Units");
-                // 親モデル検索用 ※ループ内から移動(ユニットを先に作成しているので問題ない？)
-                allObjects = GameObject.FindObjectsByType<GameObject>(FindObjectsSortMode.None).ToList();
                 foreach (var unitSetting in unitSettings)
                 {
+                    // 親モデル検索用 ※ループ内から移動(ユニットを先に作成しているので問題ない？)
+                    allObjects = GameObject.FindObjectsByType<GameObject>(FindObjectsSortMode.None).ToList();
                     unitSetting.childrenObject = new List<GameObject>();
                     var gameObjects = allObjects.FindAll(d => d.name == unitSetting.parent);
-                    if(gameObjects.Count == 0)
+                    if (gameObjects.Count == 0)
                     {
                         // 空オブジェクト作成
                         var dummy = new GameObject(unitSetting.parent);
@@ -739,24 +739,38 @@ namespace Parameters
                                 var robo = robotSettings.Find(d => (d.mechId == unitSetting.mechId) && (d.name == unitSetting.name));
                                 if (robo != null)
                                 {
+                                    // ロボットタイプ判別
+                                    var roboType = GetRobotType(unitSetting);
                                     robo.headUnit = unitSettings.Find(d => d.name == robo.head);
-                                    if (robo.robo == RobotType.MPS2_3AS)
+                                    if (roboType == RobotType.MPS2_3AS)
                                     {
-                                    }
-                                    else if (robo.robo == RobotType.MPS2_4AS)
-                                    {
-                                    }
-                                    else if (robo.robo == RobotType.MPX_PI)
-                                    {
-                                        var rObj = unitSetting.moveObject.AddComponent<IrregularityParallel>();
+                                        var rObj = unitSetting.moveObject.AddComponent<MPS2_3AS>();
                                         rObj.SetParameter(unitSetting, robo);
                                     }
-                                    else if (robo.robo == RobotType.YF03N4)
+                                    else if (roboType == RobotType.MPS2_4AS)
+                                    {
+                                        var rObj = unitSetting.moveObject.AddComponent<MPS2_4AS>();
+                                        rObj.SetParameter(unitSetting, robo);
+                                    }
+                                    else if (roboType == RobotType.MPX_PI)
+                                    {
+                                        var rObj = unitSetting.moveObject.AddComponent<MPX_PI>();
+                                        rObj.SetParameter(unitSetting, robo);
+                                    }
+                                    else if (roboType == RobotType.MPX_R2)
+                                    {
+                                    }
+                                    else if (roboType == RobotType.MPX_R3)
+                                    {
+                                        var rObj = unitSetting.moveObject.AddComponent<MPX_R3>();
+                                        rObj.SetParameter(unitSetting, robo);
+                                    }
+                                    else if (roboType == RobotType.YF03N4)
                                     {
                                         var rObj = unitSetting.moveObject.AddComponent<YF03N4>();
                                         rObj.SetParameter(unitSetting, robo);
                                     }
-                                    else if (robo.robo == RobotType.RS007L)
+                                    else if (roboType == RobotType.RS007L)
                                     {
                                     }
                                 }
@@ -965,7 +979,7 @@ namespace Parameters
                 }
 
                 // VRならPrefab非表示にしておく
-                if ((Application.platform == RuntimePlatform.Android) || (Application.platform == RuntimePlatform.IPhonePlayer))
+                if ((Application.platform == RuntimePlatform.Android) || (Application.platform == RuntimePlatform.IPhonePlayer) || !GlobalScript.buildConfig.isRelease)
                 {
                     prefabObj.SetActive(false);
                 }
@@ -1325,6 +1339,22 @@ namespace Parameters
             return g != null;
         }
 
+        /// <summary>
+        /// ロボットタイプを取得する
+        /// </summary>
+        /// <param name="unitSetting"></param>
+        /// <returns></returns>
+        private RobotType GetRobotType(UnitSetting unitSetting)
+        {
+            var children = unitSetting.moveObject.GetComponentsInChildren<Transform>().ToList();
+            // パラレルタイプ取得
+            return children.Find(d => d.name.Contains("YF03N4_")) != null ? RobotType.YF03N4 :
+                   children.Find(d => d.name.Contains("駆動部変則120度")) != null ? RobotType.MPX_PI :
+                   children.Find(d => d.name.Contains("MPS2-3AS_")) != null ? RobotType.MPS2_3AS :
+                   children.Find(d => d.name.Contains("MPS2-4AS_")) != null ? RobotType.MPS2_4AS :
+                   children.Find(d => d.name.Contains("MPX-R3")) != null ? RobotType.MPX_R3 : RobotType.UNDEFINED;
+        }
+        
         /// <summary>
         /// シーンパスを取得する
         /// </summary>

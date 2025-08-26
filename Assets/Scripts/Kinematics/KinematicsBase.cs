@@ -5,6 +5,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using UnityEngine;
+using XCharts.Runtime;
 
 public class KinematicsBase : UseTagBaseScript
 {
@@ -148,5 +149,15 @@ public class KinematicsBase : UseTagBaseScript
         return value;
     }
 
+    /// <summary>
+    /// 親オブジェクト挿入
+    /// </summary>
+    protected void InsertParent(Transform parent, Transform child)
+    {
+        parent.transform.parent = child.parent;
+        parent.transform.localPosition = child.localPosition;
+        parent.transform.localEulerAngles = child.localEulerAngles;
+        child.parent = parent.transform;
+    }
     #endregion 関数
 }

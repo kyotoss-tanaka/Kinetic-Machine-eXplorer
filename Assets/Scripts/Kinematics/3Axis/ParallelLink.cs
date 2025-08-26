@@ -1,11 +1,47 @@
+using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text.Json;
 using Unity.VisualScripting;
 using UnityEngine;
 
 public class ParallelLink : UseHeadBase3DScript
 {
+    #region 列挙型
+    [Serializable]
+    protected enum ParallelType
+    {
+        /// <summary>
+        /// タイプ無し
+        /// </summary>
+        None,
+        /// <summary>
+        /// 村田パラレル(3軸)
+        /// </summary>
+        MPS2_3AS,
+        /// <summary>
+        /// 村田パラレル(4軸)
+        /// </summary>
+        MPS2_4AS,
+        /// <summary>
+        /// 変則パラレル
+        /// </summary>
+        MPX_PI,
+        /// <summary>
+        /// 川重パラレル
+        /// </summary>
+        YF03N4,
+    }
+
+    #endregion 列挙型
+
     #region 変数
+    [SerializeField]
+    protected List<List<float>> angle;
+
+    [SerializeField]
+    protected ParallelType parallelType; 
+
     protected static float DEGREES = 180 / Mathf.PI;
     protected static float RADIANS = Mathf.PI / 180;
 
@@ -31,19 +67,22 @@ public class ParallelLink : UseHeadBase3DScript
     protected float[] fH2 = new float[AXIS_MAX];
     protected float[] fSH2 = new float[AXIS_MAX];
 
-    protected List<GameObject> arm1 = new List<GameObject>();
-    protected List<GameObject> arm2_1 = new List<GameObject>();
-    protected List<GameObject> arm2_2 = new List<GameObject>();
-    protected List<GameObject> armSpring = new List<GameObject>();
-    protected GameObject plate;
+    protected List<Transform> arm1 = new List<Transform>();
+    protected List<Transform> arm2 = new List<Transform>();
+    protected List<Transform> armSpring = new List<Transform>();
+    protected Transform plate;
     bool isChgPrm = true;
     #endregion 変数
+
+    public ParallelLink()
+    {
+        tzMin = 600;
+        tzMax = 1000;
+    }
 
     protected override void Start()
     {
         base.Start();
-        tzMin = 600;
-        tzMax = 1000;
     }
 
     /// <summary>
@@ -76,6 +115,7 @@ public class ParallelLink : UseHeadBase3DScript
     /// <param name="z"></param>
     public override void setTarget(float x, float y, float z)
     {
+        /*
         var angle = kinematics_R(x, y, z);
         for (var i = 0; i < AXIS_MAX; i++)
         {
@@ -86,6 +126,7 @@ public class ParallelLink : UseHeadBase3DScript
             arm2_2[i].transform.localEulerAngles = new Vector3(0, angle[i][1], -angle[i][2]);
         }
         plate.transform.localPosition = new Vector3(y / 1000, -z / 1000, x / 1000);
+        */
     }
 
     /// <summary>
@@ -97,7 +138,6 @@ public class ParallelLink : UseHeadBase3DScript
     /// <returns></returns>
     protected virtual List<List<float>> kinematics_R(float x, float y, float z)
     {
-        y = -y;
         var ret = new List<List<float>>();
         var x2 = x * x;
         var y2 = y * y;

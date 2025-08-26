@@ -1,8 +1,10 @@
 using Meta.XR.InputActions;
 using System.Linq;
-using UnityEditor;
 using UnityEngine;
 using UnityEngine.InputSystem;
+#if UNITY_EDITOR
+using UnityEditor;
+#endif
 
 public class CameraController : MonoBehaviour
 {
@@ -128,7 +130,11 @@ public class CameraController : MonoBehaviour
 
     public void MouseUpdate()
     {
-        if (EditorApplication.isPlaying || Keyboard.current.ctrlKey.isPressed)
+        var enable = true;
+#if UNITY_EDITOR
+        enable = EditorApplication.isPlaying || Keyboard.current.ctrlKey.isPressed;
+#endif
+        if (enable)
         {
             Vector2 scrollDelta = Mouse.current.scroll.ReadValue();
             float scrollWheel = scrollDelta.y;

@@ -621,24 +621,27 @@ public class AxisMotionBase : KinematicsBase
                 SetExMechSetting();
             }
             // ÉZÉìÉTê∂ê¨ê›íË
-            foreach (var sensor in unitSetting.sensorSettings)
+            if (this.transform.parent != null)
             {
-                var o = GlobalScript.CreateSensor(this.transform.parent.gameObject, sensor, "CvSensor");
-                o.transform.parent = unitSetting.unitObject.transform;
-                o.transform.localPosition = new Vector3
+                foreach (var sensor in unitSetting.sensorSettings)
                 {
-                    x = sensor.pos[0] * transform.localScale.x,
-                    y = sensor.pos[2] * transform.localScale.y,
-                    z = sensor.pos[1] * transform.localScale.z
-                };
-                o.transform.localEulerAngles = new Vector3
-                {
-                    x = sensor.rot[0] * transform.localScale.x,
-                    y = sensor.rot[2] * transform.localScale.y,
-                    z = sensor.rot[1] * transform.localScale.z
-                };
-                var ss = o.AddComponent<SensorScript>();
-                ss.SetParameter(unitSetting, sensor);
+                    var o = GlobalScript.CreateSensor(this.transform.parent.gameObject, sensor, "CvSensor");
+                    o.transform.parent = unitSetting.unitObject.transform;
+                    o.transform.localPosition = new Vector3
+                    {
+                        x = sensor.pos[0] * transform.localScale.x,
+                        y = sensor.pos[2] * transform.localScale.y,
+                        z = sensor.pos[1] * transform.localScale.z
+                    };
+                    o.transform.localEulerAngles = new Vector3
+                    {
+                        x = sensor.rot[0] * transform.localScale.x,
+                        y = sensor.rot[2] * transform.localScale.y,
+                        z = sensor.rot[1] * transform.localScale.z
+                    };
+                    var ss = o.AddComponent<SensorScript>();
+                    ss.SetParameter(unitSetting, sensor);
+                }
             }
         }
     }

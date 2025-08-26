@@ -8,6 +8,7 @@ public class MPS2_4AS : ParallelLink
 
     public override void setTarget(float x, float y, float z)
     {
+        /*
         var angle = kinematics_R(x, y, z);
         for (var i = 0; i < AXIS_MAX; i++)
         {
@@ -18,6 +19,7 @@ public class MPS2_4AS : ParallelLink
             arm2_2[i].transform.localEulerAngles = new Vector3(0, angle[i][1], -angle[i][2]);
         }
         plate.transform.localPosition = new Vector3(y / 1000, x / 1000, z / 1000);
+        */
     }
 
     /// <summary>
@@ -26,6 +28,7 @@ public class MPS2_4AS : ParallelLink
     /// <param name="instance"></param>
     protected override void ModelRestructProcess()
     {
+        /*
         arm1 = new List<GameObject>();
         arm2_1 = new List<GameObject>();
         arm2_2 = new List<GameObject>();
@@ -105,5 +108,6 @@ public class MPS2_4AS : ParallelLink
             Destroy(arm.gameObject);
         }
         Destroy(area);
+        */
     }
 }

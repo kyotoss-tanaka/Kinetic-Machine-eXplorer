@@ -21,14 +21,12 @@ public class Kinematics3D : KinematicsBase
 
     [SerializeField]
     protected TagInfo Z;
+
+    [SerializeField]
+    Vector3 target;
     #endregion プロパティ
 
     #region 変数
-    /// <summary>
-    /// 目標座標
-    /// </summary>
-    protected float tx = 0, ty = 0, tz = 620;
-
     protected float txMax = 0;
     protected float txMin = 0;
     protected float tyMax = 0;
@@ -50,11 +48,10 @@ public class Kinematics3D : KinematicsBase
 
     protected override void MyFixedUpdate()
     {
-        tx = CheckRangeF(GlobalScript.GetTagData(X) / 1000f, txMin, txMax);
-        ty = CheckRangeF(GlobalScript.GetTagData(Y) / 1000f, tyMin, tyMax);
-        tz = CheckRangeF(GlobalScript.GetTagData(Z) / 1000f, tzMin, tzMax);
-
-        setTarget(tx, ty, tz);
+        target.x = CheckRangeF(GlobalScript.GetTagData(X) / 1000f, txMin, txMax);
+        target.y = CheckRangeF(GlobalScript.GetTagData(Y) / 1000f, tyMin, tyMax);
+        target.z = CheckRangeF(GlobalScript.GetTagData(Z) / 1000f, tzMin, tzMax);
+        setTarget(target);
     }
 
     /// <summary>

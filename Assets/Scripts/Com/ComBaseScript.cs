@@ -192,7 +192,7 @@ public class ComBaseScript : KssBaseScript
         this.User = User;
         this.Password = Password;
         this.isClientMode = isClientMode;
-        this.dataExchange = dataExchange;
+        this.dataExchange = dataExchange == null ? new DataExchangeSetting() : dataExchange;
         initDatas = new();
         dataExchanges = new();
         if (dataExchange != null)

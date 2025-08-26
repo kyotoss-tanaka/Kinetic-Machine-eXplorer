@@ -227,8 +227,10 @@ public class ConveyorScript : KssBaseScript
         rig.isKinematic = true;
 
         var mesh = GetComponentInChildren<MeshFilter>();
-        mesh.AddComponent<BoxCollider>();
-
+        if (mesh != null)
+        {
+            mesh.AddComponent<BoxCollider>();
+        }
         // ƒRƒ“ƒxƒA‚Ì‚½‚ßÚG‚ğ–³Œø‰»
         var mc = GetComponentInChildren<MeshCollider>();
         if (mc != null)
