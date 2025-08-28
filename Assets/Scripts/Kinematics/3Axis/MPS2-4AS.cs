@@ -6,7 +6,7 @@ public class MPS2_4AS : ParallelLink
 {
     private float BASE_OFFSET = 0.228f;
 
-    public override void setTarget(float x, float y, float z)
+    public override void SetTarget(float x, float y, float z)
     {
         /*
         var angle = kinematics_R(x, y, z);

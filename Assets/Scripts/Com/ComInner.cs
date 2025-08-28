@@ -487,6 +487,19 @@ public class ComInner : ComBaseScript
                     input = action.start,
                     output = action.end
                 };
+                // É^ÉOçÏê¨
+                if (!GlobalScript.tagDatas[Name].ContainsKey(actionSetting.mechId))
+                {
+                    GlobalScript.tagDatas[Name].Add(actionSetting.mechId, new Dictionary<string, TagInfo>());
+                }
+                if (!GlobalScript.tagDatas[Name][actionSetting.mechId].ContainsKey(action.start))
+                {
+                    GlobalScript.tagDatas[Name][actionSetting.mechId].Add(action.start, ScriptableObject.CreateInstance<TagInfo>());
+                }
+                if (!GlobalScript.tagDatas[Name][actionSetting.mechId].ContainsKey(action.end))
+                {
+                    GlobalScript.tagDatas[Name][actionSetting.mechId].Add(action.end, ScriptableObject.CreateInstance<TagInfo>());
+                }
                 act.timings.Add(timing);
             }
             if (act.timings.Count > 0)

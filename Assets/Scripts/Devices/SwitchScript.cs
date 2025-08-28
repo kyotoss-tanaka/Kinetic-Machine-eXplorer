@@ -25,6 +25,8 @@ public class SwitchScript : KssBaseScript
         Red, Green, Yellow, Blue, White
     }
 
+    private SwitchSetting sw;
+
     /// <summary>
     /// オブジェクトクリアモード
     /// </summary>
@@ -54,6 +56,11 @@ public class SwitchScript : KssBaseScript
     /// </summary>
     [SerializeField]
     private bool isAlternate = false;
+
+    /// <summary>
+    /// タグ名
+    /// </summary>
+    private string tagName = "";
 
     /// <summary>
     /// スイッチの状態
@@ -205,12 +212,12 @@ public class SwitchScript : KssBaseScript
             if (isB)
             {
                 // B接点
-                GlobalScript.SetTagData(Tag, isOn ? 0 : 1);
+                SetTagValue(tagName, ref Tag, isOn ? 0 : 1);
             }
             else
             {
                 // A接点
-                GlobalScript.SetTagData(Tag, isOn ? 1 : 0);
+                SetTagValue(tagName, ref Tag, isOn ? 1 : 0);
             }
         }
         else if (switchType == SwitchType.ObjectClear)
@@ -261,7 +268,7 @@ public class SwitchScript : KssBaseScript
     {
         base.SetParameter(unitSetting, obj);
 
-        var sw = (SwitchSetting)obj;
+        sw = (SwitchSetting)obj;
         isAlternate = sw.alternate;
 
         if (sw.color == "Green")
@@ -285,10 +292,7 @@ public class SwitchScript : KssBaseScript
             switchType = SwitchType.TagOutput;
             if (sw.tag != null)
             {
-                Tag = ScriptableObject.CreateInstance<TagInfo>();
-                Tag.Database = unitSetting.Database;
-                Tag.MechId = unitSetting.mechId;
-                Tag.Tag = sw.tag.Replace("-", "");
+                tagName = sw.tag.Replace("-", "");
                 isB = sw.tag[0] == '-';
             }
         }

@@ -209,6 +209,12 @@ public class AxisMotionBase : KinematicsBase
             if (motion != null)
             {
                 motion.SetChuckParent();
+                // スイッチとシグナルタワーの座標は親からのオフセットに変更
+                if ((motion.moveObject.GetComponent<SwitchScript>() != null) || (motion.moveObject.GetComponent<SignalTowerScript>() != null))
+                {
+                    child.transform.localPosition += unit.transform.localPosition;
+                    child.transform.localEulerAngles += unit.transform.localEulerAngles;
+                }
             }
         }
         // チャックオブジェクト設定

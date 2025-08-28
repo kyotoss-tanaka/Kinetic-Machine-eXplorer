@@ -32,6 +32,8 @@ public class MPX_R3 : UseHeadBase3DScript
     protected override void Start()
     {
         base.Start();
+        tyMin = r1 / 2;
+        tyMax = r1 * 2;
     }
 
     /// <summary>
@@ -51,7 +53,7 @@ public class MPX_R3 : UseHeadBase3DScript
     /// <param name="x"></param>
     /// <param name="y"></param>
     /// <param name="z"></param>
-    public override void setTarget(float x, float y, float z)
+    public override void SetTarget(float x, float y, float z)
     {
         angle = kinematics_R(x, y, -z);
         arm1.transform.localEulerAngles = new Vector3(ang1.x, ang1.y, angle[1]);

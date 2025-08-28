@@ -12,7 +12,7 @@ GameObject:
   - component: {fileID: 1595641172997385372}
   - component: {fileID: 8581992161722568083}
   - component: {fileID: 7522340568230228664}
-  - component: {fileID: 8473784010710819612}
+  - component: {fileID: 7843489311438241994}
   m_Layer: 0
   m_Name: Yellow
   m_TagString: Untagged
@@ -111,7 +111,7 @@ CapsuleCollider:
   m_Height: 2
   m_Direction: 1
   m_Center: {x: 0.000000059604645, y: 0, z: -0.00000008940697}
---- !u!114 &8473784010710819612
+--- !u!114 &7843489311438241994
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -124,8 +124,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   sharedProfile: {fileID: 11400000, guid: 0437f9c0db5314a4b8058e637786e37a, type: 2}
-  isGlobal: 1
-  blendDistance: 0
+  isGlobal: 0
+  blendDistance: 0.01
   weight: 1
   priority: 0
 --- !u!1 &1783569893248100898
@@ -140,7 +140,7 @@ GameObject:
   - component: {fileID: 8556753961118381547}
   - component: {fileID: 6618279953587973846}
   - component: {fileID: 8220370139598824274}
-  - component: {fileID: 3464825903726511495}
+  - component: {fileID: 6661307663676544168}
   m_Layer: 0
   m_Name: Red
   m_TagString: Untagged
@@ -239,7 +239,7 @@ CapsuleCollider:
   m_Height: 2
   m_Direction: 1
   m_Center: {x: 0.000000059604645, y: 0, z: -0.00000008940697}
---- !u!114 &3464825903726511495
+--- !u!114 &6661307663676544168
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -252,8 +252,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   sharedProfile: {fileID: 11400000, guid: 039aec01e75b325408bead4e972ec564, type: 2}
-  isGlobal: 1
-  blendDistance: 0
+  isGlobal: 0
+  blendDistance: 0.01
   weight: 1
   priority: 0
 --- !u!1 &2928347842908682695
@@ -268,7 +268,7 @@ GameObject:
   - component: {fileID: 1581296051018343257}
   - component: {fileID: 2136336140797447879}
   - component: {fileID: 2578213392234114977}
-  - component: {fileID: 2594620761259719204}
+  - component: {fileID: 9021458514882874919}
   m_Layer: 0
   m_Name: Green
   m_TagString: Untagged
@@ -367,7 +367,7 @@ CapsuleCollider:
   m_Height: 2
   m_Direction: 1
   m_Center: {x: 0.000000059604645, y: 0, z: -0.00000008940697}
---- !u!114 &2594620761259719204
+--- !u!114 &9021458514882874919
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -380,8 +380,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   sharedProfile: {fileID: 11400000, guid: 87345cc1f8cad7a4198942dddd312213, type: 2}
-  isGlobal: 1
-  blendDistance: 0
+  isGlobal: 0
+  blendDistance: 0.01
   weight: 1
   priority: 0
 --- !u!1 &3546296241511923095

@@ -27,6 +27,7 @@ public class Kinematics3D : KinematicsBase
     #endregion プロパティ
 
     #region 変数
+    RobotSetting robo;
     protected float txMax = 0;
     protected float txMin = 0;
     protected float tyMax = 0;
@@ -48,10 +49,23 @@ public class Kinematics3D : KinematicsBase
 
     protected override void MyFixedUpdate()
     {
-        target.x = CheckRangeF(GlobalScript.GetTagData(X) / 1000f, txMin, txMax);
-        target.y = CheckRangeF(GlobalScript.GetTagData(Y) / 1000f, tyMin, tyMax);
-        target.z = CheckRangeF(GlobalScript.GetTagData(Z) / 1000f, tzMin, tzMax);
-        setTarget(target);
+        if (isManual)
+        {
+            setTarget(target);
+        }
+        else
+        {
+            if (robo.tags.Count >= 3)
+            {
+                var x = GetTagValue(robo.tags[0], ref X);
+                var y = GetTagValue(robo.tags[1], ref Y);
+                var z = GetTagValue(robo.tags[2], ref Z);
+                target.x = CheckRangeF(x / 1000f, txMin, txMax);
+                target.y = CheckRangeF(y / 1000f, tyMin, tyMax);
+                target.z = CheckRangeF(z / 1000f, tzMin, tzMax);
+                setTarget(target);
+            }
+        }
     }
 
     /// <summary>
@@ -69,7 +83,7 @@ public class Kinematics3D : KinematicsBase
     /// <param name="target"></param>
     public virtual void setTarget(Vector3 target)
     {
-        setTarget(target.x, target.y, target.z);
+        SetTarget(target.x, target.y, target.z);
     }
 
     /// <summary>
@@ -78,7 +92,7 @@ public class Kinematics3D : KinematicsBase
     /// <param name="x"></param>
     /// <param name="y"></param>
     /// <param name="z"></param>
-    public virtual void setTarget(float x, float y, float z)
+    public virtual void SetTarget(float x, float y, float z)
     {
     }
 
@@ -157,23 +171,8 @@ public class Kinematics3D : KinematicsBase
     /// <param name="robo"></param>
     public override void SetParameter(UnitSetting unitSetting, object obj)
     {
-        RobotSetting robo = (RobotSetting)obj;
+        robo = (RobotSetting)obj;
         base.SetParameter(unitSetting, robo);
-        if (robo.tags.Count >= 3)
-        {
-            X = ScriptableObject.CreateInstance<TagInfo>();
-            X.Database = unitSetting.Database;
-            X.MechId = unitSetting.mechId;
-            X.Tag = robo.tags[0];
-            Y = ScriptableObject.CreateInstance<TagInfo>();
-            Y.Database = unitSetting.Database;
-            Y.MechId = unitSetting.mechId;
-            Y.Tag = robo.tags[1];
-            Z = ScriptableObject.CreateInstance<TagInfo>();
-            Z.Database = unitSetting.Database;
-            Z.MechId = unitSetting.mechId;
-            Z.Tag = robo.tags[2];
-        }
     }
     #endregion 関数
 }

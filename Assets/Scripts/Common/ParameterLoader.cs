@@ -37,6 +37,7 @@ namespace Parameters
         private static string movableName = "MovableObject";
         private GameObject globalSetting;
         private GameObject prefabObj;
+        private GameObject deviceObj;
         private List<ObjEntry> movableObjs = new List<ObjEntry>();
         private List<ObjEntry> undefinedUnits = new List<ObjEntry>();
         private List<GameObject> prefabs = new List<GameObject>();
@@ -126,6 +127,7 @@ namespace Parameters
 
             // 必要オブジェクト作成
             prefabObj = new GameObject("PrefabObjects");
+            deviceObj = new GameObject("DeviceObjects");
 
             var globalSettings = GameObject.FindObjectsByType<GameObject>(FindObjectsSortMode.None).Where(d => d.name == "GlobalSetting").ToList();
             globalSetting = globalSettings.Count > 0 ? globalSettings[0] : new GameObject("GlobalSetting");
@@ -574,6 +576,7 @@ namespace Parameters
                                 // モデルが存在しないので作成
                                 var obj = Instantiate(switchPrefabs[0]);
                                 obj.name = unit.parent;
+                                obj.transform.parent = deviceObj.transform;
                                 obj.transform.localPosition = new Vector3(sw.pos[0], sw.pos[1], sw.pos[2]);
                                 obj.transform.localEulerAngles = new Vector3(sw.rot[0], sw.rot[1], sw.rot[2]);
                                 switchModel.Add(obj);
@@ -596,6 +599,7 @@ namespace Parameters
                                 // モデルが存在しないので作成
                                 var obj = Instantiate(towerPrefabs[st.type]);
                                 obj.name = unit.parent;
+                                obj.transform.parent = deviceObj.transform;
                                 obj.transform.localPosition = new Vector3(st.pos[0], st.pos[1], st.pos[2]);
                                 obj.transform.localEulerAngles = new Vector3(st.rot[0], st.rot[1], st.rot[2]);
                                 towerModel.Add(obj);
@@ -616,6 +620,7 @@ namespace Parameters
                     {
                         // 空オブジェクト作成
                         var dummy = new GameObject(unitSetting.parent);
+                        dummy.transform.parent = deviceObj.transform;
                         dummy.name = unitSetting.name;
                         dummy.isStatic = true;
                         gameObjects.Add(dummy);
@@ -909,6 +914,7 @@ namespace Parameters
                 {
                     Destroy(m);
                 }
+                Destroy(deviceObj);
 
                 // シェーダー適用
                 {

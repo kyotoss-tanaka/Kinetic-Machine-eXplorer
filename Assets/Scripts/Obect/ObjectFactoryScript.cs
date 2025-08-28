@@ -79,6 +79,10 @@ public class ObjectFactoryScript : UseTagBaseScript
     private bool tagStat = false;
 
     /// <summary>
+    /// タグ名
+    /// </summary>
+    private string tagName = "";
+    /// <summary>
     /// ワークーオブジェクト
     /// </summary>
     private GameObject work;
@@ -109,23 +113,28 @@ public class ObjectFactoryScript : UseTagBaseScript
     // Update is called once per frame
     protected override void MyFixedUpdate()
     {
-        var stat = GlobalScript.GetTagData(CreateTag) >= 1;
-        if (!IsTimer && (CreateTag != null) && stat)
+        if (CreateTag == null)
         {
-            if (!tagStat)
-            {
-                CreateObject();
-            }
+            CreateTag = GlobalScript.GetTagInfo(unitSetting.Database, unitSetting.mechId, tagName);
         }
-        tagStat = stat;
+        else
+        {
+            var stat = CreateTag.Value >= 1;
+            if (!IsTimer && (CreateTag != null) && stat)
+            {
+                if (!tagStat)
+                {
+                    CreateObject();
+                }
+            }
+            tagStat = stat;
+        }
     }
 
     void CreateObject()
     {
         var obj = Instantiate(work);
         obj.transform.parent = objBase.transform;
-//        obj.transform.localPosition = Vector3.Scale(CreatePoint, transform.localScale);
-//        obj.transform.localEulerAngles = Vector3.Scale(CreateRotate, transform.localScale);
         obj.transform.localPosition = CreatePoint;
         obj.transform.localEulerAngles = CreateRotate;
         // 既に生成済みかチェック(平面距離が1mm以下なら同一オブジェクトとみなす)
@@ -157,26 +166,6 @@ public class ObjectFactoryScript : UseTagBaseScript
     }
 
     /// <summary>
-    /// パラメータセット
-    /// </summary>
-    /// <param name="components"></param>
-    /// <param name="scriptables"></param>
-    /// <param name="kssInstanceIds"></param>
-    /// <param name="root"></param>
-    public override void SetParameter(List<Component> components, List<KssPartsBase> scriptables, List<KssInstanceIds> kssInstanceIds, JsonElement root)
-    {
-        base.SetParameter(components, scriptables, kssInstanceIds, root);
-        IsTimer = GetBooleanFromPrm(root, "IsTimer");
-        Interval = GetInt32FromPrm(root, "Interval");
-        CreateTag = GetTagInfoFromPrm(scriptables, kssInstanceIds, root, "CreateTag");
-        CreatePoint = GetVector3FromPrm(root, "CreatePoint");
-        WorkObject = GetGameObjectFromPrm(components, kssInstanceIds, root, "WorkObject");
-        WorkName = GetStringFromPrm(root, "WorkName");
-        AliveDistance = GetFloatFromPrm(root, "AliveDistance");
-        IsGrabbable = GetBooleanFromPrm(root, "IsGrabbable");
-    }
-
-    /// <summary>
     /// パラメータをセットする
     /// </summary>
     /// <param name="unitSetting"></param>
@@ -202,10 +191,7 @@ public class ObjectFactoryScript : UseTagBaseScript
             y = wk.rot[1],
             z = wk.rot[2]
         };
-        CreateTag = ScriptableObject.CreateInstance<TagInfo>();
-        CreateTag.Database = unitSetting.Database;
-        CreateTag.MechId = unitSetting.mechId;
-        CreateTag.Tag = wk.tag;
+        tagName = wk.tag;
         AliveDistance = wk.alive;
     }
 }

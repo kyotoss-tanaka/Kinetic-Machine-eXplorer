@@ -37,12 +37,6 @@ public class MotionExternal : AxisMotionBase
     {
         base.RenewMoveDir();
 
-        // ìÆçÏÉ^ÉOê›íË
-        actTag = ScriptableObject.CreateInstance<TagInfo>();
-        actTag.Database = unitSetting.Database;
-        actTag.MechId = unitSetting.mechId;
-        actTag.Tag = unitSetting.actionSetting.tag;
-
         rate = (float)unitSetting.actionSetting.rate;
     }
 
@@ -51,7 +45,7 @@ public class MotionExternal : AxisMotionBase
     /// </summary>
     protected override void MyFixedUpdate()
     {
-        var data = (GlobalScript.GetTagData(actTag) / (rate == 0 ? 1000f : rate) + unitSetting.actionSetting.offset / (isRotate ? 1f : 1000f)) * unitSetting.actionSetting.dir;
+        var data = (GetTagValue(unitSetting.actionSetting.tag, ref actTag) / (rate == 0 ? 1000f : rate) + unitSetting.actionSetting.offset / (isRotate ? 1f : 1000f)) * unitSetting.actionSetting.dir;
         if (isRotate)
         {
             moveObject.transform.localEulerAngles = moveDir * data;

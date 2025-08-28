@@ -650,6 +650,10 @@ namespace Parameters
         /// </summary>
         public string name { get; set; }
         /// <summary>
+        /// ƒ‚ƒfƒ‹–¼
+        /// </summary>
+        public string model { get; set; }
+        /// <summary>
         /// ƒŠƒjƒA”
         /// </summary>
         public int count { get; set; }

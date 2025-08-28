@@ -19,11 +19,19 @@ public class MotionInternal : AxisMotionBase
         /// <summary>
         /// 開始IO
         /// </summary>
-        public TagInfo StartInput;
+        public TagInfo _StartInput;
         /// <summary>
         /// 完了IO
         /// </summary>
-        public TagInfo EndOutput;
+        public TagInfo _EndOutput;
+        /// <summary>
+        /// 開始IO名
+        /// </summary
+        public string start;
+        /// <summary>
+        /// 完了IO名
+        /// </summary>
+        public string end;
         /// <summary>
         /// トリガ発生中フラグ
         /// </summary>
@@ -36,9 +44,9 @@ public class MotionInternal : AxisMotionBase
         /// 値
         /// </summary>
         private bool isValue;
-        public void RenewTrigger()
+        public void RenewTrigger(int value)
         {
-            var isValue = (GlobalScript.GetTagData(StartInput) == (isInputRvs ? 0 : 1));
+            var isValue = (value == (isInputRvs ? 0 : 1));
             /*
             if (!isValue)
             {
@@ -211,9 +219,13 @@ public class MotionInternal : AxisMotionBase
         /// </summary>
         public Vector3 Position;
         /// <summary>
+        /// 完了IO名
+        /// </summary>
+        public string end;
+        /// <summary>
         /// 完了IO
         /// </summary>
-        public TagInfo EndOutput;
+        public TagInfo _EndOutput;
         /// <summary>
         /// 進角指令
         /// </summary>
@@ -314,8 +326,8 @@ public class MotionInternal : AxisMotionBase
         // データ初期化
         foreach (var actionIo in actionIos)
         {
-            Destroy(actionIo.StartInput);
-            Destroy(actionIo.EndOutput);
+            actionIo._StartInput = null;
+            actionIo._EndOutput = null;
         }
         actionIos.Clear();
         isMoving = false;
@@ -338,25 +350,19 @@ public class MotionInternal : AxisMotionBase
         {
             var actionIo = new ActionIo();
             // 動作トリガ
-            actionIo.StartInput = ScriptableObject.CreateInstance<TagInfo>();
-            actionIo.StartInput.Database = unitSetting.Database;
-            actionIo.StartInput.MechId = unitSetting.mechId;
             if ((action.start != "") && (action.start[0] == '-'))
             {
-                actionIo.StartInput.Tag = action.start.Substring(1);
+                actionIo.start = action.start.Substring(1);
                 actionIo.isInputRvs = true;
             }
             else
             {
-                actionIo.StartInput.Tag = action.start;
+                actionIo.start = action.start;
                 actionIo.isInputRvs = false;
             }
 
             // 動作完了
-            actionIo.EndOutput = ScriptableObject.CreateInstance<TagInfo>();
-            actionIo.EndOutput.Database = unitSetting.Database;
-            actionIo.EndOutput.MechId = unitSetting.mechId;
-            actionIo.EndOutput.Tag = action.end;
+            actionIo.end = action.end;
             actionIos.Add(actionIo);
 
             action.targetPos = moveDir * (action.target * action.dir + action.offset);
@@ -369,7 +375,7 @@ public class MotionInternal : AxisMotionBase
                 {
                     Target = action.target,
                     Position = action.targetPos,
-                    EndOutput = actionIo.EndOutput
+                    end = actionIo.end
                 });
             }
 
@@ -433,7 +439,7 @@ public class MotionInternal : AxisMotionBase
         // 起動時OFF
         foreach (var campos in camPosInfos)
         {
-            GlobalScript.SetTagData(campos.EndOutput, 0);
+            SetTagValue(campos.end, ref campos._EndOutput, 0);
         }
     }
 
@@ -451,7 +457,7 @@ public class MotionInternal : AxisMotionBase
         {
             return;
         }
-        if ((actionIos.Count == 0) || (actionCurve.actCurve == null) || (actionCurve.actionIo == null))
+        if ((actionIos.Count == 0) || (actionCurve.actCurve == null))// || (actionCurve.actionIo == null))
         {
             RenewMoveDir();
         }
@@ -462,7 +468,7 @@ public class MotionInternal : AxisMotionBase
             // トリガ更新
             for (int i = 0; i < actionIos.Count; i++)
             {
-                actionIos[i].RenewTrigger();
+                actionIos[i].RenewTrigger(GetTagValue(actionIos[i].start, ref actionIos[i]._StartInput));
             }
             // 入力I/Oチェック
             for (int i = 0; i < actionIos.Count; i++)
@@ -492,7 +498,7 @@ public class MotionInternal : AxisMotionBase
             if (nowTime >= actionCurve.actCurve.Count - delayTime)
             {
                 // 進角指令
-                var campos = camPosInfos.Find(d => d.EndOutput.Equals(actionCurve.actionIo.EndOutput));
+                var campos = camPosInfos.Find(d => d.end == actionCurve.actionIo.end);
                 if (campos != null)
                 {
                     campos.AdvanceAngle = true;
@@ -506,7 +512,7 @@ public class MotionInternal : AxisMotionBase
                 if (actionCurve.isContinue)
                 {
                     // 継続動作ならインターロック
-                    isMoving = GlobalScript.GetTagData(actionCurve.actionIo.StartInput) != 0;
+                    isMoving = GetTagValue(actionCurve.actionIo.end, ref actionCurve.actionIo._StartInput) != 0;
                 }
                 else
                 {
@@ -517,6 +523,7 @@ public class MotionInternal : AxisMotionBase
                     // 回転動作
                     moveObject.transform.localEulerAngles = actionCurve.targetPos * Thousand;
                     innerPosition = actionCurve.targetPos * Thousand;
+                    nowPos = Vector3.Distance(Vector3.zero, moveObject.transform.localEulerAngles);
                 }
                 else
                 {
@@ -525,6 +532,7 @@ public class MotionInternal : AxisMotionBase
                     //rb.MovePosition(position);
                     moveObject.transform.localPosition = actionCurve.targetPos;
                     innerPosition = actionCurve.targetPos;
+                    nowPos = Vector3.Distance(Vector3.zero, moveObject.transform.localPosition) * Thousand;
                 }
             }
             else
@@ -537,13 +545,6 @@ public class MotionInternal : AxisMotionBase
                         moveObject.transform.localEulerAngles = actionCurve.startPos * Thousand + pos * moveDir;
                         innerPosition = actionCurve.startPos * Thousand + pos * moveDir;
                         nowPos = Vector3.Distance(Vector3.zero, moveObject.transform.localEulerAngles);
-                        if (chuckSetting != null)
-                        {
-                            foreach (var child in chuckSetting.children)
-                            {
-                                child.setting.moveObject.transform.localEulerAngles = moveObject.transform.localEulerAngles * child.dir * child.rate + child.offset * moveDir;
-                            }
-                        }
                     }
                     else
                     {
@@ -555,13 +556,6 @@ public class MotionInternal : AxisMotionBase
                         moveObject.transform.localPosition = actionCurve.startPos + pos * moveDir / Thousand;
                         innerPosition = actionCurve.startPos + pos * moveDir / Thousand;
                         nowPos = Vector3.Distance(Vector3.zero, moveObject.transform.localPosition) * Thousand;
-                        if (chuckSetting != null)
-                        {
-                            foreach (var child in chuckSetting.children)
-                            {
-                                child.setting.moveObject.transform.localPosition = moveObject.transform.localPosition * child.dir * child.rate + child.offset * moveDir / Thousand;
-                            }
-                        }
                     }
                 }
                 catch (Exception ex)
@@ -569,6 +563,27 @@ public class MotionInternal : AxisMotionBase
                     UnityEngine.Debug.Log($"エラー：ユニット名「{unitSetting.name}」: {ex.Message}");
                 }
             }
+
+            if (chuckSetting != null)
+            {
+                if (isRotate)
+                {
+                    // 回転動作
+                    foreach (var child in chuckSetting.children)
+                    {
+                        child.setting.moveObject.transform.localEulerAngles = moveObject.transform.localEulerAngles * child.dir * child.rate + child.offset * moveDir;
+                    }
+                }
+                else
+                {
+                    // 直線動作
+                    foreach (var child in chuckSetting.children)
+                    {
+                        child.setting.moveObject.transform.localPosition = moveObject.transform.localPosition * child.dir * child.rate + child.offset * moveDir / Thousand;
+                    }
+                }
+            }
+
         }
         // 位置取得
         if (isRotate)
@@ -599,7 +614,7 @@ public class MotionInternal : AxisMotionBase
             {
                 dist = Vector3.Distance(campos.Position, innerPosition) * Thousand;
             }
-            GlobalScript.SetTagData(campos.EndOutput, campos.AdvanceAngle ? 1 : (dist <= 1 ? 1 : 0));
+            SetTagValue(campos.end, ref campos._EndOutput, campos.AdvanceAngle ? 1 : (dist <= 1 ? 1 : 0));
             campos.AdvanceAngle = false;
         }
 

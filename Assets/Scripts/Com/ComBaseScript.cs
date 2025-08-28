@@ -111,17 +111,25 @@ public class ComBaseScript : KssBaseScript
             // 初回のみ
             foreach (var data in initDatas)
             {
-                data.Output.Value = data.Input.Value;
-                tags.Add(data.Output);
+                GetTagValue(data.OutputTag, ref data.Output);
+                if (data.Output != null)
+                {
+                    data.Output.Value = data.InitValue;
+//                    tags.Add(data.Output);
+                }
             }
         }
         foreach (var data in dataExchanges)
         {
-            var input = GlobalScript.GetTagData(data.Input);
-            data.Output.Value = input;
-            tags.Add(data.Output);
+            var input = GetTagValue(data.InputTag, ref data.Input);
+            GetTagValue(data.OutputTag, ref data.Output);
+            if (data.Output != null)
+            {
+                data.Output.Value = input;
+//                tags.Add(data.Output);
+            }
         }
-        GlobalScript.SetTagDatas(tags);
+//        GlobalScript.SetTagDatas(tags);
         // DBのデータ作成完了していないとスルーされる
         isFirst = !isRcvDb;
     }
@@ -159,19 +167,6 @@ public class ComBaseScript : KssBaseScript
     }
 
     /// <summary>
-    /// パラメータをセットする
-    /// </summary>
-    /// <param name="components"></param>
-    /// <param name="scriptables"></param>
-    /// <param name="kssInstanceIds"></param>
-    /// <param name="root"></param>
-    public override void SetParameter(List<Component> components, List<KssPartsBase> scriptables, List<KssInstanceIds> kssInstanceIds, JsonElement root)
-    {
-        base.SetParameter(components, scriptables, kssInstanceIds, root);
-        Cycle = GetInt32FromPrm(root, "Cycle");
-    }
-
-    /// <summary>
     /// パラメータセット
     /// </summary>
     /// <param name="No"></param>
@@ -184,6 +179,12 @@ public class ComBaseScript : KssBaseScript
     /// <param name="isClientMode"></param>
     public void SetParameter(int No, int Cycle, string Server, int Port, string Database, string User, string Password, bool isClientMode, DataExchangeSetting dataExchange)
     {
+        // ダミーデータ作成
+        unitSetting = new UnitSetting
+        {
+            Database = Server + ":" + Port,
+            mechId = dataExchange.mechId
+        };
         this.No = No;
         this.Cycle = Cycle;
         this.Server = Server;
@@ -201,16 +202,11 @@ public class ComBaseScript : KssBaseScript
             {
                 DataExchange d = new DataExchange
                 {
-                    Input = ScriptableObject.CreateInstance<TagInfo>(),
-                    Output = ScriptableObject.CreateInstance<TagInfo>()
+                    InputTag = data.input,
+                    OutputTag = data.output,
+                    InitValue = data.initValue,
+
                 };
-                d.Input.Database = Server + ":" + Port;
-                d.Input.MechId = dataExchange.mechId;
-                d.Input.Tag = data.input;
-                d.Input.Value = data.initValue;
-                d.Output.Database = Server + ":" + Port;
-                d.Output.MechId = dataExchange.mechId;
-                d.Output.Tag = data.output;
                 if (data.isInit)
                 {
                     initDatas.Add(d);

@@ -158,11 +158,11 @@ GameObject:
   - component: {fileID: 7877603216139235521}
   - component: {fileID: 1147314704543071891}
   - component: {fileID: 7054158556182904435}
-  - component: {fileID: 359802843798544666}
   - component: {fileID: 4798619397439665594}
   - component: {fileID: 8002974628030463163}
   - component: {fileID: 6839606624573103635}
   - component: {fileID: 6336961439756148853}
+  - component: {fileID: 6931796402297825695}
   m_Layer: 0
   m_Name: SwitchMain
   m_TagString: Untagged
@@ -238,23 +238,6 @@ MeshRenderer:
   m_SortingLayer: 0
   m_SortingOrder: 0
   m_AdditionalVertexStreams: {fileID: 0}
---- !u!114 &359802843798544666
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 9007553072440063413}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 8b9a305e18de0c04dbd257a21cd47087, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  sharedProfile: {fileID: 11400000, guid: d7d3b8a0708beec4b97f973f60699548, type: 2}
-  isGlobal: 1
-  blendDistance: 0
-  weight: 1
-  priority: 0
 --- !u!64 &4798619397439665594
 MeshCollider:
   m_ObjectHideFlags: 0
@@ -274,7 +257,7 @@ MeshCollider:
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 5
-  m_Convex: 0
+  m_Convex: 1
   m_CookingOptions: 30
   m_Mesh: {fileID: 10206, guid: 0000000000000000e000000000000000, type: 0}
 --- !u!114 &8002974628030463163
@@ -302,6 +285,21 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 858601a74edadf44ca4f10c24d192402, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  isManual: 0
+  unitSetting:
+    Database: 
+    childrenObject: []
+    robotSetting:
+      rid: -2
+    workSettings: []
+    workDeleteSettings: []
+    sensorSettings: []
+    moveObject: {fileID: 0}
+  references:
+    version: 2
+    RefIds:
+    - rid: -2
+      type: {class: , ns: , asm: }
 --- !u!114 &6336961439756148853
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -323,3 +321,20 @@ MonoBehaviour:
   _selectSurface: {fileID: 0}
   _movementProvider: {fileID: 0}
   _tiebreakerScore: 0
+--- !u!114 &6931796402297825695
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 9007553072440063413}
+  m_Enabled: 0
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8b9a305e18de0c04dbd257a21cd47087, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  sharedProfile: {fileID: 11400000, guid: 039aec01e75b325408bead4e972ec564, type: 2}
+  isGlobal: 0
+  blendDistance: 0.01
+  weight: 1
+  priority: 0

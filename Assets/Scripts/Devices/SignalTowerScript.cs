@@ -9,20 +9,24 @@ using UnityEngine.SceneManagement;
 
 public class SignalTowerScript : KssBaseScript
 {
-    /// <summary>
-    /// É^ÉO
-    /// </summary>
     [SerializeField]
+    private int red;
+    [SerializeField]
+    private int yellow;
+    [SerializeField]
+    private int green;
+    [SerializeField]
+    private int blue;
+    [SerializeField]
+    private int white;
+
     private TagInfo RedTag;
-    [SerializeField]
     private TagInfo YellowTag;
-    [SerializeField]
     private TagInfo GreenTag;
-    [SerializeField]
     private TagInfo BlueTag;
-    [SerializeField]
     private TagInfo WhiteTag;
 
+    private SignalTowerSetting st;
     private Material RedMaterial;
     private Material YellowMaterial;
     private Material GreenMaterial;
@@ -47,46 +51,33 @@ public class SignalTowerScript : KssBaseScript
     protected override void OnDestroy()
     {
         base.OnDestroy();
-        /*
-        if (RedMaterial != null)
-        {
-            Destroy(RedMaterial);
-        }
-        if (YellowMaterial != null)
-        {
-            Destroy(YellowMaterial);
-        }
-        if (GreenMaterial != null)
-        {
-            Destroy(GreenMaterial);
-        }
-        if (BlueMaterial != null)
-        {
-            Destroy(BlueMaterial);
-        }
-        if (WhiteMaterial != null)
-        {
-            Destroy(WhiteMaterial);
-        }
-        */
     }
 
     protected override void MyFixedUpdate()
     {
         base.MyFixedUpdate();
 
-        SetEmmision(RedMaterial, RedTag);
-        SetEmmision(YellowMaterial, YellowTag);
-        SetEmmision(GreenMaterial, GreenTag);
-        SetEmmision(BlueMaterial, BlueTag);
-        SetEmmision(WhiteMaterial, WhiteTag);
+        if (!isManual)
+        {
+            red = GetTagValue(st.red, ref RedTag);
+            yellow = GetTagValue(st.yellow, ref YellowTag);
+            green = GetTagValue(st.green, ref GreenTag);
+            blue = GetTagValue(st.blue, ref BlueTag);
+            white = GetTagValue(st.white, ref WhiteTag);
+        }
+
+        SetEmmision(RedMaterial, st.red, red);
+        SetEmmision(YellowMaterial, st.yellow, yellow);
+        SetEmmision(GreenMaterial, st.green, green);
+        SetEmmision(BlueMaterial, st.blue, blue);
+        SetEmmision(WhiteMaterial, st.white, white);
     }
 
-    private void SetEmmision(Material mat, TagInfo tag)
+    private void SetEmmision(Material mat, string name, int value)
     {
-        if (mat != null)
+        if (name != "")
         {
-            if (GlobalScript.GetTagData(tag) == 1)
+            if (value == 1)
             {
                 mat.EnableKeyword("_EMISSION");
 
@@ -108,41 +99,11 @@ public class SignalTowerScript : KssBaseScript
     {
         base.SetParameter(unitSetting, obj);
 
-        var st = (SignalTowerSetting)obj;
-        if (st.red != null)
-        {
-            RedTag = ScriptableObject.CreateInstance<TagInfo>();
-            RedTag.Database = unitSetting.Database;
-            RedTag.MechId = unitSetting.mechId;
-            RedTag.Tag = st.red;
-        }
-        if (st.yellow != null)
-        {
-            YellowTag = ScriptableObject.CreateInstance<TagInfo>();
-            YellowTag.Database = unitSetting.Database;
-            YellowTag.MechId = unitSetting.mechId;
-            YellowTag.Tag = st.yellow;
-        }
-        if (st.green != null)
-        {
-            GreenTag = ScriptableObject.CreateInstance<TagInfo>();
-            GreenTag.Database = unitSetting.Database;
-            GreenTag.MechId = unitSetting.mechId;
-            GreenTag.Tag = st.green;
-        }
-        if (st.blue != null)
-        {
-            BlueTag = ScriptableObject.CreateInstance<TagInfo>();
-            BlueTag.Database = unitSetting.Database;
-            BlueTag.MechId = unitSetting.mechId;
-            BlueTag.Tag = st.blue;
-        }
-        if (st.white != null)
-        {
-            WhiteTag = ScriptableObject.CreateInstance<TagInfo>();
-            WhiteTag.Database = unitSetting.Database;
-            WhiteTag.MechId = unitSetting.mechId;
-            WhiteTag.Tag = st.white;
-        }
+        st = (SignalTowerSetting)obj;
+        RedTag = null;
+        YellowTag = null;
+        GreenTag = null;
+        BlueTag = null;
+        WhiteTag = null;
     }
 }

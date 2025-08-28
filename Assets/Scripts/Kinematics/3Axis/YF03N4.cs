@@ -21,7 +21,7 @@ public class YF03N4 : ParallelLink
         SPRING_OFFSET_Y = 0.055f;
     }
 
-    public override void setTarget(float x, float y, float z)
+    public override void SetTarget(float x, float y, float z)
     {
         angle = kinematics_R(x, -y, z);
         for (var i = 0; i < AXIS_MAX; i++)

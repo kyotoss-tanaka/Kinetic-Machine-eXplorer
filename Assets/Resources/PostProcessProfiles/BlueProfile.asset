@@ -10,11 +10,11 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 8e6292b2c06870d4495f009f912b9600, type: 3}
-  m_Name: SwitchMain Profile
+  m_Name: BlueProfile
   m_EditorClassIdentifier: 
   settings:
-  - {fileID: 4786639834999842346}
---- !u!114 &4786639834999842346
+  - {fileID: 39621106450759720}
+--- !u!114 &39621106450759720
 MonoBehaviour:
   m_ObjectHideFlags: 3
   m_CorrespondingSourceObject: {fileID: 0}
@@ -32,7 +32,7 @@ MonoBehaviour:
     value: 1
   intensity:
     overrideState: 1
-    value: 1
+    value: 10
   threshold:
     overrideState: 0
     value: 1
@@ -49,8 +49,8 @@ MonoBehaviour:
     overrideState: 0
     value: 0
   color:
-    overrideState: 0
-    value: {r: 1, g: 1, b: 1, a: 1}
+    overrideState: 1
+    value: {r: 0, g: 0, b: 31.999998, a: 1}
   fastMode:
     overrideState: 0
     value: 0

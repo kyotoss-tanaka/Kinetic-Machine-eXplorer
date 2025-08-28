@@ -10,6 +10,8 @@ public class KssBaseScript : BaseBehaviour
     [Serializable]
     public class DataExchange
     {
+        public string InputTag;
+        public string OutputTag;
         public int InitValue;
         public TagInfo Input;
         public TagInfo Output;
@@ -50,6 +52,12 @@ public class KssBaseScript : BaseBehaviour
             }
         }
     }
+
+    /// <summary>
+    /// マニュアル設定
+    /// </summary>
+    [SerializeField]
+    protected bool isManual;
 
     /// <summary>
     /// キャンバス表示
@@ -315,7 +323,7 @@ public class KssBaseScript : BaseBehaviour
 
     protected List<DataExchange> GetDataExchangeFromPrm(List<Component> components, List<KssPartsBase> scriptables, List<KssInstanceIds> kssInstanceIds, JsonElement root, string name)
     {
-        var ret = new  List<DataExchange>();
+        var ret = new List<DataExchange>();
         try
         {
             JsonElement obj = root.GetProperty(name);
@@ -354,7 +362,7 @@ public class KssBaseScript : BaseBehaviour
         var ret = new List<int>();
         try
         {
-            JsonElement obj= root.GetProperty(name);
+            JsonElement obj = root.GetProperty(name);
             foreach (var child in obj.EnumerateArray())
             {
                 ret.Add(child.GetProperty("instanceID").GetInt32());
@@ -366,4 +374,56 @@ public class KssBaseScript : BaseBehaviour
         }
         return ret;
     }
+
+    /// <summary>
+    /// タグの値取得
+    /// </summary>
+    /// <param name="tag"></param>
+    /// <param name="tagInfo"></param>
+    /// <returns></returns>
+    protected int GetTagValue(string tag, ref TagInfo tagInfo, int index = -1)
+    {
+        if (tagInfo != null)
+        {
+            return tagInfo.Value;
+        }
+        if (tag == "")
+        {
+            return 0;
+        }
+        else if (index >= 0)
+        {
+            tag += $"[{index}]";
+        }
+        tagInfo = GlobalScript.GetTagInfo(unitSetting.Database, unitSetting.mechId, tag);
+        return tagInfo == null ? 0 : tagInfo.Value;
+    }
+
+    /// <summary>
+    /// タグの値セット
+    /// </summary>
+    /// <param name="tag"></param>
+    /// <param name="tagInfo"></param>
+    /// <returns></returns>
+    protected void SetTagValue(string tag, ref TagInfo tagInfo, int value, int index = -1)
+    {
+        if (tagInfo != null)
+        {
+            tagInfo.Value = value;
+        }
+        if (tag == "")
+        {
+            return;
+        }
+        else if (index >= 0)
+        {
+            tag += $"[{index}]";
+        }
+        tagInfo = GlobalScript.GetTagInfo(unitSetting.Database, unitSetting.mechId, tag);
+        if (tagInfo != null)
+        {
+            tagInfo.Value = value;
+        }
+    }
+
 }

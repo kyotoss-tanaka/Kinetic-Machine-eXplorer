@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using UnityEngine;
+using UnityEngine.Rendering.PostProcessing;
 
 [Serializable]
 public class KssSettings
@@ -175,4 +176,11 @@ public struct uniLongAllData
     /// <summary>ubyte</summary>
     [FieldOffset(7)]
     public sbyte sbData8;
+}
+/// <summary>
+/// ‹¤’Ê’è‹`
+/// </summary>
+public static class CommonDefine
+{
+    public static int EmissionIntensity = 10;
 }

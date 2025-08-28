@@ -24,7 +24,7 @@ public class MPX_PI : ParallelLink
         ARM1_OFFSET = -7.66225566f;
     }
 
-    public override void setTarget(float x, float y, float z)
+    public override void SetTarget(float x, float y, float z)
     {
         angle = kinematics_R(x, -y, z);
         for (var i = 0; i < AXIS_MAX; i++)

@@ -25,8 +25,9 @@ public class MPS2_3AS : ParallelLink
         SPRING_OFFSET_Y = 0.05f;
     }
 
-    public override void setTarget(float x, float y, float z)
+    public override void SetTarget(float x, float y, float z)
     {
+        y = -y;
         var tmp = kinematics_R(x, y, z);
         // ƒA[ƒ€‚²‚Æ‚ÉŠp“x“ü‚ê‘Ö‚¦
         angle = new List<List<float>> { tmp[2], tmp[1], tmp[0] };

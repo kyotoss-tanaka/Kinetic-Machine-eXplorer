@@ -341,15 +341,15 @@ public static class GlobalScript
     /// <summary>
     /// ƒ^ƒOî•ñæ“¾
     /// </summary>
-    /// <param name="name"></param>
+    /// <param name="database"></param>
     /// <param name="mechid"></param>
     /// <param name="tag"></param>
     /// <returns></returns>
-    public static TagInfo GetTagInfo(string name, string mechid, string tag)
+    public static TagInfo GetTagInfo(string database, string mechid, string tag)
     {
-        if (tagDatas.ContainsKey(name) && tagDatas[name].ContainsKey(mechid) && tagDatas[name][mechid].ContainsKey(tag))
+        if (tagDatas.ContainsKey(database) && tagDatas[database].ContainsKey(mechid) && tagDatas[database][mechid].ContainsKey(tag))
         {
-            return tagDatas[name][mechid][tag];
+            return tagDatas[database][mechid][tag];
         }
         return null;
     }

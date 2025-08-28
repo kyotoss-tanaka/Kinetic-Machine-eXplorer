@@ -113,7 +113,7 @@ public class ParallelLink : UseHeadBase3DScript
     /// <param name="x"></param>
     /// <param name="y"></param>
     /// <param name="z"></param>
-    public override void setTarget(float x, float y, float z)
+    public override void SetTarget(float x, float y, float z)
     {
         /*
         var angle = kinematics_R(x, y, z);

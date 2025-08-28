@@ -392,7 +392,7 @@ public class KssMeshColliderEditorCommon
     {
         if (meshCache == null)
         {
-            Debug.LogError("");
+//            Debug.LogError("");
             return null;
         }
 
@@ -403,14 +403,14 @@ public class KssMeshColliderEditorCommon
     {
         if (meshCache == null)
         {
-            Debug.LogError("");
+//            Debug.LogError("");
             return null;
         }
 
         Vector3[] vertices = meshCache.vertices;
         if (vertices == null)
         {
-            Debug.LogError("");
+//            Debug.LogError("");
             return null;
         }
 
