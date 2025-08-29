@@ -88,6 +88,11 @@ public class SwitchScript : KssBaseScript
     private MeshRenderer meshRenderer;
 
     /// <summary>
+    /// マテリアル
+    /// </summary>
+    private Material material;
+
+    /// <summary>
     /// VR用カメラ
     /// </summary>
     public Camera vrCamera;
@@ -97,7 +102,7 @@ public class SwitchScript : KssBaseScript
     {
         switchTransform = transform.GetComponentsInChildren<Transform>().Where(d => d.name == "SwitchMain").ToList()[0];
         meshRenderer = switchTransform.GetComponent<MeshRenderer>();
-        meshRenderer.material = Instantiate((Material)Resources.Load("Materials/Color/" + switchColor.ToString()), switchTransform);
+        meshRenderer.material = material;
         var camera = GameObject.FindObjectsByType<Camera>(FindObjectsSortMode.None).Where(d => d.name == "CenterEyeAnchor").ToList();
         if (camera.Count > 0)
         {
@@ -108,7 +113,7 @@ public class SwitchScript : KssBaseScript
     protected override void OnDestroy()
     {
         base.OnDestroy();
-//        Destroy(meshRenderer.material);
+        Destroy(material);
     }
 
     protected override void MyFixedUpdate()
@@ -267,6 +272,12 @@ public class SwitchScript : KssBaseScript
     public override void SetParameter(UnitSetting unitSetting, object obj)
     {
         base.SetParameter(unitSetting, obj);
+
+        if (material != null)
+        {
+            Destroy(material);
+        }
+        material = Instantiate((Material)Resources.Load("Materials/Color/" + switchColor.ToString()), switchTransform);
 
         sw = (SwitchSetting)obj;
         isAlternate = sw.alternate;

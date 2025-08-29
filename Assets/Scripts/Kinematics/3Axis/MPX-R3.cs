@@ -55,12 +55,12 @@ public class MPX_R3 : UseHeadBase3DScript
     /// <param name="z"></param>
     public override void SetTarget(float x, float y, float z)
     {
-        angle = kinematics_R(x, y, -z);
+        angle = kinematics_R(x, y, z);
         arm1.transform.localEulerAngles = new Vector3(ang1.x, ang1.y, angle[1]);
         arm2_1.transform.localEulerAngles = new Vector3(ang2_1.x, ang2_1.y, angle[0] - 180);
         arm2_2.transform.localEulerAngles = new Vector3(ang2_2.x, ang2_2.y, -angle[1] - angle[0]);
         arm3.transform.localEulerAngles = new Vector3(ang3.x, ang3.y, -angle[0] - angle[1] + 180);
-        plate.transform.localEulerAngles = new Vector3(angP.x, angP.y, -90 - angle[2]);
+        plate.transform.localEulerAngles = new Vector3(angP.x, angP.y, 90 - angle[2]);
     }
 
     /// <summary>

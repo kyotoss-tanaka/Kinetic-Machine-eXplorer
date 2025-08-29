@@ -79,11 +79,6 @@ public class PlanarMotor : UseHeadBaseScript
         // リニアオブジェクトを一旦削除
         if (LinearObject != null)
         {
-            // ヘッドをセットする
-            if (HeadObject != null)
-            {
-                HeadObject.transform.parent = LinearObject.transform;
-            }
             // 一度削除する
             Destroy(LinearObject);
 
@@ -187,9 +182,8 @@ public class PlanarMotor : UseHeadBaseScript
         base.SetParameter(unitSetting, obj);
 
         pm = (PlanarMotorSetting)obj;
-        
-        var objects = GameObject.FindObjectsByType<GameObject>(FindObjectsSortMode.None).Where(d => d.name == pm.model).ToList();
-        LinearObject = objects.Count == 0 ? null : objects[0];
+
+        LinearObject = pm.moverUnit == null ? null : pm.moverUnit.moveObject;
 
         Count = pm.count;
         PositionOffset = new Vector3
@@ -204,10 +198,6 @@ public class PlanarMotor : UseHeadBaseScript
             y = pm.offset_r[2],
             z = pm.offset_r[1]
         };
-        if (pm.headUnit != null)
-        {
-            HeadObject = pm.headUnit.unitObject;
-        }
     }
     #endregion 関数
 }

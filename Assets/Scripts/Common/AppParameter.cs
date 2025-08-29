@@ -650,10 +650,6 @@ namespace Parameters
         /// </summary>
         public string name { get; set; }
         /// <summary>
-        /// モデル名
-        /// </summary>
-        public string model { get; set; }
-        /// <summary>
         /// リニア数
         /// </summary>
         public int count { get; set; }
@@ -684,11 +680,11 @@ namespace Parameters
         /// <summary>
         /// ヘッドユニット
         /// </summary>
-        public string head { get; set; }
+        public string mover { get; set; }
         /// <summary>
         /// ヘッドユニット設定
         /// </summary>
-        public UnitSetting headUnit { get; set; }
+        public UnitSetting moverUnit { get; set; }
     }
 
 

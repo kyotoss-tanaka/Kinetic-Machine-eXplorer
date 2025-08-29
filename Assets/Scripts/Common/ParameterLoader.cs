@@ -423,58 +423,6 @@ namespace Parameters
                         }
                     }
                     // デバッグモード時
-                    DebugLog($"***** Hidden Models *****");
-                    // 無視オブジェクト無効化
-                    foreach (var m in hiddenSettings)
-                    {
-                        if (m.isEnable)
-                        {
-                            if (m.mode == 0)
-                            {
-                                // 一致
-                                foreach (var o in GameObject.FindObjectsByType<GameObject>(FindObjectsSortMode.None).ToList().FindAll(d => d.name == m.name))
-                                {
-                                    if ((m.parent == null) || (m.parent == "") || (m.parent == o.transform.parent.name))
-                                    {
-                                        o.SetActive(false);
-                                    }
-                                }
-                            }
-                            else if (m.mode == 1)
-                            {
-                                // 前方一致
-                                foreach (var o in GameObject.FindObjectsByType<GameObject>(FindObjectsSortMode.None).ToList().FindAll(d => d.name.StartsWith(m.name)))
-                                {
-                                    if ((m.parent == null) || (m.parent == "") || (m.parent == o.transform.parent.name))
-                                    {
-                                        o.SetActive(false);
-                                    }
-                                }
-                            }
-                            else if (m.mode == 2)
-                            {
-                                // 後方一致
-                                foreach (var o in GameObject.FindObjectsByType<GameObject>(FindObjectsSortMode.None).ToList().FindAll(d => d.name.EndsWith(m.name)))
-                                {
-                                    if ((m.parent == null) || (m.parent == "") || (m.parent == o.transform.parent.name))
-                                    {
-                                        o.SetActive(false);
-                                    }
-                                }
-                            }
-                            else if (m.mode == 3)
-                            {
-                                // 含まれている
-                                foreach (var o in GameObject.FindObjectsByType<GameObject>(FindObjectsSortMode.None).ToList().FindAll(d => d.name.Contains(m.name)))
-                                {
-                                    if ((m.parent == null) || (m.parent == "") || (m.parent == o.transform.parent.name))
-                                    {
-                                        o.SetActive(false);
-                                    }
-                                }
-                            }
-                        }
-                    }
                 }
 
                 // ワークセット
@@ -612,7 +560,7 @@ namespace Parameters
                 SetProgressLabel("Loading Units");
                 foreach (var unitSetting in unitSettings)
                 {
-                    // 親モデル検索用 ※ループ内から移動(ユニットを先に作成しているので問題ない？)
+                    // 親モデル検索用 ※ループ内で行わないとNG
                     allObjects = GameObject.FindObjectsByType<GameObject>(FindObjectsSortMode.None).ToList();
                     unitSetting.childrenObject = new List<GameObject>();
                     var gameObjects = allObjects.FindAll(d => d.name == unitSetting.parent);
@@ -792,7 +740,7 @@ namespace Parameters
                                 var pm = pmSettings.Find(d => (d.mechId == unitSetting.mechId) && (d.name == unitSetting.name));
                                 if (pm != null)
                                 {
-                                    pm.headUnit = unitSettings.Find(d => d.name == pm.head);
+                                    pm.moverUnit = unitSettings.Find(d => d.name == pm.mover);
                                     var pmObj = globalSetting.AddComponent<Br6DScript>();
                                     pmObj.SetParameter(unitSetting, pm);
                                 }
@@ -915,6 +863,60 @@ namespace Parameters
                     Destroy(m);
                 }
                 Destroy(deviceObj);
+
+                // 無視オブジェクト無効化
+                {
+                    foreach (var m in hiddenSettings)
+                    {
+                        if (m.isEnable)
+                        {
+                            if (m.mode == 0)
+                            {
+                                // 一致
+                                foreach (var o in GameObject.FindObjectsByType<GameObject>(FindObjectsSortMode.None).ToList().FindAll(d => d.name == m.name))
+                                {
+                                    if ((m.parent == null) || (m.parent == "") || (m.parent == o.transform.parent.name))
+                                    {
+                                        o.SetActive(false);
+                                    }
+                                }
+                            }
+                            else if (m.mode == 1)
+                            {
+                                // 前方一致
+                                foreach (var o in GameObject.FindObjectsByType<GameObject>(FindObjectsSortMode.None).ToList().FindAll(d => d.name.StartsWith(m.name)))
+                                {
+                                    if ((m.parent == null) || (m.parent == "") || (m.parent == o.transform.parent.name))
+                                    {
+                                        o.SetActive(false);
+                                    }
+                                }
+                            }
+                            else if (m.mode == 2)
+                            {
+                                // 後方一致
+                                foreach (var o in GameObject.FindObjectsByType<GameObject>(FindObjectsSortMode.None).ToList().FindAll(d => d.name.EndsWith(m.name)))
+                                {
+                                    if ((m.parent == null) || (m.parent == "") || (m.parent == o.transform.parent.name))
+                                    {
+                                        o.SetActive(false);
+                                    }
+                                }
+                            }
+                            else if (m.mode == 3)
+                            {
+                                // 含まれている
+                                foreach (var o in GameObject.FindObjectsByType<GameObject>(FindObjectsSortMode.None).ToList().FindAll(d => d.name.Contains(m.name)))
+                                {
+                                    if ((m.parent == null) || (m.parent == "") || (m.parent == o.transform.parent.name))
+                                    {
+                                        o.SetActive(false);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
 
                 // シェーダー適用
                 {
@@ -1147,6 +1149,7 @@ namespace Parameters
                     motion.RenewMoveDir();
                 }
             }
+            Resources.UnloadUnusedAssets();
             DebugLog($"***** Load Finished *****", true);
         }
 
@@ -1191,6 +1194,7 @@ namespace Parameters
                 {
                     Destroy(obj);
                 }
+
                 Destroy(prefabObj);
                 foreach (var obj in movableObjs)
                 {
@@ -1358,7 +1362,7 @@ namespace Parameters
                    children.Find(d => d.name.Contains("駆動部変則120度")) != null ? RobotType.MPX_PI :
                    children.Find(d => d.name.Contains("MPS2-3AS_")) != null ? RobotType.MPS2_3AS :
                    children.Find(d => d.name.Contains("MPS2-4AS_")) != null ? RobotType.MPS2_4AS :
-                   children.Find(d => d.name.Contains("MPX-R3")) != null ? RobotType.MPX_R3 : RobotType.UNDEFINED;
+                   children.Find(d => d.name.Contains("W0250623")) != null ? RobotType.MPX_R3 : RobotType.UNDEFINED;
         }
         
         /// <summary>

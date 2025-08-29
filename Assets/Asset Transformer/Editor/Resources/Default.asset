@@ -89,15 +89,3 @@ MonoBehaviour:
       - 2
       <IsEnabled>k__BackingField: 1
       <ActionId>k__BackingField: 277054868
-  - <IsCollapsed>k__BackingField: 0
-    m_IsEnabled: 1
-    m_Name: Rule 2
-    m_Blocks:
-    - m_SerializedNames:
-      - context
-      - recursive
-      m_SerializedValues:
-      - 0
-      - True
-      <IsEnabled>k__BackingField: 1
-      <ActionId>k__BackingField: 887416576
