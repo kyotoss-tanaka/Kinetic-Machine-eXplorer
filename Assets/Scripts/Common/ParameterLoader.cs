@@ -12,7 +12,6 @@ using System.Collections;
 using NUnit.Framework;
 using UnityEngine.UI;
 using TMPro;
-using MongoDB.Driver;
 
 namespace Parameters
 {
@@ -75,7 +74,6 @@ namespace Parameters
         private HashSet<Material> allMaterials = new HashSet<Material>();
         private Shader clipShader;
         private Shader standardShader;
-        private Shader linesShader;
 
         // パラメータ描画用
         private GameObject canvaObj;
@@ -100,7 +98,6 @@ namespace Parameters
             // シェーダーロード
             clipShader = Shader.Find("Custom/ClipTransparent");
             standardShader = Shader.Find("Standard");
-            linesShader = Shader.Find("Custom/Lines");
 
             // キャンバス生成
             CreateCanvas();
@@ -372,19 +369,6 @@ namespace Parameters
                             var obj = Instantiate(prefab);
                             obj.name = prefab.name;
                             obj.transform.parent = prefabObj.transform;
-                            foreach (Renderer renderer in obj.GetComponentsInChildren<Renderer>())
-                            {
-                                foreach (Material mat in renderer.materials)
-                                {
-                                    if (mat != null)
-                                    {
-                                        if (mat.name == "Default Line Material (Instance)")
-                                        {
-                                            mat.shader = linesShader;
-                                        }
-                                    }
-                                }
-                            }
                         }
                         else
                         {
@@ -395,8 +379,9 @@ namespace Parameters
                         }
                     }
                 }
+
                 // 無視オブジェクト無効化
-                //                if (!buildConfig.isRelease)
+//                if (!buildConfig.isRelease)
                 {
                     // 生成用ワーク保持
                     foreach (var wk in wkSettings)
