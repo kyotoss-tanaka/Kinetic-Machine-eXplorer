@@ -541,6 +541,9 @@ public class MotionInternal : AxisMotionBase
                 {
                     if (isRotate)
                     {
+                        if (pos == float.NaN)
+                        {
+                        }
                         // âÒì]ìÆçÏ
                         moveObject.transform.localEulerAngles = actionCurve.startPos * Thousand + pos * moveDir;
                         innerPosition = actionCurve.startPos * Thousand + pos * moveDir;
