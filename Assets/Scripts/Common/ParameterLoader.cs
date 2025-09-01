@@ -12,6 +12,7 @@ using System.Collections;
 using NUnit.Framework;
 using UnityEngine.UI;
 using TMPro;
+using MongoDB.Driver;
 
 namespace Parameters
 {
@@ -38,6 +39,7 @@ namespace Parameters
         private GameObject globalSetting;
         private GameObject prefabObj;
         private GameObject deviceObj;
+        private List<GameObject> hiddenObjs = new List<GameObject>();
         private List<ObjEntry> movableObjs = new List<ObjEntry>();
         private List<ObjEntry> undefinedUnits = new List<ObjEntry>();
         private List<GameObject> prefabs = new List<GameObject>();
@@ -74,6 +76,7 @@ namespace Parameters
         private HashSet<Material> allMaterials = new HashSet<Material>();
         private Shader clipShader;
         private Shader standardShader;
+        private Shader linesShader;
 
         // パラメータ描画用
         private GameObject canvaObj;
@@ -98,6 +101,7 @@ namespace Parameters
             // シェーダーロード
             clipShader = Shader.Find("Custom/ClipTransparent");
             standardShader = Shader.Find("Standard");
+            linesShader = Shader.Find("Custom/Lines");
 
             // キャンバス生成
             CreateCanvas();
@@ -358,6 +362,7 @@ namespace Parameters
                 }
                 */
 
+                bool isLineShader = true;
                 DebugLog($"***** Load Prefab Model *****");
                 foreach (var prefab in prefabs)
                 {
@@ -369,6 +374,35 @@ namespace Parameters
                             var obj = Instantiate(prefab);
                             obj.name = prefab.name;
                             obj.transform.parent = prefabObj.transform;
+                            if (isLineShader)
+                            {
+                                foreach (Renderer renderer in obj.GetComponentsInChildren<Renderer>())
+                                {
+                                    if (!isLineShader)
+                                    {
+                                        break;
+                                    }
+                                    foreach (Material mat in renderer.materials)
+                                    {
+                                        if (mat != null)
+                                        {
+                                            if (mat.name == "Default Line Material (Instance)")
+                                            {
+                                                if (mat.shader.name == "Hidden/InternalErrorShader")
+                                                {
+                                                    mat.shader = linesShader;
+                                                    //                                            mat.shader = standardShader;
+                                                }
+                                                else
+                                                {
+                                                    isLineShader = false;
+                                                    break;
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
                         }
                         else
                         {
@@ -381,7 +415,65 @@ namespace Parameters
                 }
 
                 // 無視オブジェクト無効化
-//                if (!buildConfig.isRelease)
+                {
+                    hiddenObjs.Clear();
+                    foreach (var m in hiddenSettings)
+                    {
+                        if (m.isEnable)
+                        {
+                            if (m.mode == 0)
+                            {
+                                // 一致
+                                foreach (var o in GameObject.FindObjectsByType<GameObject>(FindObjectsSortMode.None).ToList().FindAll(d => d.name == m.name))
+                                {
+                                    if ((m.parent == null) || (m.parent == "") || (m.parent == o.transform.parent.name))
+                                    {
+                                        //                                        o.SetActive(false);
+                                        hiddenObjs.Add(o);
+                                    }
+                                }
+                            }
+                            else if (m.mode == 1)
+                            {
+                                // 前方一致
+                                foreach (var o in GameObject.FindObjectsByType<GameObject>(FindObjectsSortMode.None).ToList().FindAll(d => d.name.StartsWith(m.name)))
+                                {
+                                    if ((m.parent == null) || (m.parent == "") || (m.parent == o.transform.parent.name))
+                                    {
+//                                        o.SetActive(false);
+                                        hiddenObjs.Add(o);
+                                    }
+                                }
+                            }
+                            else if (m.mode == 2)
+                            {
+                                // 後方一致
+                                foreach (var o in GameObject.FindObjectsByType<GameObject>(FindObjectsSortMode.None).ToList().FindAll(d => d.name.EndsWith(m.name)))
+                                {
+                                    if ((m.parent == null) || (m.parent == "") || (m.parent == o.transform.parent.name))
+                                    {
+                                        //                                        o.SetActive(false);
+                                        hiddenObjs.Add(o);
+
+                                    }
+                                }
+                            }
+                            else if (m.mode == 3)
+                            {
+                                // 含まれている
+                                foreach (var o in GameObject.FindObjectsByType<GameObject>(FindObjectsSortMode.None).ToList().FindAll(d => d.name.Contains(m.name)))
+                                {
+                                    if ((m.parent == null) || (m.parent == "") || (m.parent == o.transform.parent.name))
+                                    {
+                                        //o.SetActive(false);
+                                        hiddenObjs.Add(o);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
                 {
                     // 生成用ワーク保持
                     foreach (var wk in wkSettings)
@@ -560,7 +652,7 @@ namespace Parameters
                 SetProgressLabel("Loading Units");
                 foreach (var unitSetting in unitSettings)
                 {
-                    // 親モデル検索用 ※ループ内で行わないとNG
+                    // 親モデル検索用(非表示オブジェクトも含む) ※ループ内で行わないとNG
                     allObjects = GameObject.FindObjectsByType<GameObject>(FindObjectsSortMode.None).ToList();
                     unitSetting.childrenObject = new List<GameObject>();
                     var gameObjects = allObjects.FindAll(d => d.name == unitSetting.parent);
@@ -618,6 +710,8 @@ namespace Parameters
                                 continue;
                             }
                         }
+                        // 非表示オブジェクトなら非表示から削除
+                        hiddenObjs.Remove(unitSetting.moveObject);
                         // ロボット紐づけ
                         unitSetting.robotSetting = robotSettings.Find(d => (d.mechId == unitSetting.mechId) && (d.name == unitSetting.name));
                         // ワーク生成設定紐づけ
@@ -864,56 +958,13 @@ namespace Parameters
                 }
                 Destroy(deviceObj);
 
-                // 無視オブジェクト無効化
+                // 非表示処理
                 {
-                    foreach (var m in hiddenSettings)
+                    foreach (var o in hiddenObjs)
                     {
-                        if (m.isEnable)
+                        if (!o.IsDestroyed())
                         {
-                            if (m.mode == 0)
-                            {
-                                // 一致
-                                foreach (var o in GameObject.FindObjectsByType<GameObject>(FindObjectsSortMode.None).ToList().FindAll(d => d.name == m.name))
-                                {
-                                    if ((m.parent == null) || (m.parent == "") || (m.parent == o.transform.parent.name))
-                                    {
-                                        o.SetActive(false);
-                                    }
-                                }
-                            }
-                            else if (m.mode == 1)
-                            {
-                                // 前方一致
-                                foreach (var o in GameObject.FindObjectsByType<GameObject>(FindObjectsSortMode.None).ToList().FindAll(d => d.name.StartsWith(m.name)))
-                                {
-                                    if ((m.parent == null) || (m.parent == "") || (m.parent == o.transform.parent.name))
-                                    {
-                                        o.SetActive(false);
-                                    }
-                                }
-                            }
-                            else if (m.mode == 2)
-                            {
-                                // 後方一致
-                                foreach (var o in GameObject.FindObjectsByType<GameObject>(FindObjectsSortMode.None).ToList().FindAll(d => d.name.EndsWith(m.name)))
-                                {
-                                    if ((m.parent == null) || (m.parent == "") || (m.parent == o.transform.parent.name))
-                                    {
-                                        o.SetActive(false);
-                                    }
-                                }
-                            }
-                            else if (m.mode == 3)
-                            {
-                                // 含まれている
-                                foreach (var o in GameObject.FindObjectsByType<GameObject>(FindObjectsSortMode.None).ToList().FindAll(d => d.name.Contains(m.name)))
-                                {
-                                    if ((m.parent == null) || (m.parent == "") || (m.parent == o.transform.parent.name))
-                                    {
-                                        o.SetActive(false);
-                                    }
-                                }
-                            }
+                            o.SetActive(false);
                         }
                     }
                 }
