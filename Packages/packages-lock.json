@@ -168,6 +168,16 @@
       },
       "url": "https://packages.unity.com"
     },
+    "com.unity.industry.toolkit": {
+      "version": "3.1.2",
+      "depth": 0,
+      "source": "registry",
+      "dependencies": {
+        "com.unity.pixyz.unity-sdk": "3.0.4",
+        "com.unity.settings-manager": "2.0.0"
+      },
+      "url": "https://packages.unity.com"
+    },
     "com.unity.inputsystem": {
       "version": "1.14.0",
       "depth": 0,
@@ -206,6 +216,23 @@
       "dependencies": {},
       "url": "https://packages.unity.com"
     },
+    "com.unity.pixyz.sdk-plus": {
+      "version": "5.0.1",
+      "depth": 2,
+      "source": "registry",
+      "dependencies": {},
+      "url": "https://packages.unity.com"
+    },
+    "com.unity.pixyz.unity-sdk": {
+      "version": "3.0.4",
+      "depth": 1,
+      "source": "registry",
+      "dependencies": {
+        "com.unity.pixyz.sdk-plus": "5.0.1",
+        "com.unity.modules.animation": "1.0.0"
+      },
+      "url": "https://packages.unity.com"
+    },
     "com.unity.postprocessing": {
       "version": "3.4.0",
       "depth": 0,
@@ -217,7 +244,7 @@
     },
     "com.unity.settings-manager": {
       "version": "2.1.0",
-      "depth": 2,
+      "depth": 1,
       "source": "registry",
       "dependencies": {},
       "url": "https://packages.unity.com"

@@ -1,0 +1,87 @@
+﻿Shader "Custom/Lines"
+{
+	Properties
+	{
+		[Header(Main Properties)]
+		[HDR]
+		_Color ("Color", Color) = (0,0,0,1)
+      [Toggle]
+      _UseVertexColor ("Use Vertex Colors", Float) = 0
+
+		[Toggle]
+		_Offset ("See-Through", Float) = 0
+
+		[Header(Dashes)]
+		[Toggle]
+		_Dashes ("Enabled", Float) = 0
+      _DashesScale ("Scale", Range(1, 10)) = 1.0
+	}
+	SubShader
+	{
+		Tags { "Queue" = "Overlay" }
+		LOD 200
+
+		Pass
+		{
+			CGPROGRAM
+			#pragma target 3.0
+			#pragma vertex vert
+			#pragma fragment frag
+
+			#include "UnityCG.cginc"
+
+			struct appdata
+			{
+				float4 position : POSITION;
+                float4 color : COLOR; // vertex color
+			};
+
+			struct input
+			{
+				float4 position : POSITION;
+				float3 coords : TEXCOORD1;
+            float4 vertexColor : COLOR0;
+			};
+
+			float _Offset;
+
+			input vert (appdata i)
+			{
+				input o;
+				o.position = UnityObjectToClipPos(i.position);
+				if (unity_CameraProjection._m33 == 0) {
+					o.position.z *= 1 + 0.004 * (1 + _Offset * 1000) / unity_CameraProjection._m11;
+				}
+				o.coords = i.position.xyz;
+            o.vertexColor = i.color;
+				return o;
+			}
+
+			fixed4 _Color;
+         float _UseVertexColor;
+			float _Dashes;
+			float _DashesScale;
+
+			bool checkerboard(int x, int y, int z)
+			{
+				return (fmod(x, 2) == 0) ^ (fmod(y, 2) == 0) ^ (fmod(z, 2) == 0);
+			}
+
+			fixed4 frag (input i) : SV_Target
+			{
+				if (_Dashes) {
+					i.coords *= int(1000 / (_DashesScale + 0.001));
+					if (checkerboard(i.coords.x, i.coords.y, i.coords.z)) {
+						discard;
+					}
+				}
+            if (_UseVertexColor)
+                return i.vertexColor;
+            else
+                return _Color;
+			}
+			ENDCG
+		}
+	}
+	FallBack "Diffuse"
+}
