@@ -130,32 +130,25 @@ public class CameraController : MonoBehaviour
 
     public void MouseUpdate()
     {
-        var enable = true;
-#if UNITY_EDITOR
-        enable = EditorApplication.isPlaying || Keyboard.current.ctrlKey.isPressed;
-#endif
-        if (enable)
+        Vector2 scrollDelta = Mouse.current.scroll.ReadValue();
+        float scrollWheel = scrollDelta.y;
+        if (scrollWheel != 0.0f)
         {
-            Vector2 scrollDelta = Mouse.current.scroll.ReadValue();
-            float scrollWheel = scrollDelta.y;
-            if (scrollWheel != 0.0f)
-            {
-                MouseWheel(scrollWheel);
-            }
-
-            var mouse = Mouse.current;
-
-            // ボタンが押されたら現在のマウス位置を保存
-            if (mouse.leftButton.wasPressedThisFrame ||
-                mouse.rightButton.wasPressedThisFrame ||
-                mouse.middleButton.wasPressedThisFrame)
-            {
-                preMousePos = mouse.position.ReadValue();
-            }
-
-            // ドラッグ処理（あなたの既存関数に合わせて）
-            MouseDrag(mouse.position.ReadValue());
+            MouseWheel(scrollWheel);
         }
+
+        var mouse = Mouse.current;
+
+        // ボタンが押されたら現在のマウス位置を保存
+        if (mouse.leftButton.wasPressedThisFrame ||
+            mouse.rightButton.wasPressedThisFrame ||
+            mouse.middleButton.wasPressedThisFrame)
+        {
+            preMousePos = mouse.position.ReadValue();
+        }
+
+        // ドラッグ処理（あなたの既存関数に合わせて）
+        MouseDrag(mouse.position.ReadValue());
     }
 
     private void MouseWheel(float delta)
@@ -165,19 +158,26 @@ public class CameraController : MonoBehaviour
 
     private void MouseDrag(Vector3 mousePos)
     {
+        var enable = true;
+#if UNITY_EDITOR
+        enable = EditorApplication.isPlaying || Keyboard.current.ctrlKey.isPressed;
+#endif
         Vector3 diff = mousePos - preMousePos;
 
         if (diff.magnitude < Vector3.kEpsilon)
             return;
 
-        if (Mouse.current.middleButton.isPressed)
+        if (enable)
         {
-            Vector3 pos = Camera.main.WorldToScreenPoint(targetPosition);
-            transform.Translate(-diff * 0.01f * moveSpeed * pos.z / 5);
-        }
-        else if (Mouse.current.rightButton.isPressed)
-        {
-            CameraRotate(new Vector2(-diff.y, diff.x) * rotateSpeed);
+            if (Mouse.current.middleButton.isPressed)
+            {
+                Vector3 pos = Camera.main.WorldToScreenPoint(targetPosition);
+                transform.Translate(-diff * 0.01f * moveSpeed * pos.z / 5);
+            }
+            else if (Mouse.current.rightButton.isPressed)
+            {
+                CameraRotate(new Vector2(-diff.y, diff.x) * rotateSpeed);
+            }
         }
         preMousePos = mousePos;
     }

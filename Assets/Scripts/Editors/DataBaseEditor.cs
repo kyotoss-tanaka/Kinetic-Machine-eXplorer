@@ -32,7 +32,7 @@ public class DataBaseEditor : EditorWindow
             // DBçXêV
             GlobalScript.RenewDatabase(FindObjectsByType<ComPostgres>(FindObjectsSortMode.None).ToList());
             GlobalScript.RenewDatabase(FindObjectsByType<ComMongo>(FindObjectsSortMode.None).ToList());
-            GlobalScript.RenewDatabase(FindObjectsByType<ComOpcUA>(FindObjectsSortMode.None).ToList());
+            GlobalScript.RenewDatabase(FindObjectsByType<ComOpcUaApi>(FindObjectsSortMode.None).ToList());
 
             _treeView.Reload();
             _treeView.ExpandAll();

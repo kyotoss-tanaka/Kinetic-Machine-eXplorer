@@ -1,11 +1,12 @@
 using Parameters;
 using System.Collections.Generic;
+using System.Data;
 using System.Linq;
 using System.Text.Json;
 using Unity.VisualScripting;
 using UnityEngine;
+using NCalc;
 using static Br6DScript;
-
 public class PlanarMotor : UseHeadBaseScript
 {
     #region プロパティ
@@ -52,6 +53,11 @@ public class PlanarMotor : UseHeadBaseScript
     /// </summary>
     protected PlanarMotorSetting pm;
 
+    /// <summary>
+    /// シャトルID
+    /// </summary>
+    protected List<int> ids = new();
+
     #endregion プロパティ
 
     /// <summary>
@@ -76,38 +82,6 @@ public class PlanarMotor : UseHeadBaseScript
     protected override void Start()
     {
         base.Start();
-        // リニアオブジェクトを一旦削除
-        if (LinearObject != null)
-        {
-            // 一度削除する
-            Destroy(LinearObject);
-
-            // 再生成用
-            objBase = new GameObject("MoverFuctory");
-            objBase.transform.parent = unitSetting.unitObject.transform;
-            objBase.transform.localPosition = new();
-            objBase.transform.localEulerAngles = new();
-
-            for (var i = 0; i < Count; i++)
-            {
-                var sh = Instantiate(LinearObject);
-                sh.transform.parent = objBase.transform;
-                sh.transform.localPosition = new Vector3();
-                sh.transform.eulerAngles = new Vector3();
-                var del = sh.GetComponent<ObjectDeleteScript>();
-                if (del != null)
-                {
-                    Destroy(del);
-                    foreach (var wk in unitSetting.workDeleteSettings)
-                    {
-                        var s = sh.transform.AddComponent<ObjectDeleteScript>();
-                        s.SetParameter(unitSetting, wk);
-                    }
-                }
-                shuttles.Add(sh);
-                shuttleTags.Add(new ShuttleTagInfo());
-            }
-        }
     }
 
     /// <summary>
@@ -121,19 +95,18 @@ public class PlanarMotor : UseHeadBaseScript
         {
             objBase.transform.localPosition = PositionOffset;
             objBase.transform.localEulerAngles = EulerAnglesOffset;
-            for (var i = 0; i < shuttles.Count; i++)
+            for (var i = 0; i < Count; i++)
             {
                 if (shuttleTags.Count != shuttles.Count)
                 {
-                    // デバッグ対策
-                    shuttleTags.Add(new ShuttleTagInfo());
+                    break;
                 }
-                var x = GetTagValue(pm.tags_p[0], ref shuttleTags[i].X, i);
-                var y = GetTagValue(pm.tags_p[1], ref shuttleTags[i].Y, i);
-                var z = GetTagValue(pm.tags_p[2], ref shuttleTags[i].Z, i);
-                var rx = GetTagValue(pm.tags_r[0], ref shuttleTags[i].RX, i);
-                var ry = GetTagValue(pm.tags_r[1], ref shuttleTags[i].RY, i);
-                var rz = GetTagValue(pm.tags_r[2], ref shuttleTags[i].RZ, i);
+                var x = GetTagValue(pm.tags_p[0], ref shuttleTags[i].X, ids[i]);
+                var y = GetTagValue(pm.tags_p[1], ref shuttleTags[i].Y, ids[i]);
+                var z = GetTagValue(pm.tags_p[2], ref shuttleTags[i].Z, ids[i]);
+                var rx = GetTagValue(pm.tags_r[0], ref shuttleTags[i].RX, ids[i]);
+                var ry = GetTagValue(pm.tags_r[1], ref shuttleTags[i].RY, ids[i]);
+                var rz = GetTagValue(pm.tags_r[2], ref shuttleTags[i].RZ, ids[i]);
                 SetTarget(i,
                     x / 1000000f * pm.dir_p[0], y / 1000000f * pm.dir_p[1], z / 1000000f * pm.dir_p[2],
                     rx / 1000000f * pm.dir_r[0], ry / 1000000f * pm.dir_r[1], rz / 1000000f * pm.dir_r[2]
@@ -185,19 +158,104 @@ public class PlanarMotor : UseHeadBaseScript
 
         LinearObject = pm.moverUnit == null ? null : pm.moverUnit.moveObject;
 
-        Count = pm.count;
         PositionOffset = new Vector3
         {
             x = pm.offset_p[0],
-            y = pm.offset_p[2],
-            z = pm.offset_p[1]
+            y = pm.offset_p[1],
+            z = pm.offset_p[2]
         };
         EulerAnglesOffset = new Vector3
         {
             x = pm.offset_r[0],
-            y = pm.offset_r[2],
-            z = pm.offset_r[1]
+            y = pm.offset_r[1],
+            z = pm.offset_r[2]
         };
+
+        // シャトル数
+        Count = pm.count;
+
+        bool error = false;
+        ids = new List<int>();
+        try
+        {
+            Expression e = new Expression(pm.calc);
+            for (var i = 0; i < Count; i++)
+            {
+                string formula = pm.calc;
+                e.Parameters["i"] = i;
+                var result = e.Evaluate();
+                if (result == null)
+                {
+                    error = true;
+                    break;
+                }
+                else
+                {
+                    if (result is int id)
+                    {
+                        if (ids.Count >= Count)
+                        {
+                            break;
+                        }
+                        ids.Add(id);
+                    }
+                }
+            }
+        }
+        catch
+        {
+            error = true;
+        }
+        if (error)
+        {
+            ids = new List<int>();
+            for (var i = 0; i < Count; i++)
+            {
+                ids.Add(i);
+            }
+        }
+
+        // リニアオブジェクトを一旦削除
+        if (LinearObject != null)
+        {
+            // 一度削除する
+            LinearObject.SetActive(false);
+
+            // 再生成用
+            if (objBase == null)
+            {
+                objBase = new GameObject("MoverFuctory");
+                objBase.transform.parent = unitSetting.unitObject.transform;
+                objBase.transform.localPosition = new();
+                objBase.transform.localEulerAngles = new();
+            }
+            foreach (var sh in shuttles)
+            {
+                Destroy(sh);
+            }
+            shuttles = new List<GameObject>();
+            shuttleTags = new List<ShuttleTagInfo>();
+            for (var i = 0; i < ids.Count; i++)
+            {
+                var sh = Instantiate(LinearObject);
+                sh.SetActive(true);
+                sh.transform.parent = objBase.transform;
+                sh.transform.localPosition = new Vector3();
+                sh.transform.eulerAngles = new Vector3();
+                var del = sh.GetComponent<ObjectDeleteScript>();
+                if (del != null)
+                {
+                    Destroy(del);
+                    foreach (var wk in unitSetting.workDeleteSettings)
+                    {
+                        var s = sh.transform.AddComponent<ObjectDeleteScript>();
+                        s.SetParameter(unitSetting, wk);
+                    }
+                }
+                shuttles.Add(sh);
+                shuttleTags.Add(new ShuttleTagInfo());
+            }
+        }
     }
     #endregion 関数
 }

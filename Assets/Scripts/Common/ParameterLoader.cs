@@ -13,6 +13,7 @@ using NUnit.Framework;
 using UnityEngine.UI;
 using TMPro;
 using MongoDB.Driver;
+using UnityEngine.SceneManagement;
 
 namespace Parameters
 {
@@ -243,6 +244,7 @@ namespace Parameters
                         // 直接通信モード
                         foreach (var direct in p.directDatas)
                         {
+                            ex = dataExSettings.Find(d => (d.dbNo == p.No) && (d.mechId == direct.mechId));
                             if (direct.isMcProtocol)
                             {
                                 var db = (ComMcProtocol)globalSetting.AddComponent<ComMcProtocol>();
@@ -251,6 +253,11 @@ namespace Parameters
                             else if (direct.isMicks)
                             {
                                 var db = (ComMicks)globalSetting.AddComponent<ComMicks>();
+                                db.SetParameter(p.No, p.Cycle, p.Server, p.Port, p.Database, p.User, p.Password, p.isClientMode, ex, direct);
+                            }
+                            else if (direct.isOpcUa)
+                            {
+                                var db = (ComOpcUa)globalSetting.AddComponent<ComOpcUa>();
                                 db.SetParameter(p.No, p.Cycle, p.Server, p.Port, p.Database, p.User, p.Password, p.isClientMode, ex, direct);
                             }
                         }
@@ -364,51 +371,51 @@ namespace Parameters
 
                 bool isLineShader = true;
                 DebugLog($"***** Load Prefab Model *****");
+                var rootObjects = SceneManager.GetActiveScene().GetRootGameObjects().ToList();
                 foreach (var prefab in prefabs)
                 {
                     if (prefab.name[0] != '_')
                     {
-                        var prefabDatas = GameObject.FindObjectsByType<GameObject>(FindObjectsSortMode.None).Where(d => d.name == prefab.name).ToList();
-                        if (prefabDatas.Count == 0)
+                        var prefabData = rootObjects.Find(d => d.name == prefab.name);
+                        if (prefabData == null)
                         {
-                            var obj = Instantiate(prefab);
-                            obj.name = prefab.name;
-                            obj.transform.parent = prefabObj.transform;
-                            if (isLineShader)
+                            prefabData = Instantiate(prefab);
+                            prefabData.name = prefab.name;
+                            prefabData.transform.parent = prefabObj.transform;
+                        }
+                        else
+                        {
+                            prefabData.name = prefab.name;
+                            prefabData.transform.parent = prefabObj.transform;
+                        }
+                        // シェーダーセット
+                        if (isLineShader)
+                        {
+                            foreach (Renderer renderer in prefabData.GetComponentsInChildren<Renderer>())
                             {
-                                foreach (Renderer renderer in obj.GetComponentsInChildren<Renderer>())
+                                if (!isLineShader)
                                 {
-                                    if (!isLineShader)
+                                    break;
+                                }
+                                foreach (Material mat in renderer.materials)
+                                {
+                                    if (mat != null)
                                     {
-                                        break;
-                                    }
-                                    foreach (Material mat in renderer.materials)
-                                    {
-                                        if (mat != null)
+                                        if (mat.name == "Default Line Material (Instance)")
                                         {
-                                            if (mat.name == "Default Line Material (Instance)")
+                                            if (mat.shader.name == "Hidden/InternalErrorShader")
                                             {
-                                                if (mat.shader.name == "Hidden/InternalErrorShader")
-                                                {
-                                                    mat.shader = linesShader;
-                                                    //                                            mat.shader = standardShader;
-                                                }
-                                                else
-                                                {
-                                                    isLineShader = false;
-                                                    break;
-                                                }
+                                                mat.shader = linesShader;
+                                                //                                            mat.shader = standardShader;
+                                            }
+                                            else
+                                            {
+                                                isLineShader = false;
+                                                break;
                                             }
                                         }
                                     }
                                 }
-                            }
-                        }
-                        else
-                        {
-                            foreach (var prefabData in prefabDatas)
-                            {
-                                prefabData.transform.parent = prefabObj.transform;
                             }
                         }
                     }
@@ -835,7 +842,8 @@ namespace Parameters
                                 if (pm != null)
                                 {
                                     pm.moverUnit = unitSettings.Find(d => d.name == pm.mover);
-                                    var pmObj = globalSetting.AddComponent<Br6DScript>();
+//                                    var pmObj = globalSetting.AddComponent<Br6DScript>();
+                                    var pmObj = unitSetting.unitObject.AddComponent<Br6DScript>();
                                     pmObj.SetParameter(unitSetting, pm);
                                 }
                                 else
@@ -1142,6 +1150,7 @@ namespace Parameters
                     }
                     foreach (var direct in p.directDatas)
                     {
+                        ex = dataExSettings.Find(d => (d.dbNo == p.No) && (d.mechId == direct.mechId));
                         if (direct.isMcProtocol)
                         {
                             var db = (ComMcProtocol)globalSetting.AddComponent<ComMcProtocol>();
@@ -1150,6 +1159,11 @@ namespace Parameters
                         else if (direct.isMicks)
                         {
                             var db = (ComMicks)globalSetting.AddComponent<ComMicks>();
+                            db.SetParameter(p.No, p.Cycle, p.Server, p.Port, p.Database, p.User, p.Password, p.isClientMode, ex, direct);
+                        }
+                        else if (direct.isOpcUa)
+                        {
+                            var db = (ComOpcUa)globalSetting.AddComponent<ComOpcUa>();
                             db.SetParameter(p.No, p.Cycle, p.Server, p.Port, p.Database, p.User, p.Password, p.isClientMode, ex, direct);
                         }
                     }
@@ -1198,6 +1212,37 @@ namespace Parameters
                     motion.RenewUnitSetting(true);
                     motion.RenewChuckSetting(chuckSetting);
                     motion.RenewMoveDir();
+
+                    // 単軸動作以外かチェック
+                    if ((motion.GetType()== typeof(AxisMotionBase)) && (motion.unitSetting.actionSetting != null))
+                    {
+                        var mobj = motion.unitSetting.moveObject.GetComponent<KinematicsBase>();
+                        if (motion != null)
+                        {
+                            if (motion.unitSetting.actionSetting.isRobo)
+                            {
+                                // ロボットタイプ取得
+                                var robo = robotSettings.Find(d => (d.mechId == unitSetting.mechId) && (d.name == unitSetting.name));
+                                if (robo != null)
+                                {
+                                    mobj.SetParameter(motion.unitSetting, robo);
+                                }
+                            }
+                            else if (motion.unitSetting.actionSetting.isPlanarMotor)
+                            {
+                                var pm = pmSettings.Find(d => (d.mechId == unitSetting.mechId) && (d.name == unitSetting.name));
+                                if (pm != null)
+                                {
+                                    var mover = motions.Find(d => (d.unitSetting.mechId == unitSetting.mechId) && (d.unitSetting.name == pm.mover));
+                                    pm.moverUnit = mover.unitSetting;
+                                    mobj.SetParameter(motion.unitSetting, pm);
+                                }
+                            }
+                            else if (motion.unitSetting.actionSetting.isConveyer)
+                            {
+                            }
+                        }
+                    }
                 }
             }
             Resources.UnloadUnusedAssets();
@@ -1220,23 +1265,11 @@ namespace Parameters
                     Destroy(obj);
                 }
                 /*
-                foreach (var obj in globalSetting.GetComponentsInChildren<ComMongo>())
-                {
-                    Destroy(obj);
-                }
-                foreach (var obj in globalSetting.GetComponentsInChildren<ComMqtt>())
-                {
-                    Destroy(obj);
-                }
-                foreach (var obj in globalSetting.GetComponentsInChildren<ComInner>())
-                {
-                    Destroy(obj);
-                }
-                */
                 foreach (var obj in globalSetting.GetComponentsInChildren<Br6DScript>())
                 {
                     Destroy(obj);
                 }
+                */
                 foreach (var obj in switchModel)
                 {
                     Destroy(obj);

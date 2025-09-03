@@ -154,7 +154,7 @@ public static class GlobalScript
     /// <summary>
     /// OPC UA
     /// </summary>
-    public static Dictionary<string, ComOpcUA> opcuas = new Dictionary<string, ComOpcUA>();
+    public static Dictionary<string, ComOpcUaApi> opcuaapis = new Dictionary<string, ComOpcUaApi>();
 
     /// <summary>
     /// MQTT
@@ -175,6 +175,11 @@ public static class GlobalScript
     /// MICKS通信
     /// </summary>
     public static Dictionary<string, ComMicks> mickses = new Dictionary<string, ComMicks>();
+
+    /// <summary>
+    /// OPC UA通信
+    /// </summary>
+    public static Dictionary<string, ComOpcUa> opcuas = new Dictionary<string, ComOpcUa>();
 
     /// <summary>
     /// ワーク
@@ -293,7 +298,7 @@ public static class GlobalScript
         mongos = new Dictionary<string, ComMongo>();
         mqtts = new Dictionary<string, ComMqtt>();
         inners = new Dictionary<string, ComInner>();
-        opcuas = new Dictionary<string, ComOpcUA>();
+        opcuaapis = new Dictionary<string, ComOpcUaApi>();
         mcprotocols = new Dictionary<string,ComMcProtocol>();
         mickses = new Dictionary<string, ComMicks>();
         regObjects = new Dictionary<string, List<GameObject>>();
@@ -347,9 +352,15 @@ public static class GlobalScript
     /// <returns></returns>
     public static TagInfo GetTagInfo(string database, string mechid, string tag)
     {
-        if (tagDatas.ContainsKey(database) && tagDatas[database].ContainsKey(mechid) && tagDatas[database][mechid].ContainsKey(tag))
+        try
         {
-            return tagDatas[database][mechid][tag];
+            if (tagDatas.ContainsKey(database) && tagDatas[database].ContainsKey(mechid) && tagDatas[database][mechid].ContainsKey(tag))
+            {
+                return tagDatas[database][mechid][tag];
+            }
+        }
+        catch
+        {
         }
         return null;
     }
@@ -447,9 +458,9 @@ public static class GlobalScript
             {
                 mongos[tag.Key].SetDatas(tag.Value);
             }
-            else if (opcuas.ContainsKey(tag.Key))
+            else if (opcuaapis.ContainsKey(tag.Key))
             {
-                opcuas[tag.Key].SetDatas(tag.Value);
+                opcuaapis[tag.Key].SetDatas(tag.Value);
             }
             else if (mqtts.ContainsKey(tag.Key))
             {
@@ -555,7 +566,7 @@ public static class GlobalScript
     /// DB情報更新
     /// </summary>
     /// <param name="dbs"></param>
-    public static void RenewDatabase(List<ComOpcUA> dbs)
+    public static void RenewDatabase(List<ComOpcUaApi> dbs)
     {
         lock (objLock)
         {

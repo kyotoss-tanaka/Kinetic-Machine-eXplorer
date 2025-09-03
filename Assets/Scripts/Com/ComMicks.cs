@@ -671,6 +671,7 @@ public class ComMicks : ComProtocolBase
     /// </summary>
     private int _commandId = 0;
     #endregion 変数
+
     /// <summary>
     /// ビットレジスタ定義
     /// </summary>

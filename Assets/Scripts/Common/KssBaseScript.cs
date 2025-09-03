@@ -385,9 +385,16 @@ public class KssBaseScript : BaseBehaviour
     {
         if (tagInfo != null)
         {
-            return tagInfo.Value;
+            if (tagInfo.IsDestroyed())
+            {
+                tagInfo = null;
+            }
+            else
+            {
+                return tagInfo.Value;
+            }
         }
-        if (tag == "")
+        if((unitSetting.Database == null) || (tag == ""))
         {
             return 0;
         }

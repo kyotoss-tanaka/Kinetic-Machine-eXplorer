@@ -13,6 +13,10 @@ using static OVRPlugin;
 using System;
 using static KssBaseScript;
 using System.Linq;
+using Opc.Ua;
+using Opc.Ua.Client;
+using Opc.Ua.Configuration;
+using Opc.Ua.Server;
 
 public class ComProtocolBase : ComBaseScript
 {
@@ -48,6 +52,11 @@ public class ComProtocolBase : ComBaseScript
         /// </summary>
         public IPEndPoint RemoteEndPoint;
     }
+
+    protected class OpcUaConnection : ConnectionBase
+    {
+        public Opc.Ua.Client.Session? session;
+    }
     #endregion クラス定義
 
     /// <summary>
@@ -64,6 +73,16 @@ public class ComProtocolBase : ComBaseScript
     /// ポート番号
     /// </summary>
     protected int dbPort;
+
+    /// <summary>
+    /// エンドポイントURL
+    /// </summary>
+    protected string endpointUrl { get; set; }
+
+    /// <summary>
+    /// ネームスペースインデックス
+    /// </summary>
+    protected ushort namespaceIndex;
 
     /// <summary>
     /// データ
@@ -111,6 +130,11 @@ public class ComProtocolBase : ComBaseScript
     protected bool IsWriteProcessing;
 
     /// <summary>
+    /// OPC UA接続処理中
+    /// </summary>
+    protected bool IsOpcUaConnecting;
+
+    /// <summary>
     /// TCPコネクション
     /// </summary>
     protected TcpConnection tcp = new();
@@ -119,6 +143,11 @@ public class ComProtocolBase : ComBaseScript
     /// UDPコネクション
     /// </summary>
     protected UdpConnection udp = new();
+
+    /// <summary>
+    /// UDPコネクション
+    /// </summary>
+    protected OpcUaConnection opcua = new();
 
     /// <summary>
     /// Ping間隔
@@ -153,17 +182,17 @@ public class ComProtocolBase : ComBaseScript
     /// <summary>
     /// 受信用タグ
     /// </summary>
-    Dictionary<string, List<KMXDBSetting>> dctReadSortedTags1 = new();
+    protected Dictionary<string, List<KMXDBSetting>> dctReadSortedTags1 = new();
 
     /// <summary>
     /// 受信用タグ(送信用)
     /// </summary>
-    Dictionary<string, List<KMXDBSetting>> dctReadSortedTags2 = new();
+    protected Dictionary<string, List<KMXDBSetting>> dctReadSortedTags2 = new();
 
     /// <summary>
     /// 送信用タグ
     /// </summary>
-    Dictionary<string, List<KMXDBSetting>> dctWriteSortedTags = new();
+    protected Dictionary<string, List<KMXDBSetting>> dctWriteSortedTags = new();
 
     /// <summary>
     /// 登録したタグリスト
@@ -289,6 +318,7 @@ public class ComProtocolBase : ComBaseScript
     /// </summary>
     protected override void OnDestroy()
     {
+        Disconnect();
     }
 
     /// <summary>
@@ -465,7 +495,19 @@ public class ComProtocolBase : ComBaseScript
     {
         if (IsPing)
         {
-            if (directData.isUdp)
+            if (directData.isOpcUa)
+            {
+                if (opcua.session == null)
+                {
+                    ConnectOpcUA();
+                    return opcua.session != null;
+                }
+                else
+                {
+                    Disconnect();
+                }
+            }
+            else if (directData.isUdp)
             {
                 // UDP
                 if (udp.RemoteEndPoint == null)
@@ -506,16 +548,113 @@ public class ComProtocolBase : ComBaseScript
     }
 
     /// <summary>
+    /// OPC UAとの接続
+    /// </summary>
+    /// <param name="endpointUrl"></param>
+    public async void ConnectOpcUA()
+    {
+        try
+        {
+            await ConnectAsyncOpcUa(endpointUrl);
+        }
+        catch(Exception ex)
+        {
+            opcua.session = null;
+        }
+    }
+
+    /// <summary>
+    /// OPC UAとの接続
+    /// </summary>
+    /// <param name="endpointUrl"></param>
+    /// <returns></returns>
+    public async Task ConnectAsyncOpcUa(string endpointUrl)
+    {
+        var config = new Opc.Ua.ApplicationConfiguration()
+        {
+            ApplicationName = "MyTestOPCUAClient",
+            ApplicationUri = "urn:localhost:MyTestOPCUAClient",
+            ApplicationType = ApplicationType.Client,
+
+            SecurityConfiguration = new SecurityConfiguration
+            {
+                ApplicationCertificate = new CertificateIdentifier
+                {
+                    StoreType = "Directory",
+                    StorePath = "OPC Foundation/CertificateStores/MachineDefault",
+                    SubjectName = "CN=MyTestOPCUAClient"
+                },
+
+                // ★テスト用なので StorePath は適当でOK
+                TrustedIssuerCertificates = new CertificateTrustList
+                {
+                    StoreType = "Directory",
+                    StorePath = "OPC Foundation/CertificateStores/UA Certificate Authorities"
+                },
+                TrustedPeerCertificates = new CertificateTrustList
+                {
+                    StoreType = "Directory",
+                    StorePath = "OPC Foundation/CertificateStores/UA Applications"
+                },
+                RejectedCertificateStore = new CertificateTrustList
+                {
+                    StoreType = "Directory",
+                    StorePath = "OPC Foundation/CertificateStores/RejectedCertificates"
+                },
+
+                AutoAcceptUntrustedCertificates = true
+            },
+
+            TransportConfigurations = new TransportConfigurationCollection(),
+            TransportQuotas = new TransportQuotas { OperationTimeout = 15000 },
+            ClientConfiguration = new ClientConfiguration { DefaultSessionTimeout = 60000 }
+        };
+
+        await config.Validate(ApplicationType.Client);
+
+        var app = new ApplicationInstance
+        {
+            ApplicationName = "KmxOpcUaClient",
+            ApplicationType = ApplicationType.Client,
+            ApplicationConfiguration = config
+        };
+
+        // 新しい形式の SelectEndpoint
+        var endpoint = CoreClientUtils.SelectEndpoint(endpointUrl, false, 1500);
+        var endpointConfig = EndpointConfiguration.Create(config);
+        var endpointDescription = new ConfiguredEndpoint(null, endpoint, endpointConfig);
+
+        opcua.session = await Opc.Ua.Client.Session.Create(
+            config,
+            endpointDescription,
+            false,
+            "KmxSession",
+            5000,
+            null,
+            null
+        );
+    }
+
+    /// <summary>
     /// 切断
     /// </summary>
     protected virtual void Disconnect()
     {
         IsConnected = false;
-        if (directData.isUdp)
+        if (directData.isOpcUa)
+        {
+            if (opcua.session != null)
+            {
+                opcua.session.Close();
+                opcua.session.Dispose();
+            }
+            opcua.session = null;
+        }
+        else if (directData.isUdp)
         {
             if (udp._udpSocket != null)
             {
-//                udp._udpSocket.Shutdown(SocketShutdown.Both);
+                //                udp._udpSocket.Shutdown(SocketShutdown.Both);
                 udp._udpSocket.Close();
                 udp._udpSocket = null;
             }
@@ -733,7 +872,10 @@ public class ComProtocolBase : ComBaseScript
     {
         try
         {
-            if (directData.isUdp)
+            if (directData.isOpcUa)
+            {
+            }
+            else if (directData.isUdp)
             {
                 var remote = new IPEndPoint(IPAddress.Parse(Server), Port) as EndPoint;
                 //var remote = new IPEndPoint(IPAddress.Any, PortNo) as EndPoint;
@@ -759,7 +901,10 @@ public class ComProtocolBase : ComBaseScript
     {
         try
         {
-            if (directData.isUdp)
+            if (directData.isOpcUa)
+            {
+            }
+            else if (directData.isUdp)
             {
                 udp._udpSocket.SendTo(buffer.ToArray(), udp.RemoteEndPoint);
             }
@@ -813,7 +958,7 @@ public class ComProtocolBase : ComBaseScript
     /// DBに登録
     /// </summary>
     /// <param name="tag"></param>
-    private void SetDbData(KMXDBSetting dbSetting)
+    protected void SetDbData(KMXDBSetting dbSetting)
     {
         if (dbSetting.AllDataCount == 1)
         {
@@ -867,7 +1012,7 @@ public class ComProtocolBase : ComBaseScript
     /// DBにタグを登録する
     /// </summary>
     /// <param name="tag"></param>
-    private void SetDbData(KMXDBSetting dbSetting, string tag, int offset = 0)
+    protected void SetDbData(KMXDBSetting dbSetting, string tag, int offset = 0)
     {
         var mech = dataExchange.mechId;
         if (!GlobalScript.tagDatas[Name].ContainsKey(mech))
@@ -908,7 +1053,7 @@ public class ComProtocolBase : ComBaseScript
     /// DBに登録
     /// </summary>
     /// <param name="tag"></param>
-    private void SetDbPointer(KMXDBSetting dbSetting)
+    protected void SetDbPointer(KMXDBSetting dbSetting)
     {
         var mech = dataExchange.mechId;
         if (dbSetting.AllDataCount == 1)
@@ -971,7 +1116,7 @@ public class ComProtocolBase : ComBaseScript
     /// <summary>
     /// ソートデータ作成
     /// </summary>
-    private void CreateSortedData()
+    protected virtual void CreateSortedData()
     {
         if (!GlobalScript.tagDatas.ContainsKey(Name))
         {
@@ -1022,7 +1167,7 @@ public class ComProtocolBase : ComBaseScript
     /// </summary>
     /// <param name="dctTags"></param>
     /// <param name="dctSortedTags"></param>
-    private void CreateSorted(Dictionary<string, List<KMXDBSetting>> dctTags, ref Dictionary<string, List<KMXDBSetting>> dctSortedTags)
+    protected void CreateSorted(Dictionary<string, List<KMXDBSetting>> dctTags, ref Dictionary<string, List<KMXDBSetting>> dctSortedTags)
     {
         dctSortedTags = new();
         foreach (var tags in dctTags)
@@ -1132,7 +1277,7 @@ public class ComProtocolBase : ComBaseScript
     /// <param name="User"></param>
     /// <param name="Password"></param>
     /// <param name="isClientMode"></param>
-    public void SetParameter(int No, int Cycle, string Server, int Port, string Database, string User, string Password, bool isClientMode, DataExchangeSetting dataExchange, KmxDirectData directData)
+    public virtual void SetParameter(int No, int Cycle, string Server, int Port, string Database, string User, string Password, bool isClientMode, DataExchangeSetting dataExchange, KmxDirectData directData)
     {
         dbIpAddress = Server;
         dbPort = Port;

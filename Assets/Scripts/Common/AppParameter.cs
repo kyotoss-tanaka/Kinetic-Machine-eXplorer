@@ -48,11 +48,14 @@ namespace Parameters
     {
         public class KmxDirectData
         {
+            public string mechId { get; set; } = "";
             public eProtocolType protocol { get; set; } = eProtocolType.None;
             public string IpAddress { get; set; } = "";
             public int PortNo { get; set; }
             public int NetAddress { get; set; }
             public int PcNo { get; set; }
+            public string endpointURL { get; set; } = "";
+            public string nameSpaceIndex { get; set; } = "";
             public List<KMXDBSetting> tags { get; set; } = new();
             public bool isMcProtocol
             {
@@ -75,6 +78,13 @@ namespace Parameters
                     return protocol == eProtocolType.McProtocol_UDP;
                 }
             }
+            public bool isOpcUa
+            {
+                get
+                {
+                    return protocol == eProtocolType.OPC_UA;
+                }
+            }
         }
 
         public int No { get; set; }
@@ -87,6 +97,8 @@ namespace Parameters
         public string Password { get; set; }
         public int ClientMode { get; set; }
         public int DirectMode { get; set; }
+        public string EndpointUrl { get; set; }
+        public int ns { get; set; }
         public List<KmxDirectData> directDatas { get; set; } = new();
         public string Name
         {
@@ -649,6 +661,10 @@ namespace Parameters
         /// ユニット名
         /// </summary>
         public string name { get; set; }
+        /// <summary>
+        /// 計算式
+        /// </summary>
+        public string calc { get; set; }
         /// <summary>
         /// リニア数
         /// </summary>

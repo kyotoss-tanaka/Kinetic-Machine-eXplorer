@@ -12,7 +12,7 @@ using Unity.VisualScripting;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.Networking;
-using static ComOpcUA;
+using static ComOpcUaApi;
 using static OVRPlugin;
 
 public class ComPostgres : ComBaseScript
