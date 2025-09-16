@@ -13,7 +13,7 @@ PlayerSettings:
   useOnDemandResources: 0
   accelerometerFrequency: 60
   companyName: Kyoto Seisakusho Co., Ltd.
-  productName: "KMX R1060A_6780G JAPAN PACK2025 \uFF80\uFF9E\uFF72\uFF85\uFF90\uFF6F\uFF78\uFF7E\uFF99"
+  productName: "KMX D974_\u6A2A\u7AEF\u5B50(\u59EB\u8DEF9\u53F7\uFF97\uFF72\uFF9D)\uFF3F\u30DB\u30EB\u30C0\u7D44\u4ED8"
   defaultCursor: {fileID: 0}
   cursorHotspot: {x: 0, y: 0}
   m_SplashScreenBackgroundColor: {r: 0.13725491, g: 0.12156863, b: 0.1254902, a: 1}
@@ -168,7 +168,7 @@ PlayerSettings:
   androidMinAspectRatio: 1
   applicationIdentifier:
     Android: com.kyotoss.kmx_352_mr
-    Standalone: com.kyotoss.kmx-R1060A
+    Standalone: com.kyotoss.kmx-D974
   buildNumber:
     Standalone: 0
     VisionOS: 0

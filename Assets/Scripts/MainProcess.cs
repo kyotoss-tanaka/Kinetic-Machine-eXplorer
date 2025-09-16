@@ -216,11 +216,13 @@ public class MainProcess : KssBaseScript
         if (click || left || right)
         {
             GameObject clickedGameObject = null;
+            Vector3 rotateCenter = Vector3.zero;
             if (left)
             {
                 if (rayInteractorL.Interactable != null)
                 {
                     clickedGameObject = rayInteractorL.Interactable.gameObject;
+                    rotateCenter = clickedGameObject.transform.position;
                 }
             }
             else if (right)
@@ -228,16 +230,33 @@ public class MainProcess : KssBaseScript
                 if (rayInteractorR.Interactable != null)
                 {
                     clickedGameObject = rayInteractorR.Interactable.gameObject;
+                    rotateCenter = clickedGameObject.transform.position;
                 }
             }
             else
             {
                 Vector2 mousePos = Mouse.current.position.ReadValue();
                 Ray ray = Camera.main.ScreenPointToRay(mousePos);
-                if (Physics.Raycast(ray, out RaycastHit hit, 10, LayerMask.GetMask("Default"), QueryTriggerInteraction.Collide))
+                if (Physics.Raycast(ray, out RaycastHit hit, 100, LayerMask.GetMask("Default"), QueryTriggerInteraction.Collide))
                 {
                     clickedGameObject = hit.collider.gameObject;
+                    if (clickedGameObject.name == "Floor")
+                    {
+                        Plane plane = new Plane(Vector3.up, Vector3.zero);
+                        if (plane.Raycast(ray, out float enter))
+                        {
+                            rotateCenter = ray.GetPoint(enter);
+                        }
+                    }
+                    else
+                    {
+                        rotateCenter = clickedGameObject.transform.position;
+                    }
                 }
+            }
+            if (cameraController != null)
+            {
+                cameraController.SetTargetPosition(rotateCenter);
             }
             if (clickedGameObject != null)
             {
@@ -249,10 +268,6 @@ public class MainProcess : KssBaseScript
                         //　マウスダウン
                         selectedScript = script;
                         selectedScript.OnMouseDown();
-                        if (cameraController != null)
-                        {
-                            cameraController.SetTargetPosition(clickedGameObject.transform.position);
-                        }
                         // ゲームオブジェクトの名前を出力
                         Debug.Log(clickedGameObject.name);
                     }

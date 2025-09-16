@@ -233,6 +233,12 @@ namespace Parameters
                         var db = (ComMqtt)globalSetting.AddComponent<ComMqtt>();
                         db.SetParameter(p.No, p.Cycle, p.Server, p.Port, p.Database, p.User, p.Password, p.isClientMode, ex);
                     }
+                    else if (p.isRedis)
+                    {
+                        // Redis
+                        var db = (ComRedis)globalSetting.AddComponent<ComRedis>();
+                        db.SetParameter(p.No, p.Cycle, p.Server, p.Port, p.Database, p.User, p.Password, p.isClientMode, ex);
+                    }
                     else if (p.isInner)
                     {
                         // 内部通信
@@ -406,6 +412,7 @@ namespace Parameters
                                             if (mat.shader.name == "Hidden/InternalErrorShader")
                                             {
                                                 mat.shader = linesShader;
+                                                mat.SetColor("_Color", new Color(0, 0, 0, 0));
                                                 //                                            mat.shader = standardShader;
                                             }
                                             else
@@ -811,12 +818,14 @@ namespace Parameters
                                         var rObj = unitSetting.moveObject.AddComponent<MPX_PI>();
                                         rObj.SetParameter(unitSetting, robo);
                                     }
-                                    else if (roboType == RobotType.MPX_R2)
+                                    else if (roboType == RobotType.MPX_R1)
                                     {
+                                        var rObj = unitSetting.moveObject.AddComponent<MPX_R1>();
+                                        rObj.SetParameter(unitSetting, robo);
                                     }
-                                    else if (roboType == RobotType.MPX_R3)
+                                    else if (roboType == RobotType.MPX_R7)
                                     {
-                                        var rObj = unitSetting.moveObject.AddComponent<MPX_R3>();
+                                        var rObj = unitSetting.moveObject.AddComponent<MPX_R7>();
                                         rObj.SetParameter(unitSetting, robo);
                                     }
                                     else if (roboType == RobotType.YF03N4)
@@ -874,6 +883,7 @@ namespace Parameters
                             var isFamiry = unitSettings.Find(d => d.children.Find(x => x.name == unitSetting.name) != null) != null;
                             var isChuck = chuckUnitSettings.Find(d => d.children.Find(x => x.name == unitSetting.name) != null) != null;
                             if (isFamiry ||                                     // 親子関係あり
+//                                (unitSetting.moveObject != null) ||             // ※実質全て？同期ユニットがおかしくなるので有効にするなら対策必要
                                 (unitSetting.shapeSetting != null) ||           // 形状設定あり
                                 (unitSetting.switchSetting != null) ||          // スイッチ設定あり
                                 (unitSetting.towerSetting != null) ||           // シグナルタワー設定あり
@@ -1042,11 +1052,11 @@ namespace Parameters
                         }
                     }
                     // 静的バッチングを実行（親にまとめてバッチング）※tri数が多くなるのと静的バッチングが実行されないので無効化
-                    StaticBatchingUtility.Combine(batchTargets, prefabObj);
+//                    StaticBatchingUtility.Combine(batchTargets, prefabObj);
                 }
 
                 // VRならPrefab非表示にしておく
-                if ((Application.platform == RuntimePlatform.Android) || (Application.platform == RuntimePlatform.IPhonePlayer) || !GlobalScript.buildConfig.isRelease)
+                if ((Application.platform == RuntimePlatform.Android) || (Application.platform == RuntimePlatform.IPhonePlayer))
                 {
                     prefabObj.SetActive(false);
                 }
@@ -1131,6 +1141,16 @@ namespace Parameters
                     }
                     db.SetParameter(p.No, p.Cycle, p.Server, p.Port, p.Database, p.User, p.Password, p.isClientMode, ex);
                 }
+                else if (p.isRedis)
+                {
+                    // Redis
+                    var db = (ComRedis)globalSetting.GetComponent<ComRedis>();
+                    if (db == null)
+                    {
+                        db = (ComRedis)globalSetting.AddComponent<ComRedis>();
+                    }
+                    db.SetParameter(p.No, p.Cycle, p.Server, p.Port, p.Database, p.User, p.Password, p.isClientMode, ex);
+                }
                 else if (p.isInner)
                 {
                     // 内部通信
@@ -1171,9 +1191,6 @@ namespace Parameters
             }
             foreach (var unitSetting in unitSettings)
             {
-                if (unitSetting.name == "シート束後端整列")
-                {
-                }
                 var motion = motions.Find(d => (d.unitSetting.mechId == unitSetting.mechId) && (d.unitSetting.name == unitSetting.name));
                 if (motion != null)
                 {
@@ -1409,7 +1426,7 @@ namespace Parameters
         /// <returns></returns>
         private bool FindInGroup(List<GameObject> gameObjects, string group, ref GameObject g)
         {
-            if((group == null) || (group == ""))
+            if ((group == null) || (group == ""))
             {
                 if (gameObjects.Count > 0)
                 {
@@ -1417,19 +1434,27 @@ namespace Parameters
                     return true;
                 }
             }
-            /*
-            foreach (var tmp in gameObjects)
+            else if (group[0] == '*')
             {
-                var p = tmp.transform.GetComponentsInParent<Transform>().ToList();
-                var t = p.Find(d => d.name == group);
-                if (t != null)
-                {
-                    g = tmp;
-                    return true;
-                }
+                group = group.Substring(1);
+                g = gameObjects.Find(d => String.Join("\\", GetScenePath(d).AsEnumerable().Reverse()).Contains(group));
             }
-            */
-            g = gameObjects.Find(d => GetScenePath(d).Contains(group));
+            else
+            {
+                /*
+                foreach (var tmp in gameObjects)
+                {
+                    var p = tmp.transform.GetComponentsInParent<Transform>().ToList();
+                    var t = p.Find(d => d.name == group);
+                    if (t != null)
+                    {
+                        g = tmp;
+                        return true;
+                    }
+                }
+                */
+                g = gameObjects.Find(d => GetScenePath(d).Contains(group));
+            }
             return g != null;
         }
 
@@ -1445,8 +1470,10 @@ namespace Parameters
             return children.Find(d => d.name.Contains("YF03N4_")) != null ? RobotType.YF03N4 :
                    children.Find(d => d.name.Contains("駆動部変則120度")) != null ? RobotType.MPX_PI :
                    children.Find(d => d.name.Contains("MPS2-3AS_")) != null ? RobotType.MPS2_3AS :
-                   children.Find(d => d.name.Contains("MPS2-4AS_")) != null ? RobotType.MPS2_4AS :
-                   children.Find(d => d.name.Contains("W0250623")) != null ? RobotType.MPX_R3 : RobotType.UNDEFINED;
+                   children.Find(d => d.name.Contains("MPS2-4AS_")) != null ? RobotType.MPS2_4AS : 
+                   children.Find(d => d.name.Contains("W0250623-")) != null ? RobotType.MPX_R7 :
+                   children.Find(d => d.name.Contains("W0578936-")) != null ? RobotType.MPX_R1 : 
+                   RobotType.UNDEFINED;
         }
         
         /// <summary>

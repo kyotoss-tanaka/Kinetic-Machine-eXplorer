@@ -14,23 +14,28 @@ public class MotionInternal : AxisMotionBase
     /// <summary>
     /// 動作関連I/O
     /// </summary>
+    [Serializable]
     private class ActionIo
     {
         /// <summary>
         /// 開始IO
         /// </summary>
+        [SerializeField]
         public TagInfo _StartInput;
         /// <summary>
         /// 完了IO
         /// </summary>
+        [SerializeField]
         public TagInfo _EndOutput;
         /// <summary>
         /// 開始IO名
         /// </summary
+        [SerializeField]
         public string start;
         /// <summary>
         /// 完了IO名
         /// </summary>
+        [SerializeField]
         public string end;
         /// <summary>
         /// トリガ発生中フラグ
@@ -236,7 +241,7 @@ public class MotionInternal : AxisMotionBase
     /// 動作関連I/O
     /// </summary>
     [SerializeField]
-    private List<ActionIo> actionIos = new List<ActionIo>();
+    private List<ActionIo> actionIos;
 
     /// <summary>
     /// 動作曲線情報
@@ -324,6 +329,10 @@ public class MotionInternal : AxisMotionBase
         base.RenewMoveDir();
 
         // データ初期化
+        if (actionIos == null)
+        {
+            actionIos = new();
+        }
         foreach (var actionIo in actionIos)
         {
             actionIo._StartInput = null;
@@ -450,12 +459,13 @@ public class MotionInternal : AxisMotionBase
 //    protected override void MyFixedUpdate()
     protected override void FixedUpdate()
     {
-        if (unitSetting.name == "シート束後端整列")
-        {
-        }
         if (moveObject == null)
         {
             return;
+        }
+        if (actionIos == null)
+        {
+            actionIos = new();
         }
         if ((actionIos.Count == 0) || (actionCurve.actCurve == null))// || (actionCurve.actionIo == null))
         {

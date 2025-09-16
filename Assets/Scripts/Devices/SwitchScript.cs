@@ -129,6 +129,7 @@ public class SwitchScript : KssBaseScript
                     // アンドロイド時はモデルを消しておく
                     isOn = ((Application.platform == RuntimePlatform.Android) || (Application.platform == RuntimePlatform.IPhonePlayer));
                 }
+                isOn |= sw.value;
                 RenewView();
                 isFirst = false;
             }
@@ -301,7 +302,7 @@ public class SwitchScript : KssBaseScript
         if (sw.mode == 0)
         {
             switchType = SwitchType.TagOutput;
-            if (sw.tag != null)
+            if ((sw.tag != null) && (sw.tag != ""))
             {
                 tagName = sw.tag.Replace("-", "");
                 isB = sw.tag[0] == '-';

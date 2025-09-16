@@ -22,13 +22,17 @@ namespace Parameters
         /// </summary>
         MPX_PI,
         /// <summary>
-        /// MPX-R2
+        /// MPX-R1
         /// </summary>
-        MPX_R2,
+        MPX_R1,
         /// <summary>
-        /// MPX-R3
+        /// MPX-R7
         /// </summary>
-        MPX_R3,
+        MPX_R7,
+        /// <summary>
+        /// MPX-R35
+        /// </summary>
+        MPX_R35,
         /// <summary>
         /// 川重パラレル
         /// </summary>
@@ -142,11 +146,18 @@ namespace Parameters
                 return Type == 2 && !isDirectMode;
             }
         }
+        public bool isRedis
+        {
+            get
+            {
+                return Type == 3 && !isDirectMode;
+            }
+        }
         public bool isInner
         {
             get
             {
-                return Type == 3;
+                return Type == 10;
             }
         }
     }
@@ -612,6 +623,7 @@ namespace Parameters
         /// ヘッドユニット設定
         /// </summary>
         public UnitSetting headUnit { get; set; }
+        /*
         /// <summary>
         /// ロボットタイプ
         /// </summary>
@@ -648,6 +660,7 @@ namespace Parameters
                 }
             }
         }
+        */
     }
 
     [Serializable]
@@ -988,6 +1001,10 @@ namespace Parameters
         /// オルタネイト
         /// </summary>
         public bool alternate { get; set; }
+        /// <summary>
+        /// 初期値
+        /// </summary>
+        public bool value { get; set; }
         /// <summary>
         /// モード
         /// </summary>

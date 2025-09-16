@@ -81,13 +81,23 @@ public class ComOpcUa : ComProtocolBase
                     foreach (var tag in tags.Value)
                     {
                         var i = directData.tags.FindIndex(d => d.DataTag == tag.DataTag);
-                        if (results[i].Value is float[] values)
+                        if ((results[i].Value is float[] fv))
                         {
                             for (var j = 0; j < directData.tags[i].DataCount; j++)
                             {
-                                if (j < values.Length)
+                                if (j < fv.Length)
                                 {
-                                    tag.values[j].Value = (int)(values[j] * 1000000);
+                                    tag.values[j].Value = (int)(fv[j] * 1000000);
+                                }
+                            }
+                        }
+                        else if (results[i].Value is short[] sv)
+                        {
+                            for (var j = 0; j < directData.tags[i].DataCount; j++)
+                            {
+                                if (j < sv.Length)
+                                {
+                                    tag.values[j].Value = (int)(sv[j] * 1000000);
                                 }
                             }
                         }

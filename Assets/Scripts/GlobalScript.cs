@@ -1,5 +1,6 @@
 using MQTTnet.Server;
 using Parameters;
+using StackExchange.Redis;
 using System;
 using System.Collections.Generic;
 using System.Data;
@@ -162,6 +163,11 @@ public static class GlobalScript
     public static Dictionary<string, ComMqtt> mqtts = new Dictionary<string, ComMqtt>();
 
     /// <summary>
+    /// Redis
+    /// </summary>
+    public static Dictionary<string, ComRedis> redises = new Dictionary<string, ComRedis>();
+
+    /// <summary>
     /// ì‡ïîí êM
     /// </summary>
     public static Dictionary<string, ComInner> inners = new Dictionary<string, ComInner>();
@@ -297,6 +303,7 @@ public static class GlobalScript
         postgreses = new Dictionary<string, ComPostgres>();
         mongos = new Dictionary<string, ComMongo>();
         mqtts = new Dictionary<string, ComMqtt>();
+        redises = new Dictionary<string, ComRedis>();
         inners = new Dictionary<string, ComInner>();
         opcuaapis = new Dictionary<string, ComOpcUaApi>();
         mcprotocols = new Dictionary<string,ComMcProtocol>();
@@ -465,6 +472,10 @@ public static class GlobalScript
             else if (mqtts.ContainsKey(tag.Key))
             {
                 mqtts[tag.Key].SetDatas(tag.Value);
+            }
+            else if (redises.ContainsKey(tag.Key))
+            {
+                redises[tag.Key].SetDatas(tag.Value);
             }
             else if (inners.ContainsKey(tag.Key))
             {
@@ -930,6 +941,10 @@ public static class GlobalScript
                 foreach (var mqtt in mqtts)
                 {
                     Debug.Log(mqtt.Key + " : " + mqtt.Value.nowCycle + "msec");
+                }
+                foreach (var redis in redises)
+                {
+                    Debug.Log(redis.Key + " : " + redis.Value.nowCycle + "msec");
                 }
             }
             debugCount = (debugCount + 1) % debugCountMax;

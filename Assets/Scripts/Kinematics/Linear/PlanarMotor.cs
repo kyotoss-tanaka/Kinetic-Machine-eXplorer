@@ -156,7 +156,7 @@ public class PlanarMotor : UseHeadBaseScript
 
         pm = (PlanarMotorSetting)obj;
 
-        LinearObject = pm.moverUnit == null ? null : pm.moverUnit.moveObject;
+        LinearObject = pm.moverUnit == null ? null : pm.moverUnit.unitObject;
 
         PositionOffset = new Vector3
         {

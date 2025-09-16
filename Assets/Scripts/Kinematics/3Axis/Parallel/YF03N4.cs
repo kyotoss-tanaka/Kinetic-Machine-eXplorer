@@ -99,6 +99,6 @@ public class YF03N4 : ParallelLink
             batchTargets[i] = renderers[i].gameObject;
         }
         // 静的バッチングを実行（親にまとめてバッチング）
-        StaticBatchingUtility.Combine(batchTargets, staticObject);
+//        StaticBatchingUtility.Combine(batchTargets, staticObject);
     }
 }

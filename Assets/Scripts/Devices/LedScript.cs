@@ -144,7 +144,10 @@ public class LedScript : KssBaseScript
             {
                 foreach (var mat in renderer.materials)
                 {
-                    mat.SetColor("_EmissionColor", leds[0].material.color);
+                    if (mat.shader.name != "Custom/Lines")
+                    {
+                        mat.SetColor("_EmissionColor", leds[0].material.color);
+                    }
                 }
             }
         }
@@ -161,16 +164,19 @@ public class LedScript : KssBaseScript
         mpb.SetColor("_Color", color);
         foreach (var mat in renderer.materials)
         {
-            if (emission)
+            if (mat.shader.name != "Custom/Lines")
             {
-                mat.EnableKeyword("_EMISSION");
+                if (emission)
+                {
+                    mat.EnableKeyword("_EMISSION");
+                }
+                else
+                {
+                    mat.DisableKeyword("_EMISSION");
+                }
+                mat.SetColor("_EmissionColor", color * Mathf.LinearToGammaSpace(CommonDefine.EmissionIntensity));
+                mat.SetColor("_Color", color * (emission ? 1 : 0.5f));
             }
-            else
-            {
-                mat.DisableKeyword("_EMISSION");
-            }
-            mat.SetColor("_EmissionColor", color * Mathf.LinearToGammaSpace(CommonDefine.EmissionIntensity));
-            mat.SetColor("_Color", color);
         }
     }
 

@@ -75,7 +75,7 @@ public class SignalTowerScript : KssBaseScript
 
     private void SetEmmision(Material mat, string name, int value)
     {
-        if (name != "")
+        if ((mat != null) && (name != ""))
         {
             if (value == 1)
             {
