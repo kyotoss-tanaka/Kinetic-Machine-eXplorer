@@ -68,7 +68,15 @@ public class ComOpcUa : ComProtocolBase
             {
                 foreach (var tag in tags.Value)
                 {
-                    nodes.Add(new NodeId(tag.NodeId, namespaceIndex));
+                    uint id = 0;
+                    if (uint.TryParse(tag.NodeId, out id))
+                    {
+                        nodes.Add(new NodeId(id, namespaceIndex));
+                    }
+                    else
+                    {
+                        nodes.Add(new NodeId(tag.NodeId, namespaceIndex));
+                    }
                 }
             }
             // データ受信
@@ -81,25 +89,39 @@ public class ComOpcUa : ComProtocolBase
                     foreach (var tag in tags.Value)
                     {
                         var i = directData.tags.FindIndex(d => d.DataTag == tag.DataTag);
-                        if ((results[i].Value is float[] fv))
+                        if ((results[i].Value is float[] lfv))
                         {
                             for (var j = 0; j < directData.tags[i].DataCount; j++)
                             {
-                                if (j < fv.Length)
+                                if (j < lfv.Length)
                                 {
-                                    tag.values[j].Value = (int)(fv[j] * 1000000);
+                                    tag.values[j].Value = (int)lfv[j];
+                                    tag.values[j].fValue = lfv[j];
+                                    tag.values[j].isFloat = true;
                                 }
                             }
                         }
-                        else if (results[i].Value is short[] sv)
+                        else if (results[i].Value is short[] lsv)
                         {
                             for (var j = 0; j < directData.tags[i].DataCount; j++)
                             {
-                                if (j < sv.Length)
+                                if (j < lsv.Length)
                                 {
-                                    tag.values[j].Value = (int)(sv[j] * 1000000);
+                                    tag.values[j].Value = (int)lsv[j];
                                 }
                             }
+                        }
+                        else if (results[i].Value is float fv)
+                        {
+                            tag.values[0].Value = (int)fv;
+                            tag.values[0].fValue = fv;
+                            tag.values[0].isFloat = true;
+                        }
+                        else if (results[i].Value is double dv)
+                        {
+                            tag.values[0].Value = (int)dv;
+                            tag.values[0].fValue = (float)dv;
+                            tag.values[0].isFloat = true;
                         }
                     }
                 }

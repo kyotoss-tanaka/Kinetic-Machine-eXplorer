@@ -101,15 +101,15 @@ public class PlanarMotor : UseHeadBaseScript
                 {
                     break;
                 }
-                var x = GetTagValue(pm.tags_p[0], ref shuttleTags[i].X, ids[i]);
-                var y = GetTagValue(pm.tags_p[1], ref shuttleTags[i].Y, ids[i]);
-                var z = GetTagValue(pm.tags_p[2], ref shuttleTags[i].Z, ids[i]);
-                var rx = GetTagValue(pm.tags_r[0], ref shuttleTags[i].RX, ids[i]);
-                var ry = GetTagValue(pm.tags_r[1], ref shuttleTags[i].RY, ids[i]);
-                var rz = GetTagValue(pm.tags_r[2], ref shuttleTags[i].RZ, ids[i]);
+                var x = GetTagValueF(pm.tags_p[0], ref shuttleTags[i].X, ids[i]);
+                var y = GetTagValueF(pm.tags_p[1], ref shuttleTags[i].Y, ids[i]);
+                var z = GetTagValueF(pm.tags_p[2], ref shuttleTags[i].Z, ids[i]);
+                var rx = GetTagValueF(pm.tags_r[0], ref shuttleTags[i].RX, ids[i]);
+                var ry = GetTagValueF(pm.tags_r[1], ref shuttleTags[i].RY, ids[i]);
+                var rz = GetTagValueF(pm.tags_r[2], ref shuttleTags[i].RZ, ids[i]);
                 SetTarget(i,
-                    x / 1000000f * pm.dir_p[0], y / 1000000f * pm.dir_p[1], z / 1000000f * pm.dir_p[2],
-                    rx / 1000000f * pm.dir_r[0], ry / 1000000f * pm.dir_r[1], rz / 1000000f * pm.dir_r[2]
+                    x / pm.rate_p[0] * pm.dir_p[0], y / pm.rate_p[1] * pm.dir_p[1], z / pm.rate_p[2] * pm.dir_p[2],
+                    rx / pm.rate_r[0] * pm.dir_r[0], ry / pm.rate_r[1] * pm.dir_r[1], rz / pm.rate_r[2] * pm.dir_r[2]
                 );
             }
         }

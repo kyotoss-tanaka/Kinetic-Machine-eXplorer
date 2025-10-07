@@ -42,6 +42,10 @@ namespace Parameters
         /// </summary>
         RS007L,
         /// <summary>
+        /// FANUC CRX-30iA
+        /// </summary>
+        CRX_30iA,
+        /// <summary>
         /// 未定義
         /// </summary>
         UNDEFINED
@@ -228,6 +232,10 @@ namespace Parameters
         /// 衝突あり
         /// </summary>
         public int collision { get; set; }
+        /// <summary>
+        /// 同期機構
+        /// </summary>
+        public bool sync { get; set; }
         /// <summary>
         /// グループオブジェクト
         /// </summary>
@@ -620,6 +628,10 @@ namespace Parameters
         /// </summary>
         public List<string> tags { get; set; }
         /// <summary>
+        /// 倍率
+        /// </summary>
+        public List<int> rates { get; set; }
+        /// <summary>
         /// ヘッドユニット設定
         /// </summary>
         public UnitSetting headUnit { get; set; }
@@ -706,6 +718,14 @@ namespace Parameters
         /// 角度タグ名
         /// </summary>
         public List<string> tags_r { get; set; }
+        /// <summary>
+        /// 倍率(位置)
+        /// </summary>
+        public List<int> rate_p { get; set; }
+        /// <summary>
+        /// 倍率(角度)
+        /// </summary>
+        public List<int> rate_r { get; set; }
         /// <summary>
         /// ヘッドユニット
         /// </summary>

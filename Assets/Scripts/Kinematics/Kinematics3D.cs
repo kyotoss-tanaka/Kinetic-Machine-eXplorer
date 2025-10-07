@@ -23,11 +23,11 @@ public class Kinematics3D : KinematicsBase
     protected TagInfo Z;
 
     [SerializeField]
-    Vector3 target;
+    protected Vector3 target;
     #endregion プロパティ
 
     #region 変数
-    RobotSetting robo;
+    protected RobotSetting robo;
     protected float txMax = 0;
     protected float txMin = 0;
     protected float tyMax = 0;
@@ -57,12 +57,13 @@ public class Kinematics3D : KinematicsBase
         {
             if (robo.tags.Count >= 3)
             {
-                var x = GetTagValue(robo.tags[0], ref X);
-                var y = GetTagValue(robo.tags[1], ref Y);
-                var z = GetTagValue(robo.tags[2], ref Z);
-                target.x = CheckRangeF(x / 1000f, txMin, txMax);
-                target.y = CheckRangeF(y / 1000f, tyMin, tyMax);
-                target.z = CheckRangeF(z / 1000f, tzMin, tzMax);
+                var x = GetTagValueF(robo.tags[0], ref X);
+                var y = GetTagValueF(robo.tags[1], ref Y);
+                var z = GetTagValueF(robo.tags[2], ref Z);
+                // mm単位系に変換
+                target.x = CheckRangeF(x / (robo.rates[0] == 0 ? 1000f : robo.rates[0] / 1000f), txMin, txMax);
+                target.y = CheckRangeF(y / (robo.rates[1] == 0 ? 1000f : robo.rates[1] / 1000f), tyMin, tyMax);
+                target.z = CheckRangeF(z / (robo.rates[2] == 0 ? 1000f : robo.rates[2] / 1000f), tzMin, tzMax);
                 setTarget(target);
             }
         }

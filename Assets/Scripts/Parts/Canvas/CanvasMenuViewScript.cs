@@ -20,6 +20,8 @@ public class CanvasMenuViewScript : CanvasMenuBaseScript
 
     // シェーダー
     private HashSet<Material> allMaterials = new HashSet<Material>();
+    private HashSet<Material> allLineMaterials = new HashSet<Material>();
+    private Shader lineShader;
     private Shader clipShader;
     private Shader standardShader;
 
@@ -43,10 +45,12 @@ public class CanvasMenuViewScript : CanvasMenuBaseScript
     /// <summary>
     /// イベントセット
     /// </summary>
-    public virtual void SetEvents(HashSet<Material> allMaterials, Shader standardShader, Shader clipShader)
+    public virtual void SetEvents(HashSet<Material> allMaterials, HashSet<Material> allLineMaterials, Shader standardShader, Shader lineShader, Shader clipShader)
     {
         this.allMaterials = allMaterials;
+        this.allLineMaterials = allLineMaterials;
         this.standardShader = standardShader;
+        this.lineShader = lineShader;
         this.clipShader = clipShader;
 
         SetEvents();
@@ -156,6 +160,7 @@ public class CanvasMenuViewScript : CanvasMenuBaseScript
         Vector3 planePoint = Vector3.zero;
         // 削除済みマテリアルを削除
         allMaterials.RemoveWhere(d => d.IsDestroyed());
+        allLineMaterials.RemoveWhere(d => d.IsDestroyed());
         if (viewClip.isOn)
         {
             if (viewRvsToggle.isOn)
@@ -172,6 +177,10 @@ public class CanvasMenuViewScript : CanvasMenuBaseScript
             {
                 mat.shader = clipShader;
             }
+            foreach (Material mat in allLineMaterials)
+            {
+                mat.shader = clipShader;
+            }
         }
         else
         {
@@ -179,6 +188,10 @@ public class CanvasMenuViewScript : CanvasMenuBaseScript
             foreach (Material mat in allMaterials)
             {
                 mat.shader = standardShader;
+            }
+            foreach (Material mat in allLineMaterials)
+            {
+                mat.shader = lineShader;
             }
         }
         Vector4 clipPlane = new Vector4(planeNormal.x, planeNormal.y, planeNormal.z, -Vector3.Dot(planeNormal, planePoint));

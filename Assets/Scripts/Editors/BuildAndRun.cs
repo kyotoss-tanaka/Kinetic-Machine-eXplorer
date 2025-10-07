@@ -96,7 +96,7 @@ public class BuildAndRun
 
             EditorUserBuildSettings.androidBuildSystem = AndroidBuildSystem.Gradle;
             EditorUserBuildSettings.exportAsGoogleAndroidProject = false;
-            EditorUserBuildSettings.development = true; // Å©ïKóvÇ»ÇÁçáÇÌÇπÇÈ
+            EditorUserBuildSettings.development = !build.isRelease;
 
             BuildPipeline.BuildPlayer(options);
         }

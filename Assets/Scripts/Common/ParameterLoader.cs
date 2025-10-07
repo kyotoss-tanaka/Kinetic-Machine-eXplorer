@@ -72,9 +72,11 @@ namespace Parameters
         private List<DebugSetting> debugSettings;
         private List<ActionTableData> actionTableDatas;
         private bool IsPrmLoading = false;
+        private UnitSetting innerUnit;
 
         // シェーダー
         private HashSet<Material> allMaterials = new HashSet<Material>();
+        private HashSet<Material> allLineMaterials = new HashSet<Material>();
         private Shader clipShader;
         private Shader standardShader;
         private Shader linesShader;
@@ -102,7 +104,8 @@ namespace Parameters
             // シェーダーロード
             clipShader = Shader.Find("Custom/ClipTransparent");
             standardShader = Shader.Find("Standard");
-            linesShader = Shader.Find("Custom/Lines");
+//            linesShader = Shader.Find("Custom/Lines");
+            linesShader = Shader.Find("Standard");
 
             // キャンバス生成
             CreateCanvas();
@@ -251,6 +254,10 @@ namespace Parameters
                         foreach (var direct in p.directDatas)
                         {
                             ex = dataExSettings.Find(d => (d.dbNo == p.No) && (d.mechId == direct.mechId));
+                            if (ex == null)
+                            {
+                                ex = new DataExchangeSetting { dbNo = p.No, mechId = direct.mechId, datas = new() };
+                            }
                             if (direct.isMcProtocol)
                             {
                                 var db = (ComMcProtocol)globalSetting.AddComponent<ComMcProtocol>();
@@ -375,7 +382,6 @@ namespace Parameters
                 }
                 */
 
-                bool isLineShader = true;
                 DebugLog($"***** Load Prefab Model *****");
                 var rootObjects = SceneManager.GetActiveScene().GetRootGameObjects().ToList();
                 foreach (var prefab in prefabs)
@@ -395,31 +401,18 @@ namespace Parameters
                             prefabData.transform.parent = prefabObj.transform;
                         }
                         // シェーダーセット
-                        if (isLineShader)
+                        foreach (Renderer renderer in prefabData.GetComponentsInChildren<Renderer>())
                         {
-                            foreach (Renderer renderer in prefabData.GetComponentsInChildren<Renderer>())
+                            foreach (Material mat in renderer.materials)
                             {
-                                if (!isLineShader)
+                                if (mat != null)
                                 {
-                                    break;
-                                }
-                                foreach (Material mat in renderer.materials)
-                                {
-                                    if (mat != null)
+                                    if (mat.name == "Default Line Material (Instance)")
                                     {
-                                        if (mat.name == "Default Line Material (Instance)")
+                                        if (mat.shader.name == "Hidden/InternalErrorShader")
                                         {
-                                            if (mat.shader.name == "Hidden/InternalErrorShader")
-                                            {
-                                                mat.shader = linesShader;
-                                                mat.SetColor("_Color", new Color(0, 0, 0, 0));
-                                                //                                            mat.shader = standardShader;
-                                            }
-                                            else
-                                            {
-                                                isLineShader = false;
-                                                break;
-                                            }
+                                            mat.shader = linesShader;
+                                            mat.SetColor("_Color", new Color(0, 0, 0, 0));
                                         }
                                     }
                                 }
@@ -427,6 +420,7 @@ namespace Parameters
                         }
                     }
                 }
+                yield return null; // 1フレーム待
 
                 // 無視オブジェクト無効化
                 {
@@ -666,6 +660,8 @@ namespace Parameters
                 SetProgressLabel("Loading Units");
                 foreach (var unitSetting in unitSettings)
                 {
+                    // デバッグ用
+                    innerUnit = unitSetting;
                     // 親モデル検索用(非表示オブジェクトも含む) ※ループ内で行わないとNG
                     allObjects = GameObject.FindObjectsByType<GameObject>(FindObjectsSortMode.None).ToList();
                     unitSetting.childrenObject = new List<GameObject>();
@@ -836,6 +832,11 @@ namespace Parameters
                                     else if (roboType == RobotType.RS007L)
                                     {
                                     }
+                                    else if (roboType == RobotType.CRX_30iA)
+                                    {
+                                        var rObj = unitSetting.moveObject.AddComponent<CRX_30iA>();
+                                        rObj.SetParameter(unitSetting, robo);
+                                    }
                                 }
                                 else
                                 {
@@ -883,7 +884,7 @@ namespace Parameters
                             var isFamiry = unitSettings.Find(d => d.children.Find(x => x.name == unitSetting.name) != null) != null;
                             var isChuck = chuckUnitSettings.Find(d => d.children.Find(x => x.name == unitSetting.name) != null) != null;
                             if (isFamiry ||                                     // 親子関係あり
-//                                (unitSetting.moveObject != null) ||             // ※実質全て？同期ユニットがおかしくなるので有効にするなら対策必要
+                                (!unitSetting.sync && (unitSetting.parent != "")) ||             // ※実質全て？同期ユニットがおかしくなるので有効にするなら対策必要
                                 (unitSetting.shapeSetting != null) ||           // 形状設定あり
                                 (unitSetting.switchSetting != null) ||          // スイッチ設定あり
                                 (unitSetting.towerSetting != null) ||           // シグナルタワー設定あり
@@ -990,6 +991,7 @@ namespace Parameters
                 // シェーダー適用
                 {
                     allMaterials = new();
+                    allLineMaterials = new();
                     var renderers = new List<Renderer>();
                     renderers.AddRange(prefabObj.GetComponentsInChildren<Renderer>().ToList());
                     foreach (var m in movableObjs)
@@ -1005,6 +1007,10 @@ namespace Parameters
                                 if (mat.shader == standardShader)
                                 {
                                     allMaterials.Add(mat);
+                                }
+                                else if (mat.name.Contains("Default Line Material"))
+                                {
+                                    allLineMaterials.Add(mat);
                                 }
                             }
                         }
@@ -1052,7 +1058,12 @@ namespace Parameters
                         }
                     }
                     // 静的バッチングを実行（親にまとめてバッチング）※tri数が多くなるのと静的バッチングが実行されないので無効化
-//                    StaticBatchingUtility.Combine(batchTargets, prefabObj);
+                    //                    StaticBatchingUtility.Combine(batchTargets, prefabObj);
+                    // コントローラ非表示
+                    if (uiView != null)
+                    {
+                        uiView.SetActive(false);
+                    }
                 }
 
                 // VRならPrefab非表示にしておく
@@ -1060,7 +1071,7 @@ namespace Parameters
                 {
                     prefabObj.SetActive(false);
                 }
-                else if(GlobalScript.buildConfig.isCollision)
+                else if (GlobalScript.buildConfig.isCollision)
                 {
                     SetProgressLabel("Creating All Collision Configurations");
                     yield return null; // 1フレーム待
@@ -1076,7 +1087,7 @@ namespace Parameters
                 yield return null; // 1フレーム待
             }
             // イベント登録
-            viewScript.SetEvents(allMaterials, standardShader, clipShader);
+            viewScript.SetEvents(allMaterials, allLineMaterials, standardShader, linesShader, clipShader);
             GlobalScript.isLoading = false;
             GlobalScript.isLoaded = true;
             DebugLog($"***** Load Finished *****", true);
@@ -1472,7 +1483,8 @@ namespace Parameters
                    children.Find(d => d.name.Contains("MPS2-3AS_")) != null ? RobotType.MPS2_3AS :
                    children.Find(d => d.name.Contains("MPS2-4AS_")) != null ? RobotType.MPS2_4AS : 
                    children.Find(d => d.name.Contains("W0250623-")) != null ? RobotType.MPX_R7 :
-                   children.Find(d => d.name.Contains("W0578936-")) != null ? RobotType.MPX_R1 : 
+                   children.Find(d => d.name.Contains("W0578936-")) != null ? RobotType.MPX_R1 :
+                   children.Find(d => d.name.Contains("CRX-30IA")) != null ? RobotType.CRX_30iA : 
                    RobotType.UNDEFINED;
         }
         
@@ -1531,6 +1543,17 @@ namespace Parameters
                 prgSlider = uiProgress.GetComponentInChildren<Slider>();
                 prgText = uiProgress.GetComponentsInChildren<TextMeshProUGUI>().ToList().Find(d => d.name == "prgText");
                 prgText2 = uiProgress.GetComponentsInChildren<TextMeshProUGUI>().ToList().Find(d => d.name == "prgText2");
+            }
+        }
+
+        /// <summary>
+        /// キャンバスの表示不可設定
+        /// </summary>
+        public void SetViewCanvas()
+        {
+            if (uiView != null)
+            {
+                uiView.SetActive(!uiView.activeSelf);
             }
         }
 

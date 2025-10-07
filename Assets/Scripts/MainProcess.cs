@@ -189,6 +189,14 @@ public class MainProcess : KssBaseScript
                 isReloading = false;
             }
         }
+        else if (Keyboard.current.cKey.wasPressedThisFrame)
+        {
+            // C
+            if (parameterLoader != null)
+            {
+                parameterLoader.SetViewCanvas();
+            }
+        }
         if (cameraController != null)
         {
             cameraController.MovePosition(move, isControl, isShift);

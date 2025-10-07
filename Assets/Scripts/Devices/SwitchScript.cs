@@ -93,6 +93,11 @@ public class SwitchScript : KssBaseScript
     private Material material;
 
     /// <summary>
+    /// マテリアルカラー
+    /// </summary>
+    private Color matColor;
+
+    /// <summary>
     /// VR用カメラ
     /// </summary>
     public Camera vrCamera;
@@ -253,6 +258,8 @@ public class SwitchScript : KssBaseScript
         {
             meshRenderer.material.DisableKeyword("_EMISSION");
         }
+        meshRenderer.material.SetColor("_EmissionColor", matColor * Mathf.LinearToGammaSpace(CommonDefine.EmissionIntensity));
+        meshRenderer.material.SetColor("_Color", matColor * (isOn ? Mathf.LinearToGammaSpace(CommonDefine.EmissionIntensity) : 1f));
 
         switchTransform.localPosition = new Vector3
         {
@@ -279,6 +286,7 @@ public class SwitchScript : KssBaseScript
             Destroy(material);
         }
         material = Instantiate((Material)Resources.Load("Materials/Color/" + switchColor.ToString()), switchTransform);
+        matColor = material.color;
 
         sw = (SwitchSetting)obj;
         isAlternate = sw.alternate;

@@ -51,7 +51,7 @@ public class LedScript : KssBaseScript
     private List<LedData> leds = new();
 
     [SerializeField]
-    private List<int> values;
+    private List<decimal> values;
 
     /*
     /// <summary>
@@ -175,7 +175,7 @@ public class LedScript : KssBaseScript
                     mat.DisableKeyword("_EMISSION");
                 }
                 mat.SetColor("_EmissionColor", color * Mathf.LinearToGammaSpace(CommonDefine.EmissionIntensity));
-                mat.SetColor("_Color", color * (emission ? 1 : 0.5f));
+                mat.SetColor("_Color", color * (emission ? Mathf.LinearToGammaSpace(CommonDefine.EmissionIntensity) : 0.5f));
             }
         }
     }

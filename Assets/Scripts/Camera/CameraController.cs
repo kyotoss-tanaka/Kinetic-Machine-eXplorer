@@ -2,12 +2,19 @@ using Meta.XR.InputActions;
 using System.Linq;
 using UnityEngine;
 using UnityEngine.InputSystem;
+using System.Reflection;
+using System.Diagnostics;
+
+
 #if UNITY_EDITOR
 using UnityEditor;
 #endif
 
 public class CameraController : MonoBehaviour
 {
+    [SerializeField]
+    private bool cameraEnable;
+
     [SerializeField, Range(0.1f, 10f)]
     private float wheelSpeed = 1f;
 
@@ -23,6 +30,16 @@ public class CameraController : MonoBehaviour
     private Vector3 initAngles;
     private Vector3 targetPosition;
 
+    private bool mousePressed = false;
+    private bool mouseWasPressedThisFrame = false;
+
+#if UNITY_EDITOR
+    private static Assembly m_assembly = Assembly.Load("UnityEditor.dll");
+    private static System.Type m_type = m_assembly.GetType("UnityEditor.GameView");
+    private static BindingFlags m_bindingAttr = BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Static;
+    private static MethodInfo m_snapZoomMethod = m_type.GetMethod("SnapZoom", m_bindingAttr);
+    private static object[] m_parameters = new object[] { 1f };
+#endif
     void Start()
     {
         initPosition = this.transform.position;
@@ -130,6 +147,35 @@ public class CameraController : MonoBehaviour
 
     public void MouseUpdate()
     {
+        var mouse = Mouse.current;
+#if UNITY_EDITOR
+        cameraEnable = EditorApplication.isPlaying || Keyboard.current.ctrlKey.isPressed;
+        if (mouse.leftButton.isPressed || mouse.rightButton.isPressed || mouse.middleButton.isPressed)
+        {
+            if (mousePressed)
+            {
+                mouseWasPressedThisFrame = false;
+            }
+            else
+            {
+                mousePressed = true;
+                mouseWasPressedThisFrame = true;
+            }
+        }
+        else
+        {
+            mousePressed = false;
+            mouseWasPressedThisFrame = false;
+        }
+        var gameView = EditorWindow.GetWindow(m_type);
+        if (gameView != null)
+        {
+            m_snapZoomMethod.Invoke(gameView, m_parameters);
+        }
+#else
+        cameraEnable = true;
+        mouseWasPressedThisFrame = mouse.leftButton.wasPressedThisFrame || mouse.rightButton.wasPressedThisFrame || mouse.middleButton.wasPressedThisFrame;
+#endif
         Vector2 scrollDelta = Mouse.current.scroll.ReadValue();
         float scrollWheel = scrollDelta.y;
         if (scrollWheel != 0.0f)
@@ -137,12 +183,8 @@ public class CameraController : MonoBehaviour
             MouseWheel(scrollWheel);
         }
 
-        var mouse = Mouse.current;
-
         // ボタンが押されたら現在のマウス位置を保存
-        if (mouse.leftButton.wasPressedThisFrame ||
-            mouse.rightButton.wasPressedThisFrame ||
-            mouse.middleButton.wasPressedThisFrame)
+        if (mouseWasPressedThisFrame)
         {
             preMousePos = mouse.position.ReadValue();
         }
@@ -153,21 +195,20 @@ public class CameraController : MonoBehaviour
 
     private void MouseWheel(float delta)
     {
-        transform.position += transform.forward * delta * wheelSpeed;
+        if (cameraEnable)
+        {
+            transform.position += transform.forward * delta * wheelSpeed;
+        }
     }
 
     private void MouseDrag(Vector3 mousePos)
     {
-        var enable = true;
-#if UNITY_EDITOR
-        enable = EditorApplication.isPlaying || Keyboard.current.ctrlKey.isPressed;
-#endif
         Vector3 diff = mousePos - preMousePos;
 
         if (diff.magnitude < Vector3.kEpsilon)
             return;
 
-        if (enable)
+        if (cameraEnable)
         {
             if (Mouse.current.middleButton.isPressed)
             {

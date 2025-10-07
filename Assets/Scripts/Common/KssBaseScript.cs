@@ -391,19 +391,62 @@ public class KssBaseScript : BaseBehaviour
             }
             else
             {
-                return tagInfo.Value;
+                return tagInfo.isFloat ? (int)(tagInfo.fValue * 1000000f) : tagInfo.Value;
             }
         }
-        if((unitSetting.Database == null) || (tag == ""))
+        int value = 0;
+        if ((unitSetting.Database == null) || (tag == ""))
         {
             return 0;
+        }
+        else if (int.TryParse(tag, out value))
+        {
+            // 数値
+            return value;
         }
         else if (index >= 0)
         {
             tag += $"[{index}]";
         }
         tagInfo = GlobalScript.GetTagInfo(unitSetting.Database, unitSetting.mechId, tag);
-        return tagInfo == null ? 0 : tagInfo.Value;
+        return tagInfo == null ? 0 : (tagInfo.isFloat ? (int)(tagInfo.fValue * 1000000f) : tagInfo.Value);
+    }
+
+    /// <summary>
+    /// タグの値取得
+    /// </summary>
+    /// <param name="tag"></param>
+    /// <param name="tagInfo"></param>
+    /// <returns></returns>
+    protected float GetTagValueF(string tag, ref TagInfo tagInfo, int index = -1)
+    {
+        if (tagInfo != null)
+        {
+            if (tagInfo.IsDestroyed())
+            {
+                tagInfo = null;
+            }
+            else
+            {
+                return tagInfo.isFloat ? tagInfo.fValue : tagInfo.Value;
+            }
+        }
+        int value = 0;
+        if ((unitSetting.Database == null) || (tag == ""))
+        {
+            return 0;
+        }
+        else if (int.TryParse(tag, out value))
+        {
+            // 数値
+            return value;
+        }
+        else if (index >= 0)
+        {
+            tag += $"[{index}]";
+        }
+        tagInfo = GlobalScript.GetTagInfo(unitSetting.Database, unitSetting.mechId, tag);
+        return tagInfo == null ? 0 : (tagInfo.isFloat ? tagInfo.fValue : tagInfo.Value);
     }
 
     /// <summary>
