@@ -103,9 +103,9 @@ namespace Parameters
 
             // シェーダーロード
             clipShader = Shader.Find("Custom/ClipTransparent");
-            standardShader = Shader.Find("Standard");
+            standardShader = Shader.Find("Universal Render Pipeline/Lit");
 //            linesShader = Shader.Find("Custom/Lines");
-            linesShader = Shader.Find("Standard");
+            linesShader = Shader.Find("Universal Render Pipeline/Lit");
 
             // キャンバス生成
             CreateCanvas();
@@ -409,11 +409,11 @@ namespace Parameters
                                 {
                                     if (mat.name == "Default Line Material (Instance)")
                                     {
-                                        if (mat.shader.name == "Hidden/InternalErrorShader")
-                                        {
+//                                        if (mat.shader.name == "Hidden/InternalErrorShader")
+//                                        {
                                             mat.shader = linesShader;
                                             mat.SetColor("_Color", new Color(0, 0, 0, 0));
-                                        }
+//                                        }
                                     }
                                 }
                             }

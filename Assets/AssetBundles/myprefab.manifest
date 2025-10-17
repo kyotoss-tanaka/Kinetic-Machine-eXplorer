@@ -1,0 +1,47 @@
+ManifestFileVersion: 0
+UnityVersion: 6000.0.50f1
+CRC: 1713578230
+Hashes:
+  AssetFileHash:
+    serializedVersion: 2
+    Hash: 89d80d83cad4c744bf396bbc196b82d2
+  TypeTreeHash:
+    serializedVersion: 2
+    Hash: a1d8f285b4cded9ffed0314ad5a668b8
+  IncrementalBuildHash:
+    serializedVersion: 2
+    Hash: 070feee4ffa3d7d41909b77f49a1e528
+HashAppended: 0
+ClassTypes:
+- Class: 1
+  Script: {instanceID: 0}
+- Class: 4
+  Script: {instanceID: 0}
+- Class: 21
+  Script: {instanceID: 0}
+- Class: 23
+  Script: {instanceID: 0}
+- Class: 33
+  Script: {instanceID: 0}
+- Class: 43
+  Script: {instanceID: 0}
+- Class: 48
+  Script: {instanceID: 0}
+- Class: 114
+  Script: {fileID: 11500000, guid: 6f410bd9cdb78354aa08fa9fbc9e2baa, type: 3}
+- Class: 114
+  Script: {fileID: 11500000, guid: 383914d3a27c7384aba3981b475a4658, type: 3}
+- Class: 114
+  Script: {fileID: 11500000, guid: 8f829ad3a44588b4fb9c5fbcd1b89d6f, type: 3}
+- Class: 115
+  Script: {instanceID: 0}
+SerializeReferenceClassIdentifiers:
+- AssemblyName: Unity.Pixyz.Plugin4Unity.Editor
+  ClassName: UnityEditor.PixyzPlugin4Unity.RuleEngine.Rule
+- AssemblyName: Unity.Pixyz.Plugin4Unity.Editor
+  ClassName: UnityEditor.PixyzPlugin4Unity.RuleEngine.RuleBlock
+- AssemblyName: Unity.Pixyz.Plugin4Unity.LODs.Editor
+  ClassName: UnityEditor.PixyzPlugin4Unity.LODs.LODGenerator
+Assets:
+- Assets/Resources/Pixyz/R0230-A0-00-00.prefab
+Dependencies: []

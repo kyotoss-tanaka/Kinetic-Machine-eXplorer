@@ -48,10 +48,10 @@ public class LedScript : KssBaseScript
     /// É^ÉO
     /// </summary>
     [SerializeField]
-    private List<LedData> leds = new();
+    protected List<LedData> leds;
 
     [SerializeField]
-    private List<decimal> values;
+    protected List<int> values;
 
     /*
     /// <summary>
@@ -164,7 +164,7 @@ public class LedScript : KssBaseScript
         mpb.SetColor("_Color", color);
         foreach (var mat in renderer.materials)
         {
-            if (mat.shader.name != "Custom/Lines")
+            if (!mat.name.Contains("Default Line Material"))
             {
                 if (emission)
                 {
@@ -175,7 +175,7 @@ public class LedScript : KssBaseScript
                     mat.DisableKeyword("_EMISSION");
                 }
                 mat.SetColor("_EmissionColor", color * Mathf.LinearToGammaSpace(CommonDefine.EmissionIntensity));
-                mat.SetColor("_Color", color * (emission ? Mathf.LinearToGammaSpace(CommonDefine.EmissionIntensity) : 0.5f));
+                mat.SetColor("_BaseColor", color * (emission ? Mathf.LinearToGammaSpace(CommonDefine.EmissionIntensity) : 0.5f));
             }
         }
     }
@@ -189,9 +189,12 @@ public class LedScript : KssBaseScript
     {
         base.SetParameter(unitSetting, obj);
 
-        foreach (var led in leds)
+        if (leds != null)
         {
-            Destroy(led.material);
+            foreach (var led in leds)
+            {
+                Destroy(led.material);
+            }
         }
         leds = new();
         values = new();
@@ -199,28 +202,28 @@ public class LedScript : KssBaseScript
         type = ledSetting.type;
         foreach (var data in ledSetting.ledDatas)
         {
-            var redColor = LedColor.Red;
+            var ledColor = LedColor.Red;
             if (data.color == "Green")
             {
-                redColor = LedColor.Green;
+                ledColor = LedColor.Green;
             }
             else if (data.color == "Yellow")
             {
-                redColor = LedColor.Yellow;
+                ledColor = LedColor.Yellow;
             }
             else if (data.color == "Blue")
             {
-                redColor = LedColor.Blue;
+                ledColor = LedColor.Blue;
             }
             else if (data.color == "White")
             {
-                redColor = LedColor.White;
+                ledColor = LedColor.White;
             }
             var led = new LedData
             {
                 color = data.color,
                 name = data.tag,
-                material = Instantiate((Material)Resources.Load("Materials/Color/" + redColor.ToString()), transform)
+                material = Instantiate((Material)Resources.Load("Materials/Color/" + ledColor.ToString()), transform)
             };
             leds.Add(led);
             values.Add(0);
