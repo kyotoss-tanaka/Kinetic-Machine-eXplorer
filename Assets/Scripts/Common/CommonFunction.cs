@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Numerics;
 using UnityEngine;
 
-
 public static class CommonFunction
 {
     #region 解の公式
@@ -59,4 +58,26 @@ public static class CommonFunction
     }
 
     #endregion 解の公式
+
+    #region メソッド
+    /// <summary>
+    /// シーンパスを取得する
+    /// </summary>
+    /// <param name="obj"></param>
+    /// <returns></returns>
+    public static List<string> GetScenePath(GameObject obj)
+    {
+        var path = new List<string>();
+        path.Add(obj.name);
+        Transform current = obj.transform;
+
+        while (current.parent != null)
+        {
+            current = current.parent;
+            path.Add(current.name);
+        }
+        return path;
+    }
+
+    #endregion メソッド
 }

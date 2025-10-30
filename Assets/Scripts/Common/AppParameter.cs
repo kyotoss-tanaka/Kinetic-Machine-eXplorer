@@ -1106,6 +1106,19 @@ namespace Parameters
     }
 
     [Serializable]
+    public class PrefabSetting
+    {
+        /// <summary>
+        /// 機番
+        /// </summary>
+        public string mechId { get; set; }
+        /// <summary>
+        /// ユニット名
+        /// </summary>
+        public string name { get; set; }
+    }
+
+    [Serializable]
     public class LedTagData
     {
         /// <summary>
@@ -1232,6 +1245,7 @@ namespace Parameters
         public bool isRelease { get; set; }
         public bool isVR { get; set; }
         public bool isMR { get; set; }
+        public bool isMaster { get; set; }
         public bool isCollision { get; set; }
     }
 

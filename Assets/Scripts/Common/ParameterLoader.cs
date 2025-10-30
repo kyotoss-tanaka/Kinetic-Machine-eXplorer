@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
 using System.Text.Json;
+using System.Threading.Tasks;
 using UnityEngine;
 using UnityEngine.InputSystem.XR;
 using Unity.VisualScripting;
@@ -14,6 +15,10 @@ using UnityEngine.UI;
 using TMPro;
 using MongoDB.Driver;
 using UnityEngine.SceneManagement;
+using UnityEngine.AddressableAssets.Initialization;
+using UnityEngine.AddressableAssets;
+using UnityEngine.ResourceManagement.AsyncOperations;
+using Unity.IO.LowLevel.Unsafe;
 
 namespace Parameters
 {
@@ -68,10 +73,10 @@ namespace Parameters
         private List<SwitchSetting> switchSettings;
         private List<SignalTowerSetting> towerSettings;
         private List<LedSetting> ledSettings;
+        private List<PrefabSetting> prefabSettings;
         private List<CardboardSetting> cardboardSettings;
         private List<DebugSetting> debugSettings;
         private List<ActionTableData> actionTableDatas;
-        private bool IsPrmLoading = false;
         private UnitSetting innerUnit;
 
         // シェーダー
@@ -88,15 +93,24 @@ namespace Parameters
         // 断面切断
         private CanvasMenuViewScript viewScript;
         private GameObject uiView;
+        // アセンブリ選択
+        private CanvasMenuAssemblyScript assemblyScript;
+        private GameObject uiAssembly;
+
+        // アセンブリ選択
         // プログレスバー
         private GameObject uiProgress;
         private Slider prgSlider;
         private TextMeshProUGUI prgText;
         private TextMeshProUGUI prgText2;
 
+        private int devMax = 4;
+
         // マテリアルキャッシュ
         private Dictionary<string, Material> materialCache = new Dictionary<string, Material>();
 
+        // 編集モード
+        private bool isEditMode = false;
         void Awake()
         {
             DebugLog($"***** Start Load *****");
@@ -104,7 +118,7 @@ namespace Parameters
             // シェーダーロード
             clipShader = Shader.Find("Custom/ClipTransparent");
             standardShader = Shader.Find("Universal Render Pipeline/Lit");
-//            linesShader = Shader.Find("Custom/Lines");
+            //            linesShader = Shader.Find("Custom/Lines");
             linesShader = Shader.Find("Universal Render Pipeline/Lit");
 
             // キャンバス生成
@@ -118,13 +132,14 @@ namespace Parameters
         /// パラメータロード
         /// </summary>
         /// <returns></returns>
-        private IEnumerator LoadParameter()
+        private IEnumerator LoadParameter(bool isEditMode = false)
         {
             // ロード開始
+            this.isEditMode = isEditMode;
             GlobalScript.isLoading = true;
             // デバッグ時間開始
             swDebug.Restart();
-            SetProgress(0);
+            SetProgress(0, devMax, 0);
             SetProgressLabel("Loading Prefab Files");
             DebugLog($"***** Load Start *****", true);
 
@@ -139,12 +154,21 @@ namespace Parameters
 
             var globalSettings = GameObject.FindObjectsByType<GameObject>(FindObjectsSortMode.None).Where(d => d.name == "GlobalSetting").ToList();
             globalSetting = globalSettings.Count > 0 ? globalSettings[0] : new GameObject("GlobalSetting");
-            try
+
             {
+                // 各種設定ファイルロード
+                DebugLog($"***** Parameter Load *****");
+
+                // Taskを実行
+                var task = LoadParameterFiles();
+                // 完了するまで待つ
+                yield return new WaitUntil(() => task.IsCompleted);
+
                 DebugLog($"***** Load Prefab Model *****");
                 if (prefabs.Count == 0)
                 {
-                    prefabs = GlobalScript.CreateInitialModel();
+                    //                    prefabs = GlobalScript.CreateInitialModel();
+                    yield return StartCoroutine(LoadAddressablePrefabs(prefabSettings, prefabs));
                 }
                 // スイッチモデルロード
                 if (switchPrefabs.Count == 0)
@@ -156,22 +180,8 @@ namespace Parameters
                 {
                     towerPrefabs = GlobalScript.CreateSignalTowerModel();
                 }
-                // 各種設定ファイルロード
-                DebugLog($"***** Parameter Load *****");
-                IsPrmLoading = true;
-                LoadParameterFiles();
-            }
-            catch (Exception ex)
-            {
-                DebugLog($"***** " + ex.Message + " *****");
             }
             {
-                // パラメータロード待ち
-                while (IsPrmLoading)
-                {
-                    yield return null; // 1フレーム待
-                }
-
                 DebugLog($"***** Set Debug Info *****");
                 // 折り返し用データ
                 GlobalScript.actionTableDatas = actionTableDatas;
@@ -412,7 +422,7 @@ namespace Parameters
 //                                        if (mat.shader.name == "Hidden/InternalErrorShader")
 //                                        {
                                             mat.shader = linesShader;
-                                            mat.SetColor("_Color", new Color(0, 0, 0, 0));
+                                            mat.SetColor("_BaseColor", new Color(0, 0, 0, 0));
 //                                        }
                                     }
                                 }
@@ -422,287 +432,284 @@ namespace Parameters
                 }
                 yield return null; // 1フレーム待
 
-                // 無視オブジェクト無効化
+                if (isEditMode)
                 {
-                    hiddenObjs.Clear();
-                    foreach (var m in hiddenSettings)
+                    // 編集モード
+                    movableObjs.Clear();
+                    undefinedUnits.Clear();
+                    if (uiAssembly != null)
                     {
-                        if (m.isEnable)
-                        {
-                            if (m.mode == 0)
-                            {
-                                // 一致
-                                foreach (var o in GameObject.FindObjectsByType<GameObject>(FindObjectsSortMode.None).ToList().FindAll(d => d.name == m.name))
-                                {
-                                    if ((m.parent == null) || (m.parent == "") || (m.parent == o.transform.parent.name))
-                                    {
-                                        //                                        o.SetActive(false);
-                                        hiddenObjs.Add(o);
-                                    }
-                                }
-                            }
-                            else if (m.mode == 1)
-                            {
-                                // 前方一致
-                                foreach (var o in GameObject.FindObjectsByType<GameObject>(FindObjectsSortMode.None).ToList().FindAll(d => d.name.StartsWith(m.name)))
-                                {
-                                    if ((m.parent == null) || (m.parent == "") || (m.parent == o.transform.parent.name))
-                                    {
-//                                        o.SetActive(false);
-                                        hiddenObjs.Add(o);
-                                    }
-                                }
-                            }
-                            else if (m.mode == 2)
-                            {
-                                // 後方一致
-                                foreach (var o in GameObject.FindObjectsByType<GameObject>(FindObjectsSortMode.None).ToList().FindAll(d => d.name.EndsWith(m.name)))
-                                {
-                                    if ((m.parent == null) || (m.parent == "") || (m.parent == o.transform.parent.name))
-                                    {
-                                        //                                        o.SetActive(false);
-                                        hiddenObjs.Add(o);
-
-                                    }
-                                }
-                            }
-                            else if (m.mode == 3)
-                            {
-                                // 含まれている
-                                foreach (var o in GameObject.FindObjectsByType<GameObject>(FindObjectsSortMode.None).ToList().FindAll(d => d.name.Contains(m.name)))
-                                {
-                                    if ((m.parent == null) || (m.parent == "") || (m.parent == o.transform.parent.name))
-                                    {
-                                        //o.SetActive(false);
-                                        hiddenObjs.Add(o);
-                                    }
-                                }
-                            }
-                        }
+                        uiAssembly.SetActive(true);
                     }
                 }
-
+                else
                 {
-                    // 生成用ワーク保持
-                    foreach (var wk in wkSettings)
+                    // 無視オブジェクト無効化
                     {
-                        var work = GameObject.FindObjectsByType<GameObject>(FindObjectsSortMode.None).ToList().FindAll(d => d.name == wk.work);
-                        if (work.Count > 0)
+                        hiddenObjs.Clear();
+                        foreach (var m in hiddenSettings)
                         {
-                            var w = works.Find(d => d.key == wk.work);
-                            if (w == null)
+                            if (m.isEnable)
                             {
-                                w = new ObjEntry { key = wk.work };
-                                works.Add(w);
-                                w.obj = Instantiate(work[0].gameObject);
-                                w.obj.SetActive(false);
+                                if (m.mode == 0)
+                                {
+                                    // 一致
+                                    foreach (var o in GameObject.FindObjectsByType<GameObject>(FindObjectsSortMode.None).ToList().FindAll(d => d.name == m.name))
+                                    {
+                                        if ((m.parent == null) || (m.parent == "") || CommonFunction.GetScenePath(o).Contains(m.parent))
+                                        {
+                                            //                                        o.SetActive(false);
+                                            hiddenObjs.Add(o);
+                                        }
+                                    }
+                                }
+                                else if (m.mode == 1)
+                                {
+                                    // 前方一致
+                                    foreach (var o in GameObject.FindObjectsByType<GameObject>(FindObjectsSortMode.None).ToList().FindAll(d => d.name.StartsWith(m.name)))
+                                    {
+                                        if ((m.parent == null) || (m.parent == "") || CommonFunction.GetScenePath(o).Contains(m.parent))
+                                        {
+                                            //                                        o.SetActive(false);
+                                            hiddenObjs.Add(o);
+                                        }
+                                    }
+                                }
+                                else if (m.mode == 2)
+                                {
+                                    // 後方一致
+                                    foreach (var o in GameObject.FindObjectsByType<GameObject>(FindObjectsSortMode.None).ToList().FindAll(d => d.name.EndsWith(m.name)))
+                                    {
+                                        if ((m.parent == null) || (m.parent == "") || CommonFunction.GetScenePath(o).Contains(m.parent))
+                                        {
+                                            //                                        o.SetActive(false);
+                                            hiddenObjs.Add(o);
+
+                                        }
+                                    }
+                                }
+                                else if (m.mode == 3)
+                                {
+                                    // 含まれている
+                                    foreach (var o in GameObject.FindObjectsByType<GameObject>(FindObjectsSortMode.None).ToList().FindAll(d => d.name.Contains(m.name)))
+                                    {
+                                        if ((m.parent == null) || (m.parent == "") || CommonFunction.GetScenePath(o).Contains(m.parent))
+                                        {
+                                            //o.SetActive(false);
+                                            hiddenObjs.Add(o);
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
-                    // 生成用段ボール保持
+
+                    {
+                        // 生成用ワーク保持
+                        foreach (var wk in wkSettings)
+                        {
+                            var work = GameObject.FindObjectsByType<GameObject>(FindObjectsSortMode.None).ToList().FindAll(d => d.name == wk.work);
+                            if (work.Count > 0)
+                            {
+                                var w = works.Find(d => d.key == wk.work);
+                                if (w == null)
+                                {
+                                    w = new ObjEntry { key = wk.work };
+                                    works.Add(w);
+                                    w.obj = Instantiate(work[0].gameObject);
+                                    w.obj.SetActive(false);
+                                }
+                            }
+                        }
+                        // 生成用段ボール保持
+                        foreach (var cb in cardboardSettings)
+                        {
+                            var unit = unitSettings.Find(d => (d.mechId == cb.mechId) && (d.name == cb.name));
+                            if (unit != null)
+                            {
+                                var cardboard = GameObject.FindObjectsByType<GameObject>(FindObjectsSortMode.None).ToList().FindAll(d => d.name == unit.parent);
+                                if (cardboard.Count > 0)
+                                {
+                                    var c = works.Find(d => d.key == cb.name);
+                                    if (c == null)
+                                    {
+                                        cardboard[0].transform.parent = prefabObj.transform;
+                                        c = new ObjEntry { key = cb.name };
+                                        works.Add(c);
+                                        c.obj = Instantiate(cardboard[0].gameObject);
+                                        var cbs = c.obj.AddComponent<CardboardScript>();
+                                        cbs.SetParameter(unit, cb);
+                                        c.obj.SetActive(false);
+                                    }
+                                }
+                            }
+                        }
+                        // デバッグモード時
+                    }
+
+                    // ワークセット
+                    foreach (var work in works)
+                    {
+                        GlobalScript.works[work.key] = work.obj;
+                    }
+
+                    // メッシュのないオブジェクト無効化
+                    var names = new List<string>();
+                    foreach (var unitSetting in unitSettings)
+                    {
+                        // ユニット設定にDB情報セット
+                        var db = postgresSettings.Find(d => d.No == unitSetting.dbNo);
+                        if (db != null)
+                        {
+                            unitSetting.Database = db.Name;
+                        }
+                        /*
+                         * 必要ない可能性が高いので無効化
+                        if (unitSetting.parent != null)
+                        {
+                            if (!names.Contains(unitSetting.parent))
+                            {
+                                foreach (var o in GameObject.FindObjectsByType<GameObject>(FindObjectsSortMode.None).ToList().FindAll(d => d.name == unitSetting.parent))
+                                {
+                                    var mesh = o.transform.GetComponentInChildren<MeshRenderer>();
+                                    if (mesh == null)
+                                    {
+                                        o.SetActive(false);
+                                    }
+                                }
+                                names.Add(unitSetting.parent);
+                            }
+                        }
+                        */
+                        if (SetProgress(1, devMax, (float)unitSettings.IndexOf(unitSetting) / unitSettings.Count))
+                        {
+                            yield return null; // 1フレーム待
+                        }
+                    }
+
+                    // ユニットオブジェクト先に生成しておく
+                    movableObjs.Clear();
+                    undefinedUnits.Clear();
+                    // 段ボールはユニットは作成しない
                     foreach (var cb in cardboardSettings)
                     {
-                        var unit = unitSettings.Find(d => (d.mechId == cb.mechId) && (d.name == cb.name));
-                        if (unit != null)
+                        unitSettings.RemoveAll(d => d.name == cb.name);
+                    }
+                    foreach (var unitSetting in unitSettings)
+                    {
+                        unitSetting.unitObject = new GameObject(unitSetting.name);
+                        var movable = new GameObject(movableName + "_" + unitSetting.mechId);
+                        movable.transform.parent = unitSetting.unitObject.transform;
+                        // 機番と紐づけ
+                        if (movableObjs.Find(d => d.key == unitSetting.mechId) == null)
                         {
-                            var cardboard = GameObject.FindObjectsByType<GameObject>(FindObjectsSortMode.None).ToList().FindAll(d => d.name == unit.parent);
-                            if (cardboard.Count > 0)
+                            movableObjs.Add(new ObjEntry { key = unitSetting.mechId, obj = new GameObject("#" + unitSetting.mechId) });
+                            undefinedUnits.Add(new ObjEntry { key = unitSetting.mechId, obj = new GameObject("UndefinedUnits") });
+                            undefinedUnits[undefinedUnits.Count - 1].obj.name = "UndefinedUnits";
+                            undefinedUnits[undefinedUnits.Count - 1].obj.transform.parent = movableObjs[movableObjs.Count - 1].obj.transform;
+                        }
+                    }
+
+                    // ユニット生成順ソート
+                    var unitNames = unitSettings.Select(d => d.name).ToList();
+                    var tmpUnits = new List<UnitSetting>();
+                    // チャックユニットは先に生成しておく
+                    foreach (var chuck in chuckUnitSettings)
+                    {
+                        foreach (var child in chuck.children)
+                        {
+                            var c = unitSettings.Find(d => (d.mechId == chuck.mechId) && (d.name == child.name));
+                            if ((c != null) && !tmpUnits.Contains(c))
                             {
-                                var c = works.Find(d => d.key == cb.name);
-                                if (c == null)
+                                tmpUnits.Add(c);
+                            }
+                        }
+                    }
+                    SortUnitSettings(unitNames, unitSettings, ref tmpUnits);
+                    unitSettings = tmpUnits;
+
+                    // 全てのオブジェクト取得
+                    List<GameObject> allObjects = GameObject.FindObjectsByType<GameObject>(FindObjectsSortMode.None).ToList();
+
+                    // 存在しないスイッチモデル生成
+                    switchModel.Clear();
+                    if (switchPrefabs.Count > 0)
+                    {
+                        foreach (var sw in switchSettings)
+                        {
+                            var unit = unitSettings.Find(d => (d.mechId == sw.mechId) && (d.name == sw.name));
+                            if ((unit != null) && ((unit.group == null) || (unit.group == "")))
+                            {
+                                unit.parent = unit.parent == "" ? "_switch" + (switchSettings.IndexOf(sw) + 1) : unit.parent;
+                                if (allObjects.Find(d => d.name == unit.parent) == null)
                                 {
-                                    cardboard[0].transform.parent = prefabObj.transform;
-                                    c = new ObjEntry { key = cb.name };
-                                    works.Add(c);
-                                    c.obj = Instantiate(cardboard[0].gameObject);
-                                    var cbs = c.obj.AddComponent<CardboardScript>();
-                                    cbs.SetParameter(unit, cb);
-                                    c.obj.SetActive(false);
+                                    // モデルが存在しないので作成
+                                    var obj = Instantiate(switchPrefabs[0]);
+                                    obj.name = unit.parent;
+                                    obj.transform.parent = deviceObj.transform;
+                                    obj.transform.localPosition = new Vector3(sw.pos[0], sw.pos[1], sw.pos[2]);
+                                    obj.transform.localEulerAngles = new Vector3(sw.rot[0], sw.rot[1], sw.rot[2]);
+                                    switchModel.Add(obj);
                                 }
                             }
                         }
                     }
-                    // デバッグモード時
-                }
-
-                // ワークセット
-                foreach (var work in works)
-                {
-                    GlobalScript.works[work.key] = work.obj;
-                }
-
-                // メッシュのないオブジェクト無効化
-                var names = new List<string>();
-                foreach (var unitSetting in unitSettings)
-                {
-                    // ユニット設定にDB情報セット
-                    var db = postgresSettings.Find(d => d.No == unitSetting.dbNo);
-                    if (db != null)
+                    // 存在しないシグナルタワーモデル生成
+                    towerModel.Clear();
+                    if (towerPrefabs.Count > 0)
                     {
-                        unitSetting.Database = db.Name;
-                    }
-                    /*
-                     * 必要ない可能性が高いので無効化
-                    if (unitSetting.parent != null)
-                    {
-                        if (!names.Contains(unitSetting.parent))
+                        foreach (var st in towerSettings)
                         {
-                            foreach (var o in GameObject.FindObjectsByType<GameObject>(FindObjectsSortMode.None).ToList().FindAll(d => d.name == unitSetting.parent))
+                            var unit = unitSettings.Find(d => (d.mechId == st.mechId) && (d.name == st.name));
+                            if ((unit != null) && ((unit.group == null) || (unit.group == "")))
                             {
-                                var mesh = o.transform.GetComponentInChildren<MeshRenderer>();
-                                if (mesh == null)
+                                unit.parent = unit.parent == "" ? "_signalTower" + (towerSettings.IndexOf(st) + 1) : unit.parent;
+                                if (allObjects.Find(d => d.name == unit.parent) == null)
                                 {
-                                    o.SetActive(false);
-                                }
-                            }
-                            names.Add(unitSetting.parent);
-                        }
-                    }
-                    */
-                    if (SetProgress(unitSettings.IndexOf(unitSetting) / (unitSettings.Count * 3f)))
-                    {
-                        yield return null; // 1フレーム待
-                    }
-                }
-
-                // ユニットオブジェクト先に生成しておく
-                movableObjs.Clear();
-                undefinedUnits.Clear();
-                // 段ボールはユニットは作成しない
-                foreach (var cb in cardboardSettings)
-                {
-                    unitSettings.RemoveAll(d => d.name == cb.name);
-                }
-                foreach (var unitSetting in unitSettings)
-                {
-                    unitSetting.unitObject = new GameObject(unitSetting.name);
-                    var movable = new GameObject(movableName + "_" + unitSetting.mechId);
-                    movable.transform.parent = unitSetting.unitObject.transform;
-                    // 機番と紐づけ
-                    if (movableObjs.Find(d => d.key == unitSetting.mechId) == null)
-                    {
-                        movableObjs.Add(new ObjEntry { key = unitSetting.mechId, obj = new GameObject("#" + unitSetting.mechId) });
-                        undefinedUnits.Add(new ObjEntry { key = unitSetting.mechId, obj = new GameObject("UndefinedUnits") });
-                        undefinedUnits[undefinedUnits.Count - 1].obj.name = "UndefinedUnits";
-                        undefinedUnits[undefinedUnits.Count - 1].obj.transform.parent = movableObjs[movableObjs.Count - 1].obj.transform;
-                    }
-                }
-
-                // ユニット生成順ソート
-                var unitNames = unitSettings.Select(d => d.name).ToList();
-                var tmpUnits = new List<UnitSetting>();
-                // チャックユニットは先に生成しておく
-                foreach (var chuck in chuckUnitSettings)
-                {
-                    foreach (var child in chuck.children)
-                    {
-                        var c = unitSettings.Find(d => (d.mechId == chuck.mechId) && (d.name == child.name));
-                        if ((c != null) && !tmpUnits.Contains(c))
-                        {
-                            tmpUnits.Add(c);
-                        }
-                    }
-                }
-                SortUnitSettings(unitNames, unitSettings, ref tmpUnits);
-                unitSettings = tmpUnits;
-
-                // 全てのオブジェクト取得
-                List<GameObject> allObjects = GameObject.FindObjectsByType<GameObject>(FindObjectsSortMode.None).ToList();
-
-                // 存在しないスイッチモデル生成
-                switchModel.Clear();
-                if (switchPrefabs.Count > 0)
-                {
-                    foreach (var sw in switchSettings)
-                    {
-                        var unit = unitSettings.Find(d => (d.mechId == sw.mechId) && (d.name == sw.name));
-                        if ((unit != null) && ((unit.group == null) || (unit.group == "")))
-                        {
-                            unit.parent = unit.parent == "" ? "_switch" + (switchSettings.IndexOf(sw) + 1) : unit.parent;
-                            if (allObjects.Find(d => d.name == unit.parent) == null)
-                            {
-                                // モデルが存在しないので作成
-                                var obj = Instantiate(switchPrefabs[0]);
-                                obj.name = unit.parent;
-                                obj.transform.parent = deviceObj.transform;
-                                obj.transform.localPosition = new Vector3(sw.pos[0], sw.pos[1], sw.pos[2]);
-                                obj.transform.localEulerAngles = new Vector3(sw.rot[0], sw.rot[1], sw.rot[2]);
-                                switchModel.Add(obj);
-                            }
-                        }
-                    }
-                }
-                // 存在しないシグナルタワーモデル生成
-                towerModel.Clear();
-                if (towerPrefabs.Count > 0)
-                {
-                    foreach (var st in towerSettings)
-                    {
-                        var unit = unitSettings.Find(d => (d.mechId == st.mechId) && (d.name == st.name));
-                        if ((unit != null) && ((unit.group == null) || (unit.group == "")))
-                        {
-                            unit.parent = unit.parent == "" ? "_signalTower" + (towerSettings.IndexOf(st) + 1) : unit.parent;
-                            if (allObjects.Find(d => d.name == unit.parent) == null)
-                            {
-                                // モデルが存在しないので作成
-                                var obj = Instantiate(towerPrefabs[st.type]);
-                                obj.name = unit.parent;
-                                obj.transform.parent = deviceObj.transform;
-                                obj.transform.localPosition = new Vector3(st.pos[0], st.pos[1], st.pos[2]);
-                                obj.transform.localEulerAngles = new Vector3(st.rot[0], st.rot[1], st.rot[2]);
-                                towerModel.Add(obj);
-                            }
-                        }
-                    }
-                }
-                // 親モデルに動作スクリプトを付与
-                DebugLog($"***** Load Units *****");
-                SetProgressLabel("Loading Units");
-                foreach (var unitSetting in unitSettings)
-                {
-                    // デバッグ用
-                    innerUnit = unitSetting;
-                    // 親モデル検索用(非表示オブジェクトも含む) ※ループ内で行わないとNG
-                    allObjects = GameObject.FindObjectsByType<GameObject>(FindObjectsSortMode.None).ToList();
-                    unitSetting.childrenObject = new List<GameObject>();
-                    var gameObjects = allObjects.FindAll(d => d.name == unitSetting.parent);
-                    if (gameObjects.Count == 0)
-                    {
-                        // 空オブジェクト作成
-                        var dummy = new GameObject(unitSetting.parent);
-                        dummy.transform.parent = deviceObj.transform;
-                        dummy.name = unitSetting.name;
-                        dummy.isStatic = true;
-                        gameObjects.Add(dummy);
-                        DebugLog($"エラー：ユニット名「{unitSetting.name}」の親モデル「{unitSetting.parent}」が存在しません。");
-                    }
-                    if (gameObjects.Count > 0)
-                    {
-                        if ((gameObjects.Count == 1) || (unitSetting.group == null) || (unitSetting.group == ""))
-                        {
-                            // 先頭を親にする
-                            unitSetting.moveObject = gameObjects[0];
-                            unitSetting.unitObject.isStatic = gameObjects[0].isStatic;
-                            // 先頭以外は子供として紐づける
-                            for (var i = 1; i < gameObjects.Count; i++)
-                            {
-                                unitSetting.childrenObject.Add(gameObjects[i]);
-                            }
-                            //　子モデルセット
-                            foreach (var child in unitSetting.children)
-                            {
-                                var childObjects = allObjects.FindAll(d => d.name == child.name);
-                                GameObject childObject = null;
-                                if (FindInGroup(childObjects, child.group, ref childObject))
-                                {
-                                    unitSetting.childrenObject.Add(childObject);
+                                    // モデルが存在しないので作成
+                                    var obj = Instantiate(towerPrefabs[st.type]);
+                                    obj.name = unit.parent;
+                                    obj.transform.parent = deviceObj.transform;
+                                    obj.transform.localPosition = new Vector3(st.pos[0], st.pos[1], st.pos[2]);
+                                    obj.transform.localEulerAngles = new Vector3(st.rot[0], st.rot[1], st.rot[2]);
+                                    towerModel.Add(obj);
                                 }
                             }
                         }
-                        else
+                    }
+                    // 親モデルに動作スクリプトを付与
+                    DebugLog($"***** Load Units *****");
+                    foreach (var unitSetting in unitSettings)
+                    {
+                        SetProgressLabel($"Loading Unit : {unitSetting.name}");
+                        // デバッグ用
+                        innerUnit = unitSetting;
+                        // 親モデル検索用(非表示オブジェクトも含む) ※ループ内で行わないとNG
+                        allObjects = GameObject.FindObjectsByType<GameObject>(FindObjectsSortMode.None).ToList();
+                        unitSetting.childrenObject = new List<GameObject>();
+                        var gameObjects = allObjects.FindAll(d => d.name == unitSetting.parent);
+                        if (gameObjects.Count == 0)
                         {
-                            if (FindInGroup(gameObjects, unitSetting.group, ref unitSetting.moveObject))
+                            // 空オブジェクト作成
+                            var dummy = new GameObject(unitSetting.parent);
+                            dummy.transform.parent = deviceObj.transform;
+                            dummy.name = unitSetting.name;
+                            dummy.isStatic = true;
+                            gameObjects.Add(dummy);
+                            DebugLog($"エラー：ユニット名「{unitSetting.name}」の親モデル「{unitSetting.parent}」が存在しません。");
+                        }
+                        if (gameObjects.Count > 0)
+                        {
+                            if ((gameObjects.Count == 1) || (unitSetting.group == null) || (unitSetting.group == ""))
                             {
+                                // 先頭を親にする
+                                unitSetting.moveObject = gameObjects[0];
+                                unitSetting.unitObject.isStatic = gameObjects[0].isStatic;
+                                // 先頭以外は子供として紐づける
+                                for (var i = 1; i < gameObjects.Count; i++)
+                                {
+                                    unitSetting.childrenObject.Add(gameObjects[i]);
+                                }
                                 //　子モデルセット
                                 foreach (var child in unitSetting.children)
                                 {
@@ -716,284 +723,311 @@ namespace Parameters
                             }
                             else
                             {
-                                Debug.Log($"エラー：ユニット名「{unitSetting.name}」の親モデル「{unitSetting.parent}」がグループ[{unitSetting.group}]に存在しません。");
-                                continue;
-                            }
-                        }
-                        // 非表示オブジェクトなら非表示から削除
-                        hiddenObjs.Remove(unitSetting.moveObject);
-                        // ロボット紐づけ
-                        unitSetting.robotSetting = robotSettings.Find(d => (d.mechId == unitSetting.mechId) && (d.name == unitSetting.name));
-                        // ワーク生成設定紐づけ
-                        unitSetting.workSettings = wkSettings.FindAll(d => (d.mechId == unitSetting.mechId) && (d.name == unitSetting.name));
-                        // ワーク削除設定紐づけ
-                        unitSetting.workDeleteSettings = wkDeleteSettings.FindAll(d => (d.mechId == unitSetting.mechId) && (d.name == unitSetting.name));
-                        // センサ設定紐づけ
-                        unitSetting.sensorSettings = sensorSettings.FindAll(d => (d.mechId == unitSetting.mechId) && (d.name == unitSetting.name));
-                        // 吸引設定紐づけ
-                        unitSetting.suctionSetting = suctionSettings.Find(d => (d.mechId == unitSetting.mechId) && (d.name == unitSetting.name));
-                        // 物体形状設定紐づけ
-                        unitSetting.shapeSetting = shapeSettings.Find(d => (d.mechId == unitSetting.mechId) && (d.name == unitSetting.name));
-                        // スイッチ設定紐づけ
-                        unitSetting.switchSetting = switchSettings.Find(d => (d.mechId == unitSetting.mechId) && (d.name == unitSetting.name));
-                        // シグナルタワー設定紐づけ
-                        unitSetting.towerSetting = towerSettings.Find(d => (d.mechId == unitSetting.mechId) && (d.name == unitSetting.name));
-                        // LED設定紐づけ
-                        unitSetting.ledSetting = ledSettings.Find(d => (d.mechId == unitSetting.mechId) && (d.name == unitSetting.name));
-                        // 機構拡張設定紐づけ
-                        unitSetting.exMechSetting = exMechSettings.Find(d => (d.mechId == unitSetting.mechId) && (d.name == unitSetting.name));
-                        if (unitSetting.exMechSetting != null)
-                        {
-                            // 機構拡張設定
-                            foreach (var data in unitSetting.exMechSetting.datas)
-                            {
-                                // モデルを設定しておく
-                                data.gameObject = allObjects.FindAll(d => d.name == data.model).Find(d => GetScenePath(d).Contains(data.group));
-                                foreach (var child in data.children)
+                                if (FindInGroup(gameObjects, unitSetting.group, ref unitSetting.moveObject))
                                 {
-                                    child.gameObject = allObjects.FindAll(d => d.name == child.model).Find(d => GetScenePath(d).Contains(child.group));
-                                }
-                            }
-                        }
-                        // チャック設定更新
-                        var chuckSetting = chuckUnitSettings.Find(d => (d.mechId == unitSetting.mechId) && (d.name == unitSetting.name));
-                        if (chuckSetting != null)
-                        {
-                            foreach (var chuck in chuckSetting.children)
-                            {
-                                chuck.setting = unitSettings.Find(d => d.name == chuck.name);
-                            }
-                        }
-                        // 動作設定との紐づけ
-                        unitSetting.actionSetting = actionSettings.Find(d => (d.mechId == unitSetting.mechId) && (d.name == unitSetting.name));
-                        if (unitSetting.actionSetting != null)
-                        {
-                            // 動作設定
-                            if (unitSetting.actionSetting.isInternal)
-                            {
-                                // 内部動作なら
-                                var instance = unitSetting.unitObject.AddComponent<MotionInternal>();
-                                instance.SetUnitSettings(unitSetting, chuckSetting);
-                            }
-                            else if (unitSetting.actionSetting.isExternal)
-                            {
-                                // 外部動作なら
-                                var instance = unitSetting.unitObject.AddComponent<MotionExternal>();
-                                instance.SetUnitSettings(unitSetting, chuckSetting);
-                            }
-                            else if (unitSetting.actionSetting.isActionTable)
-                            {
-                                // 動作テーブルなら
-                                var instance = unitSetting.unitObject.AddComponent<MotionActionTable>();
-                                instance.SetUnitSettings(unitSetting, chuckSetting);
-                            }
-                            else if (unitSetting.actionSetting.isRobo)
-                            {
-                                // 外部ロボットなら(再構築のみ)
-                                var instance = unitSetting.unitObject.AddComponent<AxisMotionBase>();
-                                instance.SetUnitSettings(unitSetting, chuckSetting);
-                                // ロボットタイプ取得
-                                var robo = robotSettings.Find(d => (d.mechId == unitSetting.mechId) && (d.name == unitSetting.name));
-                                if (robo != null)
-                                {
-                                    // ロボットタイプ判別
-                                    var roboType = GetRobotType(unitSetting);
-                                    robo.headUnit = unitSettings.Find(d => d.name == robo.head);
-                                    if (roboType == RobotType.MPS2_3AS)
+                                    //　子モデルセット
+                                    foreach (var child in unitSetting.children)
                                     {
-                                        var rObj = unitSetting.moveObject.AddComponent<MPS2_3AS>();
-                                        rObj.SetParameter(unitSetting, robo);
-                                    }
-                                    else if (roboType == RobotType.MPS2_4AS)
-                                    {
-                                        var rObj = unitSetting.moveObject.AddComponent<MPS2_4AS>();
-                                        rObj.SetParameter(unitSetting, robo);
-                                    }
-                                    else if (roboType == RobotType.MPX_PI)
-                                    {
-                                        var rObj = unitSetting.moveObject.AddComponent<MPX_PI>();
-                                        rObj.SetParameter(unitSetting, robo);
-                                    }
-                                    else if (roboType == RobotType.MPX_R1)
-                                    {
-                                        var rObj = unitSetting.moveObject.AddComponent<MPX_R1>();
-                                        rObj.SetParameter(unitSetting, robo);
-                                    }
-                                    else if (roboType == RobotType.MPX_R7)
-                                    {
-                                        var rObj = unitSetting.moveObject.AddComponent<MPX_R7>();
-                                        rObj.SetParameter(unitSetting, robo);
-                                    }
-                                    else if (roboType == RobotType.YF03N4)
-                                    {
-                                        var rObj = unitSetting.moveObject.AddComponent<YF03N4>();
-                                        rObj.SetParameter(unitSetting, robo);
-                                    }
-                                    else if (roboType == RobotType.RS007L)
-                                    {
-                                    }
-                                    else if (roboType == RobotType.CRX_30iA)
-                                    {
-                                        var rObj = unitSetting.moveObject.AddComponent<CRX_30iA>();
-                                        rObj.SetParameter(unitSetting, robo);
+                                        var childObjects = allObjects.FindAll(d => d.name == child.name);
+                                        GameObject childObject = null;
+                                        if (FindInGroup(childObjects, child.group, ref childObject))
+                                        {
+                                            unitSetting.childrenObject.Add(childObject);
+                                        }
                                     }
                                 }
                                 else
                                 {
-                                    Debug.Log($"エラー：ユニット名(ロボット名)「{unitSetting.name}」の動作設定が存在しません。");
+                                    Debug.Log($"エラー：ユニット名「{unitSetting.name}」の親モデル「{unitSetting.parent}」がグループ[{unitSetting.group}]に存在しません。");
+                                    continue;
                                 }
                             }
-                            else if (unitSetting.actionSetting.isPlanarMotor)
+                            // 非表示オブジェクトなら非表示から削除
+                            hiddenObjs.Remove(unitSetting.moveObject);
+                            // ロボット紐づけ
+                            unitSetting.robotSetting = robotSettings.Find(d => (d.mechId == unitSetting.mechId) && (d.name == unitSetting.name));
+                            // ワーク生成設定紐づけ
+                            unitSetting.workSettings = wkSettings.FindAll(d => (d.mechId == unitSetting.mechId) && (d.name == unitSetting.name));
+                            // ワーク削除設定紐づけ
+                            unitSetting.workDeleteSettings = wkDeleteSettings.FindAll(d => (d.mechId == unitSetting.mechId) && (d.name == unitSetting.name));
+                            // センサ設定紐づけ
+                            unitSetting.sensorSettings = sensorSettings.FindAll(d => (d.mechId == unitSetting.mechId) && (d.name == unitSetting.name));
+                            // 吸引設定紐づけ
+                            unitSetting.suctionSetting = suctionSettings.Find(d => (d.mechId == unitSetting.mechId) && (d.name == unitSetting.name));
+                            // 物体形状設定紐づけ
+                            unitSetting.shapeSetting = shapeSettings.Find(d => (d.mechId == unitSetting.mechId) && (d.name == unitSetting.name));
+                            // スイッチ設定紐づけ
+                            unitSetting.switchSetting = switchSettings.Find(d => (d.mechId == unitSetting.mechId) && (d.name == unitSetting.name));
+                            // シグナルタワー設定紐づけ
+                            unitSetting.towerSetting = towerSettings.Find(d => (d.mechId == unitSetting.mechId) && (d.name == unitSetting.name));
+                            // LED設定紐づけ
+                            unitSetting.ledSetting = ledSettings.Find(d => (d.mechId == unitSetting.mechId) && (d.name == unitSetting.name));
+                            // 機構拡張設定紐づけ
+                            unitSetting.exMechSetting = exMechSettings.Find(d => (d.mechId == unitSetting.mechId) && (d.name == unitSetting.name));
+                            if (unitSetting.exMechSetting != null)
                             {
-                                // 外部平面リニアなら(再構築のみ)
-                                var instance = unitSetting.unitObject.AddComponent<AxisMotionBase>();
-                                instance.SetUnitSettings(unitSetting, chuckSetting);
-                                var pm = pmSettings.Find(d => (d.mechId == unitSetting.mechId) && (d.name == unitSetting.name));
-                                if (pm != null)
+                                // 機構拡張設定
+                                foreach (var data in unitSetting.exMechSetting.datas)
                                 {
-                                    pm.moverUnit = unitSettings.Find(d => d.name == pm.mover);
-//                                    var pmObj = globalSetting.AddComponent<Br6DScript>();
-                                    var pmObj = unitSetting.unitObject.AddComponent<Br6DScript>();
-                                    pmObj.SetParameter(unitSetting, pm);
-                                }
-                                else
-                                {
-                                    Debug.Log($"エラー：ユニット名(ロボット名)「{unitSetting.name}」の動作設定が存在しません。");
+                                    // モデルを設定しておく
+                                    data.gameObject = allObjects.FindAll(d => d.name == data.model).Find(d => CommonFunction.GetScenePath(d).Contains(data.group));
+                                    foreach (var child in data.children)
+                                    {
+                                        child.gameObject = allObjects.FindAll(d => d.name == child.model).Find(d => CommonFunction.GetScenePath(d).Contains(child.group));
+                                    }
                                 }
                             }
-                            else if (unitSetting.actionSetting.isConveyer)
+                            // チャック設定更新
+                            var chuckSetting = chuckUnitSettings.Find(d => (d.mechId == unitSetting.mechId) && (d.name == unitSetting.name));
+                            if (chuckSetting != null)
                             {
-                                // コンベアなら(再構築のみ)
-                                var instance = unitSetting.unitObject.AddComponent<AxisMotionBase>();
-                                instance.SetUnitSettings(unitSetting, chuckSetting);
-                                var cv = cvSettings.Find(d => (d.mechId == unitSetting.mechId) && (d.name == unitSetting.name));
-                                if (cv != null)
+                                foreach (var chuck in chuckSetting.children)
                                 {
-                                    var cvObj = unitSetting.moveObject.AddComponent<ConveyorScript>();
-                                    cvObj.SetParameter(unitSetting, cv);
+                                    chuck.setting = unitSettings.Find(d => d.name == chuck.name);
                                 }
-                                else
+                            }
+                            // 動作設定との紐づけ
+                            unitSetting.actionSetting = actionSettings.Find(d => (d.mechId == unitSetting.mechId) && (d.name == unitSetting.name));
+                            if (unitSetting.actionSetting != null)
+                            {
+                                // 動作設定
+                                if (unitSetting.actionSetting.isInternal)
                                 {
-                                    Debug.Log($"エラー：ユニット名(ロボット名)「{unitSetting.name}」の動作設定が存在しません。");
+                                    // 内部動作なら
+                                    var instance = unitSetting.unitObject.AddComponent<MotionInternal>();
+                                    instance.SetUnitSettings(unitSetting, chuckSetting);
+                                }
+                                else if (unitSetting.actionSetting.isExternal)
+                                {
+                                    // 外部動作なら
+                                    var instance = unitSetting.unitObject.AddComponent<MotionExternal>();
+                                    instance.SetUnitSettings(unitSetting, chuckSetting);
+                                }
+                                else if (unitSetting.actionSetting.isActionTable)
+                                {
+                                    // 動作テーブルなら
+                                    var instance = unitSetting.unitObject.AddComponent<MotionActionTable>();
+                                    instance.SetUnitSettings(unitSetting, chuckSetting);
+                                }
+                                else if (unitSetting.actionSetting.isRobo)
+                                {
+                                    // 外部ロボットなら(再構築のみ)
+                                    var instance = unitSetting.unitObject.AddComponent<AxisMotionBase>();
+                                    instance.SetUnitSettings(unitSetting, chuckSetting);
+                                    // ロボットタイプ取得
+                                    var robo = robotSettings.Find(d => (d.mechId == unitSetting.mechId) && (d.name == unitSetting.name));
+                                    if (robo != null)
+                                    {
+                                        // ロボットタイプ判別
+                                        var roboType = GetRobotType(unitSetting);
+                                        robo.headUnit = unitSettings.Find(d => d.name == robo.head);
+                                        if (roboType == RobotType.MPS2_3AS)
+                                        {
+                                            var rObj = unitSetting.moveObject.AddComponent<MPS2_3AS>();
+                                            rObj.SetParameter(unitSetting, robo);
+                                        }
+                                        else if (roboType == RobotType.MPS2_4AS)
+                                        {
+                                            var rObj = unitSetting.moveObject.AddComponent<MPS2_4AS>();
+                                            rObj.SetParameter(unitSetting, robo);
+                                        }
+                                        else if (roboType == RobotType.MPX_PI)
+                                        {
+                                            var rObj = unitSetting.moveObject.AddComponent<MPX_PI>();
+                                            rObj.SetParameter(unitSetting, robo);
+                                        }
+                                        else if (roboType == RobotType.MPX_R1)
+                                        {
+                                            var rObj = unitSetting.moveObject.AddComponent<MPX_R1>();
+                                            rObj.SetParameter(unitSetting, robo);
+                                        }
+                                        else if (roboType == RobotType.MPX_R7)
+                                        {
+                                            var rObj = unitSetting.moveObject.AddComponent<MPX_R7>();
+                                            rObj.SetParameter(unitSetting, robo);
+                                        }
+                                        else if (roboType == RobotType.YF03N4)
+                                        {
+                                            var rObj = unitSetting.moveObject.AddComponent<YF03N4>();
+                                            rObj.SetParameter(unitSetting, robo);
+                                        }
+                                        else if (roboType == RobotType.RS007L)
+                                        {
+                                        }
+                                        else if (roboType == RobotType.CRX_30iA)
+                                        {
+                                            var rObj = unitSetting.moveObject.AddComponent<CRX_30iA>();
+                                            rObj.SetParameter(unitSetting, robo);
+                                        }
+                                    }
+                                    else
+                                    {
+                                        Debug.Log($"エラー：ユニット名(ロボット名)「{unitSetting.name}」の動作設定が存在しません。");
+                                    }
+                                }
+                                else if (unitSetting.actionSetting.isPlanarMotor)
+                                {
+                                    // 外部平面リニアなら(再構築のみ)
+                                    var instance = unitSetting.unitObject.AddComponent<AxisMotionBase>();
+                                    instance.SetUnitSettings(unitSetting, chuckSetting);
+                                    var pm = pmSettings.Find(d => (d.mechId == unitSetting.mechId) && (d.name == unitSetting.name));
+                                    if (pm != null)
+                                    {
+                                        pm.moverUnit = unitSettings.Find(d => d.name == pm.mover);
+                                        //                                    var pmObj = globalSetting.AddComponent<Br6DScript>();
+                                        var pmObj = unitSetting.unitObject.AddComponent<Br6DScript>();
+                                        pmObj.SetParameter(unitSetting, pm);
+                                    }
+                                    else
+                                    {
+                                        Debug.Log($"エラー：ユニット名(ロボット名)「{unitSetting.name}」の動作設定が存在しません。");
+                                    }
+                                }
+                                else if (unitSetting.actionSetting.isConveyer)
+                                {
+                                    // コンベアなら(再構築のみ)
+                                    var instance = unitSetting.unitObject.AddComponent<AxisMotionBase>();
+                                    instance.SetUnitSettings(unitSetting, chuckSetting);
+                                    var cv = cvSettings.Find(d => (d.mechId == unitSetting.mechId) && (d.name == unitSetting.name));
+                                    if (cv != null)
+                                    {
+                                        var cvObj = unitSetting.moveObject.AddComponent<ConveyorScript>();
+                                        cvObj.SetParameter(unitSetting, cv);
+                                    }
+                                    else
+                                    {
+                                        Debug.Log($"エラー：ユニット名(ロボット名)「{unitSetting.name}」の動作設定が存在しません。");
+                                    }
+                                }
+                            }
+                            else
+                            {
+                                // 動作設定なし
+                                var isFamiry = unitSettings.Find(d => d.children.Find(x => x.name == unitSetting.name) != null) != null;
+                                var isChuck = chuckUnitSettings.Find(d => d.children.Find(x => x.name == unitSetting.name) != null) != null;
+                                if (isFamiry ||                                     // 親子関係あり
+                                    (!unitSetting.sync && (unitSetting.parent != "")) ||             // ※実質全て？同期ユニットがおかしくなるので有効にするなら対策必要
+                                    (unitSetting.shapeSetting != null) ||           // 形状設定あり
+                                    (unitSetting.switchSetting != null) ||          // スイッチ設定あり
+                                    (unitSetting.towerSetting != null) ||           // シグナルタワー設定あり
+                                    (unitSetting.ledSetting != null) ||             // LED設定あり
+                                    (unitSetting.isCollision && !isChuck))          // チャック以外の衝突検知あり
+                                {
+                                    // 構成のみセット
+                                    var instance = unitSetting.unitObject.AddComponent<AxisMotionBase>();
+                                    instance.SetUnitSettings(unitSetting, chuckSetting);
                                 }
                             }
                         }
                         else
                         {
-                            // 動作設定なし
-                            var isFamiry = unitSettings.Find(d => d.children.Find(x => x.name == unitSetting.name) != null) != null;
-                            var isChuck = chuckUnitSettings.Find(d => d.children.Find(x => x.name == unitSetting.name) != null) != null;
-                            if (isFamiry ||                                     // 親子関係あり
-                                (!unitSetting.sync && (unitSetting.parent != "")) ||             // ※実質全て？同期ユニットがおかしくなるので有効にするなら対策必要
-                                (unitSetting.shapeSetting != null) ||           // 形状設定あり
-                                (unitSetting.switchSetting != null) ||          // スイッチ設定あり
-                                (unitSetting.towerSetting != null) ||           // シグナルタワー設定あり
-                                (unitSetting.ledSetting != null) ||             // LED設定あり
-                                (unitSetting.isCollision && !isChuck))          // チャック以外の衝突検知あり
+                            Debug.Log($"エラー：ユニット名「{unitSetting.name}」の親モデル「{unitSetting.parent}」が存在しません。");
+                            Destroy(unitSetting.unitObject);
+                            //                            EndApplication();
+                        }
+                        if ((Application.platform == RuntimePlatform.Android) || (Application.platform == RuntimePlatform.IPhonePlayer))
+                        {
+                            //                        yield return null; // 1フレーム待
+                        }
+                        // プログレスバー設定
+                        if (SetProgress(2, devMax, (float)unitSettings.IndexOf(unitSetting) / unitSettings.Count))
+                        {
+                            yield return null; // 1フレーム待
+                        }
+                    }
+                    // 使い勝手向上のため動作可能オブジェクトを移動
+                    var allMobableObjs = GameObject.FindObjectsByType<GameObject>(FindObjectsSortMode.None).ToList().FindAll(d => d.name.Contains(movableName + "_"));
+                    // 名前順にソート
+                    allMobableObjs.Sort((a, b) => a.transform.parent.name.CompareTo(b.transform.parent.name));
+                    var moveObjs = new List<GameObject>();
+                    foreach (var obj in allMobableObjs)
+                    {
+                        // 親子関係を切らないように検索
+                        var parents = obj.transform.parent.GetComponentsInParent<Transform>().Where(d => d.parent != null).ToList();
+                        parents.Remove(obj.transform.parent);
+                        var isFind = false;
+                        foreach (var p in parents)
+                        {
+                            var tmp = p.GetComponentsInChildren<Transform>().Where(d => (d.parent.transform == p.transform) && d.name.Contains(movableName + "_")).ToList();
+                            if (tmp.Count > 0)
                             {
-                                // 構成のみセット
-                                var instance = unitSetting.unitObject.AddComponent<AxisMotionBase>();
-                                instance.SetUnitSettings(unitSetting, chuckSetting);
+                                isFind = true;
+                                break;
                             }
                         }
-                    }
-                    else
-                    {
-                        Debug.Log($"エラー：ユニット名「{unitSetting.name}」の親モデル「{unitSetting.parent}」が存在しません。");
-                        Destroy(unitSetting.unitObject);
-                        //                            EndApplication();
-                    }
-                    if ((Application.platform == RuntimePlatform.Android) || (Application.platform == RuntimePlatform.IPhonePlayer))
-                    {
-//                        yield return null; // 1フレーム待
-                    }
-                    // プログレスバー設定
-                    if (SetProgress((unitSettings.IndexOf(unitSetting) + unitSettings.Count) / (unitSettings.Count * 3f)))
-                    {
-                        yield return null; // 1フレーム待
-                    }
-                }
-                // 使い勝手向上のため動作可能オブジェクトを移動
-                var allMobableObjs = GameObject.FindObjectsByType<GameObject>(FindObjectsSortMode.None).ToList().FindAll(d => d.name.Contains(movableName + "_"));
-                // 名前順にソート
-                allMobableObjs.Sort((a, b) => a.transform.parent.name.CompareTo(b.transform.parent.name));
-                var moveObjs = new List<GameObject>();
-                foreach (var obj in allMobableObjs)
-                {
-                    // 親子関係を切らないように検索
-                    var parents = obj.transform.parent.GetComponentsInParent<Transform>().Where(d => d.parent != null).ToList();
-                    parents.Remove(obj.transform.parent);
-                    var isFind = false;
-                    foreach (var p in parents)
-                    {
-                        var tmp = p.GetComponentsInChildren<Transform>().Where(d => (d.parent.transform == p.transform) && d.name.Contains(movableName + "_")).ToList();
-                        if (tmp.Count > 0) 
+                        if (!isFind)
                         {
-                            isFind = true;
-                            break;
+                            // 最上流の動作可能親オブジェクト
+                            moveObjs.Add(obj);
+                        }
+                        SetProgressLabel($"Organize Unit : {obj.name}");
+                        if (SetProgress(3, devMax, (float)allMobableObjs.IndexOf(obj) / (allMobableObjs.Count)))
+                        {
+                            yield return null; // 1フレーム待
                         }
                     }
-                    if (!isFind)
+                    foreach (var m in moveObjs)
                     {
-                        // 最上流の動作可能親オブジェクト
-                        moveObjs.Add(obj);
-                    }
-                    if (SetProgress(2 / 3f + allMobableObjs.IndexOf(obj) / (allMobableObjs.Count * 3f)))
-                    {
-                        yield return null; // 1フレーム待
-                    }
-                }
-                foreach (var m in moveObjs)
-                {
-                    var mechId = m.name.Split('_')[1]!;
-                    var uo = undefinedUnits.Find(d => d.key == mechId)!.obj;
-                    var mo = movableObjs.Find(d => d.key == mechId)!.obj;
-                    m.transform.parent.transform.parent = m.transform.parent.gameObject.isStatic ? uo.transform : mo.transform;
-                    // 衝突検知は親が持つ
-                    var rbs = m.transform.parent.GetComponentsInChildren<Rigidbody>().ToList();
-                    if (rbs.Count > 1)
-                    {
-                        // 2つ以上のRigidbodyが有った場合は親以外のRigidbodyは削除(衝突検知は親で行う)
-                        var prb = rbs.Find(d => d.transform.parent == m.transform.parent);
-                        if (prb != null)
+                        var mechId = m.name.Split('_')[1]!;
+                        var uo = undefinedUnits.Find(d => d.key == mechId)!.obj;
+                        var mo = movableObjs.Find(d => d.key == mechId)!.obj;
+                        m.transform.parent.transform.parent = m.transform.parent.gameObject.isStatic ? uo.transform : mo.transform;
+                        // 衝突検知は親が持つ
+                        var rbs = m.transform.parent.GetComponentsInChildren<Rigidbody>().ToList();
+                        if (rbs.Count > 1)
                         {
-                            // 最上流のオブジェクト取得
-                            rbs.Remove(prb);
-                            var removeRbs = new List<Rigidbody>();
-                            foreach (var rb in rbs)
+                            // 2つ以上のRigidbodyが有った場合は親以外のRigidbodyは削除(衝突検知は親で行う)
+                            var prb = rbs.Find(d => d.transform.parent == m.transform.parent);
+                            if (prb != null)
                             {
-                                if (rb.transform.GetComponent<SuctionScript>() == null)
+                                // 最上流のオブジェクト取得
+                                rbs.Remove(prb);
+                                var removeRbs = new List<Rigidbody>();
+                                foreach (var rb in rbs)
                                 {
-                                    // 吸引以外は無視
-                                    Destroy(rb);
+                                    if (rb.transform.GetComponent<SuctionScript>() == null)
+                                    {
+                                        // 吸引以外は無視
+                                        Destroy(rb);
+                                    }
                                 }
                             }
                         }
                     }
-                }
-                foreach (var m in allMobableObjs)
-                {
-                    Destroy(m);
-                }
-                Destroy(deviceObj);
-
-                // 非表示処理
-                {
-                    foreach (var o in hiddenObjs)
+                    foreach (var m in allMobableObjs)
                     {
-                        if (!o.IsDestroyed())
+                        Destroy(m);
+                    }
+                    Destroy(deviceObj);
+
+                    // 非表示処理
+                    {
+                        foreach (var o in hiddenObjs)
                         {
-                            o.SetActive(false);
+                            if (!o.IsDestroyed())
+                            {
+                                o.SetActive(false);
+                            }
                         }
                     }
                 }
-
                 // シェーダー適用
                 {
                     allMaterials = new();
                     allLineMaterials = new();
                     var renderers = new List<Renderer>();
                     renderers.AddRange(prefabObj.GetComponentsInChildren<Renderer>().ToList());
+                    // プレハブファイルに選択用コライダーセット
+                    foreach (Renderer renderer in renderers)
+                    {
+                        if (renderer.GetComponent<BoxCollider>() == null)
+                        {
+                            var bc = renderer.AddComponent<BoxCollider>();
+                            bc.isTrigger = true;
+                        }
+                    }
+
+                    // 動作オブジェクト追加
                     foreach (var m in movableObjs)
                     {
                         renderers.AddRange(m.obj.GetComponentsInChildren<Renderer>().ToList());
@@ -1059,11 +1093,6 @@ namespace Parameters
                     }
                     // 静的バッチングを実行（親にまとめてバッチング）※tri数が多くなるのと静的バッチングが実行されないので無効化
                     //                    StaticBatchingUtility.Combine(batchTargets, prefabObj);
-                    // コントローラ非表示
-                    if (uiView != null)
-                    {
-                        uiView.SetActive(false);
-                    }
                 }
 
                 // VRならPrefab非表示にしておく
@@ -1082,7 +1111,7 @@ namespace Parameters
                     }
                 }
             }
-            if (SetProgress(100))
+            if (SetProgress(devMax, devMax, 0))
             {
                 yield return null; // 1フレーム待
             }
@@ -1103,13 +1132,12 @@ namespace Parameters
             DebugLog($"***** Load Start *****", true);
             var motions = new List<AxisMotionBase>();
             var works = new List<ObjectScript>();
-            IsPrmLoading = true;
-            LoadParameterFiles();
-            // パラメータロード待ち
-            while (IsPrmLoading)
-            {
-                yield return null; // 1フレーム待
-            }
+
+            // Taskを実行
+            var task = LoadParameterFiles();
+            // 完了するまで待つ
+            yield return new WaitUntil(() => task.IsCompleted);
+
             foreach (var obj in movableObjs)
             {
                 motions.AddRange(obj.obj.GetComponentsInChildren<AxisMotionBase>().ToList());
@@ -1280,7 +1308,7 @@ namespace Parameters
         /// <summary>
         /// パラメータリロード
         /// </summary>
-        public void ReloadParameter()
+        public void ReloadParameter(bool isEditMode = false)
         {
             if (!GlobalScript.isLoading)
             {
@@ -1312,7 +1340,7 @@ namespace Parameters
                 {
                     Destroy(obj.obj);
                 }
-                StartCoroutine(LoadParameter());
+                StartCoroutine(LoadParameter(isEditMode));
             }
         }
 
@@ -1335,7 +1363,7 @@ namespace Parameters
         /// <summary>
         /// パラメータロード
         /// </summary>
-        private async void LoadParameterFiles()
+        private async Task LoadParameterFiles()
         {
             DebugLog($"***** Parameter Load : Postgres *****");
             postgresSettings = (List<PostgresSetting>)await GlobalScript.LoadListJson<List<PostgresSetting>>("Postgres");
@@ -1375,6 +1403,8 @@ namespace Parameters
             towerSettings = (List<SignalTowerSetting>)await GlobalScript.LoadListJson<List<SignalTowerSetting>>("SignalTowerInfo");
             DebugLog($"***** Parameter Load : LedInfo *****");
             ledSettings = (List<LedSetting>)await GlobalScript.LoadListJson<List<LedSetting>>("LedInfo");
+            DebugLog($"***** Parameter Load : PrefabInfo *****");
+            prefabSettings = (List<PrefabSetting>)await GlobalScript.LoadListJson<List<PrefabSetting>>("PrefabInfo");
             DebugLog($"***** Parameter Load : CardboardInfo *****");
             cardboardSettings = (List<CardboardSetting>)await GlobalScript.LoadListJson<List<CardboardSetting>>("CardboardInfo");
             DebugLog($"***** Parameter Load : DebugInfo *****");
@@ -1383,7 +1413,6 @@ namespace Parameters
             GlobalScript.buildConfig = (BuildConfig)await GlobalScript.LoadListJson<BuildConfig>("BuildConfig");
             DebugLog($"***** Parameter Load : ActionTable *****");
             actionTableDatas = (List<ActionTableData>)await GlobalScript.LoadListJson<List<ActionTableData>>("ActionTableInfo");
-            IsPrmLoading = false;
         }
 
         /// <summary>
@@ -1448,7 +1477,7 @@ namespace Parameters
             else if (group[0] == '*')
             {
                 group = group.Substring(1);
-                g = gameObjects.Find(d => String.Join("\\", GetScenePath(d).AsEnumerable().Reverse()).Contains(group));
+                g = gameObjects.Find(d => String.Join("\\", CommonFunction.GetScenePath(d).AsEnumerable().Reverse()).Contains(group));
             }
             else
             {
@@ -1464,7 +1493,7 @@ namespace Parameters
                     }
                 }
                 */
-                g = gameObjects.Find(d => GetScenePath(d).Contains(group));
+                g = gameObjects.Find(d => CommonFunction.GetScenePath(d).Contains(group));
             }
             return g != null;
         }
@@ -1488,25 +1517,6 @@ namespace Parameters
                    RobotType.UNDEFINED;
         }
         
-        /// <summary>
-        /// シーンパスを取得する
-        /// </summary>
-        /// <param name="obj"></param>
-        /// <returns></returns>
-        private List<string> GetScenePath(GameObject obj)
-        {
-            var path = new List<string>();
-            path.Add(obj.name);
-            Transform current = obj.transform;
-
-            while (current.parent != null)
-            {
-                current = current.parent;
-                path.Add(current.name);
-            }
-            return path;
-        }
-
         /// <summary>
         /// キャンバス追加
         /// </summary>
@@ -1532,6 +1542,15 @@ namespace Parameters
                 uiView = Instantiate(clip[0]);
                 uiView.transform.SetParent(canvaObj.transform, false);
                 viewScript = uiView.AddComponent<CanvasMenuViewScript>();
+                uiView.SetActive(false);
+            }
+            var asm = GlobalScript.LoadPrefabObject("Prefabs/Canvas", "AssemblySetting");
+            if (asm.Count > 0)
+            {
+                uiAssembly = Instantiate(asm[0]);
+                uiAssembly.transform.SetParent(canvaObj.transform, false);
+                assemblyScript = uiAssembly.AddComponent<CanvasMenuAssemblyScript>();
+                uiAssembly.SetActive(false);
             }
             var progress = GlobalScript.LoadPrefabObject("Prefabs/Canvas", "ProgressSetting");
             if (progress.Count > 0)
@@ -1551,18 +1570,53 @@ namespace Parameters
         /// </summary>
         public void SetViewCanvas()
         {
-            if (uiView != null)
+            if (isEditMode)
             {
-                uiView.SetActive(!uiView.activeSelf);
+                if (uiAssembly != null)
+                {
+                    uiAssembly.SetActive(!uiAssembly.activeSelf);
+                }
+                if (uiView != null)
+                {
+                    uiView.SetActive(false);
+                }
             }
+            else
+            {
+                if (uiView != null)
+                {
+                    uiView.SetActive(!uiView.activeSelf);
+                }
+                if (uiAssembly != null)
+                {
+                    uiAssembly.SetActive(false);
+                }
+            }
+        }
+
+        /// <summary>
+        /// アセンブリ選択
+        /// </summary>
+        public void SetAssemblyObject(GameObject gameObject)
+        {
+            assemblyScript.SetAssembly(gameObject);
         }
 
         /// <summary>
         /// プログレスバーセット
         /// </summary>
         /// <param name="value"></param>
-        private bool SetProgress(float value)
+        private bool SetProgress(int index, int max, float value)
         {
+            if (index == max)
+            {
+                value = 1f;
+            }
+            else
+            {
+                value = (index + value) / max;
+            }
+
             uiProgress.SetActive(value < 1);
             if (Math.Abs(prgSlider.value - value) * 100 > 3)
             {
@@ -1595,13 +1649,98 @@ namespace Parameters
         /// <summary>
         /// エラー時にUnityを終了させるラッパー
         /// </summary>
-        void EndApplication()
+        private void EndApplication()
         {
 #if UNITY_EDITOR
             UnityEditor.EditorApplication.isPlaying = false;//ゲームプレイ終了
 #else
             Application.Quit();//ゲームプレイ終了
 #endif
+        }
+
+        /// <summary>
+        /// 外部AddressablesからPrefabをロード
+        /// </summary>
+        private IEnumerator LoadAddressablePrefabs(List<PrefabSetting> prefabSettings, List<GameObject> prefabs)
+        {
+            // 外部フォルダパスを指定
+            string externalPath = "";
+            if (Application.isEditor)
+            {
+                externalPath = Path.GetFullPath(Path.Combine(Application.streamingAssetsPath, "../../ServerData"));
+            }
+            else
+            {
+                externalPath = Path.GetFullPath(Path.Combine(Application.streamingAssetsPath, "../ServerData"));
+            }
+            var dirs = Directory.GetDirectories(externalPath);
+            foreach (var dir in dirs)
+            {
+                string catalogPath = Path.GetFullPath(Path.Combine(dir, "catalog.bin"));
+                if (!File.Exists(catalogPath))
+                {
+                    continue;
+                }
+
+                // 初期化
+                yield return Addressables.InitializeAsync();
+
+                // 外部カタログをロード
+                Addressables.ClearResourceLocators();
+                var catalogHandle = Addressables.LoadContentCatalogAsync(catalogPath);
+                yield return catalogHandle;
+
+
+                if (catalogHandle.Status != AsyncOperationStatus.Succeeded)
+                {
+                    Debug.LogError($"Failed to load catalog at {catalogPath}");
+                    continue;
+                }
+
+                // Prefabラベルを持つアセットを探す
+                var locationsHandle = Addressables.LoadResourceLocationsAsync("Prefab", typeof(GameObject));
+                yield return locationsHandle;
+
+                if (locationsHandle.Status != AsyncOperationStatus.Succeeded)
+                {
+                    Debug.LogError("Failed to load resource locations.");
+                    continue;
+                }
+
+                // 一括ロード
+                int index = 0;
+                var loadHandle = Addressables.LoadAssetsAsync<GameObject>(
+                    locationsHandle.Result,
+                    obj =>
+                    {
+                        index++;
+                        SetProgress(0, devMax, (float)index / locationsHandle.Result.Count);
+                        if (obj != null)
+                        {
+                            if (prefabSettings.Find(d => d.name.Contains(obj.name)) != null)
+                            {
+                                prefabs.Add(obj);
+                            }
+                            SetProgressLabel($"Loaded Prefab: {obj.name}");
+                            Debug.Log($"Loaded: {obj.name}.prefab");
+                        }
+                        else
+                        {
+                        }
+                    }
+                );
+                yield return loadHandle;
+
+                if (loadHandle.Status == AsyncOperationStatus.Succeeded)
+                {
+                    //                Debug.Log($"Loaded {prefabs.Count} prefabs from {dir}");
+                }
+                else
+                {
+                    //                Debug.LogError("Failed to load prefabs.");
+                }
+                locationsHandle.Result.Clear();
+            }
         }
     }
 }

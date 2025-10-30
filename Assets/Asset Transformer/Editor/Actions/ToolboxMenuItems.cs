@@ -70,7 +70,7 @@ namespace UnityEditor.PixyzPlugin4Unity.Toolbox
 			private readonly System.Type[] m_Actions = new System.Type[] {
 				typeof(UnityEditor.PixyzPlugin4Unity.Actions.Retopologize),
 				typeof(UnityEditor.PixyzPlugin4Unity.Actions.BakeImpostor),
-				typeof(UnityEditor.PixyzPlugin4Unity.Actions.GenerateBillboard)
+				typeof(UnityEditor.PixyzPlugin4Unity.Actions.BakeBillboard)
 			};
 			protected override System.Type[] Actions => m_Actions;
 

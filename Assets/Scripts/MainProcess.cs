@@ -41,6 +41,13 @@ public class MainProcess : KssBaseScript
 
     private bool isReloading = false;
 
+    private List<RaycastHit> raycastHits = new();
+    private GameObject? selectedObject = null;
+    private List<Material> selectedMaterials = new();
+
+    private Shader selectedShader;
+    private Shader linesShader;
+
     /// <summary>
     /// 初期化
     /// </summary>
@@ -111,6 +118,9 @@ public class MainProcess : KssBaseScript
     protected override void Start()
     {
         base.Start();
+
+        selectedShader = Shader.Find("Custom/Lines");
+        linesShader = Shader.Find("Universal Render Pipeline/Lit");
 
         InitCallbackData();
     }
@@ -184,7 +194,7 @@ public class MainProcess : KssBaseScript
             if (parameterLoader != null)
             {
                 isReloading = true;
-                parameterLoader.ReloadParameter();
+                parameterLoader.ReloadParameter(isControl);
                 InitCallbackData();
                 isReloading = false;
             }
@@ -195,6 +205,14 @@ public class MainProcess : KssBaseScript
             if (parameterLoader != null)
             {
                 parameterLoader.SetViewCanvas();
+            }
+        }
+        else if (Keyboard.current.fKey.wasPressedThisFrame)
+        {
+            // F
+            if ((cameraController != null) && (selectedObject != null))
+            {
+                cameraController.FocusTo(selectedObject.transform);
             }
         }
         if (cameraController != null)
@@ -218,7 +236,10 @@ public class MainProcess : KssBaseScript
         var click = Mouse.current.leftButton.wasPressedThisFrame || Mouse.current.leftButton.wasReleasedThisFrame;
         var left = OVRInput.GetDown(OVRInput.Button.PrimaryIndexTrigger, OVRInput.Controller.LTouch) || OVRInput.GetUp(OVRInput.Button.PrimaryIndexTrigger, OVRInput.Controller.LTouch);
         var right = OVRInput.GetDown(OVRInput.Button.PrimaryIndexTrigger, OVRInput.Controller.RTouch) || OVRInput.GetUp(OVRInput.Button.PrimaryIndexTrigger, OVRInput.Controller.RTouch);
-        var down = Mouse.current.leftButton.wasPressedThisFrame || OVRInput.GetDown(OVRInput.Button.PrimaryIndexTrigger, OVRInput.Controller.LTouch) || OVRInput.GetDown(OVRInput.Button.PrimaryIndexTrigger, OVRInput.Controller.RTouch);
+        var leftDown = Mouse.current.leftButton.wasPressedThisFrame || OVRInput.GetDown(OVRInput.Button.PrimaryIndexTrigger, OVRInput.Controller.LTouch) || OVRInput.GetDown(OVRInput.Button.PrimaryIndexTrigger, OVRInput.Controller.RTouch);
+        var rightDown = Mouse.current.rightButton.wasPressedThisFrame;
+        var middleDown = Mouse.current.middleButton.wasPressedThisFrame;
+        bool isControl = inputActions.Keyboard.ControlKey.IsPressed();
 
         // 左クリックでRaycast(オブジェクト選択)
         if (click || left || right)
@@ -241,13 +262,16 @@ public class MainProcess : KssBaseScript
                     rotateCenter = clickedGameObject.transform.position;
                 }
             }
-            else
+            else if (leftDown)
             {
                 Vector2 mousePos = Mouse.current.position.ReadValue();
                 Ray ray = Camera.main.ScreenPointToRay(mousePos);
-                if (Physics.Raycast(ray, out RaycastHit hit, 100, LayerMask.GetMask("Default"), QueryTriggerInteraction.Collide))
+                var hits = Physics.RaycastAll(ray, 100, LayerMask.GetMask("Default"), QueryTriggerInteraction.Collide).ToList();
+                hits.Sort((a, b) => a.distance > b.distance ? 1 : -1);
+                if (hits.Count > 0)
                 {
-                    clickedGameObject = hit.collider.gameObject;
+                    // 選択あり
+                    clickedGameObject = ((selectedObject == null) || (hits.FindIndex(d => d.collider.gameObject == selectedObject) < 0)) ? hits[0].collider.gameObject : hits[(hits.FindIndex(d => d.collider.gameObject == selectedObject) + 1) % hits.Count].collider.gameObject;
                     if (clickedGameObject.name == "Floor")
                     {
                         Plane plane = new Plane(Vector3.up, Vector3.zero);
@@ -261,6 +285,8 @@ public class MainProcess : KssBaseScript
                         rotateCenter = clickedGameObject.transform.position;
                     }
                 }
+                raycastHits.Clear();
+                raycastHits.AddRange(hits);
             }
             if (cameraController != null)
             {
@@ -271,11 +297,22 @@ public class MainProcess : KssBaseScript
                 var script = clickedGameObject.GetComponentInChildren<KssBaseScript>();
                 if (script != null)
                 {
-                    if (down)
+                    if (leftDown)
                     {
                         //　マウスダウン
                         selectedScript = script;
                         selectedScript.OnMouseDown();
+                        if (isControl)
+                        {
+                            // 選択中のマテリアルを解除
+                            foreach (var mat in selectedMaterials)
+                            {
+                                mat.shader = linesShader;
+                            }
+                            selectedMaterials.Clear();
+                            selectedObject = null;
+                            parameterLoader.SetAssemblyObject(selectedObject);
+                        }
                         // ゲームオブジェクトの名前を出力
                         Debug.Log(clickedGameObject.name);
                     }
@@ -292,9 +329,42 @@ public class MainProcess : KssBaseScript
                     {
                         cameraController.SetTargetPosition(clickedGameObject.transform.position);
                     }
-                    // ゲームオブジェクトの名前を出力
-                    Debug.Log(clickedGameObject.name);
+                    if (leftDown)
+                    {
+                        // 選択中のマテリアルをセット
+                        if (isControl)
+                        {
+                            if (selectedObject == clickedGameObject)
+                            {
+                                // 既に選択済みなのでマテリアルを解除
+                                selectedObject = null;
+                                parameterLoader.SetAssemblyObject(selectedObject);
+                            }
+                            else
+                            {
+                                selectedObject = clickedGameObject;
+                                parameterLoader.SetAssemblyObject(selectedObject);
+                            }
+                            StartCoroutine(SelectObject(clickedGameObject));
+                        }
+                        // ゲームオブジェクトの名前を出力
+                        Debug.Log(clickedGameObject.name);
+                    }
                 }
+            }
+        }
+        else if (rightDown)
+        {
+            if (isControl)
+            {
+                // 選択中のマテリアルを解除
+                foreach (var mat in selectedMaterials)
+                {
+                    mat.shader = linesShader;
+                }
+                selectedMaterials.Clear();
+                selectedObject = null;
+                parameterLoader.SetAssemblyObject(selectedObject);
             }
         }
         else
@@ -408,5 +478,40 @@ public class MainProcess : KssBaseScript
                 }
             }
         }
+    }
+
+    /// <summary>
+    /// オブジェクトを選択する
+    /// </summary>
+    /// <param name="gameObject"></param>
+    public IEnumerator SelectObject(GameObject gameObject)
+    {
+        // 一旦選択解除
+        foreach (var mat in selectedMaterials)
+        {
+            mat.shader = linesShader;
+        }
+        selectedMaterials.Clear();
+        if (gameObject != null)
+        {
+            // 再選択
+            var renderers = gameObject.GetComponentsInChildren<Renderer>().ToList();
+            foreach (var renderer in renderers)
+            {
+                foreach (Material mat in renderer.materials)
+                {
+                    if (mat != null)
+                    {
+                        if (mat.name.Contains("Default Line Material"))
+                        {
+                            mat.shader = selectedShader;
+                            mat.SetColor("_Color", new Color(1f, 1 / 8f, 0, 0));
+                            selectedMaterials.Add(mat);
+                        }
+                    }
+                }
+            }
+        }
+        yield return null;
     }
 }

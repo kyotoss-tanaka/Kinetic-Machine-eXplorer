@@ -15,9 +15,14 @@ using TMPro;
 using Unity.VisualScripting;
 using UnityEditor;
 using UnityEngine;
+using UnityEngine.AddressableAssets.Initialization;
+using UnityEngine.AddressableAssets;
 using UnityEngine.InputSystem;
 using UnityEngine.InputSystem.Controls;
 using UnityEngine.Networking;
+using UnityEngine.ResourceManagement.AsyncOperations;
+using System.Collections;
+using System.Xml;
 
 public static class GlobalScript
 {
@@ -293,6 +298,26 @@ public static class GlobalScript
     /// </summary>
     public static long innerCycle = 0;
 
+    // static•Ï”‚ğ‰Šú‰»‚·‚éˆ—  
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    private static void Clear()
+    {
+        ClearDictionary();
+
+        objLock = new object();
+        buildConfig = new();
+        isLoading = false;
+        isLoaded = false;
+        isReqLoadEvent = false;
+        isCollision = false;
+        clipInfo = new();
+        isDebug = false;
+        callbackTags = new List<CallbackTag>();
+        actionTableDatas = new List<ActionTableData>();
+        objColLock = new object();
+        _workId = 0;
+    }
+
     /// <summary>
     /// «‘‚ğ‚·‚×‚Äíœ
     /// </summary>
@@ -302,14 +327,17 @@ public static class GlobalScript
         tagDatas = new Dictionary<string, Dictionary<string, Dictionary<string, TagInfo>>>();
         postgreses = new Dictionary<string, ComPostgres>();
         mongos = new Dictionary<string, ComMongo>();
+        opcuaapis = new Dictionary<string, ComOpcUaApi>();
         mqtts = new Dictionary<string, ComMqtt>();
         redises = new Dictionary<string, ComRedis>();
         inners = new Dictionary<string, ComInner>();
-        opcuaapis = new Dictionary<string, ComOpcUaApi>();
-        mcprotocols = new Dictionary<string,ComMcProtocol>();
+        mcprotocols = new Dictionary<string, ComMcProtocol>();
         mickses = new Dictionary<string, ComMicks>();
+        opcuas = new Dictionary<string, ComOpcUa>();
+        works = new Dictionary<string, GameObject>();
         regObjects = new Dictionary<string, List<GameObject>>();
         regScripts = new Dictionary<string, List<GameObject>>();
+        dctMaterial = new Dictionary<MeshRenderer, ChangeMaterial>();
     }
 
     /// <summary>

@@ -64,8 +64,15 @@ public class LedScript : KssBaseScript
     // Start is called before the first frame update
     protected override void Start()
     {
+        if (leds == null)
+        {
+            leds = new();
+        }
+        if (values == null)
+        {
+            values = new();
+        }
         meshRenderers = transform.GetComponentsInChildren<MeshRenderer>().ToList();
-
         /*
         // ポストプロセスセット
         foreach (var renderer in meshRenderers)
@@ -90,9 +97,12 @@ public class LedScript : KssBaseScript
     protected override void OnDestroy()
     {
         base.OnDestroy();
-        foreach (var led in leds)
+        if (leds != null)
         {
-            Destroy(led.material);
+            foreach (var led in leds)
+            {
+                Destroy(led.material);
+            }
         }
     }
 

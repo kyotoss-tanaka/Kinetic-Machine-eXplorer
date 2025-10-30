@@ -641,7 +641,7 @@ public class ComProtocolBase : ComBaseScript
     protected virtual void Disconnect()
     {
         IsConnected = false;
-        if (directData.isOpcUa)
+        if ((directData != null) && directData.isOpcUa)
         {
             if (opcua.session != null)
             {
@@ -650,7 +650,7 @@ public class ComProtocolBase : ComBaseScript
             }
             opcua.session = null;
         }
-        else if (directData.isUdp)
+        else if ((directData != null) && directData.isUdp)
         {
             if (udp._udpSocket != null)
             {
@@ -660,7 +660,7 @@ public class ComProtocolBase : ComBaseScript
             }
             udp.RemoteEndPoint = null;
         }
-        else
+        else if(tcp != null)
         {
             if (tcp._tcpStream != null)
             {

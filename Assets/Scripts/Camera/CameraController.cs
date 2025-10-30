@@ -30,6 +30,8 @@ public class CameraController : MonoBehaviour
     private Vector3 initAngles;
     private Vector3 targetPosition;
 
+    private float focusDistance = 0.5f;
+
     private bool mousePressed = false;
     private bool mouseWasPressedThisFrame = false;
 
@@ -197,7 +199,10 @@ public class CameraController : MonoBehaviour
     {
         if (cameraEnable)
         {
-            transform.position += transform.forward * delta * wheelSpeed;
+            float dist = Vector3.Distance(transform.position, targetPosition);
+            float speedFactor = Mathf.Clamp01(dist / 10f);  // 距離10以上なら最大速、近いときは遅く
+            float moveSpeed = wheelSpeed * speedFactor;
+            transform.position += transform.forward * delta * moveSpeed;
         }
     }
 
@@ -227,5 +232,19 @@ public class CameraController : MonoBehaviour
     {
         transform.RotateAround(targetPosition, transform.right, angle.x);
         transform.RotateAround(targetPosition, Vector3.up, angle.y);
+    }
+
+    /// <summary>
+    /// フォーカス
+    /// </summary>
+    /// <param name="target"></param>
+    public void FocusTo(Transform target)
+    {
+        focusDistance = focusDistance <= 1f ? 3f : 1f;
+        // カメラの向きは維持したまま、ターゲットを中央に
+        Vector3 forward = transform.forward;
+        transform.position = target.position - forward * focusDistance;
+
+        SetTargetPosition(target.position);
     }
 }

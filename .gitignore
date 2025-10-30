@@ -13,6 +13,7 @@
 /Assets/Resources/Pixyz/
 /Assets/StreamingAssets/
 /Assets/AssetStoreTools*
+/ServerData/
 *.log
 
 # By default unity supports Blender asset imports, *.blend1 blender files do not need to be commited to version control.
@@ -92,3 +93,4 @@ crashlytics-build.properties
 /Assets/Scenes/Simuration.unity
 /Assets/3DModels
 
+/Assets/Fonts/NotoSansJP

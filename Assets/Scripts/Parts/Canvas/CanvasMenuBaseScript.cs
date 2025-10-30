@@ -2,8 +2,8 @@ using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
 using UnityEngine.EventSystems;
+using UnityEngine.InputSystem;
 using UnityEngine.UI;
-using static System.Net.Mime.MediaTypeNames;
 
 public class CanvasMenuBaseScript : KssBaseScript, IDragHandler
 {
@@ -11,6 +11,22 @@ public class CanvasMenuBaseScript : KssBaseScript, IDragHandler
     /// 右
     /// </summary>
     protected bool isRight;
+    /// <summary>
+    /// クリック検知用
+    /// </summary>
+    protected GraphicRaycaster raycaster;
+    /// <summary>
+    /// ポインタイベントデータ
+    /// </summary>
+    private PointerEventData pointerEventData;
+    /// <summary>
+    /// イベントシステム
+    /// </summary>
+    private EventSystem eventSystem;
+    /// <summary>
+    /// キャンバス
+    /// </summary>
+    private Canvas canvas;
     /// <summary>
     /// 初期表示エリア
     /// </summary>
@@ -32,11 +48,25 @@ public class CanvasMenuBaseScript : KssBaseScript, IDragHandler
     /// </summary>
     Sprite imgShrink;
     /// <summary>
+    /// 幅
+    /// </summary>
+    private int lastWidth;
+    /// <summary>
+    /// 高さ
+    /// </summary>
+    private int lastHeight;
+    /// <summary>
+    /// ダブルクリック用
+    /// </summary>
+    private float lastClickTime = 0f;
+    /// <summary>
     /// 開始処理
     /// </summary>
     protected override void Awake()
     {
-        // オブジェクト取得
+        canvas = this.transform.parent.GetComponent<Canvas>();
+        raycaster = canvas.GetComponent<GraphicRaycaster>();
+        eventSystem = EventSystem.current;
         initRect = ((RectTransform)transform).rect;
         btnEnable = GetComponentsInChildren<Button>().ToList().Find(d => d.name.Contains("Expand"));
         objContents = GetComponentsInChildren<Transform>().ToList().Find(d => d.name.Contains("Contents")).gameObject;
@@ -52,12 +82,35 @@ public class CanvasMenuBaseScript : KssBaseScript, IDragHandler
         if (isRight)
         {
             // 右上
-            ((RectTransform)transform).anchoredPosition = new Vector2(-initRect.width / 2, -initRect.height / 2);
+            ((RectTransform)transform).anchoredPosition = new Vector2(-initRect.width, 0);
         }
         else
         {
             // 左上
-            ((RectTransform)transform).anchoredPosition = new Vector2(initRect.width / 2, -initRect.height / 2);
+            ((RectTransform)transform).anchoredPosition = new Vector2(0, 0);
+        }
+        // 初期値セット
+        lastWidth = (int)canvas.pixelRect.width;
+        lastHeight = (int)canvas.pixelRect.height;
+    }
+
+    /// <summary>
+    /// 更新
+    /// </summary>
+    protected override void Update()
+    {
+        base.Update();
+        if ((lastWidth != (int)canvas.pixelRect.width) || (lastHeight != (int)canvas.pixelRect.height))
+        {
+            RenewPosition();
+            lastWidth = (int)canvas.pixelRect.width;
+            lastHeight = (int)canvas.pixelRect.height;
+        }
+        if (Mouse.current.leftButton.wasPressedThisFrame || Mouse.current.rightButton.wasPressedThisFrame)
+        {
+            float time = Time.time;
+            DetectClickedText(Mouse.current.rightButton.wasPressedThisFrame, time - lastClickTime < 0.3f);
+            lastClickTime = time;
         }
     }
 
@@ -107,60 +160,83 @@ public class CanvasMenuBaseScript : KssBaseScript, IDragHandler
     /// <param name="eventData"></param>
     public void OnDrag(PointerEventData eventData)
     {
-        var canvas = this.transform.parent.GetComponent<Canvas>();
         var rectTransform = (RectTransform)transform;
         var x = rectTransform.anchoredPosition.x + eventData.delta.x;
         var y = rectTransform.anchoredPosition.y + eventData.delta.y;
+        RenewPosition(x, y);
+    }
+
+    /// <summary>
+    /// 位置を更新
+    /// </summary>
+    private void RenewPosition()
+    {
+        var rectTransform = (RectTransform)transform;
+        RenewPosition(rectTransform.anchoredPosition.x, rectTransform.anchoredPosition.y);
+    }
+
+    /// <summary>
+    /// 位置を更新
+    /// </summary>
+    private void RenewPosition(float x, float y)
+    {
+        var rectTransform = (RectTransform)transform;
         if (isRight)
         {
-            if (x > -rectTransform.sizeDelta.x / 2)
+            if (x > -rectTransform.sizeDelta.x)
             {
-                x = -rectTransform.sizeDelta.x / 2;
+                x = -rectTransform.sizeDelta.x;
             }
-            else if (x < -canvas.pixelRect.width + rectTransform.sizeDelta.x / 2)
+            else if (x < -canvas.pixelRect.width)
             {
-                x = -canvas.pixelRect.width + rectTransform.sizeDelta.x / 2;
+                x = -canvas.pixelRect.width;
             }
         }
         else
         {
-            if (x < rectTransform.sizeDelta.x / 2)
+            if (x < 0)
             {
-                x = rectTransform.sizeDelta.x / 2;
+                x = 0;
             }
-            else if (x > canvas.pixelRect.width - rectTransform.sizeDelta.x / 2)
+            else if (x > canvas.pixelRect.width - rectTransform.sizeDelta.x)
             {
-                x = canvas.pixelRect.width - rectTransform.sizeDelta.x / 2;
+                x = canvas.pixelRect.width - rectTransform.sizeDelta.x;
             }
         }
-        if (y > -rectTransform.sizeDelta.y / 2)
+        if (y > 0)
         {
-            y = -rectTransform.sizeDelta.y / 2;
+            y = 0;
         }
-        else if (y < -canvas.pixelRect.height + rectTransform.sizeDelta.y / 2)
+        else if (y < -canvas.pixelRect.height + rectTransform.sizeDelta.y)
         {
-            y = -canvas.pixelRect.height + rectTransform.sizeDelta.y / 2;
+            y = -canvas.pixelRect.height + rectTransform.sizeDelta.y;
         }
         rectTransform.anchoredPosition = new Vector2(x, y);
-        /*
+    }
 
-        Vector3[] worldCorners = new Vector3[4];
-        rectTransform.GetWorldCorners(worldCorners);
-
-        for (int i = 0; i < 4; i++)
+    /// <summary>
+    /// クリックイベント
+    /// </summary>
+    private void DetectClickedText(bool isRight, bool isDoubleClick)
+    {
+        Vector2 mousePos = Mouse.current.position.ReadValue();
+        pointerEventData = new PointerEventData(eventSystem)
         {
-            Vector3 screenPoint = RectTransformUtility.WorldToScreenPoint(canvas.worldCamera, worldCorners[i]);
-
-            // 画面内か確認
-            if (screenPoint.x < 0 || screenPoint.x > Screen.width ||
-                screenPoint.y < 0 || screenPoint.y > Screen.height)
-            {
-                // 少しでもはみ出てたらNG
-                var x = screenPoint.x < 0 ? screenPoint.x : (screenPoint.x > Screen.width ? screenPoint.x - Screen.width : 0);
-                var y = screenPoint.y < 0 ? screenPoint.y : (screenPoint.y > Screen.height ? screenPoint.y - Screen.height : 0);
-                ((RectTransform)transform).anchoredPosition += new Vector2(-x, -y);
-            }
+            position = mousePos
+        };
+        var results = new List<RaycastResult>();
+        raycaster.Raycast(pointerEventData, results);
+        foreach (var result in results)
+        {
+            ClickObject(result.gameObject, isRight, isDoubleClick);
         }
-        */
+    }
+
+    /// <summary>
+    /// オブジェクトクリック
+    /// </summary>
+    /// <param name="name"></param>
+    protected virtual void ClickObject(GameObject clickedObject, bool isRight, bool isDoubleClick)
+    {
     }
 }
