@@ -1,4 +1,5 @@
 #if UNITY_EDITOR
+#if DEV_PC
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -200,4 +201,5 @@ public class AddressablePrefabRegistrar
         }
     }
 }
+#endif
 #endif

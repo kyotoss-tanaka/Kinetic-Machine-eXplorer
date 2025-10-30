@@ -1,4 +1,5 @@
 #if UNITY_EDITOR
+#if DEV_PC
 using NUnit.Framework.Constraints;
 using Oculus.Platform;
 using System;
@@ -2093,4 +2094,5 @@ public class InputDialogWindow : EditorWindow
         EditorGUILayout.EndHorizontal();
     }
 }
+#endif
 #endif
