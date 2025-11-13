@@ -203,6 +203,17 @@ public class ComMcProtocol : ComProtocolBase
                     dataCount = (int)Math.Ceiling((decimal)dataCount / BIT_COUNT);
                 }
             }
+            else
+            {
+                if (data.DataType == DBSetting.eDeviceSize.DW)
+                {
+                    dataCount *= 2;
+                }
+                else if (data.DataType == DBSetting.eDeviceSize.QW)
+                {
+                    dataCount *= 4;
+                }
+            }
             body.AddRange(BitConverter.GetBytes((ushort)dataCount));
         }
         else
@@ -278,13 +289,25 @@ public class ComMcProtocol : ComProtocolBase
             else
             {
                 // ワードデータ
+                var size = data.DataType == DBSetting.eDeviceSize.DW ? sizeof(int) : (data.DataType == DBSetting.eDeviceSize.QW ? sizeof(long) : sizeof(short));
                 for (var i = 2; i < buff.Length; i += sizeof(ushort))
                 {
                     if (index < data.values.Count)
                     {
                         if (data.values[index] != null)
                         {
-                            data.values[index].Value = BitConverter.ToInt16(buff, i);
+                            if (data.DataType == DBSetting.eDeviceSize.DW)
+                            {
+                                data.values[index].Value = BitConverter.ToInt32(buff, i);
+                            }
+                            else if (data.DataType == DBSetting.eDeviceSize.QW)
+                            {
+                                data.values[index].Value = (int)BitConverter.ToInt64(buff, i);
+                            }
+                            else
+                            {
+                                data.values[index].Value = BitConverter.ToInt16(buff, i);
+                            }
                         }
                     }
                     else

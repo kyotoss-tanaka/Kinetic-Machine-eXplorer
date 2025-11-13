@@ -111,6 +111,10 @@ namespace Parameters
 
         // 編集モード
         private bool isEditMode = false;
+
+        // 初回起動
+        private bool isFirstLoad = false;
+
         void Awake()
         {
             DebugLog($"***** Start Load *****");
@@ -169,6 +173,7 @@ namespace Parameters
                 {
                     //                    prefabs = GlobalScript.CreateInitialModel();
                     yield return StartCoroutine(LoadAddressablePrefabs(prefabSettings, prefabs));
+                    isFirstLoad = true;
                 }
                 // スイッチモデルロード
                 if (switchPrefabs.Count == 0)
@@ -410,26 +415,30 @@ namespace Parameters
                             prefabData.name = prefab.name;
                             prefabData.transform.parent = prefabObj.transform;
                         }
-                        // シェーダーセット
-                        foreach (Renderer renderer in prefabData.GetComponentsInChildren<Renderer>())
+                        if (isFirstLoad)
                         {
-                            foreach (Material mat in renderer.materials)
+                            // シェーダーセット
+                            foreach (Renderer renderer in prefabData.GetComponentsInChildren<Renderer>())
                             {
-                                if (mat != null)
+                                foreach (Material mat in renderer.materials)
                                 {
-                                    if (mat.name == "Default Line Material (Instance)")
+                                    if (mat != null)
                                     {
-//                                        if (mat.shader.name == "Hidden/InternalErrorShader")
-//                                        {
+                                        if (mat.name == "Default Line Material (Instance)")
+                                        {
+                                            //                                        if (mat.shader.name == "Hidden/InternalErrorShader")
+                                            //                                        {
                                             mat.shader = linesShader;
                                             mat.SetColor("_BaseColor", new Color(0, 0, 0, 0));
-//                                        }
+                                            //                                        }
+                                        }
                                     }
                                 }
                             }
                         }
                     }
                 }
+                isFirstLoad = false;
                 yield return null; // 1フレーム待
 
                 if (isEditMode)
