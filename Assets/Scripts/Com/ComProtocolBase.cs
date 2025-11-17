@@ -17,6 +17,7 @@ using Opc.Ua;
 using Opc.Ua.Client;
 using Opc.Ua.Configuration;
 using Opc.Ua.Server;
+using TMPro;
 
 public class ComProtocolBase : ComBaseScript
 {
@@ -205,6 +206,26 @@ public class ComProtocolBase : ComBaseScript
     protected byte[] readBuff;
 
     /// <summary>
+    /// 直接通信キャンバス
+    /// </summary>
+    protected GameObject directCanvas;
+
+    /// <summary>
+    /// PING
+    /// </summary>
+    protected TextMeshProUGUI txtPing;
+
+    /// <summary>
+    /// 接続状態
+    /// </summary>
+    protected TextMeshProUGUI txtConnected;
+
+    /// <summary>
+    /// 通信サイクル
+    /// </summary>
+    protected TextMeshProUGUI txtCycle;
+
+    /// <summary>
     /// ビットレジスタ定義
     /// </summary>
     protected virtual List<string> regTypeBit
@@ -354,6 +375,19 @@ public class ComProtocolBase : ComBaseScript
             else
             {
                 yield return new WaitForSecondsRealtime(Cycle / 1000f);
+            }
+            // キャンバス更新
+            if (txtPing != null)
+            {
+                txtPing.text = IsPing.ToString();
+            }
+            if (txtConnected != null)
+            {
+                txtConnected.text = IsConnected.ToString();
+            }
+            if (txtCycle != null)
+            {
+                txtCycle.text = "R:" + swRecieve.cycle + (isClientMode ? "" : " / S:" + swSend.cycle);
             }
         }
     }
@@ -1306,5 +1340,32 @@ public class ComProtocolBase : ComBaseScript
         IsProcessing = false;
         isFirst = true;
         isRcvDb = false;
+    }
+
+    /// <summary>
+    /// パラメータセット
+    /// </summary>
+    /// <param name="No"></param>
+    /// <param name="Cycle"></param>
+    /// <param name="Server"></param>
+    /// <param name="Port"></param>
+    /// <param name="Database"></param>
+    /// <param name="User"></param>
+    /// <param name="Password"></param>
+    /// <param name="isClientMode"></param>
+    public virtual void SetParameter(int No, int Cycle, string Server, int Port, string Database, string User, string Password, bool isClientMode, DataExchangeSetting dataExchange, KmxDirectData directData, GameObject directCanvas)
+    {
+        this.directCanvas = directCanvas;
+        var txtProtocol = directCanvas.GetComponentsInChildren<TextMeshProUGUI>().ToList().Find(d => d.name == "TxtProtocol");
+        var txtIpAddress = directCanvas.GetComponentsInChildren<TextMeshProUGUI>().ToList().Find(d => d.name == "TxtIpAddress");
+        txtPing = directCanvas.GetComponentsInChildren<TextMeshProUGUI>().ToList().Find(d => d.name == "TxtPing");
+        txtConnected = directCanvas.GetComponentsInChildren<TextMeshProUGUI>().ToList().Find(d => d.name == "TxtConnection");
+        txtCycle = directCanvas.GetComponentsInChildren<TextMeshProUGUI>().ToList().Find(d => d.name == "TxtCycle");
+        txtProtocol.text = directData.protocol.ToString();
+        txtIpAddress.text = directData.IpAddress;
+        txtPing.text = "False";
+        txtConnected.text = "False";
+        txtCycle.text = "";
+        SetParameter(No, Cycle, Server, Port, Database, User, Password, isClientMode, dataExchange, directData);
     }
 }

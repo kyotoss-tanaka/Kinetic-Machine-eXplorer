@@ -97,14 +97,18 @@ namespace Parameters
         private CanvasMenuAssemblyScript assemblyScript;
         private GameObject uiAssembly;
 
-        // アセンブリ選択
         // プログレスバー
+        private int devMax = 4;
         private GameObject uiProgress;
         private Slider prgSlider;
         private TextMeshProUGUI prgText;
         private TextMeshProUGUI prgText2;
 
-        private int devMax = 4;
+        // 直接通信
+        private GameObject uiDirectCom;
+        private GameObject directComContents;
+        private List<GameObject> directComInfos = new();
+
 
         // マテリアルキャッシュ
         private Dictionary<string, Material> materialCache = new Dictionary<string, Material>();
@@ -167,7 +171,7 @@ namespace Parameters
                 var task = LoadParameterFiles();
                 // 完了するまで待つ
                 yield return new WaitUntil(() => task.IsCompleted);
-
+             
                 DebugLog($"***** Load Prefab Model *****");
                 if (prefabs.Count == 0)
                 {
@@ -266,8 +270,16 @@ namespace Parameters
                     else if (p.isDirectMode)
                     {
                         // 直接通信モード
+                        foreach (var direct in directComInfos)
+                        {
+                            Destroy(direct);
+                        }
                         foreach (var direct in p.directDatas)
                         {
+                            var directComInfo = Instantiate(directComContents);
+                            directComInfo.transform.parent = uiDirectCom.transform;
+                            directComInfo.transform.localPosition = new Vector3(0, -50 - 20 * p.directDatas.IndexOf(direct), 0);
+                            directComInfo.SetActive(true);
                             ex = dataExSettings.Find(d => (d.dbNo == p.No) && (d.mechId == direct.mechId));
                             if (ex == null)
                             {
@@ -276,19 +288,27 @@ namespace Parameters
                             if (direct.isMcProtocol)
                             {
                                 var db = (ComMcProtocol)globalSetting.AddComponent<ComMcProtocol>();
-                                db.SetParameter(p.No, p.Cycle, p.Server, p.Port, p.Database, p.User, p.Password, p.isClientMode, ex, direct);
+                                db.SetParameter(p.No, p.Cycle, p.Server, p.Port, p.Database, p.User, p.Password, p.isClientMode, ex, direct, directComInfo);
                             }
                             else if (direct.isMicks)
                             {
                                 var db = (ComMicks)globalSetting.AddComponent<ComMicks>();
-                                db.SetParameter(p.No, p.Cycle, p.Server, p.Port, p.Database, p.User, p.Password, p.isClientMode, ex, direct);
+                                db.SetParameter(p.No, p.Cycle, p.Server, p.Port, p.Database, p.User, p.Password, p.isClientMode, ex, direct, directComInfo);
                             }
                             else if (direct.isOpcUa)
                             {
                                 var db = (ComOpcUa)globalSetting.AddComponent<ComOpcUa>();
-                                db.SetParameter(p.No, p.Cycle, p.Server, p.Port, p.Database, p.User, p.Password, p.isClientMode, ex, direct);
+                                db.SetParameter(p.No, p.Cycle, p.Server, p.Port, p.Database, p.User, p.Password, p.isClientMode, ex, direct, directComInfo);
                             }
+                            else
+                            {
+                                Destroy(directComInfo);
+                                continue;
+                            }
+                            directComInfos.Add(directComInfo);
                         }
+                        // 表示更新
+                        uiDirectCom.GetComponent<RectTransform>().sizeDelta = new Vector2(500, 50 + 20 * p.directDatas.Count);
                     }
                 }
                 /*
@@ -1571,6 +1591,13 @@ namespace Parameters
                 prgSlider = uiProgress.GetComponentInChildren<Slider>();
                 prgText = uiProgress.GetComponentsInChildren<TextMeshProUGUI>().ToList().Find(d => d.name == "prgText");
                 prgText2 = uiProgress.GetComponentsInChildren<TextMeshProUGUI>().ToList().Find(d => d.name == "prgText2");
+            }
+            var direct = GlobalScript.LoadPrefabObject("Prefabs/Canvas", "DirectComInfo");
+            if (direct.Count > 0)
+            {
+                uiDirectCom = Instantiate(direct[0]);
+                uiDirectCom.transform.SetParent(canvaObj.transform, false);
+                directComContents = uiDirectCom.GetComponentsInChildren<Transform>(true).ToList().Find(d => d.name == "DirectComContents").gameObject;
             }
         }
 

@@ -202,10 +202,10 @@ public class ComOpcUa : ComProtocolBase
         }
     }
 
-    public override void SetParameter(int No, int Cycle, string Server, int Port, string Database, string User, string Password, bool isClientMode, DataExchangeSetting dataExchange, PostgresSetting.KmxDirectData directData)
+    public override void SetParameter(int No, int Cycle, string Server, int Port, string Database, string User, string Password, bool isClientMode, DataExchangeSetting dataExchange, PostgresSetting.KmxDirectData directData, GameObject directCanvas)
     {
         endpointUrl = directData.endpointURL;
         ushort.TryParse(directData.nameSpaceIndex, out namespaceIndex);
-        base.SetParameter(No, Cycle, Server, Port, Database, User, Password, isClientMode, dataExchange, directData);
+        base.SetParameter(No, Cycle, Server, Port, Database, User, Password, isClientMode, dataExchange, directData, directCanvas);
     }
 }
