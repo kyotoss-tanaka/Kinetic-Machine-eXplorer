@@ -3,9 +3,11 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Drawing;
+using System.Linq;
 using System.Text.Json;
 using Unity.VisualScripting;
 using UnityEngine;
+using UnityEngine.UIElements;
 using static GlobalScript;
 using static OVRPlugin;
 
@@ -80,11 +82,29 @@ public class ExMechScript : UseTagBaseScript
                 _moveDir = value;
             }
         }
-        private Vector3 _mainDir;
-        public Vector3 mainMask;
-        private Vector3 _moveDir;
-        public Vector3 moveMask;
-        public Vector3 guideDir;
+        public Vector3 guideDir
+        {
+            get
+            {
+                return _guideDir;
+            }
+            set
+            {
+                guideMask = new Vector3
+                {
+                    x = ((value == Vector3.right) || (value == Vector3.left)) ? 0 : 1,
+                    y = ((value == Vector3.up) || (value == Vector3.down)) ? 0 : 1,
+                    z = ((value == Vector3.forward) || (value == Vector3.back)) ? 0 : 1,
+                };
+                _guideDir = value;
+            }
+        }
+        protected Vector3 _mainDir;
+        protected Vector3 mainMask;
+        protected Vector3 _moveDir;
+        protected Vector3 moveMask;
+        protected Vector3 _guideDir;
+        protected Vector3 guideMask;
         public Vector3 pntAPos
         {
             get
@@ -113,7 +133,7 @@ public class ExMechScript : UseTagBaseScript
                 }
             }
         }
-        public Vector3 movePos
+        public virtual Vector3 movePos
         {
             get
             {
@@ -240,6 +260,30 @@ public class ExMechScript : UseTagBaseScript
         }
 
         /// <summary>
+        /// メッシュで一番遠いポイント
+        /// </summary>
+        /// <returns></returns>
+        protected Vector3 GetModelNearPoint(GameObject model, ref GameObject obj)
+        {
+            Vector3 point = Vector3.zero;
+            var distance = 1000f;
+            foreach (Transform child in model.GetComponentInChildren<Transform>())
+            {
+                if (child != model.transform)
+                {
+                    var d = Vector3.Distance(Vector3.zero, child.transform.localPosition);
+                    if (distance > d)
+                    {
+                        distance = d;
+                        point = child.transform.localPosition;
+                        obj = child.gameObject;
+                    }
+                }
+            }
+            return point;
+        }
+
+        /// <summary>
         /// 0-360°に正規化
         /// </summary>
         /// <param name="angle"></param>
@@ -274,31 +318,57 @@ public class ExMechScript : UseTagBaseScript
         public GameObject pntAObject;
         public GameObject pntBObject;
         public Vector3 pntBOffset;
-        public Vector3 pntBPos;
         private Quaternion rotation = new();
         private float yOffset;
-
+        public override Vector3 movePos
+        {
+            get
+            {
+                return Quaternion.Inverse(rotation) * (new Vector3((pntBGuidePos - pntBGuideOffset).x, 0, 0));
+            }
+        }
         private Vector2 pntAGuidePos
         {
             get
             {
                 var pos = rotation * guideSpace.transform.InverseTransformPoint(pntAObject.transform.position);
-                if ((moveDir == Vector3.forward) || (moveDir == Vector3.back))
+                if ((guideDir == Vector3.right) || (guideDir == Vector3.left))
                 {
-                    // 回転軸がZ
-                    return new Vector2(pos.x, pos.y);
+                    if ((moveDir == Vector3.forward) || (moveDir == Vector3.back))
+                    {
+                        // 回転軸がZ
+                        return new Vector2(pos.x, pos.y);
+                    }
+                    else if ((moveDir == Vector3.up) || (moveDir == Vector3.down))
+                    {
+                        // 回転軸がY
+                        return new Vector2(pos.x, pos.z);
+                    }
                 }
-                else if ((moveDir == Vector3.up) || (moveDir == Vector3.down))
+                else if ((guideDir == Vector3.up) || (guideDir == Vector3.down))
                 {
-                    // 回転軸がY
-                    return new Vector2(pos.x, pos.z);
+                    // ガイドがY方向
+                    if ((moveDir == Vector3.forward) || (moveDir == Vector3.back))
+                    {
+                        // 回転軸がZ
+                        return new Vector2(pos.x, pos.y);
+
+                    }
+                    else if ((moveDir == Vector3.right) || (moveDir == Vector3.left))
+                    {
+                        // 回転軸がX
+                        return new Vector2(pos.x, pos.z);
+                    }
                 }
                 else
                 {
-                    return new();
+                    // ガイドがZ方向
                 }
+                return new();
             }
         }
+        private Vector2 pntBGuidePos;
+        private Vector2 pntBGuideOffset;
 
         /// <summary>
         /// 初期化処理
@@ -319,25 +389,27 @@ public class ExMechScript : UseTagBaseScript
             // 制御対象オブジェクトを作成
             pntAObject = new GameObject("PointA");
 
-            // コンロッドの根元がどちら側かチェック
-            if ((tmpA.magnitude - armL) > (tmpB.magnitude - armL))
+            // コンロッドの根元がどちら側かチェック(主軸の軸上にいるか)
+            if (CheckRod(tmpA, tmpB))
             {
                 // AとB入れ替え
+                armL = Vector3.Distance(Vector3.zero, tmpB);
                 modeB = true;
                 pntBOffset = pntAOffset;
                 pntAOffset = guideSpace.transform.InverseTransformPoint(pos);
                 pntAObject.transform.position = pntBObject.transform.position;
                 pntAObject.transform.eulerAngles = pntBObject.transform.eulerAngles;
-                pntAObject.transform.parent = pntBObject.transform;
+                GetModelNearPoint(pntAAxis.model, ref pntBObject);
+                pntBObject.transform.parent = sliderAxis.model.transform;
             }
             else
             {
                 pntAObject.transform.position = pntAAxis.model.transform.position;
                 pntAObject.transform.eulerAngles = pntAAxis.model.transform.eulerAngles;
-                pntAObject.transform.parent = mainAxis.model.transform;
-                // コンロッドの親設定
-                pntAAxis.SetParent(guideSpace);
             }
+            pntAObject.transform.parent = mainAxis.model.transform;
+            // コンロッドの親設定
+            pntAAxis.SetParent(guideSpace);
 
             // 基準座標系
             armM = Vector3.Distance(Vector3.Scale(pntAOffset, moveMask), Vector3.Scale(pntBOffset, moveMask));
@@ -346,21 +418,54 @@ public class ExMechScript : UseTagBaseScript
             var pntA = Vector3.Scale(pntAOffset, moveMask);
             var pntB = Vector3.Scale(pntBOffset, moveMask);
 
-            // マイナス方向判定
-            var xminus = (pntB - pntA).x < 0 ? 1 : 0;
-            if ((moveDir == Vector3.forward) || (moveDir == Vector3.back))
+            // ガイドの方向別処理
+            if ((guideDir == Vector3.right) || (guideDir == Vector3.left))
             {
-                // 回転軸がZ
-                var yminus = pntA.y < 0 ? 1 : 0;
-                rotation = Quaternion.Euler(xminus != yminus ? 180 : 0, 0, xminus * 180);
-                yOffset = (rotation * pntB).y;
+                // ガイドがX方向
+                // マイナス方向判定
+                var xminus = (pntB - pntA).x < 0 ? 1 : 0;
+                if ((moveDir == Vector3.forward) || (moveDir == Vector3.back))
+                {
+                    // 回転軸がZ
+                    var yminus = pntA.y < 0 ? 1 : 0;
+                    rotation = Quaternion.Euler(xminus != yminus ? 180 : 0, 0, xminus * 180);
+                    yOffset = (rotation * pntB).y;
+                    var tmp = rotation * pntB;
+                    pntBGuideOffset = new Vector2(tmp.x, tmp.y);
+                }
+                else if ((moveDir == Vector3.up) || (moveDir == Vector3.down))
+                {
+                    // 回転軸がY
+                    var yminus = pntA.z < 0 ? 1 : 0;
+                    rotation = Quaternion.Euler(xminus != yminus ? 180 : 0, xminus * 180, 0);
+                    yOffset = (rotation * pntB).z;
+                    var tmp = rotation * pntB;
+                    pntBGuideOffset = new Vector2(tmp.x, tmp.z);
+                }
             }
-            else if ((moveDir == Vector3.up) || (moveDir == Vector3.down))
+            else if ((guideDir == Vector3.up) || (guideDir == Vector3.down))
             {
-                // 回転軸がY
-                var yminus = pntA.z < 0 ? 1 : 0;
-                rotation = Quaternion.Euler(xminus != yminus ? 180 : 0, xminus * 180, 0);
-                yOffset = (rotation * pntB).z;
+                // ガイドがY方向
+                var xminus = (pntB - pntA).y < 0 ? 1 : 0;
+                if ((moveDir == Vector3.forward) || (moveDir == Vector3.back))
+                {
+                    // 回転軸がZ
+                    var yminus = pntA.x < 0 ? 1 : 0;
+
+                }
+                else if ((moveDir == Vector3.right) || (moveDir == Vector3.left))
+                {
+                    // 回転軸がX
+                    var yminus = pntA.z < 0 ? 1 : 0;
+                    rotation = Quaternion.Euler(xminus * 180, xminus != yminus ? 180 : 0, -90);
+                    yOffset = (rotation * pntB).z;
+                    var tmp = rotation * pntB;
+                    pntBGuideOffset = new Vector2(tmp.x, tmp.z);
+                }
+            }
+            else
+            {
+                // ガイドがZ方向
             }
         }
 
@@ -371,12 +476,17 @@ public class ExMechScript : UseTagBaseScript
         {
             base.RenewPos();
 
-            // θA
-            var thA2 = Vector3.Scale((Quaternion.Inverse(guideSpace.transform.rotation) * mainAxis.model.transform.rotation).eulerAngles, moveDir);
-
-            var thA = Mathf.Atan2(pntAGuidePos.y, pntAGuidePos.x);
+            // 2次元で計算
+            var y = pntAGuidePos.y - yOffset;
+            var x = MathF.Sqrt(armM * armM - y * y);
+            pntBGuidePos = new Vector2(pntAGuidePos.x + x, yOffset);
+            var thA = new Vector3(Mathf.Atan2(pntAGuidePos.y, pntAGuidePos.x) * Mathf.Rad2Deg, 0, 0);
+            var thB = new Vector3(0, 0, Mathf.Atan2(pntAGuidePos.y - pntBGuidePos.y, pntBGuidePos.x - pntAGuidePos.x) * Mathf.Rad2Deg);
+            // スライダの位置
+            sliderAxis.model.transform.position = guideSpace.transform.TransformPoint(sliderOffset + Vector3.Scale(movePos, guideDir));
             if (modeB)
             {
+                pntAAxis.model.transform.position = pntBObject.transform.position;
             }
             else
             {
@@ -403,6 +513,31 @@ public class ExMechScript : UseTagBaseScript
         /// <returns></returns>
         protected override void InverseKinematics()
         {
+        }
+
+        /// <summary>
+        /// 根元がBかチェック
+        /// </summary>
+        /// <param name="a"></param>
+        /// <param name="b"></param>
+        /// <returns></returns>
+        private bool CheckRod(Vector3 a, Vector3 b)
+        {
+            var dataA = new List<float>
+            {
+                Math.Abs(a.x + a.y),
+                Math.Abs(a.x + a.z),
+                Math.Abs(a.y + a.z)
+            };
+            var dataB = new List<float>
+            {
+                Math.Abs(b.x + b.y),
+                Math.Abs(b.x + b.z),
+                Math.Abs(b.y + b.z)
+            };
+            var minA = dataA.Min();
+            var minB = dataB.Min();
+            return minA > minB;
         }
     }
 
