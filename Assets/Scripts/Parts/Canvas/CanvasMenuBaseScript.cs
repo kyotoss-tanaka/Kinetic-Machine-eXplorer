@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Linq;
+using TMPro;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.InputSystem;
@@ -38,7 +39,7 @@ public class CanvasMenuBaseScript : KssBaseScript, IDragHandler
     /// <summary>
     /// コンテンツ
     /// </summary>
-    private GameObject objContents;
+    private List<Transform> objContents = new();
     /// <summary>
     /// 開く画像
     /// </summary>
@@ -48,13 +49,21 @@ public class CanvasMenuBaseScript : KssBaseScript, IDragHandler
     /// </summary>
     Sprite imgShrink;
     /// <summary>
+    /// 通常の幅
+    /// </summary>
+    private float normalWidth;
+    /// <summary>
+    /// 最小の幅
+    /// </summary>
+    private float minWidth;
+    /// <summary>
     /// 幅
     /// </summary>
     private int lastWidth;
     /// <summary>
     /// 高さ
     /// </summary>
-    private int lastHeight;
+    protected int lastHeight;
     /// <summary>
     /// ダブルクリック用
     /// </summary>
@@ -69,7 +78,7 @@ public class CanvasMenuBaseScript : KssBaseScript, IDragHandler
         eventSystem = EventSystem.current;
         initRect = ((RectTransform)transform).rect;
         btnEnable = GetComponentsInChildren<Button>().ToList().Find(d => d.name.Contains("Expand"));
-        objContents = GetComponentsInChildren<Transform>().ToList().Find(d => d.name.Contains("Contents")).gameObject;
+        var title = btnEnable.gameObject.GetComponentInChildren<TextMeshProUGUI>().gameObject;
 
         // 画像取得
         Sprite[] sprites = Resources.LoadAll<Sprite>("Icons/sprits");
@@ -79,19 +88,12 @@ public class CanvasMenuBaseScript : KssBaseScript, IDragHandler
 
         // 初期位置セット
         isRight = ((RectTransform)transform).anchorMax.x != 0;
-        if (isRight)
-        {
-            // 右上
-            ((RectTransform)transform).anchoredPosition = new Vector2(-initRect.width, 0);
-        }
-        else
-        {
-            // 左上
-            ((RectTransform)transform).anchoredPosition = new Vector2(0, 0);
-        }
+        ((RectTransform)transform).anchoredPosition = new Vector2(0, 0);
+
         // 初期値セット
         lastWidth = (int)canvas.pixelRect.width;
         lastHeight = (int)canvas.pixelRect.height;
+        minWidth = ((RectTransform)title.transform).sizeDelta.x + 40;
     }
 
     /// <summary>
@@ -119,6 +121,7 @@ public class CanvasMenuBaseScript : KssBaseScript, IDragHandler
     /// </summary>
     public virtual void SetEvents()
     {
+        objContents = GetComponentsInChildren<Transform>().ToList().FindAll(d => d.name.Contains("Contents"));
         ResetEvents();
         btnEnable.onClick.AddListener(expand_onClick);
     }
@@ -137,20 +140,26 @@ public class CanvasMenuBaseScript : KssBaseScript, IDragHandler
     private void expand_onClick()
     {
         var rect = (RectTransform)transform;
-        var y = rect.anchoredPosition.y + rect.sizeDelta.y / 2;
+        var y = rect.anchoredPosition.y;// + rect.sizeDelta.y / 2;
         if (rect.sizeDelta.y == 30)
         {
             btnEnable.image.sprite = imgShrink;
-            objContents.SetActive(true);
+            foreach (var obj in objContents)
+            {
+                obj.gameObject.SetActive(true);
+            }
             rect.sizeDelta = new Vector2(initRect.width, initRect.height);
-            rect.anchoredPosition = new Vector2(rect.anchoredPosition.x, y + initRect.y);
+            rect.anchoredPosition = new Vector2(rect.anchoredPosition.x, y);
         }
         else
         {
             btnEnable.image.sprite = imgExpand;
-            objContents.SetActive(false);
-            rect.sizeDelta = new Vector2(initRect.width, 30);
-            rect.anchoredPosition = new Vector2(rect.anchoredPosition.x, y - 15);
+            foreach (var obj in objContents)
+            {
+                obj.gameObject.SetActive(false);
+            }
+            rect.sizeDelta = new Vector2(minWidth, 30);
+            rect.anchoredPosition = new Vector2(rect.anchoredPosition.x, y);
         }
     }
 
@@ -183,13 +192,13 @@ public class CanvasMenuBaseScript : KssBaseScript, IDragHandler
         var rectTransform = (RectTransform)transform;
         if (isRight)
         {
-            if (x > -rectTransform.sizeDelta.x)
+            if (x > 0)
             {
-                x = -rectTransform.sizeDelta.x;
+                x = 0;
             }
-            else if (x < -canvas.pixelRect.width)
+            else if (x < rectTransform.sizeDelta.x - canvas.pixelRect.width)
             {
-                x = -canvas.pixelRect.width;
+                x = rectTransform.sizeDelta.x - canvas.pixelRect.width;
             }
         }
         else

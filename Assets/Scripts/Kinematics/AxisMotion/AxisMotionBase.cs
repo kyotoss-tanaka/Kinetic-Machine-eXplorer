@@ -458,6 +458,11 @@ public class AxisMotionBase : KinematicsBase
         // ユニット追加
         var exObj = new GameObject(unitSetting.name + "(ExMech)");
         exObj.transform.parent = unitSetting.unitObject.transform;
+        exObj.transform.localPosition = Vector3.zero;
+        exObj.transform.localEulerAngles = Vector3.zero;
+        exObj.transform.localScale = new(1, 1, 1);
+        var ex = unitSetting.exMechSetting.datas[0].gameObject.AddComponent<ExMechScript>();
+        ex.SetParameter(unitSetting, unitSetting.exMechSetting);
         // 親子関係設定
         foreach (var data in unitSetting.exMechSetting.datas)
         {
@@ -475,8 +480,6 @@ public class AxisMotionBase : KinematicsBase
                 return;
             }
         }
-        var ex = unitSetting.exMechSetting.datas[0].gameObject.AddComponent<ExMechScript>();
-        ex.SetParameter(unitSetting, unitSetting.exMechSetting);
     }
 
     /// <summary>

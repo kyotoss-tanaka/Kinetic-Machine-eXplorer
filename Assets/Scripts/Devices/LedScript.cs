@@ -109,6 +109,10 @@ public class LedScript : KssBaseScript
     protected override void MyFixedUpdate()
     {
         base.MyFixedUpdate();
+        if (leds == null)
+        {
+            leds = new();
+        }
         if (leds.Count > 0)
         {
             // タグ更新

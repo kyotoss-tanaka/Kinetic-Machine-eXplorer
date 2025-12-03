@@ -19,6 +19,7 @@ using UnityEngine.AddressableAssets.Initialization;
 using UnityEngine.AddressableAssets;
 using UnityEngine.ResourceManagement.AsyncOperations;
 using Unity.IO.LowLevel.Unsafe;
+using Oculus.Interaction.UnityCanvas;
 
 namespace Parameters
 {
@@ -88,14 +89,20 @@ namespace Parameters
 
         // パラメータ描画用
         private GameObject canvaObj;
+
+        // メニュー一覧
+        private GameObject uiInfoMenu;
+        private CanvasMenuInfoScript menuInfoScript;
+
+        private GameObject uiInfoPrefab;
+        private CanvasPrefabInfoScript prefabInfoScript;
+
         // 衝突検知
         private GameObject uiCollision;
+
         // 断面切断
         private CanvasMenuViewScript viewScript;
         private GameObject uiView;
-        // アセンブリ選択
-        private CanvasMenuAssemblyScript assemblyScript;
-        private GameObject uiAssembly;
 
         // プログレスバー
         private int devMax = 4;
@@ -103,12 +110,6 @@ namespace Parameters
         private Slider prgSlider;
         private TextMeshProUGUI prgText;
         private TextMeshProUGUI prgText2;
-
-        // 直接通信
-        private GameObject uiDirectCom;
-        private GameObject directComContents;
-        private List<GameObject> directComInfos = new();
-
 
         // マテリアルキャッシュ
         private Dictionary<string, Material> materialCache = new Dictionary<string, Material>();
@@ -234,6 +235,7 @@ namespace Parameters
                 }
 
                 DebugLog($"***** Set Database *****");
+
                 foreach (var p in postgresSettings)
                 {
                     var ex = dataExSettings.Find(d => d.dbNo == p.No);
@@ -270,16 +272,9 @@ namespace Parameters
                     else if (p.isDirectMode)
                     {
                         // 直接通信モード
-                        foreach (var direct in directComInfos)
-                        {
-                            Destroy(direct);
-                        }
                         foreach (var direct in p.directDatas)
                         {
-                            var directComInfo = Instantiate(directComContents);
-                            directComInfo.transform.parent = uiDirectCom.transform;
-                            directComInfo.transform.localPosition = new Vector3(0, -50 - 20 * p.directDatas.IndexOf(direct), 0);
-                            directComInfo.SetActive(true);
+                            // データ取得
                             ex = dataExSettings.Find(d => (d.dbNo == p.No) && (d.mechId == direct.mechId));
                             if (ex == null)
                             {
@@ -288,29 +283,22 @@ namespace Parameters
                             if (direct.isMcProtocol)
                             {
                                 var db = (ComMcProtocol)globalSetting.AddComponent<ComMcProtocol>();
-                                db.SetParameter(p.No, p.Cycle, p.Server, p.Port, p.Database, p.User, p.Password, p.isClientMode, ex, direct, directComInfo);
+                                db.SetParameter(p.No, p.Cycle, p.Server, p.Port, p.Database, p.User, p.Password, p.isClientMode, ex, direct);
                             }
                             else if (direct.isMicks)
                             {
                                 var db = (ComMicks)globalSetting.AddComponent<ComMicks>();
-                                db.SetParameter(p.No, p.Cycle, p.Server, p.Port, p.Database, p.User, p.Password, p.isClientMode, ex, direct, directComInfo);
+                                db.SetParameter(p.No, p.Cycle, p.Server, p.Port, p.Database, p.User, p.Password, p.isClientMode, ex, direct);
                             }
                             else if (direct.isOpcUa)
                             {
                                 var db = (ComOpcUa)globalSetting.AddComponent<ComOpcUa>();
-                                db.SetParameter(p.No, p.Cycle, p.Server, p.Port, p.Database, p.User, p.Password, p.isClientMode, ex, direct, directComInfo);
+                                db.SetParameter(p.No, p.Cycle, p.Server, p.Port, p.Database, p.User, p.Password, p.isClientMode, ex, direct);
                             }
-                            else
-                            {
-                                Destroy(directComInfo);
-                                continue;
-                            }
-                            directComInfos.Add(directComInfo);
                         }
-                        // 表示更新
-                        uiDirectCom.GetComponent<RectTransform>().sizeDelta = new Vector2(500, 50 + 20 * p.directDatas.Count);
                     }
                 }
+
                 /*
                 // 無視オブジェクト無効化
                 if (buildConfig.isRelease)
@@ -466,10 +454,6 @@ namespace Parameters
                     // 編集モード
                     movableObjs.Clear();
                     undefinedUnits.Clear();
-                    if (uiAssembly != null)
-                    {
-                        uiAssembly.SetActive(true);
-                    }
                 }
                 else
                 {
@@ -1046,16 +1030,17 @@ namespace Parameters
                     allLineMaterials = new();
                     var renderers = new List<Renderer>();
                     renderers.AddRange(prefabObj.GetComponentsInChildren<Renderer>().ToList());
+                    /*
                     // プレハブファイルに選択用コライダーセット
                     foreach (Renderer renderer in renderers)
                     {
-                        if (renderer.GetComponent<BoxCollider>() == null)
+                        if (renderer.GetComponent<Collider>() == null)
                         {
                             var bc = renderer.AddComponent<BoxCollider>();
                             bc.isTrigger = true;
                         }
                     }
-
+                    */
                     // 動作オブジェクト追加
                     foreach (var m in movableObjs)
                     {
@@ -1063,6 +1048,11 @@ namespace Parameters
                     }
                     foreach (Renderer renderer in renderers)
                     {
+                        if (renderer.GetComponent<Collider>() == null)
+                        {
+                            var bc = renderer.AddComponent<BoxCollider>();
+                            bc.isTrigger = true;
+                        }
                         foreach (Material mat in renderer.materials)
                         {
                             if (mat != null)
@@ -1146,6 +1136,9 @@ namespace Parameters
             }
             // イベント登録
             viewScript.SetEvents(allMaterials, allLineMaterials, standardShader, linesShader, clipShader);
+            menuInfoScript.SetEvents(unitSettings);
+            prefabInfoScript.SetEvents();
+
             GlobalScript.isLoading = false;
             GlobalScript.isLoaded = true;
             DebugLog($"***** Load Finished *****", true);
@@ -1176,6 +1169,7 @@ namespace Parameters
             {
                 Destroy(work.gameObject);
             }
+            // キャンバス削除
             foreach (var p in postgresSettings)
             {
                 var ex = dataExSettings.Find(d => d.dbNo == p.No);
@@ -1238,6 +1232,7 @@ namespace Parameters
                     }
                     foreach (var direct in p.directDatas)
                     {
+                        // データ取得
                         ex = dataExSettings.Find(d => (d.dbNo == p.No) && (d.mechId == direct.mechId));
                         if (direct.isMcProtocol)
                         {
@@ -1330,6 +1325,8 @@ namespace Parameters
                     }
                 }
             }
+            menuInfoScript.SetEvents(unitSettings);
+
             Resources.UnloadUnusedAssets();
             DebugLog($"***** Load Finished *****", true);
         }
@@ -1382,6 +1379,11 @@ namespace Parameters
             {
                 GlobalScript.isLoading = true;
                 GlobalScript.isLoaded = false;
+                // 情報削除
+                foreach (var obj in globalSetting.GetComponentsInChildren<ComBaseScript>())
+                {
+                    Destroy(obj);
+                }
                 StartCoroutine(LoadActParameter());
                 GlobalScript.isLoading = false;
                 GlobalScript.isLoaded = true;
@@ -1545,7 +1547,7 @@ namespace Parameters
                    children.Find(d => d.name.Contains("CRX-30IA")) != null ? RobotType.CRX_30iA : 
                    RobotType.UNDEFINED;
         }
-        
+
         /// <summary>
         /// キャンバス追加
         /// </summary>
@@ -1565,22 +1567,7 @@ namespace Parameters
                 collisionToggle = uiCollision.GetComponentInChildren<Toggle>();
             }
             */
-            var clip = GlobalScript.LoadPrefabObject("Prefabs/Canvas", "ViewSetting");
-            if (clip.Count > 0)
-            {
-                uiView = Instantiate(clip[0]);
-                uiView.transform.SetParent(canvaObj.transform, false);
-                viewScript = uiView.AddComponent<CanvasMenuViewScript>();
-                uiView.SetActive(false);
-            }
-            var asm = GlobalScript.LoadPrefabObject("Prefabs/Canvas", "AssemblySetting");
-            if (asm.Count > 0)
-            {
-                uiAssembly = Instantiate(asm[0]);
-                uiAssembly.transform.SetParent(canvaObj.transform, false);
-                assemblyScript = uiAssembly.AddComponent<CanvasMenuAssemblyScript>();
-                uiAssembly.SetActive(false);
-            }
+            // プログレスバー
             var progress = GlobalScript.LoadPrefabObject("Prefabs/Canvas", "ProgressSetting");
             if (progress.Count > 0)
             {
@@ -1592,50 +1579,34 @@ namespace Parameters
                 prgText = uiProgress.GetComponentsInChildren<TextMeshProUGUI>().ToList().Find(d => d.name == "prgText");
                 prgText2 = uiProgress.GetComponentsInChildren<TextMeshProUGUI>().ToList().Find(d => d.name == "prgText2");
             }
-            var direct = GlobalScript.LoadPrefabObject("Prefabs/Canvas", "DirectComInfo");
-            if (direct.Count > 0)
-            {
-                uiDirectCom = Instantiate(direct[0]);
-                uiDirectCom.transform.SetParent(canvaObj.transform, false);
-                directComContents = uiDirectCom.GetComponentsInChildren<Transform>(true).ToList().Find(d => d.name == "DirectComContents").gameObject;
-            }
-        }
 
-        /// <summary>
-        /// キャンバスの表示不可設定
-        /// </summary>
-        public void SetViewCanvas()
-        {
-            if (isEditMode)
+            // メニュー表示
+            var menu = GlobalScript.LoadPrefabObject("Prefabs/Canvas", "InfoMenu");
+            if (menu.Count > 0)
             {
-                if (uiAssembly != null)
-                {
-                    uiAssembly.SetActive(!uiAssembly.activeSelf);
-                }
-                if (uiView != null)
-                {
-                    uiView.SetActive(false);
-                }
+                uiInfoMenu = Instantiate(menu[0]);
+                uiInfoMenu.transform.SetParent(canvaObj.transform, false);
+                menuInfoScript = uiInfoMenu.AddComponent<CanvasMenuInfoScript>();
             }
-            else
-            {
-                if (uiView != null)
-                {
-                    uiView.SetActive(!uiView.activeSelf);
-                }
-                if (uiAssembly != null)
-                {
-                    uiAssembly.SetActive(false);
-                }
-            }
-        }
 
-        /// <summary>
-        /// アセンブリ選択
-        /// </summary>
-        public void SetAssemblyObject(GameObject gameObject)
-        {
-            assemblyScript.SetAssembly(gameObject);
+            // Prefab表示
+            var prefab = GlobalScript.LoadPrefabObject("Prefabs/Canvas", "InfoPrefab");
+            if (prefab.Count > 0)
+            {
+                uiInfoPrefab = Instantiate(prefab[0]);
+                uiInfoPrefab.transform.SetParent(canvaObj.transform, false);
+                prefabInfoScript = uiInfoPrefab.AddComponent<CanvasPrefabInfoScript>();
+            }
+
+            // 断面表示設定
+            var clip = GlobalScript.LoadPrefabObject("Prefabs/Canvas", "ViewSetting");
+            if (clip.Count > 0)
+            {
+                uiView = Instantiate(clip[0]);
+                uiView.transform.SetParent(canvaObj.transform, false);
+                viewScript = uiView.AddComponent<CanvasMenuViewScript>();
+                uiView.SetActive(false);
+            }
         }
 
         /// <summary>

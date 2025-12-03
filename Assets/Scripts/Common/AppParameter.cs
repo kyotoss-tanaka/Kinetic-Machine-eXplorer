@@ -468,6 +468,14 @@ namespace Parameters
         /// </summary>
         public string end { get; set; }
         /// <summary>
+        /// 開始名
+        /// </summary>
+        public string startName { get; set; }
+        /// <summary>
+        /// 完了名
+        /// </summary>
+        public string endName { get; set; } 
+        /// <summary>
         /// 継続フラグ
         /// </summary>
         public bool isContinue { get; set; }

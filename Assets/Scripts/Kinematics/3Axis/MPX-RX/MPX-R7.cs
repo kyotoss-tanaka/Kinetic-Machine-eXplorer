@@ -85,12 +85,12 @@ public class MPX_R7 : MPX_RX
 
         // プレート W0250632-
         var plateTmp = children.Find(d => d.name.Contains("W0250632-"));
+        plateTmp = plateTmp != null ? plateTmp : children.Find(d => d.name.Contains("W0668220-"));
         if (plateTmp != null)
         {
             plate = plateTmp.parent.gameObject;
             angP = plate.transform.localEulerAngles;
         }
-
         // 親子関係構築
         arm1.transform.parent = mpx.transform;
         arm2_1.transform.parent = mpx.transform;

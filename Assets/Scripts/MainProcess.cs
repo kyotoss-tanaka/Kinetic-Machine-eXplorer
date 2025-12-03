@@ -38,6 +38,7 @@ public class MainProcess : KssBaseScript
     private RayInteractor rayInteractorL = null;
     private RayInteractor rayInteractorR = null;
     private KssBaseScript selectedScript = null;
+    private CanvasMenuInfoScript menuInfoScript = null;
 
     private bool isReloading = false;
 
@@ -122,6 +123,11 @@ public class MainProcess : KssBaseScript
         selectedShader = Shader.Find("Custom/Lines");
         linesShader = Shader.Find("Universal Render Pipeline/Lit");
 
+        var menuInfoScripts = FindObjectsByType<CanvasMenuInfoScript>(FindObjectsSortMode.None).ToList();
+        if (menuInfoScripts.Count > 0)
+        {
+            menuInfoScript = menuInfoScripts[0];
+        }
         InitCallbackData();
     }
 
@@ -202,10 +208,6 @@ public class MainProcess : KssBaseScript
         else if (Keyboard.current.cKey.wasPressedThisFrame)
         {
             // C
-            if (parameterLoader != null)
-            {
-                parameterLoader.SetViewCanvas();
-            }
         }
         else if (Keyboard.current.fKey.wasPressedThisFrame)
         {
@@ -267,7 +269,15 @@ public class MainProcess : KssBaseScript
                 Vector2 mousePos = Mouse.current.position.ReadValue();
                 Ray ray = Camera.main.ScreenPointToRay(mousePos);
                 var hits = Physics.RaycastAll(ray, 100, LayerMask.GetMask("Default"), QueryTriggerInteraction.Collide).ToList();
-                hits.Sort((a, b) => a.distance > b.distance ? 1 : -1);
+                hits = hits.Where(h => !float.IsNaN(h.distance)).ToList();
+                try
+                {
+                    hits.Sort((a, b) => a.distance > b.distance ? 1 : -1);
+                }
+                catch
+                {
+                    hits.Clear();
+                }
                 if (hits.Count > 0)
                 {
                     // 選択あり
@@ -290,7 +300,10 @@ public class MainProcess : KssBaseScript
             }
             if (cameraController != null)
             {
-                cameraController.SetTargetPosition(rotateCenter);
+                if (!Mouse.current.leftButton.wasReleasedThisFrame)
+                {
+                    cameraController.SetTargetPosition(rotateCenter);
+                }
             }
             if (clickedGameObject != null)
             {
@@ -311,7 +324,7 @@ public class MainProcess : KssBaseScript
                             }
                             selectedMaterials.Clear();
                             selectedObject = null;
-                            parameterLoader.SetAssemblyObject(selectedObject);
+                            menuInfoScript.SetAssemblyObject(selectedObject);
                         }
                         // ゲームオブジェクトの名前を出力
                         Debug.Log(clickedGameObject.name);
@@ -338,14 +351,13 @@ public class MainProcess : KssBaseScript
                             {
                                 // 既に選択済みなのでマテリアルを解除
                                 selectedObject = null;
-                                parameterLoader.SetAssemblyObject(selectedObject);
+                                menuInfoScript.SetAssemblyObject(selectedObject);
                             }
                             else
                             {
                                 selectedObject = clickedGameObject;
-                                parameterLoader.SetAssemblyObject(selectedObject);
+                                menuInfoScript.SetAssemblyObject(selectedObject);
                             }
-                            StartCoroutine(SelectObject(clickedGameObject));
                         }
                         // ゲームオブジェクトの名前を出力
                         Debug.Log(clickedGameObject.name);
@@ -364,7 +376,7 @@ public class MainProcess : KssBaseScript
                 }
                 selectedMaterials.Clear();
                 selectedObject = null;
-                parameterLoader.SetAssemblyObject(selectedObject);
+                menuInfoScript.SetAssemblyObject(selectedObject);
             }
         }
         else

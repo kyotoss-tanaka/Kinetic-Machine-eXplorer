@@ -1,4 +1,5 @@
 ﻿using Meta.XR.InputActions;
+using Parameters;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
@@ -21,12 +22,22 @@ public class CanvasMenuAssemblyScript : CanvasMenuBaseScript
     private GameObject selectedVisible;
     private List<GameObject> invisibleObjects = new();
 
+    private GameObject uiActUnitInfo;
+    private CanvasMenuActUnitScript actScript;
+
+    private CanvasMenuInfoScript menuInfoScript = null;
+
     /// <summary>
     /// メインプロセス
     /// </summary>
     private MainProcess mainProcess;
 
     private bool isMoving = false;
+
+    /// <summary>
+    /// 動作ユニット
+    /// </summary>
+    private List<string> motionUnits = new();
 
     /// <summary>
     /// 開始処理
@@ -41,6 +52,8 @@ public class CanvasMenuAssemblyScript : CanvasMenuBaseScript
         content = GetComponentsInChildren<RectTransform>().ToList().Find(d => d.name == "Content");
         baseText = GetComponentsInChildren<TextMeshProUGUI>().ToList().Find(d => d.name == "AssemblyText");
         baseText.gameObject.SetActive(false);
+        menuInfoScript = FindObjectsByType<CanvasMenuInfoScript>(FindObjectsSortMode.None).ToList()[0];
+
         SetAssembly(null);
     }
 
@@ -50,7 +63,6 @@ public class CanvasMenuAssemblyScript : CanvasMenuBaseScript
     protected override void Start()
     {
         base.Start();
-        SetAssembly(null);
     }
 
     protected override void Update()
@@ -108,6 +120,18 @@ public class CanvasMenuAssemblyScript : CanvasMenuBaseScript
     }
 
     /// <summary>
+    /// イベントセット
+    /// </summary>
+    /// <param name="uiActUnitInfo"></param>
+    public void SetEvents(GameObject uiActUnitInfo)
+    {
+        this.uiActUnitInfo = uiActUnitInfo;
+        actScript = uiActUnitInfo.GetComponent<CanvasMenuActUnitScript>();
+        SetAssembly(null);
+        base.SetEvents();
+    }
+
+    /// <summary>
     /// イベントリセット
     /// </summary>
     public override void ResetEvents()
@@ -145,6 +169,16 @@ public class CanvasMenuAssemblyScript : CanvasMenuBaseScript
                             {
                                 StartCoroutine(mainProcess.SelectObject(obj));
                                 selectedVisible = obj;
+                                if ((motionUnits.Count > 0) && (actScript != null))
+                                {
+                                    // ユニット選択
+                                    actScript.SelectUnit(obj.name);
+                                }
+                                else
+                                {
+                                    // 部品選択
+                                    actScript.SelectParts(obj);
+                                }
                                 break;
                             }
                         }
@@ -255,43 +289,47 @@ public class CanvasMenuAssemblyScript : CanvasMenuBaseScript
             }
         }
         viewTexts.Clear();
+        // 階層取得
         var texts = selectedObject == null ? new() : CommonFunction.GetScenePath(selectedObject);
         texts.Reverse();
         if (texts.Count > 0)
         {
             texts.RemoveAt(0);
         }
+        // 動作ユニット取得
+        var motions = gameObject == null ? new List<AxisMotionBase>() : gameObject.GetComponentsInParent<AxisMotionBase>().ToList();
+        motionUnits = motions.Select(d => d.name).ToList();
         var fontSize = baseText.fontSize + 5;
-        var height = texts.Count * fontSize + 10;
         var width = 0f;
         var names = new List<string>();
+        var index = 0;
         for (var i = 0; i < texts.Count; i++)
         {
             var text = texts[i];
             names.Add(text);
+            if ((motionUnits.Count > 0) && !motionUnits.Contains(text))
+            {
+                continue;
+            }
             var obj = Instantiate(baseText.gameObject);
             var t = obj.gameObject.GetComponentInChildren<TextMeshProUGUI>();
             var rt = obj.GetComponent<RectTransform>();
-            var left = i * 10;
-            t.text = (i == 0 ? "" : "- ") + text;
+            var left = index * 10;
+            t.text = (index == 0 ? "" : "- ") + text + (motionUnits.Count > 0 ? "(Motion)" : "");
             t.transform.parent = baseText.transform.parent;
-            t.transform.localPosition = new Vector3(5 + left, -5 - (fontSize * i), 0);
+            t.transform.localPosition = new Vector3(5 + left, -5 - (fontSize * index), 0);
             t.gameObject.SetActive(true);
-            t.fontSharedMaterial.EnableKeyword("GLOW_ON");
+//            t.fontSharedMaterial.EnableKeyword("GLOW_ON");
             t.name = string.Join('\\', names);
-            if (i == texts.Count - 1)
-            {
-                // 最終データは色変更
-                t.color = new Color(1f, 1 / 2f, 0);
-                selectedText = t;
-            }
             viewTexts.Add(t);
             LayoutRebuilder.ForceRebuildLayoutImmediate(rt);
             if (width < rt.rect.width + left)
             {
                 width = rt.rect.width + left;
             }
+            index++;
         }
+        var height = index * fontSize + 10;
         var size = content.sizeDelta;
         size.x = width - 400 + 20;
         size.y = height;
@@ -301,6 +339,13 @@ public class CanvasMenuAssemblyScript : CanvasMenuBaseScript
         sv.sizeDelta = size;
         size.y += 30;
         GetComponent<RectTransform>().sizeDelta = size;
+        menuInfoScript.btnAsm_Visible(index != 0);
+//        this.gameObject.SetActive();
+        if (viewTexts.Count > 0)
+        {
+            // 一番最後のデータをクリック
+            ClickObject(viewTexts[viewTexts.Count - 1].gameObject, false, false);
+        }
     }
 
     /// <summary>

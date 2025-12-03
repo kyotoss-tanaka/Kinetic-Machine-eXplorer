@@ -226,6 +226,17 @@ public class ComProtocolBase : ComBaseScript
     protected TextMeshProUGUI txtCycle;
 
     /// <summary>
+    /// 直接通信
+    /// </summary>
+    public bool IsDirect
+    {
+        get
+        {
+            return directData != null;
+        }
+    }
+
+    /// <summary>
     /// ビットレジスタ定義
     /// </summary>
     protected virtual List<string> regTypeBit
@@ -1070,6 +1081,7 @@ public class ComProtocolBase : ComBaseScript
         dct.Tag = tag;
         dct.Device = dbSetting.RegisterType;
         dct.Value = 0;
+        offset *= (dbSetting.DataType == DBSetting.eDeviceSize.DW) ? 2 : 1;
         if (regTypeBit16.Contains(dbSetting.RegisterType))
         {
             // 16進数
@@ -1301,6 +1313,25 @@ public class ComProtocolBase : ComBaseScript
     }
 
     /// <summary>
+    /// 直接通信設定
+    /// </summary>
+    /// <param name="directCanvas"></param>
+    public void SetDirectCanvas(GameObject directCanvas)
+    {
+        this.directCanvas = directCanvas;
+        var txtProtocol = directCanvas.GetComponentsInChildren<TextMeshProUGUI>().ToList().Find(d => d.name == "TxtProtocol");
+        var txtIpAddress = directCanvas.GetComponentsInChildren<TextMeshProUGUI>().ToList().Find(d => d.name == "TxtIpAddress");
+        txtPing = directCanvas.GetComponentsInChildren<TextMeshProUGUI>().ToList().Find(d => d.name == "TxtPing");
+        txtConnected = directCanvas.GetComponentsInChildren<TextMeshProUGUI>().ToList().Find(d => d.name == "TxtConnection");
+        txtCycle = directCanvas.GetComponentsInChildren<TextMeshProUGUI>().ToList().Find(d => d.name == "TxtCycle");
+        txtProtocol.text = directData.protocol.ToString();
+        txtIpAddress.text = directData.IpAddress;
+        txtPing.text = "False";
+        txtConnected.text = "False";
+        txtCycle.text = "";
+    }
+
+    /// <summary>
     /// パラメータセット
     /// </summary>
     /// <param name="No"></param>
@@ -1340,32 +1371,5 @@ public class ComProtocolBase : ComBaseScript
         IsProcessing = false;
         isFirst = true;
         isRcvDb = false;
-    }
-
-    /// <summary>
-    /// パラメータセット
-    /// </summary>
-    /// <param name="No"></param>
-    /// <param name="Cycle"></param>
-    /// <param name="Server"></param>
-    /// <param name="Port"></param>
-    /// <param name="Database"></param>
-    /// <param name="User"></param>
-    /// <param name="Password"></param>
-    /// <param name="isClientMode"></param>
-    public virtual void SetParameter(int No, int Cycle, string Server, int Port, string Database, string User, string Password, bool isClientMode, DataExchangeSetting dataExchange, KmxDirectData directData, GameObject directCanvas)
-    {
-        this.directCanvas = directCanvas;
-        var txtProtocol = directCanvas.GetComponentsInChildren<TextMeshProUGUI>().ToList().Find(d => d.name == "TxtProtocol");
-        var txtIpAddress = directCanvas.GetComponentsInChildren<TextMeshProUGUI>().ToList().Find(d => d.name == "TxtIpAddress");
-        txtPing = directCanvas.GetComponentsInChildren<TextMeshProUGUI>().ToList().Find(d => d.name == "TxtPing");
-        txtConnected = directCanvas.GetComponentsInChildren<TextMeshProUGUI>().ToList().Find(d => d.name == "TxtConnection");
-        txtCycle = directCanvas.GetComponentsInChildren<TextMeshProUGUI>().ToList().Find(d => d.name == "TxtCycle");
-        txtProtocol.text = directData.protocol.ToString();
-        txtIpAddress.text = directData.IpAddress;
-        txtPing.text = "False";
-        txtConnected.text = "False";
-        txtCycle.text = "";
-        SetParameter(No, Cycle, Server, Port, Database, User, Password, isClientMode, dataExchange, directData);
     }
 }

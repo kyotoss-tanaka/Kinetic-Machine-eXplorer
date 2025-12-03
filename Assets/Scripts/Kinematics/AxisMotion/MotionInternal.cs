@@ -389,7 +389,7 @@ public class MotionInternal : AxisMotionBase
             }
 
             // Šî–{“®ìİ’è
-            if (unitSetting.actionSetting.mode == 1)
+            if (unitSetting.actionSetting.acl == 1)
             {
                 // ŠÔİ’è
                 action.aclTime = action.acl * Thousand;

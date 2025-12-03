@@ -13,7 +13,7 @@ public class ComInner : ComBaseScript
 {
 
     [Serializable]
-    private class ActionTiming
+    public class ActionTiming
     {
         /// <summary>
         /// 機番
@@ -50,7 +50,7 @@ public class ComInner : ComBaseScript
     }
 
     [Serializable]
-    private class ActionTimingData
+    public class ActionTimingData
     {
         /// <summary>
         /// トリガタイミング
@@ -103,7 +103,7 @@ public class ComInner : ComBaseScript
     /// 時間停止
     /// </summary>
     [SerializeField]
-    private bool isStop = false;
+    public bool isStop = false;
 
     /// <summary>
     /// 時間比率
@@ -121,7 +121,7 @@ public class ComInner : ComBaseScript
     /// 動作設定
     /// </summary>
     [SerializeField]
-    private List<ActionTiming> acts = new();
+    public List<ActionTiming> acts = new();
 
     /// <summary>
     /// タイミング用
@@ -150,30 +150,19 @@ public class ComInner : ComBaseScript
     public List<int> outputs = new();
 
     /// <summary>
-    /// 表示用
-    /// </summary>
-    private GameObject canvaObj;
-    private GameObject? uiObj;
-    private CanvasMenuTimeScript timeScript;
-    private Toggle toggle;
-    private Slider slider;
-    private TextMeshProUGUI text;
-    private Button button;
-    private TMP_InputField input;
-    private TextMeshProUGUI cycle;
-    private TMP_InputField inputStep;
-    private Button buttonNext;
-    private Button buttonPrev;
-
-    /// <summary>
     /// 表示サイクル
     /// </summary>
-    private int viewCycle = 1000;
+    public int viewCycle = 1000;
 
     /// <summary>
     /// コマ送りステップ
     /// </summary>
-    private int step = 0;
+    public int step = 0;
+
+    /// <summary>
+    /// 経過時間
+    /// </summary>
+    public int time = 0;
 
     // Start is called before the first frame update
     protected override void Start()
@@ -186,6 +175,7 @@ public class ComInner : ComBaseScript
         {
             GlobalScript.inners.Add(Name, this);
         }
+        swTiming.Start();
     }
 
     /// <summary>
@@ -218,13 +208,6 @@ public class ComInner : ComBaseScript
     protected override void OnDestroy()
     {
         base.OnDestroy();
-
-        // 表示を削除しておく
-        toggle.onValueChanged.RemoveAllListeners();
-        slider.onValueChanged.RemoveAllListeners();
-        button.onClick.RemoveAllListeners();
-        input.onValueChanged.RemoveAllListeners();
-        Destroy(uiObj);
     }
 
     /// <summary>
@@ -248,15 +231,11 @@ public class ComInner : ComBaseScript
             elapsedMilliseconds = (long)((lap - prvElapsedMilliseconds) * (isStop ? 0 : timeRate)) + elapsedMilliseconds;
         }
         prvElapsedMilliseconds = lap;
-        var time = (int)elapsedMilliseconds;
+        time = (int)elapsedMilliseconds;
         foreach (var tags in GlobalScript.callbackTags)
         {
-            GlobalScript.SetTagData(tags.cycle, (int)time);
+            GlobalScript.SetTagData(tags.cycle, time);
         }
-
-        // 表示セット
-        cycle.text = $"Cycle Time : {(time % viewCycle)} msec";
-
         try
         {
             // I/Oタイミングセット
@@ -505,145 +484,6 @@ public class ComInner : ComBaseScript
             if (act.timings.Count > 0)
             {
                 acts.Add(act);
-            }
-        }
-        // 表示追加
-        CreateCanvas();
-    }
-
-    /// <summary>
-    /// キャンバス追加
-    /// </summary>
-    private void CreateCanvas()
-    {
-        if (uiObj == null)
-        {
-            // キャンバス取得
-            var canvasObjs = GameObject.FindObjectsByType<GameObject>(FindObjectsSortMode.None).Where(d => d.name == "Canvas").ToList();
-            canvaObj = canvasObjs.Count == 0 ? new GameObject("Canvas", typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster)) : canvasObjs[0];
-            var prefabs = GlobalScript.LoadPrefabObject("Prefabs/Canvas", "ComInner");
-            if (prefabs.Count > 0)
-            {
-                uiObj = Instantiate(prefabs[0]);
-                uiObj.transform.SetParent(canvaObj.transform, false);
-                timeScript = uiObj.AddComponent<CanvasMenuTimeScript>();
-                timeScript.SetEvents();
-
-                // コンポネント取得
-                toggle = uiObj.GetComponentInChildren<Toggle>();
-                slider = uiObj.GetComponentInChildren<Slider>();
-                text = uiObj.GetComponentsInChildren<TextMeshProUGUI>().Where(d => d.name == "ComInnerText").ToList()[0];
-                button = uiObj.GetComponentsInChildren<Button>().Where(d => d.name == "ComInnerButton").ToList()[0];
-                input = uiObj.GetComponentsInChildren<TMP_InputField>().Where(d => d.name == "ComInnerInput").ToList()[0];
-                cycle = uiObj.GetComponentsInChildren<TextMeshProUGUI>().Where(d => d.name == "ComInnerCycle").ToList()[0]; ;
-                buttonPrev = uiObj.GetComponentsInChildren<Button>().Where(d => d.name == "ComInnerPrevButton").ToList()[0];
-                buttonNext = uiObj.GetComponentsInChildren<Button>().Where(d => d.name == "ComInnerNextButton").ToList()[0];
-                inputStep = uiObj.GetComponentsInChildren<TMP_InputField>().Where(d => d.name == "ComInnerStep").ToList()[0];
-
-                // イベント登録
-                toggle.onValueChanged.AddListener(toggle_onValueChanged);
-                slider.onValueChanged.AddListener(slider_onValueChanged);
-                button.onClick.AddListener(button_onClick);
-                input.onValueChanged.AddListener(input_onValueChanged);
-                buttonPrev.onClick.AddListener(buttonPrev_onClick);
-                buttonNext.onClick.AddListener(buttonNext_onClick);
-                inputStep.onValueChanged.AddListener(inputStep_onValueChanged);
-
-                // 初期値セット
-                slider.value = 1;
-                slider.maxValue = 5;
-                slider.minValue = 0;
-                input.text = acts.Count > 0 ? acts[0].cycle.ToString() : "1000";
-                inputStep.text = "10";
-            }
-        }
-    }
-
-    /// <summary>
-    /// トグル変更イベント
-    /// </summary>
-    /// <param name="value"></param>
-    private void toggle_onValueChanged(bool value)
-    {
-        isStop = value;
-    }
-
-    /// <summary>
-    /// スライダー値変更イベント
-    /// </summary>
-    /// <param name="value"></param>
-    private void slider_onValueChanged(float value)
-    {
-        timeRate = value;
-        text.text = value.ToString("0.00");
-    }
-
-    /// <summary>
-    /// ボタンクリックイベント
-    /// </summary>
-    private void button_onClick()
-    {
-        slider.value = 1;
-    }
-
-    /// <summary>
-    /// 値取得
-    /// </summary>
-    /// <param name="text"></param>
-    private void input_onValueChanged(string text)
-    {
-        int value = 0;
-        if (int.TryParse(text, out value))
-        {
-            if (value <= 0)
-            {
-                input.text = acts.Count > 0 ? acts[0].cycle.ToString() : "1000";
-            }
-            else
-            {
-                viewCycle = value;
-            }
-        }
-    }
-
-    /// <summary>
-    /// ボタンクリックイベント
-    /// </summary>
-    private void buttonPrev_onClick()
-    {
-        toggle.isOn = true;
-        int value = 0;
-        if (int.TryParse(inputStep.text, out value))
-        {
-            step = -value;
-        }
-    }
-
-    /// <summary>
-    /// ボタンクリックイベント
-    /// </summary>
-    private void buttonNext_onClick()
-    {
-        toggle.isOn = true;
-        int value = 0;
-        if (int.TryParse(inputStep.text, out value))
-        {
-            step = value;
-        }
-    }
-
-    /// <summary>
-    /// 値取得
-    /// </summary>
-    /// <param name="text"></param>
-    private void inputStep_onValueChanged(string text)
-    {
-        int value = 0;
-        if (int.TryParse(text, out value))
-        {
-            if (value <= 0)
-            {
-                inputStep.text = "1";
             }
         }
     }

@@ -290,7 +290,7 @@ public class ComMcProtocol : ComProtocolBase
             {
                 // ワードデータ
                 var size = data.DataType == DBSetting.eDeviceSize.DW ? sizeof(int) : (data.DataType == DBSetting.eDeviceSize.QW ? sizeof(long) : sizeof(short));
-                for (var i = 2; i < buff.Length; i += sizeof(ushort))
+                for (var i = 2; i < buff.Length; i += size)
                 {
                     if (index < data.values.Count)
                     {
