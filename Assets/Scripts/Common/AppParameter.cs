@@ -1004,6 +1004,8 @@ namespace Parameters
         public string group { get; set; } = "";
         [JsonIgnore]
         public GameObject gameObject { get; set; }
+        [JsonIgnore]
+        public bool isChild { get; set; }
     }
 
     [Serializable]

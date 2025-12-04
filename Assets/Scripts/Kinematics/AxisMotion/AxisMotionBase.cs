@@ -14,6 +14,7 @@ using static KssMeshColliderEditorCommon;
 using static OVRPlugin;
 using UnityEngine.UIElements;
 using System.Security.Cryptography;
+using Pipelines.Sockets.Unofficial.Arenas;
 
 public class AxisMotionBase : KinematicsBase
 {
@@ -463,10 +464,16 @@ public class AxisMotionBase : KinematicsBase
         exObj.transform.localScale = new(1, 1, 1);
         var ex = unitSetting.exMechSetting.datas[0].gameObject.AddComponent<ExMechScript>();
         ex.SetParameter(unitSetting, unitSetting.exMechSetting);
-        // 親子関係設定
-        foreach (var data in unitSetting.exMechSetting.datas)
+        // 親子関係チェック
+        var datas = unitSetting.exMechSetting.datas.Where(d => d.gameObject != null).ToList();
+        foreach (var data in datas)
         {
-            if (data.gameObject != null)
+            data.isChild = datas.Find(d => (d != data) && data.gameObject.transform.IsChildOf(d.gameObject.transform)) != null;
+        }
+        // 親子関係設定
+        foreach (var data in datas)
+        {
+            if (!data.isChild)
             {
                 data.gameObject.transform.parent = exObj.transform;
                 foreach (var child in data.children)

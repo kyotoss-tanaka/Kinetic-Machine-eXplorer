@@ -10,6 +10,7 @@ using UnityEngine;
 using UnityEngine.UIElements;
 using static GlobalScript;
 using static OVRPlugin;
+using static UnityEngine.Rendering.DebugUI.Table;
 
 public class ExMechScript : UseTagBaseScript
 {
@@ -299,6 +300,9 @@ public class ExMechScript : UseTagBaseScript
         public override void Initialize()
         {
             base.Initialize();
+
+            // カムフォロアの親を主軸に
+            pntAAxis.model.transform.parent = mainAxis.model.transform;
         }
 
         /// <summary>
@@ -315,8 +319,10 @@ public class ExMechScript : UseTagBaseScript
     {
         public bool modeB = false;
         public float armM;
+        private Vector3 rodDir;
         public GameObject pntAObject;
         public GameObject pntBObject;
+        public GameObject pntFarObject;
         public Vector3 pntBOffset;
         private Quaternion rotation = new();
         private float yOffset;
@@ -369,6 +375,7 @@ public class ExMechScript : UseTagBaseScript
         }
         private Vector2 pntBGuidePos;
         private Vector2 pntBGuideOffset;
+        Quaternion initRotation;
 
         /// <summary>
         /// 初期化処理
@@ -378,16 +385,17 @@ public class ExMechScript : UseTagBaseScript
             base.Initialize();
 
             // コンロッドの一番遠いオブジェクト取得
-            var farPnt = GetModelFarPoint(pntAAxis.model, ref pntBObject);
+            var farPnt = GetModelFarPoint(pntAAxis.model, ref pntFarObject);
             var pos = pntAAxis.model.transform.TransformPoint(farPnt);
             pntBOffset = guideSpace.transform.InverseTransformPoint(pos);
 
             // コンロッドの主軸側判定
             var tmpA = Vector3.Scale(mainAxis.model.transform.InverseTransformPoint(pntAAxis.model.transform.position), mainMask);
-            var tmpB = Vector3.Scale(mainAxis.model.transform.InverseTransformPoint(pntBObject.transform.position), mainMask);
+            var tmpB = Vector3.Scale(mainAxis.model.transform.InverseTransformPoint(pntFarObject.transform.position), mainMask);
 
             // 制御対象オブジェクトを作成
             pntAObject = new GameObject("PointA");
+            pntBObject = new GameObject("PointB");
 
             // コンロッドの根元がどちら側かチェック(主軸の軸上にいるか)
             if (CheckRod(tmpA, tmpB))
@@ -397,22 +405,41 @@ public class ExMechScript : UseTagBaseScript
                 modeB = true;
                 pntBOffset = pntAOffset;
                 pntAOffset = guideSpace.transform.InverseTransformPoint(pos);
-                pntAObject.transform.position = pntBObject.transform.position;
-                pntAObject.transform.eulerAngles = pntBObject.transform.eulerAngles;
-                GetModelNearPoint(pntAAxis.model, ref pntBObject);
-                pntBObject.transform.parent = sliderAxis.model.transform;
+                pntAObject.transform.position = pntFarObject.transform.position;
+                pntAObject.transform.eulerAngles = pntFarObject.transform.eulerAngles;
+                pntBObject.transform.position = pntAAxis.model.transform.position;
             }
             else
             {
                 pntAObject.transform.position = pntAAxis.model.transform.position;
                 pntAObject.transform.eulerAngles = pntAAxis.model.transform.eulerAngles;
+                pntBObject.transform.position = sliderAxis.model.transform.position;
             }
             pntAObject.transform.parent = mainAxis.model.transform;
+            pntBObject.transform.parent = sliderAxis.model.transform;
+
             // コンロッドの親設定
             pntAAxis.SetParent(guideSpace);
 
-            // 基準座標系
-            armM = Vector3.Distance(Vector3.Scale(pntAOffset, moveMask), Vector3.Scale(pntBOffset, moveMask));
+            // コンロッドの方向取得
+            var conA = pntAAxis.model.transform.InverseTransformPoint(guideSpace.transform.TransformPoint(Vector3.Scale(pntAOffset, moveMask)));
+            var conB = pntAAxis.model.transform.InverseTransformPoint(guideSpace.transform.TransformPoint(Vector3.Scale(pntBOffset, moveMask)));
+            var conAB = conB - conA;
+            armM = Mathf.Max(Mathf.Abs(conAB.x), Mathf.Max(Mathf.Abs(conAB.y), Mathf.Abs(conAB.z)));
+            if (armM == conAB.x)
+            {
+                rodDir = conAB.x < 0 ? Vector3.left : Vector3.right;
+            }
+            else if (armM == conAB.y)
+            {
+                rodDir = conAB.y < 0 ? Vector3.up : Vector3.down;
+            }
+            else
+            {
+                rodDir = conAB.z < 0 ? Vector3.forward : Vector3.back;
+            }
+            // 初期姿勢
+            initRotation = Quaternion.Euler(Vector3.Scale(pntAAxis.model.transform.localEulerAngles, rodDir));
 
             // ガイド基準に変更
             var pntA = Vector3.Scale(pntAOffset, moveMask);
@@ -484,15 +511,23 @@ public class ExMechScript : UseTagBaseScript
             var thB = new Vector3(0, 0, Mathf.Atan2(pntAGuidePos.y - pntBGuidePos.y, pntBGuidePos.x - pntAGuidePos.x) * Mathf.Rad2Deg);
             // スライダの位置
             sliderAxis.model.transform.position = guideSpace.transform.TransformPoint(sliderOffset + Vector3.Scale(movePos, guideDir));
+            // コンロッド端の取得
+            var posA = Vector3.Scale(guideSpace.transform.InverseTransformPoint(pntAObject.transform.position), moveMask);
+            var posB = Vector3.Scale(guideSpace.transform.InverseTransformPoint(pntBObject.transform.position), moveMask);
             if (modeB)
             {
                 pntAAxis.model.transform.position = pntBObject.transform.position;
+                // コンロッドの向き
+                var rot = Quaternion.FromToRotation(rodDir, posA - posB) * Quaternion.Inverse(initRotation);
+                pntAAxis.model.transform.localRotation = rot;
             }
             else
             {
                 pntAAxis.model.transform.position = pntAObject.transform.position;
+                // コンロッドの向き
+                var rot = Quaternion.FromToRotation(rodDir, posA - posB) * Quaternion.Inverse(initRotation);
+                pntAAxis.model.transform.localRotation = rot;
             }
-
             ForwardKinematics();
         }
 
@@ -781,7 +816,7 @@ public class ExMechScript : UseTagBaseScript
 
         // 必要なら0～360度に正規化
         if (angle < 0) angle += 360f;
-
+        
         return angle;
     }
 

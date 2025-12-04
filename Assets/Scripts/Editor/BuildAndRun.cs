@@ -34,30 +34,39 @@ public class BuildAndRun
 
     static string scenePath = "Assets/Scenes/Simuration.unity";
 
-    [MenuItem("Kyotoss/Master Build and Run(Release)", false, 51)]
+    [MenuItem("Kyotoss/Master Build and Run", false, 51)]
     public static void ReleaseBuildAndRunMaster()
     {
-        if (EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo())
+        try
         {
-            Debug.Log("シーンを保存しました。");
-        }
+            if (EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo())
+            {
+                Debug.Log("シーンを保存しました。");
+            }
 
-        string configPath = Path.Combine("Assets/StreamingAssets/Datas", "BuildConfig.json");
-        if (!File.Exists(configPath))
+            string configPath = Path.Combine("Assets/StreamingAssets/Datas", "BuildConfig.json");
+            if (!File.Exists(configPath))
+            {
+                Debug.LogError("設定ファイルが見つかりません: " + configPath);
+                return;
+            }
+
+            string json = File.ReadAllText(configPath, Encoding.UTF8);
+            Parameters.BuildConfig build = JsonSerializer.Deserialize<Parameters.BuildConfig>(json);
+            build.isMaster = true;
+            build.name = "Master";
+
+            build.isRelease = false;
+            BuildAndRunProcess(build, false);
+
+            build.isRelease = true;
+            BuildAndRunProcess(build, true);
+        }
+        catch
         {
-            Debug.LogError("設定ファイルが見つかりません: " + configPath);
-            return;
         }
-
-        string json = File.ReadAllText(configPath, Encoding.UTF8);
-        Parameters.BuildConfig build = JsonSerializer.Deserialize<Parameters.BuildConfig>(json);
-        build.isRelease = true;
-        build.isMaster = true;
-        build.name = "Master";
-
-        BuildAndRunProcess(build);
     }
-
+    /*
     [MenuItem("Kyotoss/Master Build and Run(Debug)", false, 52)]
     public static void DebugBuildAndRunMaster()
     {
@@ -81,10 +90,10 @@ public class BuildAndRun
 
         BuildAndRunProcess(build);
     }
-
+    */
 
     [MenuItem("Kyotoss/Build and Run from KMXTool Config", false, 53)]
-    public static void BuildAndRunFromConfig()
+    public static void ReleaseBuildAndRunFromConfig()
     {
         try
         {
@@ -102,18 +111,50 @@ public class BuildAndRun
 
             string json = File.ReadAllText(configPath, Encoding.UTF8);
             Parameters.BuildConfig build = JsonSerializer.Deserialize<Parameters.BuildConfig>(json);
+            build.isRelease = false;
+            BuildAndRunProcess(build, false, true);
 
-            BuildAndRunProcess(build);
+            build.isRelease = true;
+            BuildAndRunProcess(build, true, true);
         }
         catch
         {
         }
     }
 
+    /*
+    [MenuItem("Kyotoss/Build and Run from KMXTool Config(Debug)", false, 54)]
+    public static void DebugAndRunFromConfig()
+    {
+        try
+        {
+            if (EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo())
+            {
+                Debug.Log("シーンを保存しました。");
+            }
+
+            string configPath = Path.Combine("Assets/StreamingAssets/Datas", "BuildConfig.json");
+            if (!File.Exists(configPath))
+            {
+                Debug.LogError("設定ファイルが見つかりません: " + configPath);
+                return;
+            }
+
+            string json = File.ReadAllText(configPath, Encoding.UTF8);
+            Parameters.BuildConfig build = JsonSerializer.Deserialize<Parameters.BuildConfig>(json);
+            build.isRelease = false;
+            BuildAndRunProcess(build, true);
+        }
+        catch
+        {
+        }
+    }
+    */
+
     /// <summary>
     /// ビルド処理
     /// </summary>
-    private static void BuildAndRunProcess(Parameters.BuildConfig build)
+    private static void BuildAndRunProcess(Parameters.BuildConfig build, bool isOpen, bool isProd = false)
     {
         var productName = build.isMaster ? "KMXMaster" : (build.isMR ? $"{build.mechId}_{build.name}(MR)" : build.isVR ? $"{build.mechId}_{build.name}(VR)" : $"{build.mechId}_{build.name}");
         var productDir = Path.Combine(Path.Combine(Path.Combine("Builds", build.isVR || build.isMR ? "Android" : "Windows"), build.isRelease ? "Release" : "Debug"), productName);
@@ -160,7 +201,7 @@ public class BuildAndRun
             scenes = config.scenes.ToArray(),
             locationPathName = config.outputPath,
             target = target,
-            options = BuildOptions.AutoRunPlayer | ParseBuildOptions(config.buildOptions) | BuildOptions.CompressWithLz4HC
+            options = (isOpen ? BuildOptions.AutoRunPlayer : BuildOptions.None) | ParseBuildOptions(config.buildOptions) | BuildOptions.CompressWithLz4HC
         };
 
         EditorUserBuildSettings.androidBuildSystem = AndroidBuildSystem.Gradle;
@@ -180,6 +221,7 @@ public class BuildAndRun
         // 保存
         AssetDatabase.SaveAssets();
 
+        // プログラム実行
         BuildPipeline.BuildPlayer(options);
 
         // Addressable設定戻す
@@ -187,12 +229,33 @@ public class BuildAndRun
         // 保存
         AssetDatabase.SaveAssets();
 
-        // タイトル、メッセージ、ボタン名
-        EditorUtility.DisplayDialog("情報", "ビルドが完了しました。", "OK");
         string projectPath = Directory.GetParent(Application.dataPath).FullName;
         string folderPath = Path.Combine(projectPath, productDir);
-        // エクスプローラーで開く
-        System.Diagnostics.Process.Start("explorer.exe", folderPath);
+
+        if (!isProd)
+        {
+            // 製番情報のデータを削除
+            var dataPath = Path.Combine(folderPath, "KMX_Data/StreamingAssets/Datas");
+            var prefabPath = Path.Combine(folderPath, "KMX_Data/ServerData");
+            if (Directory.Exists(dataPath))
+            {
+                Directory.Delete(dataPath, true);
+            }
+            if (Directory.Exists(prefabPath))
+            {
+                Directory.Delete(prefabPath, true);
+            }
+            // フォルダだけ作成しておく
+            Directory.CreateDirectory(dataPath);
+            Directory.CreateDirectory(prefabPath);
+        }
+        if (isOpen)
+        {
+            // エクスプローラーで開く
+            System.Diagnostics.Process.Start("explorer.exe", folderPath);
+            // タイトル、メッセージ、ボタン名
+            EditorUtility.DisplayDialog("情報", "ビルドが完了しました。", "OK");
+        }
     }
 
 

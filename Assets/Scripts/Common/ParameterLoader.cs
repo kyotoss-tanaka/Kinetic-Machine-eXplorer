@@ -46,6 +46,7 @@ namespace Parameters
         private GameObject globalSetting;
         private GameObject prefabObj;
         private GameObject deviceObj;
+        private GameObject prePrefabObj;
         private List<GameObject> hiddenObjs = new List<GameObject>();
         private List<ObjEntry> movableObjs = new List<ObjEntry>();
         private List<ObjEntry> undefinedUnits = new List<ObjEntry>();
@@ -160,10 +161,12 @@ namespace Parameters
             // 必要オブジェクト作成
             prefabObj = new GameObject("PrefabObjects");
             deviceObj = new GameObject("DeviceObjects");
-
+            if (prePrefabObj == null)
+            {
+                prePrefabObj = new GameObject("PreLoadPrefab");
+            }
             var globalSettings = GameObject.FindObjectsByType<GameObject>(FindObjectsSortMode.None).Where(d => d.name == "GlobalSetting").ToList();
             globalSetting = globalSettings.Count > 0 ? globalSettings[0] : new GameObject("GlobalSetting");
-
             {
                 // 各種設定ファイルロード
                 DebugLog($"***** Parameter Load *****");
@@ -172,13 +175,76 @@ namespace Parameters
                 var task = LoadParameterFiles();
                 // 完了するまで待つ
                 yield return new WaitUntil(() => task.IsCompleted);
-             
+                if (prefabSettings == null)
+                {
+                    SetProgressLabel("Parameter Files Not Found");
+                    yield break;
+                }
+
                 DebugLog($"***** Load Prefab Model *****");
+                var rootObjects = SceneManager.GetActiveScene().GetRootGameObjects().ToList();
+                // 既にprefabがあるかチェック
+                if (prefabs.Count == 0)
+                {
+                    foreach (var prefab in prefabSettings)
+                    {
+                        var data = rootObjects.Find(d => d.name == Path.GetFileNameWithoutExtension(prefab.name));
+                        if (data != null)
+                        {
+                            prefabs.Add(data);
+                            rootObjects.Remove(data);
+                            data.SetActive(false);
+                            data.transform.parent = prePrefabObj.transform;
+                        }
+                    }
+                }
                 if (prefabs.Count == 0)
                 {
                     //                    prefabs = GlobalScript.CreateInitialModel();
                     yield return StartCoroutine(LoadAddressablePrefabs(prefabSettings, prefabs));
                     isFirstLoad = true;
+                }
+                if (prefabs.Count == 0)
+                {
+                    SetProgressLabel("Prefab Files Not Found");
+                    yield break;
+                }
+                foreach (var prefab in prefabs)
+                {
+                    if (prefab.name[0] != '_')
+                    {
+                        var prefabData = rootObjects.Find(d => d.name == prefab.name);
+                        if (prefabData == null)
+                        {
+                            prefabData = Instantiate(prefab);
+                            prefabData.SetActive(true);
+                            prefabData.name = prefab.name;
+                            prefabData.transform.parent = prefabObj.transform;
+                        }
+                        else
+                        {
+                            prefabData.name = prefab.name;
+                            prefabData.transform.parent = prefabObj.transform;
+                        }
+                        if (isFirstLoad)
+                        {
+                            // シェーダーセット
+                            foreach (Renderer renderer in prefabData.GetComponentsInChildren<Renderer>())
+                            {
+                                foreach (Material mat in renderer.materials)
+                                {
+                                    if (mat != null)
+                                    {
+                                        if (mat.name == "Default Line Material (Instance)")
+                                        {
+                                            mat.shader = linesShader;
+                                            mat.SetColor("_BaseColor", new Color(0, 0, 0, 0));
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
                 // スイッチモデルロード
                 if (switchPrefabs.Count == 0)
@@ -235,7 +301,6 @@ namespace Parameters
                 }
 
                 DebugLog($"***** Set Database *****");
-
                 foreach (var p in postgresSettings)
                 {
                     var ex = dataExSettings.Find(d => d.dbNo == p.No);
@@ -299,153 +364,6 @@ namespace Parameters
                     }
                 }
 
-                /*
-                // 無視オブジェクト無効化
-                if (buildConfig.isRelease)
-                {
-                    // リリースモード時
-                    DebugLog($"***** Hidden Models *****");
-                    foreach (var prefab in prefabs)
-                    {
-                        if (prefab.name[0] != '_')
-                        {
-                            // 生成用ワーク保持
-                            foreach (var wk in wkSettings)
-                            {
-                                var work = prefab.GetComponentsInChildren<Transform>().ToList().FindAll(d => d.name == wk.work);
-                                if (work.Count > 0)
-                                {
-                                    var w = works.Find(d => d.key == wk.work);
-                                    if (w == null)
-                                    {
-                                        w = new ObjEntry { key = wk.work };
-                                        works.Add(w);
-
-                                    }
-                                    w.obj = Instantiate(work[0].gameObject);
-                                    w.obj.SetActive(false);
-                                }
-                            }
-                            // 生成用段ボール保持
-                            foreach (var cb in cardboardSettings)
-                            {
-                                var unit = unitSettings.Find(d => (d.mechId == cb.mechId) && (d.name == cb.name));
-                                if (unit != null)
-                                {
-                                    var cardboard = prefab.GetComponentsInChildren<Transform>().ToList().FindAll(d => d.name == unit.parent);
-                                    if (cardboard.Count > 0)
-                                    {
-                                        cardboard[0].transform.parent = prefabObj.transform;
-                                        var c = works.Find(d => d.key == cb.name);
-                                        if (c == null)
-                                        {
-                                            c = new ObjEntry { key = cb.name };
-                                            works.Add(c);
-                                        }
-                                        c.obj = Instantiate(cardboard[0].gameObject);
-                                        var cbs =  c.obj.AddComponent<CardboardScript>();
-                                        cbs.SetParameter(unit, cb);
-                                        c.obj.SetActive(false);
-                                    }
-                                }
-                            }
-                            // 非表示モデル
-                            foreach (var m in hiddenSettings)
-                            {
-                                if (m.isEnable)
-                                {
-                                    if (m.mode == 0)
-                                    {
-                                        // 一致
-                                        foreach (var o in prefab.GetComponentsInChildren<Transform>().ToList().FindAll(d => d.name == m.name))
-                                        {
-                                            if ((m.parent == null) || (m.parent == "") || (m.parent == o.parent.name))
-                                            {
-                                                o.gameObject.SetActive(false);
-                                            }
-                                        }
-                                    }
-                                    else if (m.mode == 1)
-                                    {
-                                        // 前方一致
-                                        foreach (var o in prefab.GetComponentsInChildren<Transform>().ToList().FindAll(d => d.name.StartsWith(m.name)))
-                                        {
-                                            if ((m.parent == null) || (m.parent == "") || (m.parent == o.parent.name))
-                                            {
-                                                o.gameObject.SetActive(false);
-                                            }
-                                        }
-                                    }
-                                    else if (m.mode == 2)
-                                    {
-                                        // 後方一致
-                                        foreach (var o in prefab.GetComponentsInChildren<Transform>().ToList().FindAll(d => d.name.EndsWith(m.name)))
-                                        {
-                                            if ((m.parent == null) || (m.parent == "") || (m.parent == o.parent.name))
-                                            {
-                                                o.gameObject.SetActive(false);
-                                            }
-                                        }
-                                    }
-                                    else if (m.mode == 3)
-                                    {
-                                        // 含まれている
-                                        foreach (var o in prefab.GetComponentsInChildren<Transform>().ToList().FindAll(d => d.name.Contains(m.name)))
-                                        {
-                                            if ((m.parent == null) || (m.parent == "") || (m.parent == o.parent.name))
-                                            {
-                                                o.gameObject.SetActive(false);
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-                */
-
-                DebugLog($"***** Load Prefab Model *****");
-                var rootObjects = SceneManager.GetActiveScene().GetRootGameObjects().ToList();
-                foreach (var prefab in prefabs)
-                {
-                    if (prefab.name[0] != '_')
-                    {
-                        var prefabData = rootObjects.Find(d => d.name == prefab.name);
-                        if (prefabData == null)
-                        {
-                            prefabData = Instantiate(prefab);
-                            prefabData.name = prefab.name;
-                            prefabData.transform.parent = prefabObj.transform;
-                        }
-                        else
-                        {
-                            prefabData.name = prefab.name;
-                            prefabData.transform.parent = prefabObj.transform;
-                        }
-                        if (isFirstLoad)
-                        {
-                            // シェーダーセット
-                            foreach (Renderer renderer in prefabData.GetComponentsInChildren<Renderer>())
-                            {
-                                foreach (Material mat in renderer.materials)
-                                {
-                                    if (mat != null)
-                                    {
-                                        if (mat.name == "Default Line Material (Instance)")
-                                        {
-                                            //                                        if (mat.shader.name == "Hidden/InternalErrorShader")
-                                            //                                        {
-                                            mat.shader = linesShader;
-                                            mat.SetColor("_BaseColor", new Color(0, 0, 0, 0));
-                                            //                                        }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
                 isFirstLoad = false;
                 yield return null; // 1フレーム待
 
@@ -694,6 +612,10 @@ namespace Parameters
                     DebugLog($"***** Load Units *****");
                     foreach (var unitSetting in unitSettings)
                     {
+                        if (prefabs.Count == 0)
+                        {
+                            continue;
+                        }
                         SetProgressLabel($"Loading Unit : {unitSetting.name}");
                         // デバッグ用
                         innerUnit = unitSetting;
@@ -1130,10 +1052,13 @@ namespace Parameters
                     }
                 }
             }
+
+            //　プログレスバー終了
             if (SetProgress(devMax, devMax, 0))
             {
                 yield return null; // 1フレーム待
             }
+
             // イベント登録
             viewScript.SetEvents(allMaterials, allLineMaterials, standardShader, linesShader, clipShader);
             menuInfoScript.SetEvents(unitSettings);
