@@ -225,7 +225,7 @@ public class CanvasPrefabInfoScript : KssBaseScript
             btnPrefabs.Find(d => d.name == name);
         }
         var btn = Instantiate(btnPrefab);
-        btn.transform.parent = transform;
+        btn.transform.SetParent(transform, false);
         btn.gameObject.SetActive(true);
         var text = btn.GetComponentInChildren<TextMeshProUGUI>();
         text.text = name;
