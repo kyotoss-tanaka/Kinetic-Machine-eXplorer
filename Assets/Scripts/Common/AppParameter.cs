@@ -326,6 +326,9 @@ namespace Parameters
     {
         public string name { get; set; }
         public string group { get; set; }
+        public string path { get; set; }
+        public bool isUnit { get; set; }
+        public GameObject childObject = null;
     }
 
     [Serializable]
@@ -1006,6 +1009,7 @@ namespace Parameters
     {
         public string model { get; set; } = "";
         public string group { get; set; } = "";
+        public string path { get; set; } = "";
         [JsonIgnore]
         public GameObject gameObject { get; set; }
         [JsonIgnore]

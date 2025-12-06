@@ -118,6 +118,8 @@ namespace Parameters
         // 初回起動
         private bool isFirstLoad = false;
 
+        // 以前のモード
+        bool isOldMode = false;
         void Awake()
         {
             CommonFunction.DebugLog($"***** Start Load *****");
@@ -259,47 +261,47 @@ namespace Parameters
                         SetProgressLabel($"Loading Unit : {unitSetting.name}");
                         // デバッグ用
                         innerUnit = unitSetting;
-                        // 親モデル検索用(非表示オブジェクトも含む) ※ループ内で行わないとNG
-                        allObjects = GameObject.FindObjectsByType<GameObject>(FindObjectsSortMode.None).ToList();
                         unitSetting.childrenObject = new List<GameObject>();
-                        var gameObjects = allObjects.FindAll(d => d.name == unitSetting.parent);
-                        if (gameObjects.Count == 0)
+
+                        var gameObjects = new List<GameObject>();
+                        if (isOldMode)
                         {
-                            // 空オブジェクト作成
-                            var dummy = new GameObject(unitSetting.parent);
-                            dummy.transform.parent = deviceObj.transform;
-                            dummy.name = unitSetting.name;
-                            dummy.isStatic = true;
-                            gameObjects.Add(dummy);
-                            CommonFunction.DebugLog($"エラー：ユニット名「{unitSetting.name}」の親モデル「{unitSetting.parent}」が存在しません。");
-                        }
-                        if (gameObjects.Count > 0)
-                        {
-                            if ((gameObjects.Count == 1) || (unitSetting.group == null) || (unitSetting.group == ""))
+                            // 親モデル検索用(非表示オブジェクトも含む) ※ループ内で行わないとNG
+                            allObjects = GameObject.FindObjectsByType<GameObject>(FindObjectsSortMode.None).ToList();
+                            gameObjects = allObjects.FindAll(d => d.name == unitSetting.parent);
+                            if (gameObjects.Count == 0)
                             {
-                                // 先頭を親にする
-                                unitSetting.moveObject = gameObjects[0];
-                                unitSetting.unitObject.isStatic = gameObjects[0].isStatic;
-                                // 先頭以外は子供として紐づける
-                                for (var i = 1; i < gameObjects.Count; i++)
+                                // 空オブジェクト作成
+                                var dummy = new GameObject(unitSetting.parent);
+                                dummy.transform.parent = deviceObj.transform;
+                                dummy.name = unitSetting.name;
+                                dummy.isStatic = true;
+                                gameObjects.Add(dummy);
+                                CommonFunction.DebugLog($"エラー：ユニット名「{unitSetting.name}」の親モデル「{unitSetting.parent}」が存在しません。");
+                            }
+                        }
+                        if (unitSetting.moveObject != null)
+                        {
+                            //　子モデルセット
+                            foreach (var child in unitSetting.children)
+                            {
+                                if (child.childObject != null)
                                 {
-                                    unitSetting.childrenObject.Add(gameObjects[i]);
-                                }
-                                //　子モデルセット
-                                foreach (var child in unitSetting.children)
-                                {
-                                    var childObjects = allObjects.FindAll(d => d.name == child.name);
-                                    GameObject childObject = null;
-                                    if (FindInGroup(childObjects, child.group, ref childObject))
-                                    {
-                                        unitSetting.childrenObject.Add(childObject);
-                                    }
+                                    unitSetting.childrenObject.Add(child.childObject);
                                 }
                             }
-                            else
+                            if (isOldMode)
                             {
-                                if (FindInGroup(gameObjects, unitSetting.group, ref unitSetting.moveObject))
+                                if ((gameObjects.Count == 1) || (unitSetting.group == null) || (unitSetting.group == ""))
                                 {
+                                    // 先頭を親にする
+                                    unitSetting.moveObject = gameObjects[0];
+                                    unitSetting.unitObject.isStatic = gameObjects[0].isStatic;
+                                    // 先頭以外は子供として紐づける
+                                    for (var i = 1; i < gameObjects.Count; i++)
+                                    {
+                                        unitSetting.childrenObject.Add(gameObjects[i]);
+                                    }
                                     //　子モデルセット
                                     foreach (var child in unitSetting.children)
                                     {
@@ -313,8 +315,24 @@ namespace Parameters
                                 }
                                 else
                                 {
-                                    Debug.Log($"エラー：ユニット名「{unitSetting.name}」の親モデル「{unitSetting.parent}」がグループ[{unitSetting.group}]に存在しません。");
-                                    continue;
+                                    if (FindInGroup(gameObjects, unitSetting.group, ref unitSetting.moveObject))
+                                    {
+                                        //　子モデルセット
+                                        foreach (var child in unitSetting.children)
+                                        {
+                                            var childObjects = allObjects.FindAll(d => d.name == child.name);
+                                            GameObject childObject = null;
+                                            if (FindInGroup(childObjects, child.group, ref childObject))
+                                            {
+                                                unitSetting.childrenObject.Add(childObject);
+                                            }
+                                        }
+                                    }
+                                    else
+                                    {
+                                        Debug.Log($"エラー：ユニット名「{unitSetting.name}」の親モデル「{unitSetting.parent}」がグループ[{unitSetting.group}]に存在しません。");
+                                        continue;
+                                    }
                                 }
                             }
                             // 非表示オブジェクトなら非表示から削除
@@ -339,16 +357,19 @@ namespace Parameters
                             unitSetting.ledSetting = ledSettings.Find(d => (d.mechId == unitSetting.mechId) && (d.name == unitSetting.name));
                             // 機構拡張設定紐づけ
                             unitSetting.exMechSetting = exMechSettings.Find(d => (d.mechId == unitSetting.mechId) && (d.name == unitSetting.name));
-                            if (unitSetting.exMechSetting != null)
+                            if (isOldMode)
                             {
-                                // 機構拡張設定
-                                foreach (var data in unitSetting.exMechSetting.datas)
+                                if (unitSetting.exMechSetting != null)
                                 {
-                                    // モデルを設定しておく
-                                    data.gameObject = allObjects.FindAll(d => d.name == data.model).Find(d => CommonFunction.GetScenePath(d).Contains(data.group));
-                                    foreach (var child in data.children)
+                                    // 機構拡張設定
+                                    foreach (var data in unitSetting.exMechSetting.datas)
                                     {
-                                        child.gameObject = allObjects.FindAll(d => d.name == child.model).Find(d => CommonFunction.GetScenePath(d).Contains(child.group));
+                                        // モデルを設定しておく
+                                        data.gameObject = allObjects.FindAll(d => d.name == data.model).Find(d => CommonFunction.GetScenePath(d).Contains(data.group));
+                                        foreach (var child in data.children)
+                                        {
+                                            child.gameObject = allObjects.FindAll(d => d.name == child.model).Find(d => CommonFunction.GetScenePath(d).Contains(child.group));
+                                        }
                                     }
                                 }
                             }
@@ -509,9 +530,11 @@ namespace Parameters
                         {
                             yield return null; // 1フレーム待
                         }
-                        CommonFunction.DebugLog($"***** {unitSetting.name} Loaded *****", true);
+                        CommonFunction.DebugLog($"***** {unitSetting.name} Loaded *****", false);
                     }
+
                     CommonFunction.DebugLog($"***** Organize Units *****", true);
+                    yield return null; // 1フレーム待(下のオブジェクト取得時にNULLにならないようにするために必要)
                     // 使い勝手向上のため動作可能オブジェクトを移動
                     var allMobableObjs = GameObject.FindObjectsByType<GameObject>(FindObjectsSortMode.None).ToList().FindAll(d => d.name.Contains(movableName + "_"));
                     // 名前順にソート
@@ -519,6 +542,11 @@ namespace Parameters
                     var moveObjs = new List<GameObject>();
                     foreach (var obj in allMobableObjs)
                     {
+                        if (obj.IsDestroyed())
+                        {
+                            var index = allMobableObjs.IndexOf(obj);
+                            continue;
+                        }
                         // 親子関係を切らないように検索
                         var parents = obj.transform.parent.GetComponentsInParent<Transform>().Where(d => d.parent != null).ToList();
                         parents.Remove(obj.transform.parent);
@@ -1553,8 +1581,35 @@ namespace Parameters
                     undefinedUnits[undefinedUnits.Count - 1].obj.name = "UndefinedUnits";
                     undefinedUnits[undefinedUnits.Count - 1].obj.transform.parent = movableObjs[movableObjs.Count - 1].obj.transform;
                 }
+                // ゲームオブジェクト紐づけ
+                if (unitSetting.path != "")
+                {
+                    var obj = prefabObj.transform.Find(unitSetting.path);
+                    unitSetting.moveObject = obj != null ? obj.gameObject : null;
+                }
             }
-
+            // 子供オブジェクト
+            foreach (var unitSetting in unitSettings)
+            {
+                foreach (var child in unitSetting.children)
+                {
+                    if (!child.isUnit)
+                    {
+                        // ユニット以外
+                        if (child.path != "")
+                        {
+                            var obj = prefabObj.transform.Find(child.path);
+                            child.childObject = obj != null ? obj.gameObject : null;
+                        }
+                    }
+                    else
+                    {
+                        // ユニット
+                        var obj = unitSettings.Find(d => d.name == child.name);
+                        child.childObject = obj != null ? obj.unitObject : null;
+                    }
+                }
+            }
             // ユニット生成順ソート
             var unitNames = unitSettings.Select(d => d.name).ToList();
             var tmpUnits = new List<UnitSetting>();
@@ -1567,6 +1622,24 @@ namespace Parameters
                     if ((c != null) && !tmpUnits.Contains(c))
                     {
                         tmpUnits.Add(c);
+                    }
+                }
+            }
+
+            // 拡張機構設定
+            foreach (var ex in exMechSettings)
+            {
+                foreach(var data in ex.datas)
+                {
+                    if (data.path != null)
+                    {
+                        var obj = prefabObj.transform.Find(data.path);
+                        data.gameObject = obj != null ? obj.gameObject : null;
+                    }
+                    foreach (var child in data.children)
+                    {
+                        var obj = prefabObj.transform.Find(child.path);
+                        child.gameObject = obj != null ? obj.gameObject : null;
                     }
                 }
             }
