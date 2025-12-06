@@ -79,5 +79,32 @@ public static class CommonFunction
         return path;
     }
 
+    #region デバッグ用
+    private static bool isDebug = false;
+    private static System.Diagnostics.Stopwatch swDebug = new();
+    private static long prvLap = 0;
+
+    /// <summary>
+    /// デバッグ用情報初期化
+    /// </summary>
+    public static void DebugInfoInit()
+    {
+        swDebug.Restart();
+        prvLap = 0;
+    }
+
+    /// <summary>
+    /// デバッグログ
+    /// </summary>
+    public static void DebugLog(string message, bool isForce = false)
+    {
+        if (isDebug || isForce)
+        {
+            Debug.Log($"{swDebug.ElapsedMilliseconds}({swDebug.ElapsedMilliseconds - prvLap})msec : {message}");
+            prvLap = swDebug.ElapsedMilliseconds;
+        }
+    }
+    #endregion デバッグ用
+
     #endregion メソッド
 }

@@ -747,7 +747,7 @@ public static class GlobalScript
     /// スイッチモデル生成
     /// </summary>
     /// <returns></returns>
-    public static List<GameObject> CreateSwitchModel()
+    public static List<GameObject> LoadSwitchModel()
     {
         return LoadPrefabObject("Prefabs/Device", "Switch", true);
     }
@@ -756,7 +756,7 @@ public static class GlobalScript
     /// シグナルタワーモデル生成
     /// </summary>
     /// <returns></returns>
-    public static List<GameObject> CreateSignalTowerModel()
+    public static List<GameObject> LoadSignalTowerModel()
     {
         return LoadPrefabObject("Prefabs/Device", "SignalTower", true);
     }

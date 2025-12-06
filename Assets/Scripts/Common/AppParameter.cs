@@ -245,6 +245,10 @@ namespace Parameters
         /// </summary>
         public string parent { get; set; }
         /// <summary>
+        /// 絶対パス
+        /// </summary>
+        public string path { get; set; }
+        /// <summary>
         /// 子オブジェクト名
         /// </summary>
         public List<UnitChildren> children { get; set; }
