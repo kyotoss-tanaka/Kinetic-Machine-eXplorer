@@ -17,6 +17,8 @@ using Application =UnityEngine.Application;
 using Oculus.Interaction;
 using UnityEngine.UI;
 using System.Security.Principal;
+using UnityEngine.UIElements;
+
 
 
 
@@ -48,6 +50,9 @@ public class MainProcess : KssBaseScript
 
     private Shader selectedShader;
     private Shader linesShader;
+
+    private GameObject axis;
+    private bool isAxisVisible = true;
 
     /// <summary>
     /// 初期化
@@ -141,6 +146,9 @@ public class MainProcess : KssBaseScript
         // マウス処理
         MouseUpdate();
 
+        // 軸更新
+        AxisUpdate();
+
         // デバッグ出力
         GlobalScript.DebugOut();
     }
@@ -204,6 +212,11 @@ public class MainProcess : KssBaseScript
                 InitCallbackData();
                 isReloading = false;
             }
+        }
+        else if (Keyboard.current.aKey.wasPressedThisFrame)
+        {
+            // A
+            isAxisVisible = !isAxisVisible;
         }
         else if (Keyboard.current.cKey.wasPressedThisFrame)
         {
@@ -318,12 +331,8 @@ public class MainProcess : KssBaseScript
                         if (isControl)
                         {
                             // 選択中のマテリアルを解除
-                            foreach (var mat in selectedMaterials)
-                            {
-                                mat.shader = linesShader;
-                            }
-                            selectedMaterials.Clear();
                             selectedObject = null;
+                            ClearSelected();
                             menuInfoScript.SetAssemblyObject(selectedObject);
                         }
                         // ゲームオブジェクトの名前を出力
@@ -370,12 +379,8 @@ public class MainProcess : KssBaseScript
             if (isControl)
             {
                 // 選択中のマテリアルを解除
-                foreach (var mat in selectedMaterials)
-                {
-                    mat.shader = linesShader;
-                }
-                selectedMaterials.Clear();
                 selectedObject = null;
+                ClearSelected();
                 menuInfoScript.SetAssemblyObject(selectedObject);
             }
         }
@@ -493,17 +498,26 @@ public class MainProcess : KssBaseScript
     }
 
     /// <summary>
+    /// 選択解除
+    /// </summary>
+    private void ClearSelected()
+    {
+        foreach (var mat in selectedMaterials)
+        {
+            mat.shader = linesShader;
+        }
+        selectedMaterials.Clear();
+    }
+
+    /// <summary>
     /// オブジェクトを選択する
     /// </summary>
     /// <param name="gameObject"></param>
     public IEnumerator SelectObject(GameObject gameObject)
     {
         // 一旦選択解除
-        foreach (var mat in selectedMaterials)
-        {
-            mat.shader = linesShader;
-        }
-        selectedMaterials.Clear();
+        ClearSelected();
+
         if (gameObject != null)
         {
             // 再選択
@@ -525,5 +539,76 @@ public class MainProcess : KssBaseScript
             }
         }
         yield return null;
+    }
+
+    /// <summary>
+    /// 軸作成
+    /// </summary>
+    /// <param name="dir"></param>
+    /// <param name="color"></param>
+    private void CreateAxis(GameObject parent, Vector3 dir, Color color)
+    {
+        var go = new GameObject("Axis_" + color);
+        go.transform.parent = transform;
+
+        var lr = go.AddComponent<LineRenderer>();
+        lr.startWidth = 0.02f;
+        lr.endWidth = 0.02f;
+        lr.positionCount = 2;
+        lr.useWorldSpace = false;
+        lr.SetPosition(0, Vector3.zero);
+        lr.SetPosition(1, dir * 0.2f);
+
+        lr.material = new Material(Shader.Find("Sprites/Default"));
+        lr.startColor = color;
+        lr.endColor = color;
+        go.transform.parent = parent.transform;
+    }
+
+    /// <summary>
+    /// 軸更新処理
+    /// </summary>
+    private void AxisUpdate()
+    {
+        if ((axis == null) || axis.IsDestroyed())
+        {
+            axis = new GameObject("AxisView");
+            CreateAxis(axis, Vector3.right, Color.red);
+            CreateAxis(axis, Vector3.up, Color.green);
+            CreateAxis(axis, Vector3.forward, Color.blue);
+        }
+        if ((selectedObject == null) || !isAxisVisible)
+        {
+            if (axis.activeSelf)
+            {
+                axis.SetActive(false);
+            }
+        }
+        else if(isAxisVisible)
+        {
+            if (!axis.activeSelf)
+            {
+                axis.SetActive(true);
+            }
+            axis.transform.parent = selectedObject.transform;
+            axis.transform.localPosition = Vector3.zero;
+            axis.transform.localEulerAngles = Vector3.zero;
+            axis.transform.localScale = selectedObject.transform.localScale;
+
+            float dist = Vector3.Distance(transform.position, cameraController.transform.position);
+            float t = Mathf.InverseLerp(0.5f, 5f, dist);
+            float width = Mathf.Lerp(0.0005f, 0.01f, t);
+            float length = Mathf.Lerp(0.02f, 0.4f, t);
+
+            // 全軸に適用
+            var index = 0;
+            foreach (var lr in axis.GetComponentsInChildren<LineRenderer>())
+            {
+                lr.startWidth = width;
+                lr.endWidth = width;
+                lr.SetPosition(1, (index == 0 ? Vector3.right : (index == 1 ? Vector3.up : Vector3.forward)) * length);
+                index++;
+            }
+        }
     }
 }
