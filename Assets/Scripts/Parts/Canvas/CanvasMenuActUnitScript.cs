@@ -286,7 +286,7 @@ public class CanvasMenuActUnitScript : CanvasMenuBaseScript
                     {
                         i++;
                         var actUnit = Instantiate(actUnitContents);
-                        actUnit.transform.parent = actUnitContentsActList.transform;
+                        actUnit.transform.SetParent(actUnitContentsActList.transform);
                         ((RectTransform)actUnit.transform).anchoredPosition = new Vector3(0, - 30 * actUnitInfos.Count, 0);
                         actUnit.SetActive(true);
                         var txtTarget = actUnit.GetComponentsInChildren<TextMeshProUGUI>().ToList().Find(d => d.name == "TxtTarget");
