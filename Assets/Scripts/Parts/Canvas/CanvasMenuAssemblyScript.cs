@@ -316,7 +316,7 @@ public class CanvasMenuAssemblyScript : CanvasMenuBaseScript
             var rt = obj.GetComponent<RectTransform>();
             var left = index * 10;
             t.text = (index == 0 ? "" : "- ") + text + (motionUnits.Count > 0 ? "(Motion)" : "");
-            t.transform.parent = baseText.transform.parent;
+            t.transform.SetParent(baseText.transform.parent);
             t.transform.localPosition = new Vector3(5 + left, -5 - (fontSize * index), 0);
             t.gameObject.SetActive(true);
 //            t.fontSharedMaterial.EnableKeyword("GLOW_ON");

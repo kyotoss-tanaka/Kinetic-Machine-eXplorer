@@ -1,25 +1,26 @@
+using MongoDB.Driver;
+using NUnit.Framework;
+using Oculus.Interaction.UnityCanvas;
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Text.RegularExpressions;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
-using UnityEngine;
-using UnityEngine.InputSystem.XR;
-using Unity.VisualScripting;
-using static UnityEngine.UI.CanvasScaler;
-using System.Collections;
-using NUnit.Framework;
-using UnityEngine.UI;
 using TMPro;
-using MongoDB.Driver;
-using UnityEngine.SceneManagement;
-using UnityEngine.AddressableAssets.Initialization;
-using UnityEngine.AddressableAssets;
-using UnityEngine.ResourceManagement.AsyncOperations;
 using Unity.IO.LowLevel.Unsafe;
-using Oculus.Interaction.UnityCanvas;
+using Unity.VisualScripting;
+using UnityEditor;
+using UnityEngine;
+using UnityEngine.AddressableAssets;
+using UnityEngine.AddressableAssets.Initialization;
+using UnityEngine.InputSystem.XR;
+using UnityEngine.ResourceManagement.AsyncOperations;
+using UnityEngine.SceneManagement;
+using UnityEngine.UI;
+using static UnityEngine.UI.CanvasScaler;
 
 namespace Parameters
 {
@@ -515,7 +516,7 @@ namespace Parameters
                                 }
                             }
                         }
-                        else
+                        else if(unitSetting.parent != "")
                         {
                             Debug.Log($"エラー：ユニット名「{unitSetting.name}」の親モデル「{unitSetting.parent}」が存在しません。");
                             Destroy(unitSetting.unitObject);
@@ -1671,6 +1672,8 @@ namespace Parameters
                             obj.transform.localPosition = new Vector3(sw.pos[0], sw.pos[1], sw.pos[2]);
                             obj.transform.localEulerAngles = new Vector3(sw.rot[0], sw.rot[1], sw.rot[2]);
                             switchModel.Add(obj);
+                            // 動作オブジェクトセット
+                            unit.moveObject = obj;
                         }
                     }
                 }
@@ -1701,6 +1704,8 @@ namespace Parameters
                             obj.transform.localPosition = new Vector3(st.pos[0], st.pos[1], st.pos[2]);
                             obj.transform.localEulerAngles = new Vector3(st.rot[0], st.rot[1], st.rot[2]);
                             towerModel.Add(obj);
+                            // 動作オブジェクトセット
+                            unit.moveObject = obj;
                         }
                     }
                 }
