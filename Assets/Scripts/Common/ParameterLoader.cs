@@ -100,8 +100,10 @@ namespace Parameters
         private GameObject uiCollision;
 
         // 断面切断
+        /*
         private CanvasMenuViewScript viewScript;
         private GameObject uiView;
+        */
 
         // プログレスバー
         private int devMax = 4;
@@ -566,7 +568,7 @@ namespace Parameters
                             // 最上流の動作可能親オブジェクト
                             moveObjs.Add(obj);
                         }
-                        SetProgressLabel($"Organize Unit : {obj.name}");
+                        SetProgressLabel($"Organize Unit : {obj.transform.parent.name}");
                         if (SetProgress(3, devMax, (float)allMobableObjs.IndexOf(obj) / (allMobableObjs.Count)))
                         {
                             yield return null; // 1フレーム待
@@ -673,7 +675,7 @@ namespace Parameters
                             GlobalScript.clipInfo.bounds.Encapsulate(rend.bounds);
                         }
                         // 初期値セット
-                        viewScript.clipToggle_onValueChanged(true);
+                        //viewScript.clipToggle_onValueChanged(true);
                     }
                 }
 
@@ -731,7 +733,7 @@ namespace Parameters
             }
 
             // イベント登録
-            viewScript.SetEvents(allMaterials, allLineMaterials, standardShader, linesShader, clipShader);
+            //viewScript.SetEvents(allMaterials, allLineMaterials, standardShader, linesShader, clipShader);
             menuInfoScript.SetEvents(unitSettings);
             prefabInfoScript.SetEvents();
 
@@ -1114,6 +1116,7 @@ namespace Parameters
             }
 
             // 断面表示設定
+            /*
             var clip = GlobalScript.LoadPrefabObject("Prefabs/Canvas", "ViewSetting");
             if (clip.Count > 0)
             {
@@ -1122,6 +1125,7 @@ namespace Parameters
                 viewScript = uiView.AddComponent<CanvasMenuViewScript>();
                 uiView.SetActive(false);
             }
+            */
         }
 
         /// <summary>
@@ -1298,11 +1302,13 @@ namespace Parameters
                         prefabData = Instantiate(prefab);
                         prefabData.SetActive(true);
                         prefabData.name = prefab.name;
+                        prefabData.transform.position = new();
                         prefabData.transform.parent = prefabObj.transform;
                     }
                     else
                     {
                         prefabData.name = prefab.name;
+                        prefabData.transform.position = new();
                         prefabData.transform.parent = prefabObj.transform;
                     }
                     if (isFirstLoad)
