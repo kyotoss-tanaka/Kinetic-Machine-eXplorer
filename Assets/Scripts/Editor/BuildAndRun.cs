@@ -29,7 +29,7 @@ public class BuildAndRun
         public string target;
         public string outputPath;
         public List<string> scenes;
-        public string buildOptions;
+        public BuildOptions buildOptions;
     }
 
     static string scenePath = "Assets/Scenes/Simuration.unity";
@@ -164,7 +164,7 @@ public class BuildAndRun
             target = build.isVR || build.isMR ? "Android" : "Windows",
             outputPath = build.isMR || build.isVR ? $"{productDir}.apk" : $"{productDir}/KMX.exe",
             scenes = new List<string> { scenePath },
-            buildOptions = build.isRelease ? "None" : "Development"
+            buildOptions = build.isRelease ? BuildOptions.None : BuildOptions.Development | BuildOptions.ConnectWithProfiler | BuildOptions.AllowDebugging// | BuildOptions.EnableDeepProfilingSupport
         };
 
         // ÉVÅ[Éìì«Ç›çûÇ›
@@ -201,7 +201,7 @@ public class BuildAndRun
             scenes = config.scenes.ToArray(),
             locationPathName = config.outputPath,
             target = target,
-            options = (isOpen ? BuildOptions.AutoRunPlayer : BuildOptions.None) | ParseBuildOptions(config.buildOptions) | BuildOptions.CompressWithLz4HC
+            options = (isOpen ? BuildOptions.AutoRunPlayer : BuildOptions.None) | config.buildOptions | BuildOptions.CompressWithLz4HC
         };
 
         EditorUserBuildSettings.androidBuildSystem = AndroidBuildSystem.Gradle;

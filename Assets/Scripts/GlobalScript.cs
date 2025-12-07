@@ -945,37 +945,4 @@ public static class GlobalScript
         mesh.RecalculateBounds();
         mesh.RecalculateNormals();
     }
-
-    /// <summary>
-    /// デバッグ出力
-    /// </summary>
-    public static void DebugOut()
-    {
-        // デバッグ設定
-        if (Keyboard.current.dKey.wasPressedThisFrame)
-        {
-            isDebug = !isDebug;
-        }
-
-        // デバッグ出力
-        if (isDebug)
-        {
-            if (debugCount == 0)
-            {
-                foreach (var postgres in postgreses)
-                {
-                    Debug.Log(postgres.Key + " : " + postgres.Value.nowCycle + "msec");
-                }
-                foreach (var mqtt in mqtts)
-                {
-                    Debug.Log(mqtt.Key + " : " + mqtt.Value.nowCycle + "msec");
-                }
-                foreach (var redis in redises)
-                {
-                    Debug.Log(redis.Key + " : " + redis.Value.nowCycle + "msec");
-                }
-            }
-            debugCount = (debugCount + 1) % debugCountMax;
-        }
-    }
 }

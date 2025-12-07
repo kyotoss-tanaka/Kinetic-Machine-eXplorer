@@ -3,6 +3,7 @@ using Parameters;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.InteropServices;
 using TMPro;
 using UnityEngine;
 using UnityEngine.InputSystem;
@@ -58,6 +59,30 @@ public class CanvasMenuAssemblyScript : CanvasMenuBaseScript
     }
 
     /// <summary>
+    /// 有効時
+    /// </summary>
+    protected override void OnEnable()
+    {
+        base.OnEnable();
+        InputManager.Instance.RegisterKey(Key.V, HandleKey);
+        InputManager.Instance.RegisterKey(Key.X, HandleKey);
+        InputManager.Instance.RegisterKey(Key.Y, HandleKey);
+        InputManager.Instance.RegisterKey(Key.Z, HandleKey);
+    }
+
+    /// <summary>
+    /// 無効時
+    /// </summary>
+    protected override void OnDisable()
+    {
+        base.OnDisable();
+        InputManager.Instance.UnregisterKey(Key.V, HandleKey);
+        InputManager.Instance.UnregisterKey(Key.X, HandleKey);
+        InputManager.Instance.UnregisterKey(Key.Y, HandleKey);
+        InputManager.Instance.UnregisterKey(Key.Z, HandleKey);
+    }
+
+    /// <summary>
     /// 開始処理
     /// </summary>
     protected override void Start()
@@ -68,10 +93,18 @@ public class CanvasMenuAssemblyScript : CanvasMenuBaseScript
     protected override void Update()
     {
         base.Update();
-        if (Keyboard.current.vKey.wasPressedThisFrame)
+    }
+
+    /// <summary>
+    /// キーイベント
+    /// </summary>
+    /// <param name="key"></param>
+    private void HandleKey(Key key, bool isCtrl, bool isShift)
+    {
+        if (key == Key.V)
         {
             // V 表示/非表示切り替え
-            if (Keyboard.current.ctrlKey.isPressed)
+            if (isCtrl)
             {
                 foreach (var obj in invisibleObjects)
                 {
@@ -96,25 +129,25 @@ public class CanvasMenuAssemblyScript : CanvasMenuBaseScript
             }
             SetTextColor();
         }
-        else if (Keyboard.current.xKey.wasPressedThisFrame)
+        else if (key == Key.X)
         {
             if (selectedVisible != null)
             {
-                StartCoroutine(MoveAxis(selectedVisible, new Vector3(1, 0, 0), Keyboard.current.ctrlKey.isPressed));
+                StartCoroutine(MoveAxis(selectedVisible, new Vector3(1, 0, 0), isShift));
             }
         }
-        else if (Keyboard.current.yKey.wasPressedThisFrame)
+        else if (key == Key.Y)
         {
             if (selectedVisible != null)
             {
-                StartCoroutine(MoveAxis(selectedVisible, new Vector3(0, 1, 0), Keyboard.current.ctrlKey.isPressed));
+                StartCoroutine(MoveAxis(selectedVisible, new Vector3(0, 1, 0), isShift));
             }
         }
-        else if (Keyboard.current.zKey.wasPressedThisFrame)
+        else if (key == Key.Z)
         {
             if (selectedVisible != null)
             {
-                StartCoroutine(MoveAxis(selectedVisible, new Vector3(0, 0, 1), Keyboard.current.ctrlKey.isPressed));
+                StartCoroutine(MoveAxis(selectedVisible, new Vector3(0, 0, 1), isShift));
             }
         }
     }
@@ -173,11 +206,13 @@ public class CanvasMenuAssemblyScript : CanvasMenuBaseScript
                                 {
                                     // ユニット選択
                                     actScript.SelectUnit(obj.name);
+                                    menuInfoScript.SetAssemblyObject(obj, true);
                                 }
                                 else
                                 {
                                     // 部品選択
                                     actScript.SelectParts(obj);
+                                    menuInfoScript.SetAssemblyObject(obj, true);
                                 }
                                 break;
                             }

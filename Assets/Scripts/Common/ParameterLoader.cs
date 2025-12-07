@@ -6,6 +6,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
@@ -16,6 +17,7 @@ using UnityEditor;
 using UnityEngine;
 using UnityEngine.AddressableAssets;
 using UnityEngine.AddressableAssets.Initialization;
+using UnityEngine.InputSystem;
 using UnityEngine.InputSystem.XR;
 using UnityEngine.ResourceManagement.AsyncOperations;
 using UnityEngine.SceneManagement;
@@ -138,6 +140,18 @@ namespace Parameters
 
             // ロード開始
             StartCoroutine(LoadParameter());
+        }
+
+        private void OnEnable()
+        {
+            InputManager.Instance.RegisterKey(Key.L, HandleKey);
+            InputManager.Instance.RegisterKey(Key.P, HandleKey);
+        }
+
+        private void OnDisable()
+        {
+            InputManager.Instance.UnregisterKey(Key.L, HandleKey);
+            InputManager.Instance.UnregisterKey(Key.P, HandleKey);
         }
 
         /// <summary>
@@ -1715,6 +1729,25 @@ namespace Parameters
                         }
                     }
                 }
+            }
+        }
+
+        /// <summary>
+        /// キーイベント
+        /// </summary>
+        /// <param name="key"></param>
+        private void HandleKey(Key key, bool isCtrl, bool isShift)
+        {
+            // 現在のキー状態取得
+            if (key == Key.L)
+            {
+                // L
+                ReloadActParameter();
+            }
+            else if (key == Key.P)
+            {
+                // P
+                ReloadParameter(isCtrl);
             }
         }
         #endregion ロード処理
