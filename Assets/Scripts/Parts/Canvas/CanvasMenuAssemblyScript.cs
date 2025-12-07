@@ -99,55 +99,58 @@ public class CanvasMenuAssemblyScript : CanvasMenuBaseScript
     /// キーイベント
     /// </summary>
     /// <param name="key"></param>
-    private void HandleKey(Key key, bool isCtrl, bool isShift)
+    private void HandleKey(Key key, bool value, bool isCtrl, bool isShift)
     {
-        if (key == Key.V)
+        if (value)
         {
-            // V 表示/非表示切り替え
-            if (isCtrl)
+            if (key == Key.V)
             {
-                foreach (var obj in invisibleObjects)
+                // V 表示/非表示切り替え
+                if (isCtrl)
                 {
-                    obj.SetActive(true);
+                    foreach (var obj in invisibleObjects)
+                    {
+                        obj.SetActive(true);
+                    }
+                    invisibleObjects.Clear();
                 }
-                invisibleObjects.Clear();
+                else
+                {
+                    if (selectedVisible != null)
+                    {
+                        if (invisibleObjects.Contains(selectedVisible))
+                        {
+                            invisibleObjects.Remove(selectedVisible);
+                        }
+                        selectedVisible.SetActive(!selectedVisible.gameObject.activeSelf);
+                        if (!selectedVisible.gameObject.activeSelf)
+                        {
+                            invisibleObjects.Add(selectedVisible);
+                        }
+                    }
+                }
+                SetTextColor();
             }
-            else
+            else if (key == Key.X)
             {
                 if (selectedVisible != null)
                 {
-                    if (invisibleObjects.Contains(selectedVisible))
-                    {
-                        invisibleObjects.Remove(selectedVisible);
-                    }
-                    selectedVisible.SetActive(!selectedVisible.gameObject.activeSelf);
-                    if (!selectedVisible.gameObject.activeSelf)
-                    {
-                        invisibleObjects.Add(selectedVisible);
-                    }
+                    StartCoroutine(MoveAxis(selectedVisible, new Vector3(1, 0, 0), isShift));
                 }
             }
-            SetTextColor();
-        }
-        else if (key == Key.X)
-        {
-            if (selectedVisible != null)
+            else if (key == Key.Y)
             {
-                StartCoroutine(MoveAxis(selectedVisible, new Vector3(1, 0, 0), isShift));
+                if (selectedVisible != null)
+                {
+                    StartCoroutine(MoveAxis(selectedVisible, new Vector3(0, 1, 0), isShift));
+                }
             }
-        }
-        else if (key == Key.Y)
-        {
-            if (selectedVisible != null)
+            else if (key == Key.Z)
             {
-                StartCoroutine(MoveAxis(selectedVisible, new Vector3(0, 1, 0), isShift));
-            }
-        }
-        else if (key == Key.Z)
-        {
-            if (selectedVisible != null)
-            {
-                StartCoroutine(MoveAxis(selectedVisible, new Vector3(0, 0, 1), isShift));
+                if (selectedVisible != null)
+                {
+                    StartCoroutine(MoveAxis(selectedVisible, new Vector3(0, 0, 1), isShift));
+                }
             }
         }
     }

@@ -1736,18 +1736,20 @@ namespace Parameters
         /// キーイベント
         /// </summary>
         /// <param name="key"></param>
-        private void HandleKey(Key key, bool isCtrl, bool isShift)
+        private void HandleKey(Key key, bool value, bool isCtrl, bool isShift)
         {
-            // 現在のキー状態取得
-            if (key == Key.L)
+            if (value)
             {
-                // L
-                ReloadActParameter();
-            }
-            else if (key == Key.P)
-            {
-                // P
-                ReloadParameter(isCtrl);
+                if (key == Key.L)
+                {
+                    // L
+                    ReloadActParameter();
+                }
+                else if (key == Key.P)
+                {
+                    // P
+                    ReloadParameter(isCtrl);
+                }
             }
         }
         #endregion ロード処理

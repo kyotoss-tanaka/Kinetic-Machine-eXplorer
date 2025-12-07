@@ -2,23 +2,12 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
-using System.Net;
-using System.Text.Json;
-using System.Xml.Linq;
-using Unity.VisualScripting;
 using UnityEngine;
 using UnityEngine.Networking;
-using UnityEngine.Windows;
 using UnityEngine.InputSystem;
 using Parameters;
-using TMPro;
-using Oculus.Platform;
 using Application =UnityEngine.Application;
 using Oculus.Interaction;
-using UnityEngine.UI;
-using System.Security.Principal;
-using UnityEngine.UIElements;
-using UnityEngine.SocialPlatforms;
 
 
 #if UNITY_EDITOR
@@ -33,15 +22,13 @@ public class MainProcess : KssBaseScript
     List<GlobalScript.CbTagInfo> cbTags;
 
     private bool isVR { get { return (Application.platform == RuntimePlatform.Android) || (Application.platform == RuntimePlatform.IPhonePlayer); } }
-    private InputSystem_Actions inputActions;
     private CameraController cameraController = null;
-    private ParameterLoader parameterLoader = null;
     private RayInteractor rayInteractorL = null;
     private RayInteractor rayInteractorR = null;
     private KssBaseScript selectedScript = null;
     private CanvasMenuInfoScript menuInfoScript = null;
 
-    private bool isReloading = false;
+//    private bool isReloading = false;
 
     private List<RaycastHit> raycastHits = new();
     private GameObject? selectedObject = null;
@@ -49,6 +36,8 @@ public class MainProcess : KssBaseScript
 
     private Shader selectedShader;
     private Shader linesShader;
+
+    private bool isControl;
 
     /// <summary>
     /// 初期化
@@ -77,16 +66,10 @@ public class MainProcess : KssBaseScript
         }
 
         // データ初期化
-        inputActions = new InputSystem_Actions();
         var cameraControllers = FindObjectsByType<CameraController>(FindObjectsSortMode.None).ToList();
         if (cameraControllers.Count > 0)
         {
             cameraController = cameraControllers[0];
-        }
-        var parameterLoaders = FindObjectsByType<ParameterLoader>(FindObjectsSortMode.None).ToList();
-        if (parameterLoaders.Count > 0)
-        {
-            parameterLoader = parameterLoaders[0];
         }
         var rayInteractors = FindObjectsByType<RayInteractor>(FindObjectsSortMode.None).Where(d => d.transform.parent.parent.name == "LeftController").ToList();
         if (rayInteractors.Count > 0)
@@ -103,16 +86,16 @@ public class MainProcess : KssBaseScript
     protected override void OnEnable()
     {
         base.OnEnable();
+        if(InputManager.Instance == null)
+        {
+            InputManager.Instance = GetComponent<InputManager>();
+        }
         InputManager.Instance.RegisterKey(Key.R, HandleKey);
         InputManager.Instance.RegisterKey(Key.M, HandleKey);
         InputManager.Instance.RegisterKey(Key.O, HandleKey);
         InputManager.Instance.RegisterKey(Key.F, HandleKey);
-        if (inputActions == null)
-        {
-            inputActions = new InputSystem_Actions();
-            inputActions.Keyboard.Enable();
-        }
-        inputActions.Keyboard.Enable();
+        InputManager.Instance.RegisterKey(Key.LeftCtrl, HandleKey);
+        InputManager.Instance.RegisterKey(Key.RightCtrl, HandleKey);
     }
 
     protected override void OnDisable()
@@ -122,7 +105,8 @@ public class MainProcess : KssBaseScript
         InputManager.Instance.UnregisterKey(Key.M, HandleKey);
         InputManager.Instance.UnregisterKey(Key.O, HandleKey);
         InputManager.Instance.UnregisterKey(Key.F, HandleKey);
-        inputActions.Keyboard.Disable();
+        InputManager.Instance.UnregisterKey(Key.LeftCtrl, HandleKey);
+        InputManager.Instance.UnregisterKey(Key.RightCtrl, HandleKey);
     }
 
     protected override void Start()
@@ -160,39 +144,53 @@ public class MainProcess : KssBaseScript
     /// キーイベント
     /// </summary>
     /// <param name="key"></param>
-    private void HandleKey(Key key, bool isCtrl, bool isShift)
+    private void HandleKey(Key key, bool value, bool isCtrl, bool isShift)
     {
-        // 現在のキー状態取得
-        if (key == Key.R)
+        if (value)
         {
-            // R
-            if (cameraController != null)
+            // ON処理
+            if (key == Key.R)
             {
-                cameraController.SetInitPosition();
+                // R
+                if (cameraController != null)
+                {
+                    cameraController.SetInitPosition();
+                }
+            }
+            else if (key == Key.M)
+            {
+                // M
+                if (cameraController != null)
+                {
+                    cameraController.SetRoomPosition();
+                }
+            }
+            else if (key == Key.O)
+            {
+                // O
+                if (cameraController != null)
+                {
+                    cameraController.InitCameraPosition();
+                }
+            }
+            else if (key == Key.F)
+            {
+                // F
+                if ((cameraController != null) && (selectedObject != null))
+                {
+                    cameraController.FocusTo(selectedObject.transform);
+                }
+            }
+            else if ((key == Key.LeftCtrl) || (key == Key.RightCtrl))
+            {
+                isControl = true;
             }
         }
-        else if (key == Key.M)
+        else
         {
-            // M
-            if (cameraController != null)
+            if ((key == Key.LeftCtrl) || (key == Key.RightCtrl))
             {
-                cameraController.SetRoomPosition();
-            }
-        }
-        else if (key == Key.O)
-        {
-            // O
-            if (cameraController != null)
-            {
-                cameraController.InitCameraPosition();
-            }
-        }
-        else if (key == Key.F)
-        {
-            // F
-            if ((cameraController != null) && (selectedObject != null))
-            {
-                cameraController.FocusTo(selectedObject.transform);
+                isControl = false;
             }
         }
     }
@@ -215,7 +213,6 @@ public class MainProcess : KssBaseScript
         var leftDown = Mouse.current.leftButton.wasPressedThisFrame || OVRInput.GetDown(OVRInput.Button.PrimaryIndexTrigger, OVRInput.Controller.LTouch) || OVRInput.GetDown(OVRInput.Button.PrimaryIndexTrigger, OVRInput.Controller.RTouch);
         var rightDown = Mouse.current.rightButton.wasPressedThisFrame;
         var middleDown = Mouse.current.middleButton.wasPressedThisFrame;
-        bool isControl = inputActions.Keyboard.ControlKey.IsPressed();
 
         // 左クリックでRaycast(オブジェクト選択)
         if (click || left || right)

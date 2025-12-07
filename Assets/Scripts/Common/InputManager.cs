@@ -5,8 +5,8 @@ using UnityEngine.InputSystem;
 
 public class InputManager : BaseBehaviour
 {
-    public static InputManager Instance { get; private set; }
-    private Dictionary<Key, Action<Key, bool, bool>> keyActions = new Dictionary<Key, Action<Key, bool, bool>>();
+    public static InputManager Instance { get; set; }
+    private Dictionary<Key, Action<Key, bool, bool, bool>> keyActions = new Dictionary<Key, Action<Key, bool, bool, bool>>();
 
     /// <summary>
     /// ãNè∞èàóù
@@ -27,7 +27,11 @@ public class InputManager : BaseBehaviour
             var action = kvp.Value;
             if (Keyboard.current[key].wasPressedThisFrame)
             {
-                action?.Invoke(key, Keyboard.current.ctrlKey.isPressed, Keyboard.current.shiftKey.isPressed);
+                action?.Invoke(key, true, Keyboard.current.ctrlKey.isPressed, Keyboard.current.shiftKey.isPressed);
+            }
+            else if (Keyboard.current[key].wasReleasedThisFrame)
+            {
+                action?.Invoke(key, false, Keyboard.current.ctrlKey.isPressed, Keyboard.current.shiftKey.isPressed);
             }
         }
     }
@@ -37,12 +41,16 @@ public class InputManager : BaseBehaviour
     /// </summary>
     /// <param name="key"></param>
     /// <param name="action"></param>
-    public void RegisterKey(Key key, Action<Key, bool, bool> action)
+    public void RegisterKey(Key key, Action<Key, bool, bool, bool> action)
     {
         if (keyActions.ContainsKey(key))
+        {
             keyActions[key] += action;
+        }
         else
+        {
             keyActions[key] = action;
+        }
     }
 
     /// <summary>
@@ -50,7 +58,7 @@ public class InputManager : BaseBehaviour
     /// </summary>
     /// <param name="key"></param>
     /// <param name="action"></param>
-    public void UnregisterKey(Key key, Action<Key, bool, bool> action)
+    public void UnregisterKey(Key key, Action<Key, bool, bool, bool> action)
     {
         if (keyActions.ContainsKey(key))
         {

@@ -251,12 +251,15 @@ public class CanvasMenuInfoScript : KssBaseScript
     /// キーイベント
     /// </summary>
     /// <param name="key"></param>
-    private void HandleKey(Key key, bool isCtrl, bool isShift)
+    private void HandleKey(Key key, bool value, bool isCtrl, bool isShift)
     {
-        if (key == Key.A)
+        if (value)
         {
-            // A 表示/非表示切り替え
-            isAxisVisible = !isAxisVisible;
+            if (key == Key.A)
+            {
+                // A 表示/非表示切り替え
+                isAxisVisible = !isAxisVisible;
+            }
         }
     }
     #endregion イベント
