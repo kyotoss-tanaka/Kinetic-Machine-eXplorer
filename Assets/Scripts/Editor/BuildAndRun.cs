@@ -9,7 +9,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Text.Json;
-using static Meta.XR.MRUtilityKit.Data;
 using UnityEditor.SceneManagement;
 using UnityEditor.Build;
 using Unity.VisualScripting;
@@ -206,7 +205,7 @@ public class BuildAndRun
 
         EditorUserBuildSettings.androidBuildSystem = AndroidBuildSystem.Gradle;
         EditorUserBuildSettings.exportAsGoogleAndroidProject = false;
-        EditorUserBuildSettings.development = !build.isRelease;
+//        EditorUserBuildSettings.development = !build.isRelease;
 
         // Addressableê›íË
         AddressableAssetSettings settings = AddressableAssetSettingsDefaultObject.Settings;
