@@ -170,7 +170,7 @@ public class AxisMotionBase : KinematicsBase
     {
         get
         {
-            return unitSetting.actionSetting.mode == 1 || unitSetting.actionSetting.mode == 3;
+            return exModeChange ? (unitSetting.actionSetting.mode == 2 || unitSetting.actionSetting.mode == 4) : (unitSetting.actionSetting.mode == 1 || unitSetting.actionSetting.mode == 3);
         }
     }
 
@@ -491,10 +491,14 @@ public class AxisMotionBase : KinematicsBase
                     child.gameObject.transform.parent = data.gameObject.transform;
                 }
             }
-            else
+        }
+        // 拡張機構なら子供は拡張機構の動作端へ
+        if (exScript.parentModel != null)
+        {
+            foreach (var child in unitSetting.childrenObject)
             {
-                Debug.Log($"エラー：ユニット名「{unitSetting.name}」の拡張モデルが存在しません。");
-                return;
+                // 子オブジェクト移動
+                child.transform.parent = exScript.parentModel.transform;
             }
         }
     }
@@ -645,8 +649,8 @@ public class AxisMotionBase : KinematicsBase
             if (isExMech)
             {
                 // 機構拡張
-                SetExMechSetting();
                 exModeChange = unitSetting.actionSetting.exModeChange;
+                SetExMechSetting();
             }
             // センサ生成設定
             if (this.transform.parent != null)

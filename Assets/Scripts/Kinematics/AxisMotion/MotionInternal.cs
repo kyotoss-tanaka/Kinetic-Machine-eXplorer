@@ -374,7 +374,7 @@ public class MotionInternal : AxisMotionBase
             actionIo.end = action.end;
             actionIos.Add(actionIo);
 
-            action.targetPos = moveDir * (action.target * action.dir + action.offset);
+            action.targetPos = moveDir * (action.target * action.dir + (exModeChange ? 0 : action.offset));
             action.targetPos /= Thousand;
 
             // ÉJÉÄÉ|ÉWçÏê¨
@@ -599,7 +599,7 @@ public class MotionInternal : AxisMotionBase
                     // âÒì]ìÆçÏ
                     foreach (var child in chuckSetting.children)
                     {
-                        child.setting.moveObject.transform.localEulerAngles = moveObject.transform.localEulerAngles * child.dir * child.rate + child.offset * moveDir;
+                        child.setting.moveObject.transform.localEulerAngles = (exModeChange ? innerPosition : moveObject.transform.localEulerAngles) * child.dir * child.rate + child.offset * moveDir;
                     }
                 }
                 else
@@ -607,7 +607,7 @@ public class MotionInternal : AxisMotionBase
                     // íºê¸ìÆçÏ
                     foreach (var child in chuckSetting.children)
                     {
-                        child.setting.moveObject.transform.localPosition = moveObject.transform.localPosition * child.dir * child.rate + child.offset * moveDir / Thousand;
+                        child.setting.moveObject.transform.localPosition = (exModeChange ? innerPosition : moveObject.transform.localPosition) * child.dir * child.rate + child.offset * moveDir / Thousand;
                     }
                 }
             }
@@ -725,7 +725,7 @@ public class MotionInternal : AxisMotionBase
                 actionCurve.isContinue = false;
                 actionCurve.startPos = startPos;
                 actionCurve.actionIo = actionIo;
-                actionCurve.offset = action.offset;
+                actionCurve.offset = exModeChange ? 0 : action.offset;
                 actionCurve.actCurve.Clear();
                 actionCurve.actCurve.AddRange(curve.actCurve);
             }
