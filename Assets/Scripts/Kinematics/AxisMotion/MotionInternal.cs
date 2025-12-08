@@ -15,7 +15,7 @@ public class MotionInternal : AxisMotionBase
     /// 動作関連I/O
     /// </summary>
     [Serializable]
-    private class ActionIo
+    public class ActionIo
     {
         /// <summary>
         /// 開始IO
@@ -67,7 +67,7 @@ public class MotionInternal : AxisMotionBase
     /// <summary>
     /// 動作曲線情報
     /// </summary>
-    private class ActionCurveInfo
+    public class ActionCurveInfo
     {
         /// <summary>
         /// 開始位置
@@ -218,7 +218,7 @@ public class MotionInternal : AxisMotionBase
         /// <summary>
         /// 目標位置
         /// </summary>
-        public int Target;
+        public float Target;
         /// <summary>
         /// 位置
         /// </summary>
@@ -253,7 +253,7 @@ public class MotionInternal : AxisMotionBase
     /// 動作中曲線
     /// </summary>
     [SerializeField]
-    private ActionCurveInfo actionCurve = new ActionCurveInfo();
+    public ActionCurveInfo actionCurve = new ActionCurveInfo();
 
     /// <summary>
     /// 動作曲線情報
@@ -352,7 +352,7 @@ public class MotionInternal : AxisMotionBase
         camPosInfos = new List<CamPosInfo>();
 
         // 現在位置保持
-        innerPosition = isRotate ? moveObject.transform.localEulerAngles : moveObject.transform.localPosition;
+        innerPosition = exModeChange ? Vector3.zero : (isRotate ? moveObject.transform.localEulerAngles : moveObject.transform.localPosition);
 
         // 初期位置保持
         foreach (var action in unitSetting.actionSetting.actions)
@@ -528,47 +528,62 @@ public class MotionInternal : AxisMotionBase
                 {
                     isMoving = false;
                 }
-                if (isRotate)
+                if (exModeChange)
                 {
-                    // 回転動作
-                    moveObject.transform.localEulerAngles = actionCurve.targetPos * Thousand;
-                    innerPosition = actionCurve.targetPos * Thousand;
-                    nowPos = Vector3.Distance(Vector3.zero, moveObject.transform.localEulerAngles);
+                    // 拡張機構モード変更時
+                    innerPosition = isRotate ? actionCurve.targetPos * Thousand : actionCurve.targetPos;
+                    exScript.SetExTarget(innerPosition);
                 }
                 else
                 {
-                    // 直線動作
-                    var position = transform.TransformPoint(actionCurve.targetPos);
-                    //rb.MovePosition(position);
-                    moveObject.transform.localPosition = actionCurve.targetPos;
-                    innerPosition = actionCurve.targetPos;
-                    nowPos = Vector3.Distance(Vector3.zero, moveObject.transform.localPosition) * Thousand;
+                    if (isRotate)
+                    {
+                        // 回転動作
+                        moveObject.transform.localEulerAngles = actionCurve.targetPos * Thousand;
+                        innerPosition = actionCurve.targetPos * Thousand;
+                        nowPos = Vector3.Distance(Vector3.zero, moveObject.transform.localEulerAngles);
+                    }
+                    else
+                    {
+                        // 直線動作
+                        var position = transform.TransformPoint(actionCurve.targetPos);
+                        //rb.MovePosition(position);
+                        moveObject.transform.localPosition = actionCurve.targetPos;
+                        innerPosition = actionCurve.targetPos;
+                        nowPos = Vector3.Distance(Vector3.zero, moveObject.transform.localPosition) * Thousand;
+                    }
                 }
             }
             else
             {
                 try
                 {
-                    if (isRotate)
+                    if (exModeChange)
                     {
-                        if (pos == float.NaN)
-                        {
-                        }
-                        // 回転動作
-                        moveObject.transform.localEulerAngles = actionCurve.startPos * Thousand + pos * moveDir;
-                        innerPosition = actionCurve.startPos * Thousand + pos * moveDir;
-                        nowPos = Vector3.Distance(Vector3.zero, moveObject.transform.localEulerAngles);
+                        // 拡張機構モード変更時
+                        innerPosition = isRotate ? actionCurve.startPos * Thousand + pos * moveDir : actionCurve.startPos + pos * moveDir / Thousand;
+                        exScript.SetExTarget(innerPosition);
                     }
                     else
                     {
-                        // 直線動作
-                        /*
-                        var position = transform.TransformPoint(actionCurve.startPos + pos * moveDir / Thousand);
-                        rb.MovePosition(position);
-                        */
-                        moveObject.transform.localPosition = actionCurve.startPos + pos * moveDir / Thousand;
-                        innerPosition = actionCurve.startPos + pos * moveDir / Thousand;
-                        nowPos = Vector3.Distance(Vector3.zero, moveObject.transform.localPosition) * Thousand;
+                        if (isRotate)
+                        {
+                            // 回転動作
+                            moveObject.transform.localEulerAngles = actionCurve.startPos * Thousand + pos * moveDir;
+                            innerPosition = actionCurve.startPos * Thousand + pos * moveDir;
+                            nowPos = Vector3.Distance(Vector3.zero, moveObject.transform.localEulerAngles);
+                        }
+                        else
+                        {
+                            // 直線動作
+                            /*
+                            var position = transform.TransformPoint(actionCurve.startPos + pos * moveDir / Thousand);
+                            rb.MovePosition(position);
+                            */
+                            moveObject.transform.localPosition = actionCurve.startPos + pos * moveDir / Thousand;
+                            innerPosition = actionCurve.startPos + pos * moveDir / Thousand;
+                            nowPos = Vector3.Distance(Vector3.zero, moveObject.transform.localPosition) * Thousand;
+                        }
                     }
                 }
                 catch (Exception ex)

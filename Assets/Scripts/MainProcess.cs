@@ -86,10 +86,6 @@ public class MainProcess : KssBaseScript
     protected override void OnEnable()
     {
         base.OnEnable();
-        if(InputManager.Instance == null)
-        {
-            InputManager.Instance = GetComponent<InputManager>();
-        }
         InputManager.Instance.RegisterKey(Key.R, HandleKey);
         InputManager.Instance.RegisterKey(Key.M, HandleKey);
         InputManager.Instance.RegisterKey(Key.O, HandleKey);

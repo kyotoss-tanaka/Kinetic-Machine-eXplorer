@@ -379,6 +379,10 @@ namespace Parameters
         /// </summary>0
         public int cycle { get; set; }
         /// <summary>
+        /// 拡張機構モード変更
+        /// </summary>
+        public bool exModeChange { get; set; }
+        /// <summary>
         /// 動作ファイル
         /// </summary>
         public bool file { get; set; }
@@ -441,11 +445,11 @@ namespace Parameters
         /// <summary>
         /// 目標位置
         /// </summary>
-        public int target { get; set; }
+        public float target { get; set; }
         /// <summary>
         /// オフセット
         /// </summary>
-        public int offset { get; set; }
+        public float offset { get; set; }
         /// <summary>
         /// 方向
         /// </summary>

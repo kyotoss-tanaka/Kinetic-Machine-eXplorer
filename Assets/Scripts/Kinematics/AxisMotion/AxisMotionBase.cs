@@ -55,6 +55,16 @@ public class AxisMotionBase : KinematicsBase
     protected TagInfo cycleTag;
 
     /// <summary>
+    /// 拡張機構スクリプト
+    /// </summary>
+    protected ExMechScript exScript;
+
+    /// <summary>
+    /// 拡張機構モード変更
+    /// </summary>
+    protected bool exModeChange;
+
+    /// <summary>
     /// 動作あり
     /// </summary>
     public bool isAction
@@ -462,8 +472,8 @@ public class AxisMotionBase : KinematicsBase
         exObj.transform.localPosition = Vector3.zero;
         exObj.transform.localEulerAngles = Vector3.zero;
         exObj.transform.localScale = new(1, 1, 1);
-        var ex = unitSetting.exMechSetting.datas[0].gameObject.AddComponent<ExMechScript>();
-        ex.SetParameter(unitSetting, unitSetting.exMechSetting);
+        exScript = unitSetting.exMechSetting.datas[0].gameObject.AddComponent<ExMechScript>();
+        exScript.SetParameter(unitSetting, unitSetting.exMechSetting);
         // 親子関係チェック
         var datas = unitSetting.exMechSetting.datas.Where(d => d.gameObject != null).ToList();
         foreach (var data in datas)
@@ -628,6 +638,7 @@ public class AxisMotionBase : KinematicsBase
             led = unitSetting.moveObject.AddComponent<LedScript>();
             led.SetParameter(unitSetting, unitSetting.ledSetting);
         }
+        exModeChange = false;
         if (!reload)
         {
             // 機構拡張設定
@@ -635,6 +646,7 @@ public class AxisMotionBase : KinematicsBase
             {
                 // 機構拡張
                 SetExMechSetting();
+                exModeChange = unitSetting.actionSetting.exModeChange;
             }
             // センサ生成設定
             if (this.transform.parent != null)

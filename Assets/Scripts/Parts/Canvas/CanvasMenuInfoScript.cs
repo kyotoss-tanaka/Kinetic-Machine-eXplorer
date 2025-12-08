@@ -30,10 +30,10 @@ public class CanvasMenuInfoScript : KssBaseScript
     /// <summary>
     /// 各種ボタン
     /// </summary>
-    private Button btnInner;
-    private Button btnDirect;
-    private Button btnMotion;
-    private Button btnAsm;
+    public Button btnInner;
+    public Button btnDirect;
+    public Button btnMotion;
+    public Button btnAsm;
 
     /// <summary>
     /// 内部タイマー

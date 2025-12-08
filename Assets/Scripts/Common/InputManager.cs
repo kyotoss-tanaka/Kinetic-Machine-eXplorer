@@ -1,20 +1,28 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
 public class InputManager : BaseBehaviour
 {
-    public static InputManager Instance { get; set; }
-    private Dictionary<Key, Action<Key, bool, bool, bool>> keyActions = new Dictionary<Key, Action<Key, bool, bool, bool>>();
-
-    /// <summary>
-    /// ‹N°ˆ—
-    /// </summary>
-    protected override void Awake()
+    private static InputManager _Instance;
+    public static InputManager Instance
     {
-        Instance = this;
+        get
+        {
+            if (_Instance == null)
+            {
+                var mng = GameObject.FindObjectsByType<InputManager>(FindObjectsSortMode.None).ToList();
+                if (mng.Count > 0)
+                {
+                    _Instance = mng[0];
+                }
+            }
+            return _Instance;
+        }
     }
+    private Dictionary<Key, Action<Key, bool, bool, bool>> keyActions = new Dictionary<Key, Action<Key, bool, bool, bool>>();
 
     /// <summary>
     /// XVˆ—

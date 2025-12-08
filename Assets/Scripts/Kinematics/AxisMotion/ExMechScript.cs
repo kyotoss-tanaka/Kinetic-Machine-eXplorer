@@ -37,6 +37,7 @@ public class ExMechScript : UseTagBaseScript
 
     class ExMechInfo
     {
+        public bool exModeChange;
         public Vector3 nowPos;
         public Vector3 nowAngle;
         public Vector3 initAngle;
@@ -49,6 +50,8 @@ public class ExMechScript : UseTagBaseScript
         public float armL;
         public Vector3 pntAOffset;
         public Vector3 sliderOffset;
+        public Vector3 initExPos;
+        public Vector3 moveExPos;
         public Vector3 mainDir
         {
             get
@@ -293,6 +296,15 @@ public class ExMechScript : UseTagBaseScript
         {
             return (angle + 360) % 360;
         }
+
+        /// <summary>
+        /// 移動距離セット
+        /// </summary>
+        /// <param name="move"></param>
+        public void SetMovePos(Vector3 move)
+        {
+            moveExPos = move;
+        }
     }
 
     class LeverInfo : ExMechInfo
@@ -300,6 +312,11 @@ public class ExMechScript : UseTagBaseScript
         public override void Initialize()
         {
             base.Initialize();
+
+            if (exModeChange)
+            {
+                initExPos = sliderAxis.model.transform.localPosition;
+            }
 
             // カムフォロアの親を主軸に
             pntAAxis.model.transform.parent = mainAxis.model.transform;
@@ -311,7 +328,13 @@ public class ExMechScript : UseTagBaseScript
         public override void RenewPos()
         {
             base.RenewPos();
-            sliderAxis.model.transform.position = guideSpace.transform.TransformPoint(sliderOffset + Vector3.Scale(movePos, guideDir));
+            if (exModeChange)
+            {
+            }
+            else
+            {
+                sliderAxis.model.transform.position = guideSpace.transform.TransformPoint(sliderOffset + Vector3.Scale(movePos, guideDir));
+            }
         }
     }
 
@@ -383,6 +406,11 @@ public class ExMechScript : UseTagBaseScript
         public override void Initialize()
         {
             base.Initialize();
+
+            if (exModeChange)
+            {
+                initExPos = sliderAxis.model.transform.localPosition;
+            }
 
             // コンロッドの一番遠いオブジェクト取得
             var farPnt = GetModelFarPoint(pntAAxis.model, ref pntFarObject);
@@ -503,32 +531,45 @@ public class ExMechScript : UseTagBaseScript
         {
             base.RenewPos();
 
-            // 2次元で計算
-            var y = pntAGuidePos.y - yOffset;
-            var x = MathF.Sqrt(armM * armM - y * y);
-            pntBGuidePos = new Vector2(pntAGuidePos.x + x, yOffset);
-            var thA = new Vector3(Mathf.Atan2(pntAGuidePos.y, pntAGuidePos.x) * Mathf.Rad2Deg, 0, 0);
-            var thB = new Vector3(0, 0, Mathf.Atan2(pntAGuidePos.y - pntBGuidePos.y, pntBGuidePos.x - pntAGuidePos.x) * Mathf.Rad2Deg);
-            // スライダの位置
-            sliderAxis.model.transform.position = guideSpace.transform.TransformPoint(sliderOffset + Vector3.Scale(movePos, guideDir));
-            // コンロッド端の取得
-            var posA = Vector3.Scale(guideSpace.transform.InverseTransformPoint(pntAObject.transform.position), moveMask);
-            var posB = Vector3.Scale(guideSpace.transform.InverseTransformPoint(pntBObject.transform.position), moveMask);
-            if (modeB)
+            if (exModeChange)
             {
-                pntAAxis.model.transform.position = pntBObject.transform.position;
-                // コンロッドの向き
-                var rot = Quaternion.FromToRotation(rodDir, posA - posB) * Quaternion.Inverse(initRotation);
-                pntAAxis.model.transform.localRotation = rot;
+                var move = new Vector3
+                {
+                    x = moveExPos.x + moveExPos.y + moveExPos.z,
+                    z = moveExPos.x + moveExPos.y + moveExPos.z,
+                    y = moveExPos.x + moveExPos.y + moveExPos.z
+                };
+                sliderAxis.model.transform.position = guideSpace.transform.TransformPoint(sliderOffset + Vector3.Scale(move, guideDir));
             }
             else
             {
-                pntAAxis.model.transform.position = pntAObject.transform.position;
-                // コンロッドの向き
-                var rot = Quaternion.FromToRotation(rodDir, posA - posB) * Quaternion.Inverse(initRotation);
-                pntAAxis.model.transform.localRotation = rot;
+                // 2次元で計算
+                var y = pntAGuidePos.y - yOffset;
+                var x = MathF.Sqrt(armM * armM - y * y);
+                pntBGuidePos = new Vector2(pntAGuidePos.x + x, yOffset);
+                var thA = new Vector3(Mathf.Atan2(pntAGuidePos.y, pntAGuidePos.x) * Mathf.Rad2Deg, 0, 0);
+                var thB = new Vector3(0, 0, Mathf.Atan2(pntAGuidePos.y - pntBGuidePos.y, pntBGuidePos.x - pntAGuidePos.x) * Mathf.Rad2Deg);
+                // スライダの位置
+                sliderAxis.model.transform.position = guideSpace.transform.TransformPoint(sliderOffset + Vector3.Scale(movePos, guideDir));
+                // コンロッド端の取得
+                var posA = Vector3.Scale(guideSpace.transform.InverseTransformPoint(pntAObject.transform.position), moveMask);
+                var posB = Vector3.Scale(guideSpace.transform.InverseTransformPoint(pntBObject.transform.position), moveMask);
+                if (modeB)
+                {
+                    pntAAxis.model.transform.position = pntBObject.transform.position;
+                    // コンロッドの向き
+                    var rot = Quaternion.FromToRotation(rodDir, posA - posB) * Quaternion.Inverse(initRotation);
+                    pntAAxis.model.transform.localRotation = rot;
+                }
+                else
+                {
+                    pntAAxis.model.transform.position = pntAObject.transform.position;
+                    // コンロッドの向き
+                    var rot = Quaternion.FromToRotation(rodDir, posA - posB) * Quaternion.Inverse(initRotation);
+                    pntAAxis.model.transform.localRotation = rot;
+                }
+                ForwardKinematics();
             }
-            ForwardKinematics();
         }
 
         /// <summary>
@@ -897,7 +938,8 @@ public class ExMechScript : UseTagBaseScript
                 workSpace = workSpace,
                 mainAxis = mainAxis,
                 mainDir = moveDir,
-                initAngle = initAngle
+                initAngle = initAngle,
+                exModeChange = unitSetting.actionSetting.exModeChange
             };
             // 動作対象(距離で制御する部分)
             mechInfo.sliderAxis = new AxisInfo
@@ -938,7 +980,8 @@ public class ExMechScript : UseTagBaseScript
                 workSpace = workSpace,
                 mainAxis = mainAxis,
                 mainDir = moveDir,
-                initAngle = initAngle
+                initAngle = initAngle,
+                exModeChange = unitSetting.actionSetting.exModeChange
             };
             // 従動軸
             drivenAxis = new AxisInfo
@@ -969,7 +1012,8 @@ public class ExMechScript : UseTagBaseScript
                 workSpace = workSpace,
                 mainAxis = mainAxis,
                 mainDir = moveDir,
-                initAngle = initAngle
+                initAngle = initAngle,
+                exModeChange = unitSetting.actionSetting.exModeChange
             };
             // 動作対象(距離で制御する部分)
             mechInfo.sliderAxis = new AxisInfo
@@ -1088,5 +1132,14 @@ public class ExMechScript : UseTagBaseScript
             // レバー機構
             mechInfo.Initialize();
         }
+    }
+
+    /// <summary>
+    /// 目標座標セット
+    /// </summary>
+    /// <param name="move"></param>
+    public void SetExTarget(Vector3 move)
+    {
+        mechInfo.SetMovePos(move);
     }
 }
