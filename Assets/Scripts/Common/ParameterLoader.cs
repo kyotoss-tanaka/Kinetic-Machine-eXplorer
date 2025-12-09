@@ -114,9 +114,6 @@ namespace Parameters
         private TextMeshProUGUI prgText;
         private TextMeshProUGUI prgText2;
 
-        // マテリアルキャッシュ
-        private Dictionary<string, Material> materialCache = new Dictionary<string, Material>();
-
         // 編集モード
         private bool isEditMode = false;
 
@@ -885,17 +882,25 @@ namespace Parameters
                 */
                 foreach (var obj in switchModel)
                 {
-                    Destroy(obj);
+                    CommonFunction.DestroyWithMaterials(obj);
                 }
                 foreach (var obj in towerModel)
                 {
-                    Destroy(obj);
+                    CommonFunction.DestroyWithMaterials(obj);
                 }
 
-                Destroy(prefabObj);
+                CommonFunction.DestroyWithMaterials(prefabObj);
                 foreach (var obj in movableObjs)
                 {
-                    Destroy(obj.obj);
+                    CommonFunction.DestroyWithMaterials(obj.obj);
+                }
+                foreach (var mat in allMaterials)
+                {
+                    Destroy(mat);
+                }
+                foreach (var mat in allLineMaterials)
+                {
+                    Destroy(mat);
                 }
                 StartCoroutine(LoadParameter(isEditMode));
             }

@@ -79,6 +79,22 @@ public static class CommonFunction
         return path;
     }
 
+    /// <summary>
+    /// 削除処理
+    /// </summary>
+    /// <param name="obj"></param>
+    public static void DestroyWithMaterials(GameObject obj)
+    {
+        foreach (var r in obj.GetComponentsInChildren<Renderer>(true))
+        {
+            if (r.material != null)
+            {
+                UnityEngine.Object.Destroy(r.material);
+            }
+        }
+        UnityEngine.Object.Destroy(obj);
+    }
+
     #region デバッグ用
     private static bool isDebug = false;
     private static System.Diagnostics.Stopwatch swDebug = new();
