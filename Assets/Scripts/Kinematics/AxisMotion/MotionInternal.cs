@@ -373,8 +373,15 @@ public class MotionInternal : AxisMotionBase
             // 動作完了
             actionIo.end = action.end;
             actionIos.Add(actionIo);
-
-            action.targetPos = moveDir * (action.target * action.dir + (exModeChange ? 0 : action.offset));
+            if (exModeChange)
+            {
+                // 出力モード変更時は拡張機構側で回転方向とオフセットが自動で計算
+                action.targetPos = moveDir * action.target;
+            }
+            else
+            {
+                action.targetPos = moveDir * (action.target * action.dir + action.offset);
+            }
             action.targetPos /= Thousand;
 
             // カムポジ作成

@@ -57,7 +57,7 @@ public class AxisMotionBase : KinematicsBase
     /// <summary>
     /// 拡張機構スクリプト
     /// </summary>
-    protected ExMechScript exScript;
+    public ExMechScript exScript;
 
     /// <summary>
     /// 拡張機構モード変更
@@ -498,7 +498,20 @@ public class AxisMotionBase : KinematicsBase
             foreach (var child in unitSetting.childrenObject)
             {
                 // 子オブジェクト移動
-                child.transform.parent = exScript.parentModel.transform;
+                var isUnit = false;
+                for (int i = 0; i < child.transform.childCount; i++)
+                {
+                    if (child.transform.GetChild(i).name.StartsWith("MovableObject_"))
+                    {
+                        isUnit = true;
+                        break;
+                    }
+                }
+                if (!isUnit)
+                {
+                    // ユニット以外なら動作端へ
+                    child.transform.parent = exScript.parentModel.transform;
+                }
             }
         }
     }

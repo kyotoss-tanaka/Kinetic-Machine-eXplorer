@@ -2,6 +2,7 @@ using Parameters;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Unity.Burst.Intrinsics;
 using UnityEngine;
 
 public class ExMechScript : UseTagBaseScript
@@ -29,6 +30,17 @@ public class ExMechScript : UseTagBaseScript
 
     class ExMechInfo
     {
+        /// <summary>
+        /// 逆解計算結果
+        /// </summary>
+        public struct SolveResult
+        {
+            public bool valid;        // 実解が存在するか
+            public List<float> theta; // 解2
+            public float chosen;      // 選ばれた角度 (rad) - prevTheta が与えられた時に選択
+            public string message;    // 補助メッセージ
+        }
+
         public bool exModeChange;
         public Vector3 nowPos;
         public Vector3 nowAngle;
@@ -182,15 +194,17 @@ public class ExMechScript : UseTagBaseScript
         /// <summary>
         /// 順運動学の解く
         /// </summary>
-        protected virtual void ForwardKinematics()
+        protected virtual Vector3 ForwardKinematics(List<float> angle)
         {
+            return Vector3.zero;
         }
 
         /// <summary>
         /// 逆運動学の解く
         /// </summary>
-        protected virtual void InverseKinematics()
+        protected virtual SolveResult InverseKinematics(Vector3 pos)
         {
+            return new();
         }
 
         /// <summary>
@@ -289,13 +303,27 @@ public class ExMechScript : UseTagBaseScript
         }
 
         /// <summary>
-        /// 0-360°に正規化
+        /// ±180°に正規化
         /// </summary>
         /// <param name="angle"></param>
         /// <returns></returns>
         protected float NormalizeAngle(float angle)
         {
-            return (angle + 360) % 360;
+            var tmp = (angle + 360) % 360;
+            return  tmp > 180 ? tmp - 360 : tmp;
+        }
+
+        /// <summary>
+        ///  正規化: -π < angle <= π
+        /// </summary>
+        /// <param name="a"></param>
+        /// <returns></returns>
+        protected static float NormalizeRad(float a)
+        {
+            a = (a + Mathf.PI) % (2f * Mathf.PI);
+            if (a < 0) a += 2f * Mathf.PI;
+            a -= Mathf.PI;
+            return a;
         }
 
         /// <summary>
@@ -350,6 +378,10 @@ public class ExMechScript : UseTagBaseScript
         public Vector3 pntBOffset;
         private Quaternion rotation = new();
         private float yOffset;
+        /// <summary>
+        /// 出軸の計算時の回転が反転
+        /// </summary>
+        private bool rvsZ = false;
         public override Vector3 movePos
         {
             get
@@ -368,8 +400,10 @@ public class ExMechScript : UseTagBaseScript
         private Vector2 pntBGuidePos;
         private Vector2 pntBGuideOffset;
         Quaternion initRotRotation;
-        float initMainAngle;
+        Quaternion initMainRotation;
+        float initMainAngleOffset;
         float initSliderOffset;
+        float initSliderZeroX;
 
         /// <summary>
         /// 初期化処理
@@ -421,7 +455,7 @@ public class ExMechScript : UseTagBaseScript
             {
                 pntAObject.transform.position = pntAAxis.model.transform.position;
                 pntAObject.transform.eulerAngles = pntAAxis.model.transform.eulerAngles;
-                pntBObject.transform.position = sliderAxis.model.transform.position;
+                pntBObject.transform.position = pntFarObject.transform.position;
             }
             pntAObject.transform.parent = mainAxis.model.transform;
             pntBObject.transform.parent = sliderAxis.model.transform;
@@ -470,6 +504,7 @@ public class ExMechScript : UseTagBaseScript
                     // 回転軸がY
                     var yminus = pntA.z < 0 ? 1 : 0;
                     rotation = Quaternion.Euler((xminus != yminus ? 180 : 0) + 90, xminus * 180, 0);
+                    rvsZ = true;
                 }
             }
             else if ((guideDir == Vector3.up) || (guideDir == Vector3.down))
@@ -487,6 +522,7 @@ public class ExMechScript : UseTagBaseScript
                     // 回転軸がX
                     var yminus = pntA.z < 0 ? 1 : 0;
                     rotation = Quaternion.Euler(xminus * 180 + 90, xminus != yminus ? 180 : 0, -90);
+                    rvsZ = true;
                 }
             }
             else
@@ -500,12 +536,28 @@ public class ExMechScript : UseTagBaseScript
             calcSpace = new GameObject("CalcSpace");
             calcSpace.transform.parent = workSpace.transform.parent;
             calcSpace.transform.position = mainAxis.model.transform.position;
-            calcSpace.transform.localRotation = guideSpace.transform.localRotation * Quaternion.Inverse(rotation);
+            calcSpace.transform.localRotation = guideSpace.transform.localRotation * rotation;
             calcSpace.transform.localScale = new(1, 1, 1);
-            // 主軸の初期角度
-            initMainAngle = (((Quaternion.Inverse(calcSpace.transform.rotation) * mainAxis.model.transform.rotation).eulerAngles.z + 360) % 360) - 360 + 90;
+            if (exModeChange)
+            {
+                // 計算空間へ移動
+                mainAxis.model.transform.parent = calcSpace.transform;
+                sliderOffset = calcSpace.transform.InverseTransformPoint(sliderAxis.model.transform.position);
+            }
             // スライダ初期位置
-            initSliderOffset = Mathf.Sqrt(armM * armM - (armL - yOffset) * (armL - yOffset));
+            initSliderZeroX = Mathf.Sqrt(armM * armM - (armL - yOffset) * (armL - yOffset));
+            initSliderOffset = initSliderZeroX - pntBGuideOffset.x;
+            // 主軸の初期角度
+            var initMainAngle = (Quaternion.Inverse(calcSpace.transform.rotation) * mainAxis.model.transform.rotation).eulerAngles.z;
+            // 初回の逆解
+            var result = InverseKinematics(new Vector3(pntBGuideOffset.x, yOffset, 0));
+            var th = result.theta[0] > result.theta[1] ? result.theta[0] : result.theta[1];
+            initMainAngleOffset = th - initMainAngle;
+            // 初期値
+            nowPos.y = yOffset;
+            nowPos.z = 0;
+            nowAngle.x = 0;
+            nowAngle.y = 0;
         }
 
         /// <summary>
@@ -513,16 +565,26 @@ public class ExMechScript : UseTagBaseScript
         /// </summary>
         public override void RenewPos()
         {
-            base.RenewPos();
             if (exModeChange)
             {
+                // スライダ位置計算
+                var m = moveExPos.x + moveExPos.y + moveExPos.z;
                 var move = new Vector3
                 {
-                    x = moveExPos.x + moveExPos.y + moveExPos.z,
-                    z = moveExPos.x + moveExPos.y + moveExPos.z,
-                    y = moveExPos.x + moveExPos.y + moveExPos.z
+                    x = m + initSliderOffset,
+                    y = 0,
+                    z = 0
                 };
-                sliderAxis.model.transform.position = guideSpace.transform.TransformPoint(sliderOffset + Vector3.Scale(move, guideDir));
+                sliderAxis.model.transform.position = calcSpace.transform.TransformPoint(sliderOffset + move);
+                // 逆解
+                var result = InverseKinematics(new Vector3(initSliderZeroX + m, yOffset, 0));
+                if (result.valid)
+                {
+                    var th = result.theta[0] > result.theta[1] ? result.theta[0] : result.theta[1];
+                    mainAxis.model.transform.localEulerAngles = new Vector3(0, 0, th - initMainAngleOffset);
+                }
+                // スライダ位置
+                nowPos.x = m;
             }
             else
             {
@@ -532,24 +594,106 @@ public class ExMechScript : UseTagBaseScript
                 pntBGuidePos = new Vector2(pntAGuidePos.x + x, yOffset);
                 // スライダの位置
                 sliderAxis.model.transform.position = guideSpace.transform.TransformPoint(sliderOffset + Vector3.Scale(movePos, guideDir));
-                // コンロッド端の取得
-                var posA = Vector3.Scale(guideSpace.transform.InverseTransformPoint(pntAObject.transform.position), moveMask);
-                var posB = Vector3.Scale(guideSpace.transform.InverseTransformPoint(pntBObject.transform.position), moveMask);
-                if (modeB)
-                {
-                    pntAAxis.model.transform.position = pntBObject.transform.position;
-                    // コンロッドの向き
-                    var rot = Quaternion.FromToRotation(rodDir, posA - posB) * Quaternion.Inverse(initRotRotation);
-                    pntAAxis.model.transform.localRotation = rot;
-                }
-                else
-                {
-                    pntAAxis.model.transform.position = pntAObject.transform.position;
-                    // コンロッドの向き
-                    var rot = Quaternion.FromToRotation(rodDir, posA - posB) * Quaternion.Inverse(initRotRotation);
-                    pntAAxis.model.transform.localRotation = rot;
-                }
+                nowPos.x = x - initSliderOffset;
             }
+            // コンロッド端の取得
+            var posA = Vector3.Scale(guideSpace.transform.InverseTransformPoint(pntAObject.transform.position), moveMask);
+            var posB = Vector3.Scale(guideSpace.transform.InverseTransformPoint(pntBObject.transform.position), moveMask);
+            if (modeB)
+            {
+                pntAAxis.model.transform.position = pntBObject.transform.position;
+                // コンロッドの向き
+                var rot = Quaternion.FromToRotation(rodDir, posA - posB) * Quaternion.Inverse(initRotRotation);
+                pntAAxis.model.transform.localRotation = rot;
+            }
+            else
+            {
+                pntAAxis.model.transform.position = pntAObject.transform.position;
+                // コンロッドの向き
+                var rot = Quaternion.FromToRotation(rodDir, posA - posB) * Quaternion.Inverse(initRotRotation);
+                pntAAxis.model.transform.localRotation = rot;
+            }
+            // 角度と座標取得
+            nowAngle.z = NormalizeAngle(90 - (Quaternion.Inverse(calcSpace.transform.rotation) * mainAxis.model.transform.rotation).eulerAngles.z - initMainAngleOffset);
+        }
+
+        /// <summary>
+        /// 逆解を解く
+        /// </summary>
+        /// <param name="pos"></param>
+        /// <returns></returns>
+        protected override SolveResult InverseKinematics(Vector3 pos)
+        {
+            SolveResult res = new SolveResult();
+            // 基本検査
+            if (armL <= 0f || armM <= 0f)
+            {
+                res.valid = false;
+                res.message = "r または l が正でない";
+                return res;
+            }
+
+            float A = pos.x;
+            float B = pos.y;
+            float C = (pos.x * pos.x + pos.y * pos.y + armL * armL - armM * armM) / (2f * armL);
+
+            float R = Mathf.Sqrt(A * A + B * B);
+            const float EPS = 1e-6f;
+
+            if (R <= EPS)
+            {
+                // R が0に近い = (x,h) が (0,0) に非常に近い（稀）
+                // その場合 AとBが小さく解の安定性が悪い
+                res.valid = false;
+                res.message = "R が小さすぎて不安定（x,h が原点近傍）";
+                return res;
+            }
+
+            float ratio = C / R;
+            // 数値誤差で +-1 を少し超える可能性があるためクランプ
+            if (ratio > 1f + 1e-5f || ratio < -1f - 1e-5f)
+            {
+                res.valid = false;
+                res.message = "物理的に解なし (|C| > R)";
+                return res;
+            }
+
+            ratio = Mathf.Clamp(ratio, -1f, 1f);
+
+            float alpha = Mathf.Atan2(B, A); // 基準角
+            float delta = Mathf.Acos(ratio); // 0..π
+
+            // 二つの解
+            float theta1 = alpha + delta;
+            float theta2 = alpha - delta;
+
+            // 正規化（-π..π）
+            theta1 = NormalizeRad(theta1);
+            theta2 = NormalizeRad(theta2);
+
+            res.valid = true;
+            res.theta = new();
+            res.theta.Add(theta1 * Mathf.Rad2Deg);
+            res.theta.Add(theta2 * Mathf.Rad2Deg);
+            res.message = "ok";
+
+            // chosen の選択ロジック
+            var prevThetaRad = mainAxis.model.transform.localEulerAngles.z - initMainAngleOffset;
+            if (!float.IsNaN(prevThetaRad))
+            {
+                // 正規化して差の小さい方を選ぶ
+                float p = NormalizeRad(prevThetaRad);
+                float d1 = Mathf.Abs(NormalizeRad(theta1 - p));
+                float d2 = Mathf.Abs(NormalizeRad(theta2 - p));
+                res.chosen = ((d1 <= d2) ? theta1 : theta2) * Mathf.Rad2Deg;
+            }
+            else
+            {
+                // prev が無ければ、物理的に「クランク角がより上死点寄り（小さい絶対値）」などの基準で選ぶ
+                // ここでは |theta| が小さい方を選ぶ（用途によって変更可）
+                res.chosen = ((Mathf.Abs(theta1) <= Mathf.Abs(theta2)) ? theta1 : theta2) * Mathf.Rad2Deg;
+            }
+            return res;
         }
 
         /// <summary>
@@ -684,21 +828,6 @@ public class ExMechScript : UseTagBaseScript
     List<GameObject> intermediateBase;
 
     /// <summary>
-    /// ロッドの方向
-    /// </summary>
-    Vector3 rodDir;
-
-    /// <summary>
-    /// LMの方向
-    /// </summary>
-    Vector3 lmDir;
-
-    /// <summary>
-    /// ロッド長
-    /// </summary>
-    Vector3 rodLength;
-
-    /// <summary>
     /// 初期角度
     /// </summary>
     private Vector3 initAngle = Vector3.zero;
@@ -712,6 +841,28 @@ public class ExMechScript : UseTagBaseScript
     /// 親モデル
     /// </summary>
     public GameObject parentModel;
+
+    /// <summary>
+    /// 現在位置
+    /// </summary>
+    public Vector3 NowPos
+    {
+        get
+        {
+            return mechInfo.nowPos;
+        }
+    }
+
+    /// <summary>
+    /// 現在角度
+    /// </summary>
+    public Vector3 NowAngle
+    {
+        get
+        {
+            return mechInfo.nowAngle;
+        }
+    }
 
     /// <summary>
     /// 開始処理

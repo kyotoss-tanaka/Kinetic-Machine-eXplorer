@@ -36,7 +36,6 @@ public class MotionExternal : AxisMotionBase
     public override void RenewMoveDir()
     {
         base.RenewMoveDir();
-
         rate = (float)unitSetting.actionSetting.rate;
     }
 
@@ -45,10 +44,10 @@ public class MotionExternal : AxisMotionBase
     /// </summary>
     protected override void MyFixedUpdate()
     {
-        var data = (GetTagValue(unitSetting.actionSetting.tag, ref actTag) / (rate == 0 ? 1000f : rate) + unitSetting.actionSetting.offset / (isRotate ? 1f : 1000f)) * unitSetting.actionSetting.dir;
+        var data = moveDir * unitSetting.actionSetting.dir * GetTagValue(unitSetting.actionSetting.tag, ref actTag) / (rate == 0 ? 1000f : rate) + (moveDir * unitSetting.actionSetting.offset / (isRotate ? 1f : 1000f));
         if (isRotate)
         {
-            moveObject.transform.localEulerAngles = moveDir * data;
+            moveObject.transform.localEulerAngles = data;
             if (chuckSetting != null)
             {
                 foreach (var child in chuckSetting.children)
@@ -59,7 +58,7 @@ public class MotionExternal : AxisMotionBase
         }
         else
         {
-            moveObject.transform.localPosition = moveDir * data;
+            moveObject.transform.localPosition = data;
             if (chuckSetting != null)
             {
                 foreach (var child in chuckSetting.children)

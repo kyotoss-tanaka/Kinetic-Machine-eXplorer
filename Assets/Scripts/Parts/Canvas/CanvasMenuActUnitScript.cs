@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.Linq;
 using TMPro;
 using UnityEngine;
+using UnityEngine.UI;
 
 public class CanvasMenuActUnitScript : CanvasMenuBaseScript
 {
@@ -95,6 +96,11 @@ public class CanvasMenuActUnitScript : CanvasMenuBaseScript
     private bool isSelectProcess = false;
 
     /// <summary>
+    /// 拡張機構スクリプト
+    /// </summary>
+    private ExMechScript exScript;
+
+    /// <summary>
     /// 開始処理
     /// </summary>
     protected override void Awake()
@@ -124,7 +130,24 @@ public class CanvasMenuActUnitScript : CanvasMenuBaseScript
     {
         base.Start();
     }
-    
+
+    /// <summary>
+    /// 有効時
+    /// </summary>
+    protected override void OnEnable()
+    {
+        base.OnEnable();
+    }
+
+    /// <summary>
+    /// 無効時
+    /// </summary>
+    protected override void OnDisable()
+    {
+        base.OnDisable();
+        OnValueChanged(-1);
+    }
+
     /// <summary>
     /// 更新処理
     /// </summary>
@@ -150,13 +173,43 @@ public class CanvasMenuActUnitScript : CanvasMenuBaseScript
             }
             if (unitSetting.moveObject != null)
             {
-                txtPosX.text = unitSetting.moveObject.transform.localPosition.x.ToString("0.000");
-                txtPosY.text = unitSetting.moveObject.transform.localPosition.y.ToString("0.000");
-                txtPosZ.text = unitSetting.moveObject.transform.localPosition.z.ToString("0.000");
-                txtAngX.text = unitSetting.moveObject.transform.localEulerAngles.x.ToString("0.000");
-                txtAngY.text = unitSetting.moveObject.transform.localEulerAngles.y.ToString("0.000");
-                txtAngZ.text = unitSetting.moveObject.transform.localEulerAngles.z.ToString("0.000");
+                if (exScript != null)
+                {
+                    txtPosX.text = exScript.NowPos.x.ToString("0.000");
+                    txtPosY.text = exScript.NowPos.y.ToString("0.000");
+                    txtPosZ.text = exScript.NowPos.z.ToString("0.000");
+                    txtAngX.text = exScript.NowAngle.x.ToString("0.000");
+                    txtAngY.text = exScript.NowAngle.y.ToString("0.000");
+                    txtAngZ.text = exScript.NowAngle.z.ToString("0.000");
+                }
+                else
+                {
+                    txtPosX.text = unitSetting.moveObject.transform.localPosition.x.ToString("0.000");
+                    txtPosY.text = unitSetting.moveObject.transform.localPosition.y.ToString("0.000");
+                    txtPosZ.text = unitSetting.moveObject.transform.localPosition.z.ToString("0.000");
+                    txtAngX.text = unitSetting.moveObject.transform.localEulerAngles.x.ToString("0.000");
+                    txtAngY.text = unitSetting.moveObject.transform.localEulerAngles.y.ToString("0.000");
+                    txtAngZ.text = unitSetting.moveObject.transform.localEulerAngles.z.ToString("0.000");
+                }
             }
+            else
+            {
+                txtPosX.text = "---";
+                txtPosY.text = "---";
+                txtPosZ.text = "---";
+                txtAngX.text = "---";
+                txtAngY.text = "---";
+                txtAngZ.text = "---";
+            }
+        }
+        else
+        {
+            txtPosX.text = "---";
+            txtPosY.text = "---";
+            txtPosZ.text = "---";
+            txtAngX.text = "---";
+            txtAngY.text = "---";
+            txtAngZ.text = "---";
         }
     }
 
@@ -173,12 +226,13 @@ public class CanvasMenuActUnitScript : CanvasMenuBaseScript
         actUnitInfos.Clear();
         this.unitSettings = null;
         base.SetEvents();
-        dropDown.onValueChanged.AddListener(OnValueChanged);
+
         this.unitSettings = unitSettings;
 
         // ドロップダウン初期化
-        dropDown.ClearOptions();
         SetOptions();
+
+        dropDown.onValueChanged.AddListener(OnValueChanged);
 
         // 選択クリア
         OnValueChanged(-1);
@@ -190,6 +244,7 @@ public class CanvasMenuActUnitScript : CanvasMenuBaseScript
     private void SetOptions()
     {
         var list = new List<string>();
+        dropDown.ClearOptions();
         list.Add("ユニット名");
         foreach (var unitSetting in unitSettings.FindAll(d => d.actionSetting != null))
         {
@@ -267,6 +322,7 @@ public class CanvasMenuActUnitScript : CanvasMenuBaseScript
         }
         actUnitInfos.Clear();
         prvSelectedUnit = unitSetting;
+        exScript = null;
         if (index < 0)
         {
             unitSetting = null;
@@ -277,12 +333,16 @@ public class CanvasMenuActUnitScript : CanvasMenuBaseScript
         }
         if ((unitSetting != null) && (unitSetting != prvSelectedUnit))
         {
+            var mi = unitSetting.unitObject.GetComponent<AxisMotionBase>();
+            exScript = mi == null ? null : mi.exScript;
             if (unitSetting.actionSetting.isInternal)
             {
+                // 出力モード切替チェック
                 var i = 0;
                 foreach (var act in unitSetting.actionSetting.actions)
                 {
-                    if ((act.start != "") && (act.end != ""))
+                    // 動作テーブル
+                    if (act.start != "")// && (act.end != ""))
                     {
                         i++;
                         var actUnit = Instantiate(actUnitContents);
