@@ -507,9 +507,9 @@ public class AxisMotionBase : KinematicsBase
                         break;
                     }
                 }
-                if (!isUnit)
+                if (isUnit)
                 {
-                    // ユニット以外なら動作端へ
+                    // ユニットなら動作端へ
                     child.transform.parent = exScript.parentModel.transform;
                 }
             }

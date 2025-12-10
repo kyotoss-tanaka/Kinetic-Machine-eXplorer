@@ -145,7 +145,7 @@ public class CanvasMenuActUnitScript : CanvasMenuBaseScript
     protected override void OnDisable()
     {
         base.OnDisable();
-        OnValueChanged(-1);
+        dropDown.value = 0;
     }
 
     /// <summary>
@@ -235,7 +235,7 @@ public class CanvasMenuActUnitScript : CanvasMenuBaseScript
         dropDown.onValueChanged.AddListener(OnValueChanged);
 
         // 選択クリア
-        OnValueChanged(-1);
+        dropDown.value = 0;
     }
 
     /// <summary>
