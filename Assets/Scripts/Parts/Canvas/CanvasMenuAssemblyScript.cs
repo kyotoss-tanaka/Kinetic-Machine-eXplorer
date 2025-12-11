@@ -23,10 +23,11 @@ public class CanvasMenuAssemblyScript : CanvasMenuBaseScript
     private GameObject selectedVisible;
     private List<GameObject> invisibleObjects = new();
 
-    private GameObject uiActUnitInfo;
     private CanvasMenuActUnitScript actScript;
 
     private CanvasMenuInfoScript menuInfoScript = null;
+
+    private List<Material> selectedMaterials = new();
 
     /// <summary>
     /// メインプロセス
@@ -39,6 +40,9 @@ public class CanvasMenuAssemblyScript : CanvasMenuBaseScript
     /// 動作ユニット
     /// </summary>
     private List<string> motionUnits = new();
+
+    private Shader selectedShader;
+    private Shader linesShader;
 
     /// <summary>
     /// 開始処理
@@ -88,6 +92,9 @@ public class CanvasMenuAssemblyScript : CanvasMenuBaseScript
     protected override void Start()
     {
         base.Start();
+
+        selectedShader = Shader.Find("Custom/Lines");
+        linesShader = Shader.Find("Universal Render Pipeline/Lit");
     }
 
     protected override void Update()
@@ -161,7 +168,6 @@ public class CanvasMenuAssemblyScript : CanvasMenuBaseScript
     /// <param name="uiActUnitInfo"></param>
     public void SetEvents(GameObject uiActUnitInfo)
     {
-        this.uiActUnitInfo = uiActUnitInfo;
         actScript = uiActUnitInfo.GetComponent<CanvasMenuActUnitScript>();
         SetAssembly(null);
         base.SetEvents();
@@ -203,7 +209,7 @@ public class CanvasMenuAssemblyScript : CanvasMenuBaseScript
                             var name = string.Join('\\', names);
                             if (text.name == name)
                             {
-                                StartCoroutine(mainProcess.SelectObject(obj));
+                                StartCoroutine(SelectObject(obj));
                                 selectedVisible = obj;
                                 if ((motionUnits.Count > 0) && (actScript != null))
                                 {
@@ -313,6 +319,12 @@ public class CanvasMenuAssemblyScript : CanvasMenuBaseScript
     /// </summary>
     public void SetAssembly(GameObject gameObject)
     {
+        // 選択解除
+        if (gameObject == null)
+        {
+            ClearSelected();
+        }
+
         selectedObject = gameObject;
         selectedVisible = gameObject;
         selectedText = null;
@@ -428,5 +440,50 @@ public class CanvasMenuAssemblyScript : CanvasMenuBaseScript
             }
             invisibleObjects.RemoveAll(d => delObj.Contains(d));
         }
+    }
+
+    /// <summary>
+    /// 選択解除
+    /// </summary>
+    private void ClearSelected()
+    {
+        selectedMaterials.RemoveAll(d => d == null);
+        foreach (var mat in selectedMaterials)
+        {
+            mat.shader = linesShader;
+        }
+        selectedMaterials.Clear();
+    }
+
+    /// <summary>
+    /// オブジェクトを選択する
+    /// </summary>
+    /// <param name="gameObject"></param>
+    public IEnumerator SelectObject(GameObject gameObject)
+    {
+        // 一旦選択解除
+        ClearSelected();
+
+        if (gameObject != null)
+        {
+            // 再選択
+            var renderers = gameObject.GetComponentsInChildren<Renderer>().ToList();
+            foreach (var renderer in renderers)
+            {
+                foreach (Material mat in renderer.materials)
+                {
+                    if (mat != null)
+                    {
+                        if (mat.name.Contains("Default Line Material"))
+                        {
+                            mat.shader = selectedShader;
+                            mat.SetColor("_Color", new Color(1f, 1 / 8f, 0, 0));
+                            selectedMaterials.Add(mat);
+                        }
+                    }
+                }
+            }
+        }
+        yield return null;
     }
 }

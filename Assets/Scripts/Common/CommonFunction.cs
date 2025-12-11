@@ -85,14 +85,17 @@ public static class CommonFunction
     /// <param name="obj"></param>
     public static void DestroyWithMaterials(GameObject obj)
     {
-        foreach (var r in obj.GetComponentsInChildren<Renderer>(true))
+        if (obj != null)
         {
-            if (r.material != null)
+            foreach (var r in obj.GetComponentsInChildren<Renderer>(true))
             {
-                UnityEngine.Object.Destroy(r.material);
+                if (r.material != null)
+                {
+                    UnityEngine.Object.Destroy(r.material);
+                }
             }
+            UnityEngine.Object.Destroy(obj);
         }
-        UnityEngine.Object.Destroy(obj);
     }
 
     #region デバッグ用

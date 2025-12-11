@@ -31,11 +31,6 @@ public class CanvasMenuActUnitScript : CanvasMenuBaseScript
     private TMP_Dropdown dropDown;
 
     /// <summary>
-    /// メインプロセス
-    /// </summary>
-    private MainProcess mainProcess;
-
-    /// <summary>
     /// コンテンツベース
     /// </summary>
     private GameObject actUnitContents;
@@ -119,7 +114,6 @@ public class CanvasMenuActUnitScript : CanvasMenuBaseScript
         txtAngY = GetComponentsInChildren<TextMeshProUGUI>(true).ToList().Find(d => d.name == "TxtAngY");
         txtAngZ = GetComponentsInChildren<TextMeshProUGUI>(true).ToList().Find(d => d.name == "TxtAngZ");
 
-        mainProcess = GameObject.FindObjectsByType<MainProcess>(FindObjectsSortMode.None)[0];
         menuInfoScript = FindObjectsByType<CanvasMenuInfoScript>(FindObjectsSortMode.None).ToList()[0];
     }
 

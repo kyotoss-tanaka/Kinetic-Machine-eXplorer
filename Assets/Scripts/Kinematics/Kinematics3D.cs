@@ -24,6 +24,9 @@ public class Kinematics3D : KinematicsBase
 
     [SerializeField]
     protected Vector3 target;
+
+    [SerializeField]
+    protected List<MotionInternal> tmActs { get; set; } = new();
     #endregion プロパティ
 
     #region 変数
@@ -55,16 +58,32 @@ public class Kinematics3D : KinematicsBase
         }
         else
         {
-            if (robo.tags.Count >= 3)
+            if (robo.isTm)
             {
-                var x = GetTagValueF(robo.tags[0], ref X);
-                var y = GetTagValueF(robo.tags[1], ref Y);
-                var z = GetTagValueF(robo.tags[2], ref Z);
+                // タイムチャートからタグ取得
+                var x = tmActs[0] != null ? tmActs[0].nowValue : 0;
+                var y = tmActs[1] != null ? tmActs[1].nowValue : 0;
+                var z = tmActs[2] != null ? tmActs[2].nowValue : 0;
                 // mm単位系に変換
-                target.x = CheckRangeF(x / (robo.rates[0] == 0 ? 1000f : robo.rates[0] / 1000f), txMin, txMax);
-                target.y = CheckRangeF(y / (robo.rates[1] == 0 ? 1000f : robo.rates[1] / 1000f), tyMin, tyMax);
-                target.z = CheckRangeF(z / (robo.rates[2] == 0 ? 1000f : robo.rates[2] / 1000f), tzMin, tzMax);
+                target.x = x * 1000f;
+                target.y = y * 1000f;
+                target.z = z * 1000f;
                 setTarget(target);
+            }
+            else
+            {
+                // タグからデータ取得
+                if (robo.tags.Count >= 3)
+                {
+                    var x = GetTagValueF(robo.tags[0], ref X);
+                    var y = GetTagValueF(robo.tags[1], ref Y);
+                    var z = GetTagValueF(robo.tags[2], ref Z);
+                    // mm単位系に変換
+                    target.x = CheckRangeF(x / (robo.rates[0] == 0 ? 1000f : robo.rates[0] / 1000f), txMin, txMax);
+                    target.y = CheckRangeF(y / (robo.rates[1] == 0 ? 1000f : robo.rates[1] / 1000f), tyMin, tyMax);
+                    target.z = CheckRangeF(z / (robo.rates[2] == 0 ? 1000f : robo.rates[2] / 1000f), tzMin, tzMax);
+                    setTarget(target);
+                }
             }
         }
     }
@@ -174,6 +193,18 @@ public class Kinematics3D : KinematicsBase
     {
         robo = (RobotSetting)obj;
         base.SetParameter(unitSetting, robo);
+        tmActs = new();
+        foreach (var tm in robo.tmUnits)
+        {
+            if (tm != null)
+            {
+                tmActs.Add(tm.unitObject.GetComponent<MotionInternal>());
+            }
+            else
+            {
+                tmActs.Add(null);
+            }
+        }
     }
     #endregion 関数
 }

@@ -27,7 +27,6 @@ public class MPX_R1 : MPX_RX
     private float head_offset = 0;
     #endregion 変数
 
-
     /// <summary>
     /// 目標位置セット
     /// </summary>
@@ -109,10 +108,27 @@ public class MPX_R1 : MPX_RX
 
         // プレート 減速機の回転部
         var plateTmp = children.Find(d => d.name.Contains("VRGF-45B60P-8AG8_2^88P3_VRGF-45B60P-8AG8"));
-        if (plateTmp != null)
+        if (plateTmp == null)
+        {
+            if (HeadObject != null)
+            {
+                plate = HeadObject;
+                plate.transform.parent = arm2_2.transform;
+                angP = plate.transform.localEulerAngles;
+            }
+        }
+        else
         {
             plate = plateTmp.gameObject;
+            plate.transform.parent = arm2_2.transform;
             angP = plate.transform.localEulerAngles;
+
+            // ヘッドセット
+            if (HeadObject != null)
+            {
+                HeadObject.transform.parent = plate.transform;
+                head_offset = HeadObject.transform.localEulerAngles.z;
+            }
         }
 
         // 親子関係構築
@@ -122,7 +138,6 @@ public class MPX_R1 : MPX_RX
         arm1_2.transform.parent = arm2_1.transform;
         arm2_2.transform.parent = arm1_1.transform;
         arm4.transform.parent = arm3.transform;
-        plate.transform.parent = arm2_2.transform;
 
         // 初期角度セット
         ang1_1 = arm1_1.transform.localEulerAngles;
@@ -131,13 +146,5 @@ public class MPX_R1 : MPX_RX
         ang2_2 = arm2_2.transform.localEulerAngles;
         ang3 = arm3.transform.localEulerAngles;
         ang4 = arm4.transform.localEulerAngles;
-        angP = plate.transform.localEulerAngles;
-
-        // ヘッドセット
-        if (HeadObject != null)
-        {
-            HeadObject.transform.parent = plate.transform;
-            head_offset = HeadObject.transform.localEulerAngles.z;
-        }
     }
 }

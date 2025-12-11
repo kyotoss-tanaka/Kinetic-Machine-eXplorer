@@ -10,6 +10,10 @@ namespace Parameters
     public enum RobotType
     {
         /// <summary>
+        /// 2軸アーム
+        /// </summary>
+        ARM,
+        /// <summary>
         /// 村田パラレル(3軸)
         /// </summary>
         MPS2_3AS,
@@ -248,6 +252,10 @@ namespace Parameters
         /// 絶対パス
         /// </summary>
         public string path { get; set; }
+        /// <summary>
+        /// ロボットタイムチャートモード
+        /// </summary>
+        public bool isRoboTimeChart { get; set; }
         /// <summary>
         /// 子オブジェクト名
         /// </summary>
@@ -651,9 +659,21 @@ namespace Parameters
         /// </summary>
         public List<int> rates { get; set; }
         /// <summary>
+        /// タイムチャート使用
+        /// </summary>
+        public bool isTm { get; set; }
+        /// <summary>
+        /// タイムチャートユニット
+        /// </summary>
+        public List<string> tmUnitNames { get; set; } = new();
+        /// <summary>
         /// ヘッドユニット設定
         /// </summary>
         public UnitSetting headUnit { get; set; }
+        /// <summary>
+        /// ヘッドユニット設定
+        /// </summary>
+        public List<UnitSetting> tmUnits { get; set; } = new();
         /*
         /// <summary>
         /// ロボットタイプ

@@ -52,15 +52,13 @@ public class CanvasMenuInfoScript : KssBaseScript
     /// <summary>
     /// アセンブリ選択
     /// </summary>
-    private CanvasMenuAssemblyScript assemblyScript;
     private GameObject uiAssembly;
+    private CanvasMenuAssemblyScript assemblyScript;
 
     /// <summary>
     /// 動作ユニット情報
     /// </summary>
     private GameObject uiActUnitInfo;
-//    private GameObject actUnitContents;
-//    private List<GameObject> actUnitInfos = new();
     private CanvasMenuActUnitScript actUnitScript;
 
     /// <summary>

@@ -314,6 +314,28 @@ public class MotionInternal : AxisMotionBase
     /// </summary>
     private Vector3 innerPosition = Vector3.zero;
 
+    /// <summary>
+    /// 現在位置(外部タイムチャート参照時)
+    /// </summary>
+    public float nowValue
+    {
+        get
+        {
+            if ((moveDir == Vector3.right) || (moveDir == Vector3.left))
+            {
+                return innerPosition.x;
+            }
+            else if ((moveDir == Vector3.up) || (moveDir == Vector3.down))
+            {
+                return innerPosition.y;
+            }
+            else 
+            {
+                return innerPosition.z;
+            }
+        }
+    }
+
     /// 開始処理
     /// </summary>
     protected override void Start()

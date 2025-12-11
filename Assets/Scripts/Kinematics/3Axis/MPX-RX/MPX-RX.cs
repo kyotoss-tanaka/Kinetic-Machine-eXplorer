@@ -4,6 +4,15 @@ using System.Text.Json;
 using Unity.VisualScripting;
 using UnityEngine;
 
+/// <summary>
+/// MPX-R35-3   現行R2
+/// MPX-R7-3    現行R3
+/// MPX-R1-3    現行R6
+/// 命名ルール：MPX-Ra-b
+/// MPX: 機構名(パラレルならMPS？)
+/// Ra: モータ容量(35:3.5KW 7:750W 1: 100W もう一桁増やしてもいいかも？)
+/// b: タイプ(2: 2軸タイプ3: 3軸タイプ)
+/// </summary>
 public class MPX_RX : UseHeadBase3DScript
 {
     #region 変数
@@ -17,12 +26,12 @@ public class MPX_RX : UseHeadBase3DScript
     protected float tx = 0;
     protected float tz = 0;
 
-    protected bool isChgPrm = true;
-
     protected int axisType = 0;
 
     #endregion 変数
-
+    /// <summary>
+    /// 開始処理
+    /// </summary>
     protected override void Start()
     {
         base.Start();
@@ -56,6 +65,11 @@ public class MPX_RX : UseHeadBase3DScript
         }
         else if (axisType == 3)
         {
+            // 回転あり
+            if (robo.isTm)
+            {
+                z /= 1000f;
+            }
         }
         else
         {

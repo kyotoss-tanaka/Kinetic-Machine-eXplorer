@@ -29,6 +29,11 @@ public class KinematicsBase : UseTagBaseScript
     /// ベースオブジェクト
     /// </summary>
     protected GameObject baseObject;
+
+    /// <summary>
+    /// パラメータ変更フラグ
+    /// </summary>
+    protected bool isChgPrm = true;
     #endregion 変数
 
     #region 関数

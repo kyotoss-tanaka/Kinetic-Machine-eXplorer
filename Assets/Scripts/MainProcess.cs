@@ -32,10 +32,6 @@ public class MainProcess : KssBaseScript
 
     private List<RaycastHit> raycastHits = new();
     private GameObject? selectedObject = null;
-    private List<Material> selectedMaterials = new();
-
-    private Shader selectedShader;
-    private Shader linesShader;
 
     private bool isControl;
 
@@ -108,9 +104,6 @@ public class MainProcess : KssBaseScript
     protected override void Start()
     {
         base.Start();
-
-        selectedShader = Shader.Find("Custom/Lines");
-        linesShader = Shader.Find("Universal Render Pipeline/Lit");
 
         var menuInfoScripts = FindObjectsByType<CanvasMenuInfoScript>(FindObjectsSortMode.None).ToList();
         if (menuInfoScripts.Count > 0)
@@ -286,7 +279,6 @@ public class MainProcess : KssBaseScript
                         {
                             // 選択中のマテリアルを解除
                             selectedObject = null;
-                            ClearSelected();
                             menuInfoScript.SetAssemblyObject(selectedObject);
                         }
                         // ゲームオブジェクトの名前を出力
@@ -334,7 +326,6 @@ public class MainProcess : KssBaseScript
             {
                 // 選択中のマテリアルを解除
                 selectedObject = null;
-                ClearSelected();
                 menuInfoScript.SetAssemblyObject(selectedObject);
             }
         }
@@ -452,48 +443,4 @@ public class MainProcess : KssBaseScript
         }
     }
     */
-
-    /// <summary>
-    /// 選択解除
-    /// </summary>
-    private void ClearSelected()
-    {
-        foreach (var mat in selectedMaterials)
-        {
-            mat.shader = linesShader;
-        }
-        selectedMaterials.Clear();
-    }
-
-    /// <summary>
-    /// オブジェクトを選択する
-    /// </summary>
-    /// <param name="gameObject"></param>
-    public IEnumerator SelectObject(GameObject gameObject)
-    {
-        // 一旦選択解除
-        ClearSelected();
-
-        if (gameObject != null)
-        {
-            // 再選択
-            var renderers = gameObject.GetComponentsInChildren<Renderer>().ToList();
-            foreach (var renderer in renderers)
-            {
-                foreach (Material mat in renderer.materials)
-                {
-                    if (mat != null)
-                    {
-                        if (mat.name.Contains("Default Line Material"))
-                        {
-                            mat.shader = selectedShader;
-                            mat.SetColor("_Color", new Color(1f, 1 / 8f, 0, 0));
-                            selectedMaterials.Add(mat);
-                        }
-                    }
-                }
-            }
-        }
-        yield return null;
-    }
 }

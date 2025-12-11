@@ -20,7 +20,6 @@ public class MPX_R7 : MPX_RX
     private Vector3 angP;
     #endregion 変数
 
-
     /// <summary>
     /// 目標位置セット
     /// </summary>
@@ -34,7 +33,10 @@ public class MPX_R7 : MPX_RX
         arm2_1.transform.localEulerAngles = new Vector3(ang2_1.x, ang2_1.y, angle[0] - 180);
         arm2_2.transform.localEulerAngles = new Vector3(ang2_2.x, ang2_2.y, -angle[1] - angle[0]);
         arm3.transform.localEulerAngles = new Vector3(ang3.x, ang3.y, -angle[0] - angle[1] + 180);
-        plate.transform.localEulerAngles = new Vector3(angP.x, angP.y, 90 - angle[2]);
+        if (plate != null)
+        {
+            plate.transform.localEulerAngles = new Vector3(angP.x, angP.y, 90 - angle[2]);
+        }
     }
 
     /// <summary>
@@ -83,31 +85,38 @@ public class MPX_R7 : MPX_RX
             arm3 = arm3Tmp.parent.gameObject;
         }
 
-        // プレート W0250632-
+        // プレート W0250632- W0668220- W0655776-
         var plateTmp = children.Find(d => d.name.Contains("W0250632-"));
-        plateTmp = plateTmp != null ? plateTmp : children.Find(d => d.name.Contains("W0668220-"));
-        if (plateTmp != null)
+        if (plateTmp == null)
+        {
+            if (HeadObject != null)
+            {
+                plate = HeadObject;
+                plate.transform.parent = arm3.transform;
+                angP = plate.transform.localEulerAngles;
+            }
+        }
+        else
         {
             plate = plateTmp.parent.gameObject;
+            plate.transform.parent = arm3.transform;
             angP = plate.transform.localEulerAngles;
+            // ヘッドセット
+            if (HeadObject != null)
+            {
+                HeadObject.transform.parent = plate.transform;
+            }
         }
         // 親子関係構築
         arm1.transform.parent = mpx.transform;
         arm2_1.transform.parent = mpx.transform;
         arm2_2.transform.parent = arm1.transform;
         arm3.transform.parent = arm2_1.transform;
-        plate.transform.parent = arm3Tmp.transform;
 
         // 初期角度セット
         ang1 = arm1.transform.localEulerAngles;
         ang2_1 = arm2_1.transform.localEulerAngles;
         ang2_2 = arm2_2.transform.localEulerAngles;
         ang3 = arm3.transform.localEulerAngles;
-
-        // ヘッドセット
-        if (HeadObject != null)
-        {
-            HeadObject.transform.parent = plate.transform;
-        }
     }
 }

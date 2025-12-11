@@ -431,7 +431,32 @@ namespace Parameters
                                         // ロボットタイプ判別
                                         var roboType = GetRobotType(unitSetting);
                                         robo.headUnit = unitSettings.Find(d => d.name == robo.head);
-                                        if (roboType == RobotType.MPS2_3AS)
+                                        if (robo.isTm)
+                                        {
+                                            // タイムチャートユニットセット
+                                            robo.tmUnits.Add(unitSettings.Find(d => d.name == robo.tmUnitNames[0]));
+                                            robo.tmUnits.Add(unitSettings.Find(d => d.name == robo.tmUnitNames[1]));
+                                            robo.tmUnits.Add(unitSettings.Find(d => d.name == robo.tmUnitNames[2]));
+                                            robo.tmUnits.Add(unitSettings.Find(d => d.name == robo.tmUnitNames[3]));
+                                            robo.tmUnits.Add(unitSettings.Find(d => d.name == robo.tmUnitNames[4]));
+                                            robo.tmUnits.Add(unitSettings.Find(d => d.name == robo.tmUnitNames[5]));
+                                        }
+                                        else
+                                        {
+                                            // 空ユニットセット
+                                            robo.tmUnits.Add(null);
+                                            robo.tmUnits.Add(null);
+                                            robo.tmUnits.Add(null);
+                                            robo.tmUnits.Add(null);
+                                            robo.tmUnits.Add(null);
+                                            robo.tmUnits.Add(null);
+                                        }
+                                        if (roboType == RobotType.ARM)
+                                        {
+                                            var rObj = unitSetting.moveObject.AddComponent<ArmRobot>();
+                                            rObj.SetParameter(unitSetting, robo);
+                                        }
+                                        else if (roboType == RobotType.MPS2_3AS)
                                         {
                                             var rObj = unitSetting.moveObject.AddComponent<MPS2_3AS>();
                                             rObj.SetParameter(unitSetting, robo);
@@ -833,6 +858,27 @@ namespace Parameters
                                 var robo = robotSettings.Find(d => (d.mechId == unitSetting.mechId) && (d.name == unitSetting.name));
                                 if (robo != null)
                                 {
+                                    robo.headUnit = unitSettings.Find(d => d.name == robo.head);
+                                    if (robo.isTm)
+                                    {
+                                        // タイムチャートユニットセット
+                                        robo.tmUnits.Add(unitSettings.Find(d => d.name == robo.tmUnitNames[0]));
+                                        robo.tmUnits.Add(unitSettings.Find(d => d.name == robo.tmUnitNames[1]));
+                                        robo.tmUnits.Add(unitSettings.Find(d => d.name == robo.tmUnitNames[2]));
+                                        robo.tmUnits.Add(unitSettings.Find(d => d.name == robo.tmUnitNames[3]));
+                                        robo.tmUnits.Add(unitSettings.Find(d => d.name == robo.tmUnitNames[4]));
+                                        robo.tmUnits.Add(unitSettings.Find(d => d.name == robo.tmUnitNames[5]));
+                                    }
+                                    else
+                                    {
+                                        // 空ユニットセット
+                                        robo.tmUnits.Add(null);
+                                        robo.tmUnits.Add(null);
+                                        robo.tmUnits.Add(null);
+                                        robo.tmUnits.Add(null);
+                                        robo.tmUnits.Add(null);
+                                        robo.tmUnits.Add(null);
+                                    }
                                     mobj.SetParameter(motion.unitSetting, robo);
                                 }
                             }
@@ -1080,6 +1126,7 @@ namespace Parameters
                    children.Find(d => d.name.Contains("MPS2-4AS_")) != null ? RobotType.MPS2_4AS : 
                    children.Find(d => d.name.Contains("W0250623-")) != null ? RobotType.MPX_R7 :
                    children.Find(d => d.name.Contains("W0578936-")) != null ? RobotType.MPX_R1 :
+                   children.Find(d => d.name.Contains("W0334624-")) != null ? RobotType.ARM :
                    children.Find(d => d.name.Contains("CRX-30IA")) != null ? RobotType.CRX_30iA : 
                    RobotType.UNDEFINED;
         }
@@ -1613,6 +1660,13 @@ namespace Parameters
                     var obj = prefabObj.transform.Find(unitSetting.path);
                     unitSetting.moveObject = obj != null ? obj.gameObject : null;
                 }
+                else if (unitSetting.isRoboTimeChart)
+                {
+                    // タイムチャート使用ユニット
+                    unitSetting.moveObject = new GameObject("RoboTimeChart");
+                    unitSetting.moveObject.transform.parent = unitSetting.unitObject.transform;
+                    unitSetting.moveObject.transform.position = Vector3.zero;
+                }
             }
             // 子供オブジェクト
             foreach (var unitSetting in unitSettings)
@@ -1651,7 +1705,6 @@ namespace Parameters
                     }
                 }
             }
-
             // 拡張機構設定
             foreach (var ex in exMechSettings)
             {
