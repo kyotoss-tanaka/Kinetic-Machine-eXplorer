@@ -22,6 +22,11 @@ public class UseHeadBase3DScript : Kinematics3D
     public Vector3 SuckOffset;
 
     /// <summary>
+    /// ヘッドオフセット
+    /// </summary>
+    protected float head_offset = 0;
+
+    /// <summary>
     /// 吸引中オブジェクト
     /// </summary>
     private List<GameObject> SuckObjects = new List<GameObject>();

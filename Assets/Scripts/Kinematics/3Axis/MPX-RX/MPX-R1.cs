@@ -24,7 +24,6 @@ public class MPX_R1 : MPX_RX
     private Vector3 angP;
 
     private float offset = 45;
-    private float head_offset = 0;
     #endregion •Ï”
 
     /// <summary>
