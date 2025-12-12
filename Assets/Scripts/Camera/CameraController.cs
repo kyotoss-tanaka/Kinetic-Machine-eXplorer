@@ -4,6 +4,10 @@ using UnityEngine;
 using UnityEngine.InputSystem;
 using System.Reflection;
 using System.Diagnostics;
+using System.Runtime.InteropServices;
+using UnityEngine.UIElements;
+
+using UnityEditor.DeviceSimulation;
 
 
 #if UNITY_EDITOR
@@ -42,11 +46,180 @@ public class CameraController : MonoBehaviour
     private static MethodInfo m_snapZoomMethod = m_type.GetMethod("SnapZoom", m_bindingAttr);
     private static object[] m_parameters = new object[] { 1f };
 #endif
+
+    /// <summary>
+    /// キーボードの状態
+    /// </summary>
+    private bool isControl, isShift;
+
+    /// <summary>
+    /// 各種ボタン状態
+    /// </summary>
+    private bool isMouseLeft, isMouseRight, isMouseMiddle;
+
+    /// <summary>
+    /// 開始処理
+    /// </summary>
     void Start()
     {
         initPosition = this.transform.position;
         initAngles = this.transform.eulerAngles;
         targetPosition = Vector3.zero;
+    }
+
+    /// <summary>
+    /// 有効時
+    /// </summary>
+    void OnEnable()
+    {
+        InputManager.Instance.RegisterKey(Key.R, HandleKey);
+        InputManager.Instance.RegisterKey(Key.M, HandleKey);
+        InputManager.Instance.RegisterKey(Key.O, HandleKey);
+        InputManager.Instance.RegisterKey(Key.LeftCtrl, HandleKey);
+        InputManager.Instance.RegisterKey(Key.RightCtrl, HandleKey);
+        InputManager.Instance.RegisterKey(Key.LeftShift, HandleKey);
+        InputManager.Instance.RegisterKey(Key.RightShift, HandleKey);
+        InputManager.Instance.RegisterMouseDown(MouseDownEvent);
+        InputManager.Instance.RegisterMouseUp(MouseUpEvent);
+        InputManager.Instance.RegisterMouseWheel(MouseWheelEvent);
+        InputManager.Instance.RegisterMouseMove(MouseMoveEvent);
+    }
+
+    /// <summary>
+    /// 無効時
+    /// </summary>
+    void OnDisable()
+    {
+        InputManager.Instance.UnregisterKey(Key.R, HandleKey);
+        InputManager.Instance.UnregisterKey(Key.M, HandleKey);
+        InputManager.Instance.UnregisterKey(Key.O, HandleKey);
+        InputManager.Instance.UnregisterKey(Key.LeftCtrl, HandleKey);
+        InputManager.Instance.UnregisterKey(Key.RightCtrl, HandleKey);
+        InputManager.Instance.UnregisterKey(Key.LeftShift, HandleKey);
+        InputManager.Instance.UnregisterKey(Key.RightShift, HandleKey);
+        InputManager.Instance.UnregisterMouseDown(MouseDownEvent);
+        InputManager.Instance.UnregisterMouseUp(MouseUpEvent);
+        InputManager.Instance.UnregisterMouseWheel(MouseWheelEvent);
+        InputManager.Instance.UnregisterMouseMove(MouseMoveEvent);
+    }
+
+    /// <summary>
+    /// キーイベント
+    /// </summary>
+    /// <param name="key"></param>
+    private void HandleKey(Key key, bool value, bool isCtrl, bool isShift)
+    {
+        if (value)
+        {
+            // ON処理
+            if (key == Key.R)
+            {
+                // R
+                SetInitPosition();
+            }
+            else if (key == Key.M)
+            {
+                // M
+                SetRoomPosition();
+            }
+            else if (key == Key.O)
+            {
+                // O
+                InitCameraPosition();
+            }
+            else if ((key == Key.LeftCtrl) || (key == Key.RightCtrl))
+            {
+                isControl = true;
+            }
+            else if ((key == Key.LeftShift) || (key == Key.RightShift))
+            {
+                isShift = true;
+            }
+        }
+        else
+        {
+            if ((key == Key.LeftCtrl) || (key == Key.RightCtrl))
+            {
+                isControl = false;
+            }
+            else if ((key == Key.LeftShift) || (key == Key.RightShift))
+            {
+                isShift = false;
+            }
+        }
+    }
+
+    /// <summary>
+    /// マウスダウンイベント
+    /// </summary>
+    /// <param name="button"></param>
+    private void MouseDownEvent(InputManager.MouseButton button, Vector2 mousePos)
+    {
+        if (button == InputManager.MouseButton.LeftButton)
+        {
+            isMouseLeft = true;
+        }
+        else if (button == InputManager.MouseButton.RightButton)
+        {
+            isMouseRight = true;
+        }
+        else if (button == InputManager.MouseButton.MiddleButton)
+        {
+            isMouseMiddle = true;
+        }
+    }
+
+    /// <summary>
+    /// マウスアップイベント
+    /// </summary>
+    /// <param name="button"></param>
+    private void MouseUpEvent(InputManager.MouseButton button, Vector2 mousePos)
+    {
+        if (button == InputManager.MouseButton.LeftButton)
+        {
+            isMouseLeft = false;
+        }
+        else if (button == InputManager.MouseButton.RightButton)
+        {
+            isMouseRight = false;
+        }
+        else if (button == InputManager.MouseButton.MiddleButton)
+        {
+            isMouseMiddle = false;
+        }
+    }
+
+    /// <summary>
+    /// マウスホイールイベント
+    /// </summary>
+    /// <param name="mousePos"></param>
+    private void MouseWheelEvent(Vector2 scrollDelta)
+    {
+        float dist = Vector3.Distance(transform.position, targetPosition);
+        float speedFactor = Mathf.Clamp01(dist / 10f);  // 距離10以上なら最大速、近いときは遅く
+        float moveSpeed = wheelSpeed * speedFactor;
+        transform.position += transform.forward * scrollDelta.y * moveSpeed;
+    }
+
+    /// <summary>
+    /// マウス移動イベント
+    /// </summary>
+    /// <param name="mousePos"></param>
+    private void MouseMoveEvent(Vector2 mousePos, Vector2 moveDelta)
+    {
+        if (moveDelta.magnitude < Vector3.kEpsilon)
+        {
+            return;
+        }
+        if (isMouseMiddle)
+        {
+            Vector3 pos = Camera.main.WorldToScreenPoint(targetPosition);
+            transform.Translate(-moveDelta * 0.01f * moveSpeed * pos.z / 5);
+        }
+        else if (isMouseRight)
+        {
+            CameraRotate(new Vector2(-moveDelta.y, moveDelta.x) * rotateSpeed);
+        }
     }
 
     /// <summary>

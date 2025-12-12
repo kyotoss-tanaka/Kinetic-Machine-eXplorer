@@ -684,7 +684,7 @@ namespace Parameters
                             var bc = renderer.AddComponent<BoxCollider>();
                             bc.isTrigger = true;
                         }
-                        foreach (Material mat in renderer.materials)
+                        foreach (Material mat in renderer.sharedMaterials)
                         {
                             if (mat != null)
                             {
@@ -916,38 +916,8 @@ namespace Parameters
                 GlobalScript.isLoaded = false;
                 CommonFunction.DebugLog($"Start Reload");
                 // 情報削除
-                foreach (var obj in globalSetting.GetComponentsInChildren<ComBaseScript>())
-                {
-                    Destroy(obj);
-                }
-                /*
-                foreach (var obj in globalSetting.GetComponentsInChildren<Br6DScript>())
-                {
-                    Destroy(obj);
-                }
-                */
-                foreach (var obj in switchModel)
-                {
-                    CommonFunction.DestroyWithMaterials(obj);
-                }
-                foreach (var obj in towerModel)
-                {
-                    CommonFunction.DestroyWithMaterials(obj);
-                }
-
-                CommonFunction.DestroyWithMaterials(prefabObj);
-                foreach (var obj in movableObjs)
-                {
-                    CommonFunction.DestroyWithMaterials(obj.obj);
-                }
-                foreach (var mat in allMaterials)
-                {
-                    Destroy(mat);
-                }
-                foreach (var mat in allLineMaterials)
-                {
-                    Destroy(mat);
-                }
+                DeleteObjects();
+                // ロード開始
                 StartCoroutine(LoadParameter(isEditMode));
             }
         }
@@ -971,6 +941,53 @@ namespace Parameters
                 GlobalScript.isLoaded = true;
                 GlobalScript.isReqLoadEvent = true;
             }
+        }
+
+        /// <summary>
+        /// オブジェクト削除
+        /// </summary>
+        private void DeleteObjects()
+        {
+            foreach (var obj in globalSetting.GetComponentsInChildren<ComBaseScript>())
+            {
+                Destroy(obj);
+            }
+            /*
+            foreach (var obj in globalSetting.GetComponentsInChildren<Br6DScript>())
+            {
+                Destroy(obj);
+            }
+            */
+            foreach (var obj in switchModel)
+            {
+                CommonFunction.DestroyWithMaterials(obj);
+            }
+            foreach (var obj in towerModel)
+            {
+                CommonFunction.DestroyWithMaterials(obj);
+            }
+
+            CommonFunction.DestroyWithMaterials(prefabObj);
+            foreach (var obj in movableObjs)
+            {
+                CommonFunction.DestroyWithMaterials(obj.obj);
+            }
+            foreach (var mat in allMaterials)
+            {
+                if (!mat.IsDestroyed())
+                {
+                    Destroy(mat);
+                }
+            }
+            allMaterials.Clear();
+            foreach (var mat in allLineMaterials)
+            {
+                if (!mat.IsDestroyed())
+                {
+                    Destroy(mat);
+                }
+            }
+            allLineMaterials.Clear();
         }
 
         /// <summary>
@@ -1382,7 +1399,7 @@ namespace Parameters
                         // シェーダーセット
                         foreach (Renderer renderer in prefabData.GetComponentsInChildren<Renderer>())
                         {
-                            foreach (Material mat in renderer.materials)
+                            foreach (Material mat in renderer.sharedMaterials)
                             {
                                 if (mat != null)
                                 {

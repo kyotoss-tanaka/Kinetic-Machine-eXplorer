@@ -8,7 +8,8 @@ using UnityEngine.InputSystem;
 using Parameters;
 using Application =UnityEngine.Application;
 using Oculus.Interaction;
-
+using UnityEngine.InputSystem.Controls;
+using UnityEditor.DeviceSimulation;
 
 #if UNITY_EDITOR
 using UnityEditor;
@@ -82,23 +83,25 @@ public class MainProcess : KssBaseScript
     protected override void OnEnable()
     {
         base.OnEnable();
-        InputManager.Instance.RegisterKey(Key.R, HandleKey);
-        InputManager.Instance.RegisterKey(Key.M, HandleKey);
-        InputManager.Instance.RegisterKey(Key.O, HandleKey);
         InputManager.Instance.RegisterKey(Key.F, HandleKey);
         InputManager.Instance.RegisterKey(Key.LeftCtrl, HandleKey);
         InputManager.Instance.RegisterKey(Key.RightCtrl, HandleKey);
+        InputManager.Instance.RegisterMouseDown(MouseDownEvent);
+        InputManager.Instance.RegisterMouseUp(MouseUpEvent);
+        InputManager.Instance.RegisterTouchDown(TouchDownEvent);
+        InputManager.Instance.RegisterTouchUp(TouchUpEvent);
     }
 
     protected override void OnDisable()
     {
         base.OnDisable();
-        InputManager.Instance.UnregisterKey(Key.R, HandleKey);
-        InputManager.Instance.UnregisterKey(Key.M, HandleKey);
-        InputManager.Instance.UnregisterKey(Key.O, HandleKey);
         InputManager.Instance.UnregisterKey(Key.F, HandleKey);
         InputManager.Instance.UnregisterKey(Key.LeftCtrl, HandleKey);
         InputManager.Instance.UnregisterKey(Key.RightCtrl, HandleKey);
+        InputManager.Instance.UnregisterMouseDown(MouseDownEvent);
+        InputManager.Instance.UnregisterMouseUp(MouseUpEvent);
+        InputManager.Instance.UnregisterTouchDown(TouchDownEvent);
+        InputManager.Instance.UnregisterTouchUp(TouchUpEvent);
     }
 
     protected override void Start()
@@ -118,7 +121,7 @@ public class MainProcess : KssBaseScript
         base.Update();
 
         // マウス処理
-        MouseUpdate();
+//        MouseUpdate();
     }
 
     protected override void FixedUpdate()
@@ -138,31 +141,7 @@ public class MainProcess : KssBaseScript
         if (value)
         {
             // ON処理
-            if (key == Key.R)
-            {
-                // R
-                if (cameraController != null)
-                {
-                    cameraController.SetInitPosition();
-                }
-            }
-            else if (key == Key.M)
-            {
-                // M
-                if (cameraController != null)
-                {
-                    cameraController.SetRoomPosition();
-                }
-            }
-            else if (key == Key.O)
-            {
-                // O
-                if (cameraController != null)
-                {
-                    cameraController.InitCameraPosition();
-                }
-            }
-            else if (key == Key.F)
+            if (key == Key.F)
             {
                 // F
                 if ((cameraController != null) && (selectedObject != null))
@@ -184,6 +163,135 @@ public class MainProcess : KssBaseScript
         }
     }
 
+    /// <summary>
+    /// マウスダウンイベント
+    /// </summary>
+    /// <param name="button"></param>
+    private void MouseDownEvent(InputManager.MouseButton button, Vector2 mousePos)
+    {
+        if (button == InputManager.MouseButton.LeftButton)
+        {
+            // 左クリック
+            GameObject clickedGameObject = null;
+            Vector3 rotateCenter = Vector3.zero;
+            Ray ray = Camera.main.ScreenPointToRay(mousePos);
+            var hits = Physics.RaycastAll(ray, 100, LayerMask.GetMask("Default"), QueryTriggerInteraction.Collide).ToList();
+            hits = hits.Where(h => !float.IsNaN(h.distance)).ToList();
+            try
+            {
+                hits.Sort((a, b) => a.distance > b.distance ? 1 : -1);
+            }
+            catch
+            {
+                hits.Clear();
+            }
+            if (hits.Count > 0)
+            {
+                // 選択あり
+                clickedGameObject = ((selectedObject == null) || (hits.FindIndex(d => d.collider.gameObject == selectedObject) < 0)) ? hits[0].collider.gameObject : hits[(hits.FindIndex(d => d.collider.gameObject == selectedObject) + 1) % hits.Count].collider.gameObject;
+                if (clickedGameObject.name == "Floor")
+                {
+                    // 床なら床の上でクリックされたところを検索
+                    Plane plane = new Plane(Vector3.up, Vector3.zero);
+                    if (plane.Raycast(ray, out float enter))
+                    {
+                        rotateCenter = ray.GetPoint(enter);
+                    }
+                }
+                else
+                {
+                    rotateCenter = clickedGameObject.transform.position;
+                }
+                selectedScript = clickedGameObject.GetComponentInChildren<KssBaseScript>();
+                if (selectedScript != null)
+                {
+                    //　マウスダウン
+                    selectedScript.OnMouseDown();
+                    if (isControl)
+                    {
+                        // 選択中のマテリアルを解除
+                        selectedObject = null;
+                        menuInfoScript.SetAssemblyObject(selectedObject);
+                    }
+                    // ゲームオブジェクトの名前を出力
+                    Debug.Log(clickedGameObject.name);
+                }
+                else
+                {
+                    // 選択中のマテリアルをセット
+                    if (isControl)
+                    {
+                        if (selectedObject == clickedGameObject)
+                        {
+                            // 既に選択済みなのでマテリアルを解除
+                            selectedObject = null;
+                            menuInfoScript.SetAssemblyObject(selectedObject);
+                        }
+                        else
+                        {
+                            selectedObject = clickedGameObject;
+                            menuInfoScript.SetAssemblyObject(selectedObject);
+                        }
+                    }
+                    // ゲームオブジェクトの名前を出力
+                    Debug.Log(clickedGameObject.name);
+                }
+            }
+            raycastHits.Clear();
+            raycastHits.AddRange(hits);
+            // 回転中心セット
+            if (cameraController != null)
+            {
+                cameraController.SetTargetPosition(rotateCenter);
+            }
+        }
+        else if (button == InputManager.MouseButton.RightButton)
+        {
+            // 右クリック
+            if (isControl)
+            {
+                // 選択中のマテリアルを解除
+                selectedObject = null;
+                selectedScript = null;
+                menuInfoScript.SetAssemblyObject(selectedObject);
+            }
+        }
+    }
+
+    /// <summary>
+    /// マウスアップイベント
+    /// </summary>
+    /// <param name="button"></param>
+    private void MouseUpEvent(InputManager.MouseButton button, Vector2 mousePos)
+    {
+        if(button == InputManager.MouseButton.LeftButton)
+        {
+            if (selectedScript != null)
+            {
+                //　マウスアップ
+                selectedScript.OnMouseUp();
+                selectedScript = null;
+            }
+        }
+    }
+
+    /// <summary>
+    /// タッチダウンイベント
+    /// </summary>
+    /// <param name="button"></param>
+    private void TouchDownEvent(InputManager.TouchButton button, GameObject gameObject)
+    {
+    }
+
+    /// <summary>
+    /// タッチアップイベント
+    /// </summary>
+    /// <param name="button"></param>
+    private void TouchUpEvent(InputManager.TouchButton button, GameObject gameObject)
+    {
+    }
+
+    /*
     private void MouseUpdate()
     {
         if (Application.isFocused)
@@ -374,8 +482,7 @@ public class MainProcess : KssBaseScript
             }
         }
     }
-
-    /*
+    
     private void InitCallbackData()
     {
         // コールバックデータ初期化
