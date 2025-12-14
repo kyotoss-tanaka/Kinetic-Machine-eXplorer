@@ -59,6 +59,9 @@ public class CanvasMenuAssemblyScript : CanvasMenuBaseScript
         baseText.gameObject.SetActive(false);
         menuInfoScript = FindObjectsByType<CanvasMenuInfoScript>(FindObjectsSortMode.None).ToList()[0];
 
+        selectedShader = Shader.Find("Custom/Lines");
+        linesShader = Shader.Find("Universal Render Pipeline/Lit");
+
         SetAssembly(null);
     }
 
@@ -92,9 +95,6 @@ public class CanvasMenuAssemblyScript : CanvasMenuBaseScript
     protected override void Start()
     {
         base.Start();
-
-        selectedShader = Shader.Find("Custom/Lines");
-        linesShader = Shader.Find("Universal Render Pipeline/Lit");
     }
 
     protected override void Update()

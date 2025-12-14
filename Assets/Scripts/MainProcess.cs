@@ -8,8 +8,6 @@ using UnityEngine.InputSystem;
 using Parameters;
 using Application =UnityEngine.Application;
 using Oculus.Interaction;
-using UnityEngine.InputSystem.Controls;
-using UnityEditor.DeviceSimulation;
 
 #if UNITY_EDITOR
 using UnityEditor;
@@ -211,7 +209,7 @@ public class MainProcess : KssBaseScript
                     {
                         // 選択中のマテリアルを解除
                         selectedObject = null;
-                        menuInfoScript.SetAssemblyObject(selectedObject);
+                        EventManager.Instance.ProcessObjectSelect(selectedObject);
                     }
                     // ゲームオブジェクトの名前を出力
                     Debug.Log(clickedGameObject.name);
@@ -225,12 +223,12 @@ public class MainProcess : KssBaseScript
                         {
                             // 既に選択済みなのでマテリアルを解除
                             selectedObject = null;
-                            menuInfoScript.SetAssemblyObject(selectedObject);
+                            EventManager.Instance.ProcessObjectSelect(selectedObject);
                         }
                         else
                         {
                             selectedObject = clickedGameObject;
-                            menuInfoScript.SetAssemblyObject(selectedObject);
+                            EventManager.Instance.ProcessObjectSelect(selectedObject);
                         }
                     }
                     // ゲームオブジェクトの名前を出力
@@ -253,7 +251,7 @@ public class MainProcess : KssBaseScript
                 // 選択中のマテリアルを解除
                 selectedObject = null;
                 selectedScript = null;
-                menuInfoScript.SetAssemblyObject(selectedObject);
+                EventManager.Instance.ProcessObjectSelect(selectedObject);
             }
         }
     }

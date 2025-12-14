@@ -1,54 +1,176 @@
-Shader "Custom/ClipTransparent"
+Shader "URP/ClipTransparent"
 {
     Properties
     {
-        _Color("Main Color", Color) = (1,1,1,1)
-        _MainTex("Main Texture", 2D) = "white" {}
-        // _ClipPlane は Properties から削除（グローバル変数として宣言）
+        _Color ("Main Color", Color) = (1,1,1,0.5)
+        _MainTex ("Main Texture", 2D) = "white" {}
+        _CapColor ("Cap Color", Color) = (1,0,0,1)
+        _CapThickness ("Cap Threshold", Float) = 0.001
     }
 
     SubShader
     {
-        Tags { "Queue"="Transparent" "RenderType"="Transparent" }
-        LOD 200
+        Tags
+        {
+            "RenderPipeline"="UniversalRenderPipeline"
+            "Queue"="Transparent"
+            "RenderType"="Transparent"
+        }
+
         Blend SrcAlpha OneMinusSrcAlpha
         ZWrite Off
         Cull Back
 
-        CGPROGRAM
-        #pragma surface surf Standard alpha:fade
-        #pragma target 3.0
-
-        sampler2D _MainTex;
-        float4 _Color;
-
-        // グローバル変数宣言（Surface Shaderではこちらを使う）
-        uniform float4 _ClipPlane;
-
-        struct Input
+        // =====================================================
+        // Pass 1 : 通常描画 + クリップ
+        // =====================================================
+        Pass
         {
-            float2 uv_MainTex;
-            float3 worldPos;
-        };
+            Name "ForwardClip"
+            Tags { "LightMode"="UniversalForward" }
 
-        void surf(Input IN, inout SurfaceOutputStandard o)
-        {
-            float dist = dot(IN.worldPos, _ClipPlane.xyz) + _ClipPlane.w;
+            HLSLPROGRAM
+            #pragma vertex vert
+            #pragma fragment frag
+            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
 
-            // 平面の法線方向の正側はクリップ（透明）
-            if (dist > 0.0)
+            sampler2D _MainTex;
+            float4 _Color;
+            float4 _ClipPlane;
+
+            struct Attributes
             {
-                clip(-1);
+                float4 positionOS : POSITION;
+                float2 uv : TEXCOORD0;
+            };
+
+            struct Varyings
+            {
+                float4 positionCS : SV_POSITION;
+                float2 uv : TEXCOORD0;
+                float3 worldPos : TEXCOORD1;
+            };
+
+            Varyings vert (Attributes v)
+            {
+                Varyings o;
+                o.worldPos = TransformObjectToWorld(v.positionOS.xyz);
+                o.positionCS = TransformWorldToHClip(o.worldPos);
+                o.uv = v.uv;
+                return o;
             }
 
-            float4 tex = tex2D(_MainTex, IN.uv_MainTex) * _Color;
-            o.Albedo = tex.rgb;
-            o.Alpha = tex.a;
-            o.Metallic = 0.0;
-            o.Smoothness = 0.5;
-        }
-        ENDCG
-    }
+            half4 frag (Varyings i) : SV_Target
+            {
+                float d = dot(i.worldPos, _ClipPlane.xyz) + _ClipPlane.w;
+                clip(-d);   // 断面クリップ
 
-    FallBack "Transparent/Diffuse"
+                half4 col = tex2D(_MainTex, i.uv) * _Color;
+                return col;
+            }
+            ENDHLSL
+        }
+
+        // =====================================================
+        // Pass 2 : 断面をステンシルに書き込む
+        // =====================================================
+        Pass
+        {
+            Name "StencilMark"
+            ZWrite Off
+            ColorMask 0
+
+            Stencil
+            {
+                Ref 1
+                Comp Always
+                Pass Replace
+            }
+
+            HLSLPROGRAM
+            #pragma vertex vert
+            #pragma fragment fragStencil
+            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+
+            float4 _ClipPlane;
+            float _CapThickness;
+
+            struct Attributes
+            {
+                float4 positionOS : POSITION;
+            };
+
+            struct Varyings
+            {
+                float4 positionCS : SV_POSITION;
+                float3 worldPos : TEXCOORD0;
+            };
+
+            Varyings vert (Attributes v)
+            {
+                Varyings o;
+                o.worldPos = TransformObjectToWorld(v.positionOS.xyz);
+                o.positionCS = TransformWorldToHClip(o.worldPos);
+                return o;
+            }
+
+            half4 fragStencil (Varyings i) : SV_Target
+            {
+                float d = dot(i.worldPos, _ClipPlane.xyz) + _ClipPlane.w;
+
+                // 平面付近だけ通す
+                clip(_CapThickness - abs(d));
+                return 0;
+            }
+            ENDHLSL
+        }
+
+        // =====================================================
+        // Pass 3 : 断面蓋描画
+        // =====================================================
+        Pass
+        {
+            Name "CapDraw"
+            ZWrite Off
+            ZTest LEqual
+            Cull Off
+
+            Stencil
+            {
+                Ref 1
+                Comp Equal
+            }
+
+            HLSLPROGRAM
+            #pragma vertex vertCap
+            #pragma fragment fragCap
+            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+
+            float4 _CapColor;
+
+            struct Attributes
+            {
+                float4 positionOS : POSITION;
+            };
+
+            struct Varyings
+            {
+                float4 positionCS : SV_POSITION;
+            };
+
+            Varyings vertCap (Attributes v)
+            {
+                Varyings o;
+                float3 wp = TransformObjectToWorld(v.positionOS.xyz);
+                o.positionCS = TransformWorldToHClip(wp);
+                return o;
+            }
+
+            half4 fragCap (Varyings i) : SV_Target
+            {
+                return _CapColor;
+            }
+            ENDHLSL
+        }
+    }
 }

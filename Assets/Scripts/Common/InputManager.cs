@@ -94,7 +94,7 @@ public class InputManager : BaseBehaviour
     /// <summary>
     /// 各種ボタン状態
     /// </summary>
-    private bool isMouseLeft, isMouseRight, isMouseMiddle;
+    private bool isMouseLeft, isMouseRight, isMouseMiddle, isKeyCtrl, isKeyShift;
 
     /// <summary>
     /// スクリーン内フラグ
@@ -194,11 +194,13 @@ public class InputManager : BaseBehaviour
             mouseUpEvents?.Invoke(MouseButton.MiddleButton, mousePos);
             isMouseMiddle = false;
         }
-
-        Vector2 scrollDelta = Mouse.current.scroll.ReadValue();
-        if ((scrollDelta.x != 0) || (scrollDelta.y != 0))
+        if (isInsideScreen)
         {
-            mouseWheelEvents?.Invoke(scrollDelta);
+            Vector2 scrollDelta = Mouse.current.scroll.ReadValue();
+            if ((scrollDelta.x != 0) || (scrollDelta.y != 0))
+            {
+                mouseWheelEvents?.Invoke(scrollDelta);
+            }
         }
         Vector2 mouseDelta = mousePos - prvMousePos;
         if ((mouseDelta.x != 0) || (mouseDelta.y != 0))

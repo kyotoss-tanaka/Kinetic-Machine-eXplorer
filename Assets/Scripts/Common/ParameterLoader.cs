@@ -84,7 +84,6 @@ namespace Parameters
         // シェーダー
         private HashSet<Material> allMaterials = new HashSet<Material>();
         private HashSet<Material> allLineMaterials = new HashSet<Material>();
-        private Shader clipShader;
         private Shader standardShader;
         private Shader linesShader;
 
@@ -97,9 +96,6 @@ namespace Parameters
 
         private GameObject uiInfoPrefab;
         private CanvasPrefabInfoScript prefabInfoScript;
-
-        // 衝突検知
-        private GameObject uiCollision;
 
         // 断面切断
         /*
@@ -127,7 +123,6 @@ namespace Parameters
             CommonFunction.DebugLog($"***** Start Load *****");
 
             // シェーダーロード
-            clipShader = Shader.Find("Custom/ClipTransparent");
             standardShader = Shader.Find("Universal Render Pipeline/Lit");
             //            linesShader = Shader.Find("Custom/Lines");
             linesShader = Shader.Find("Universal Render Pipeline/Lit");
@@ -141,14 +136,12 @@ namespace Parameters
 
         private void OnEnable()
         {
-            InputManager.Instance.RegisterKey(Key.L, HandleKey);
-            InputManager.Instance.RegisterKey(Key.P, HandleKey);
+            InputManager.Instance.RegisterKey(Key.F5, HandleKey);
         }
 
         private void OnDisable()
         {
-            InputManager.Instance.UnregisterKey(Key.L, HandleKey);
-            InputManager.Instance.UnregisterKey(Key.P, HandleKey);
+            InputManager.Instance.UnregisterKey(Key.F5, HandleKey);
         }
 
         /// <summary>
@@ -657,8 +650,6 @@ namespace Parameters
                 }
                 // シェーダー適用
                 {
-                    allMaterials = new();
-                    allLineMaterials = new();
                     var renderers = new List<Renderer>();
                     renderers.AddRange(prefabObj.GetComponentsInChildren<Renderer>().ToList());
                     /*
@@ -684,20 +675,20 @@ namespace Parameters
                             var bc = renderer.AddComponent<BoxCollider>();
                             bc.isTrigger = true;
                         }
+                        /*
                         foreach (Material mat in renderer.sharedMaterials)
                         {
                             if (mat != null)
                             {
-                                if (mat.shader == standardShader)
+                                if (mat.name.Contains("Default Line Material"))
                                 {
-                                    allMaterials.Add(mat);
                                 }
-                                else if (mat.name.Contains("Default Line Material"))
+                                else
                                 {
-                                    allLineMaterials.Add(mat);
                                 }
                             }
                         }
+                        */
                     }
                     //  描画エリア取得
                     renderers = prefabObj.GetComponentsInChildren<Renderer>().ToList();
@@ -769,8 +760,7 @@ namespace Parameters
             }
 
             // イベント登録
-            //viewScript.SetEvents(allMaterials, allLineMaterials, standardShader, linesShader, clipShader);
-            menuInfoScript.SetEvents(unitSettings);
+            menuInfoScript.SetEvents(unitSettings, allMaterials, allLineMaterials);
             prefabInfoScript.SetEvents();
 
             GlobalScript.isLoading = false;
@@ -899,7 +889,8 @@ namespace Parameters
                     }
                 }
             }
-            menuInfoScript.SetEvents(unitSettings);
+            // メニュー設定
+            menuInfoScript.SetEvents(unitSettings, allMaterials, allLineMaterials);
 
             Resources.UnloadUnusedAssets();
             CommonFunction.DebugLog($"***** Load Finished *****", true);
@@ -972,22 +963,6 @@ namespace Parameters
             {
                 CommonFunction.DestroyWithMaterials(obj.obj);
             }
-            foreach (var mat in allMaterials)
-            {
-                if (!mat.IsDestroyed())
-                {
-                    Destroy(mat);
-                }
-            }
-            allMaterials.Clear();
-            foreach (var mat in allLineMaterials)
-            {
-                if (!mat.IsDestroyed())
-                {
-                    Destroy(mat);
-                }
-            }
-            allLineMaterials.Clear();
         }
 
         /// <summary>
@@ -1156,17 +1131,7 @@ namespace Parameters
             // キャンバス取得
             var canvasObjs = GameObject.FindObjectsByType<GameObject>(FindObjectsSortMode.None).Where(d => d.name == "Canvas").ToList();
             canvaObj = canvasObjs.Count == 0 ? new GameObject("Canvas", typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster)) : canvasObjs[0];
-            /*
-            var collider = GlobalScript.LoadPrefabObject("Prefabs/Canvas", "ColliderSetting");
-            if (collider.Count > 0)
-            {
-                uiCollision = Instantiate(collider[0]);
-                uiCollision.transform.SetParent(canvaObj.transform, false);
-                ((RectTransform)uiCollision.transform).anchoredPosition = new Vector2(-((RectTransform)uiCollision.transform).rect.width / 2, -((RectTransform)uiCollision.transform).rect.height / 2);
-                // コンポネント取得
-                collisionToggle = uiCollision.GetComponentInChildren<Toggle>();
-            }
-            */
+
             // プログレスバー
             var progress = GlobalScript.LoadPrefabObject("Prefabs/Canvas", "ProgressSetting");
             if (progress.Count > 0)
@@ -1403,13 +1368,25 @@ namespace Parameters
                             {
                                 if (mat != null)
                                 {
-                                    if (mat.name == "Default Line Material (Instance)")
+                                    if (mat.name.Contains("Default Line Material"))
                                     {
-                                        mat.shader = linesShader;
+                                        allLineMaterials.Add(mat);
                                         mat.SetColor("_BaseColor", new Color(0, 0, 0, 0));
+                                    }
+                                    else
+                                    {
+                                        allMaterials.Add(mat);
                                     }
                                 }
                             }
+                        }
+                        foreach (var mat in allMaterials)
+                        {
+                            mat.shader = standardShader;
+                        }
+                        foreach (var mat in allLineMaterials)
+                        {
+                            mat.shader = linesShader;
                         }
                     }
                 }
@@ -1815,15 +1792,18 @@ namespace Parameters
         {
             if (value)
             {
-                if (key == Key.L)
+                if (key == Key.F5)
                 {
-                    // L
-                    ReloadActParameter();
-                }
-                else if (key == Key.P)
-                {
-                    // P
-                    ReloadParameter(isCtrl);
+                    if (isShift)
+                    {
+                        // パラメータのみロード
+                        ReloadActParameter();
+                    }
+                    else
+                    {
+                        // プレハブもロード
+                        ReloadParameter(isCtrl);
+                    }
                 }
             }
         }

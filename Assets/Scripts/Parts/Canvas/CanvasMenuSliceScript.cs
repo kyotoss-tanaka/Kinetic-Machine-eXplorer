@@ -7,10 +7,8 @@ using UnityEngine.UI;
 using UnityEngine.Video;
 using UnityEngine.Windows;
 
-public class CanvasMenuViewScript : CanvasMenuBaseScript
+public class CanvasMenuSliceScript : CanvasMenuBaseScript
 {
-    private Toggle viewCollision;
-    private Toggle viewClip;
     private Toggle viewXToggle;
     private Toggle viewYToggle;
     private Toggle viewZToggle;
@@ -22,8 +20,11 @@ public class CanvasMenuViewScript : CanvasMenuBaseScript
     private HashSet<Material> allMaterials = new HashSet<Material>();
     private HashSet<Material> allLineMaterials = new HashSet<Material>();
     private Shader lineShader;
+    private Shader clipLineShader;
     private Shader clipShader;
     private Shader standardShader;
+
+    public bool isOn = true;
 
     /// <summary>
     /// 開始処理
@@ -32,35 +33,57 @@ public class CanvasMenuViewScript : CanvasMenuBaseScript
     {
         base.Awake();
 
-        viewCollision = GetComponentsInChildren<Toggle>().ToList().Find(d => d.name == "ColliderToggle");
-        viewClip = GetComponentsInChildren<Toggle>().ToList().Find(d => d.name == "ClipToggle");
         viewXToggle = GetComponentsInChildren<Toggle>().ToList().Find(d => d.name == "ClipXToggle");
         viewYToggle = GetComponentsInChildren<Toggle>().ToList().Find(d => d.name == "ClipYToggle");
         viewZToggle = GetComponentsInChildren<Toggle>().ToList().Find(d => d.name == "ClipZToggle");
         viewRvsToggle = GetComponentsInChildren<Toggle>().ToList().Find(d => d.name == "ClipRvsToggle");
         viewSlider = GetComponentInChildren<Slider>();
         viewText = GetComponentsInChildren<TextMeshProUGUI>().ToList().Find(d => d.name == "ClipText");
+
+        clipShader = Shader.Find("URP/ClipTransparent");
+        clipLineShader = Shader.Find("URP/TransparentLines");
+        standardShader = Shader.Find("Universal Render Pipeline/Lit");
+        lineShader = Shader.Find("Universal Render Pipeline/Lit");
+        //lineShader = Shader.Find("Custom/Lines");
     }
 
     /// <summary>
-    /// イベントセット
+    /// 有効時
     /// </summary>
-    public virtual void SetEvents(HashSet<Material> allMaterials, HashSet<Material> allLineMaterials, Shader standardShader, Shader lineShader, Shader clipShader)
+    protected override void OnEnable()
     {
-        this.allMaterials = allMaterials;
-        this.allLineMaterials = allLineMaterials;
-        this.standardShader = standardShader;
-        this.lineShader = lineShader;
-        this.clipShader = clipShader;
-
-        SetEvents();
-        viewCollision.onValueChanged.AddListener(collisionToggle_onValueChanged);
-        viewClip.onValueChanged.AddListener(clipToggle_onValueChanged);
+        base.OnEnable();
         viewXToggle.onValueChanged.AddListener(clipToggle_onValueChanged);
         viewYToggle.onValueChanged.AddListener(clipToggle_onValueChanged);
         viewZToggle.onValueChanged.AddListener(clipToggle_onValueChanged);
         viewRvsToggle.onValueChanged.AddListener(clipToggle_onValueChanged);
         viewSlider.onValueChanged.AddListener(clipSlider_onValueChanged);
+        clipToggle_onValueChanged(true);
+    }
+
+    /// <summary>
+    /// 無効時
+    /// </summary>
+    protected override void OnDisable()
+    {
+        base.OnDisable();
+        viewXToggle.onValueChanged.RemoveAllListeners();
+        viewYToggle.onValueChanged.RemoveAllListeners();
+        viewZToggle.onValueChanged.RemoveAllListeners();
+        viewRvsToggle.onValueChanged.RemoveAllListeners();
+        viewSlider.onValueChanged.RemoveAllListeners();
+        clipToggle_onValueChanged(false);
+    }
+
+    /// <summary>
+    /// イベントセット
+    /// </summary>
+    public virtual void SetEvents(HashSet<Material> allMaterials, HashSet<Material> allLineMaterials)
+    {
+        this.allMaterials = allMaterials;
+        this.allLineMaterials = allLineMaterials;
+
+        SetEvents();
     }
 
     /// <summary>
@@ -69,13 +92,6 @@ public class CanvasMenuViewScript : CanvasMenuBaseScript
     public override void ResetEvents()
     {
         base.ResetEvents();
-        viewCollision.onValueChanged.RemoveAllListeners();
-        viewClip.onValueChanged.RemoveAllListeners();
-        viewXToggle.onValueChanged.RemoveAllListeners();
-        viewYToggle.onValueChanged.RemoveAllListeners();
-        viewZToggle.onValueChanged.RemoveAllListeners();
-        viewRvsToggle.onValueChanged.RemoveAllListeners();
-        viewSlider.onValueChanged.RemoveAllListeners();
     }
 
     /// <summary>
@@ -95,11 +111,12 @@ public class CanvasMenuViewScript : CanvasMenuBaseScript
     public void clipToggle_onValueChanged(bool value)
     {
         // 有効/無効
-        viewXToggle.enabled = viewClip.isOn;
-        viewYToggle.enabled = viewClip.isOn;
-        viewZToggle.enabled = viewClip.isOn;
-        viewRvsToggle.enabled = viewClip.isOn;
-        viewSlider.enabled = viewClip.isOn;
+        isOn = value;
+        viewXToggle.enabled = isOn;
+        viewYToggle.enabled = isOn;
+        viewZToggle.enabled = isOn;
+        viewRvsToggle.enabled = isOn;
+        viewSlider.enabled = isOn;
         // 範囲変更
         if (viewXToggle.isOn)
         {
@@ -161,7 +178,7 @@ public class CanvasMenuViewScript : CanvasMenuBaseScript
         // 削除済みマテリアルを削除
         allMaterials.RemoveWhere(d => d.IsDestroyed());
         allLineMaterials.RemoveWhere(d => d.IsDestroyed());
-        if (viewClip.isOn)
+        if (isOn)
         {
             if (viewRvsToggle.isOn)
             {
@@ -179,7 +196,7 @@ public class CanvasMenuViewScript : CanvasMenuBaseScript
             }
             foreach (Material mat in allLineMaterials)
             {
-                mat.shader = clipShader;
+                mat.shader = clipLineShader;
             }
         }
         else
