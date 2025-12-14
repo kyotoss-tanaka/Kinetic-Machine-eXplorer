@@ -2,15 +2,10 @@ Shader "Custom/TransparentLines"
 {
     Properties
     {
-        [Header(Main)]
         [HDR]_Color ("Color", Color) = (0,0,0,0.5)
         [Toggle]_UseVertexColor ("Use Vertex Colors", Float) = 0
-
-        [Header(Render)]
         [Toggle]_Offset ("See Through", Float) = 0
         _Alpha ("Alpha", Range(0,1)) = 1
-
-        [Header(Dashes)]
         [Toggle]_Dashes ("Enabled", Float) = 0
         _DashesScale ("Scale", Range(1,10)) = 1
     }
@@ -27,6 +22,7 @@ Shader "Custom/TransparentLines"
         Pass
         {
             Name "Lines"
+            Tags { "LightMode"="UniversalForward" }   // ★ 必須
             ZWrite Off
             ZTest LEqual
             Blend SrcAlpha OneMinusSrcAlpha
@@ -56,22 +52,17 @@ Shader "Custom/TransparentLines"
             float _UseVertexColor;
             float _Offset;
             float _Alpha;
-
             float _Dashes;
             float _DashesScale;
 
             Varyings vert (Attributes v)
             {
                 Varyings o;
-
                 float3 worldPos = TransformObjectToWorld(v.positionOS.xyz);
                 o.positionCS = TransformWorldToHClip(worldPos);
 
-                // 疑似 See-Through（常に最前面）
                 if (_Offset > 0.5)
-                {
                     o.positionCS.z = o.positionCS.w * 0.0001;
-                }
 
                 o.posOS = v.positionOS.xyz;
                 o.color = v.color;
@@ -88,17 +79,15 @@ Shader "Custom/TransparentLines"
 
             half4 frag (Varyings i) : SV_Target
             {
-                // ダッシュ表現
                 if (_Dashes > 0.5)
                 {
                     float scale = 1000.0 / (_DashesScale + 0.001);
-                    float3 p = floor(i.posOS * scale);
-                    if (Checker(p))
+                    if (Checker(floor(i.posOS * scale)))
                         discard;
                 }
 
                 half4 col = (_UseVertexColor > 0.5) ? i.color : _Color;
-                col.a *= _Alpha;   // ★ 透明度
+                col.a *= _Alpha;
                 return col;
             }
             ENDHLSL
