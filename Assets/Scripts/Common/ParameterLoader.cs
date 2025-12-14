@@ -84,7 +84,6 @@ namespace Parameters
         // シェーダー
         private HashSet<Material> allMaterials = new HashSet<Material>();
         private HashSet<Material> allLineMaterials = new HashSet<Material>();
-        private Shader standardShader;
         private Shader linesShader;
 
         // パラメータ描画用
@@ -123,7 +122,6 @@ namespace Parameters
             CommonFunction.DebugLog($"***** Start Load *****");
 
             // シェーダーロード
-            standardShader = Shader.Find("Universal Render Pipeline/Lit");
             //            linesShader = Shader.Find("Custom/Lines");
             linesShader = Shader.Find("Universal Render Pipeline/Lit");
 
@@ -209,7 +207,6 @@ namespace Parameters
                 CommonFunction.DebugLog($"***** Set Database *****");
                 SetDatabaseSetting();
 
-                isFirstLoad = false;
                 yield return null; // 1フレーム待
 
                 if (isEditMode)
@@ -1314,6 +1311,7 @@ namespace Parameters
         private IEnumerator LoadPrefabModel()
         {
             var rootObjects = SceneManager.GetActiveScene().GetRootGameObjects().ToList();
+            isFirstLoad = prefabs.Count == 0;
             // 既にprefabがあるかチェック
             if (prefabs.Count == 0)
             {
@@ -1333,7 +1331,6 @@ namespace Parameters
             {
                 //                    prefabs = GlobalScript.CreateInitialModel();
                 yield return StartCoroutine(LoadAddressablePrefabs(prefabSettings, prefabs));
-                isFirstLoad = true;
             }
             if (prefabs.Count == 0)
             {
@@ -1380,15 +1377,14 @@ namespace Parameters
                                 }
                             }
                         }
-                        foreach (var mat in allMaterials)
-                        {
-                            mat.shader = standardShader;
-                        }
-                        foreach (var mat in allLineMaterials)
-                        {
-                            mat.shader = linesShader;
-                        }
                     }
+                }
+            }
+            if (isFirstLoad)
+            {
+                foreach (var mat in allLineMaterials)
+                {
+                    mat.shader = linesShader;
                 }
             }
         }

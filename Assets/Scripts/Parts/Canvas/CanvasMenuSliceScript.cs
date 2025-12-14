@@ -42,7 +42,6 @@ public class CanvasMenuSliceScript : CanvasMenuBaseScript
 
         clipShader = Shader.Find("URP/ClipTransparent");
         clipLineShader = Shader.Find("URP/TransparentLines");
-        standardShader = Shader.Find("Universal Render Pipeline/Lit");
         lineShader = Shader.Find("Universal Render Pipeline/Lit");
         //lineShader = Shader.Find("Custom/Lines");
     }
@@ -82,6 +81,7 @@ public class CanvasMenuSliceScript : CanvasMenuBaseScript
     {
         this.allMaterials = allMaterials;
         this.allLineMaterials = allLineMaterials;
+        standardShader = allMaterials.Count > 0 ? allMaterials.First().shader : Shader.Find("Universal Render Pipeline/Lit");
 
         SetEvents();
     }
