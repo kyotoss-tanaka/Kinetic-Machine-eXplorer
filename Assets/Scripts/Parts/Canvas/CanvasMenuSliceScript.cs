@@ -1,3 +1,4 @@
+using NUnit.Framework;
 using System.Collections.Generic;
 using System.Linq;
 using TMPro;
@@ -9,6 +10,7 @@ using UnityEngine.Windows;
 
 public class CanvasMenuSliceScript : CanvasMenuBaseScript
 {
+    private GameObject slicePlane;
     private Toggle viewXToggle;
     private Toggle viewYToggle;
     private Toggle viewZToggle;
@@ -24,14 +26,14 @@ public class CanvasMenuSliceScript : CanvasMenuBaseScript
     private Shader clipShader;
     private Shader standardShader;
 
-    public bool isOn = true;
-
     /// <summary>
     /// 開始処理
     /// </summary>
     protected override void Awake()
     {
         base.Awake();
+
+        slicePlane = GameObject.FindObjectsByType<GameObject>(FindObjectsSortMode.None).Where(d => d.name == "SlicePlane").ToList()[0];
 
         viewXToggle = GetComponentsInChildren<Toggle>().ToList().Find(d => d.name == "ClipXToggle");
         viewYToggle = GetComponentsInChildren<Toggle>().ToList().Find(d => d.name == "ClipYToggle");
@@ -40,7 +42,7 @@ public class CanvasMenuSliceScript : CanvasMenuBaseScript
         viewSlider = GetComponentInChildren<Slider>();
         viewText = GetComponentsInChildren<TextMeshProUGUI>().ToList().Find(d => d.name == "ClipText");
 
-        clipShader = Shader.Find("URP/ClipTransparent");
+        clipShader = Shader.Find("Shader Graphs/DANMEN");
         clipLineShader = Shader.Find("URP/TransparentLines");
         lineShader = Shader.Find("Universal Render Pipeline/Lit");
         //lineShader = Shader.Find("Custom/Lines");
@@ -57,6 +59,7 @@ public class CanvasMenuSliceScript : CanvasMenuBaseScript
         viewZToggle.onValueChanged.AddListener(clipToggle_onValueChanged);
         viewRvsToggle.onValueChanged.AddListener(clipToggle_onValueChanged);
         viewSlider.onValueChanged.AddListener(clipSlider_onValueChanged);
+        GlobalScript.clipInfo.isOn = true;
         clipToggle_onValueChanged(true);
     }
 
@@ -71,7 +74,8 @@ public class CanvasMenuSliceScript : CanvasMenuBaseScript
         viewZToggle.onValueChanged.RemoveAllListeners();
         viewRvsToggle.onValueChanged.RemoveAllListeners();
         viewSlider.onValueChanged.RemoveAllListeners();
-        clipToggle_onValueChanged(false);
+        GlobalScript.clipInfo.isOn = false;
+        UpdateClip();
     }
 
     /// <summary>
@@ -111,12 +115,11 @@ public class CanvasMenuSliceScript : CanvasMenuBaseScript
     public void clipToggle_onValueChanged(bool value)
     {
         // 有効/無効
-        isOn = value;
-        viewXToggle.enabled = isOn;
-        viewYToggle.enabled = isOn;
-        viewZToggle.enabled = isOn;
-        viewRvsToggle.enabled = isOn;
-        viewSlider.enabled = isOn;
+        viewXToggle.enabled = GlobalScript.clipInfo.isOn;
+        viewYToggle.enabled = GlobalScript.clipInfo.isOn;
+        viewZToggle.enabled = GlobalScript.clipInfo.isOn;
+        viewRvsToggle.enabled = GlobalScript.clipInfo.isOn;
+        viewSlider.enabled = GlobalScript.clipInfo.isOn;
         // 範囲変更
         if (viewXToggle.isOn)
         {
@@ -124,6 +127,7 @@ public class CanvasMenuSliceScript : CanvasMenuBaseScript
             viewSlider.minValue = GlobalScript.clipInfo.bounds.min.x;
             viewSlider.maxValue = GlobalScript.clipInfo.bounds.max.x;
             viewSlider.value = GlobalScript.clipInfo.x;
+            slicePlane.transform.localEulerAngles = new Vector3(0, 0, viewRvsToggle.isOn ? -90 : 90);
         }
         else if (viewYToggle.isOn)
         {
@@ -131,6 +135,7 @@ public class CanvasMenuSliceScript : CanvasMenuBaseScript
             viewSlider.minValue = GlobalScript.clipInfo.bounds.min.y;
             viewSlider.maxValue = GlobalScript.clipInfo.bounds.max.y;
             viewSlider.value = GlobalScript.clipInfo.y;
+            slicePlane.transform.localEulerAngles = new Vector3(viewRvsToggle.isOn ? 180 : 0, 0, 0);
         }
         else if (viewZToggle.isOn)
         {
@@ -138,6 +143,7 @@ public class CanvasMenuSliceScript : CanvasMenuBaseScript
             viewSlider.minValue = GlobalScript.clipInfo.bounds.min.z;
             viewSlider.maxValue = GlobalScript.clipInfo.bounds.max.z;
             viewSlider.value = GlobalScript.clipInfo.z;
+            slicePlane.transform.localEulerAngles = new Vector3(viewRvsToggle.isOn ? 90 : -90, 0, 0);
         }
         UpdateClip();
     }
@@ -170,6 +176,7 @@ public class CanvasMenuSliceScript : CanvasMenuBaseScript
     /// </summary>
     private void UpdateClip()
     {
+        /*
         var clipInfo = GlobalScript.clipInfo;
         // 平面の向き
         Vector3 planeNormal = Vector3.down;
@@ -178,8 +185,10 @@ public class CanvasMenuSliceScript : CanvasMenuBaseScript
         // 削除済みマテリアルを削除
         allMaterials.RemoveWhere(d => d.IsDestroyed());
         allLineMaterials.RemoveWhere(d => d.IsDestroyed());
-        if (isOn)
+        */
+        if (GlobalScript.clipInfo.isOn)
         {
+            /*
             if (viewRvsToggle.isOn)
             {
                 planeNormal = viewXToggle.isOn ? Vector3.left : (viewYToggle.isOn ? Vector3.down : Vector3.back);
@@ -189,6 +198,7 @@ public class CanvasMenuSliceScript : CanvasMenuBaseScript
                 planeNormal = viewXToggle.isOn ? Vector3.right : (viewYToggle.isOn ? Vector3.up : Vector3.forward);
             }
             planePoint = new Vector3(viewXToggle.isOn ? clipInfo.x : 0, viewYToggle.isOn ? clipInfo.y : 0, viewZToggle.isOn ? clipInfo.z : 0);
+            */
             // シェーダー切り替え
             foreach (Material mat in allMaterials)
             {
@@ -211,7 +221,10 @@ public class CanvasMenuSliceScript : CanvasMenuBaseScript
                 mat.shader = lineShader;
             }
         }
+        slicePlane.transform.transform.localPosition = new Vector3(GlobalScript.clipInfo.x, GlobalScript.clipInfo.y, GlobalScript.clipInfo.z);
+        /*
         Vector4 clipPlane = new Vector4(planeNormal.x, planeNormal.y, planeNormal.z, -Vector3.Dot(planeNormal, planePoint));
         Shader.SetGlobalVector("_ClipPlane", clipPlane);
+        */
     }
 }

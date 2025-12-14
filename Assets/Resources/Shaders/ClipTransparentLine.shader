@@ -3,7 +3,7 @@ Shader "URP/TransparentLines"
     Properties
     {
         [Header(Main)]
-        [HDR]_Color ("Color", Color) = (0,0,0,1)
+        [HDR]_Color ("Color", Color) = (0,0,0,0.5)
         [Toggle]_UseVertexColor ("Use Vertex Colors", Float) = 0
 
         [Header(Render)]
@@ -28,7 +28,7 @@ Shader "URP/TransparentLines"
         {
             Name "Lines"
             ZWrite Off
-            ZTest Always
+            ZTest LEqual
             Blend SrcAlpha OneMinusSrcAlpha
             Cull Off
 
@@ -39,9 +39,6 @@ Shader "URP/TransparentLines"
 
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
 
-            // ★ グローバルクリップ平面
-            float4 _ClipPlane;
-
             struct Attributes
             {
                 float4 positionOS : POSITION;
@@ -51,9 +48,8 @@ Shader "URP/TransparentLines"
             struct Varyings
             {
                 float4 positionCS : SV_POSITION;
-                float3 worldPos   : TEXCOORD0;   // ★ worldPos を渡す
-                float3 posOS      : TEXCOORD1;
-                float4 color      : COLOR0;
+                float3 posOS : TEXCOORD0;
+                float4 color : COLOR0;
             };
 
             float4 _Color;
@@ -71,13 +67,12 @@ Shader "URP/TransparentLines"
                 float3 worldPos = TransformObjectToWorld(v.positionOS.xyz);
                 o.positionCS = TransformWorldToHClip(worldPos);
 
-                // 疑似 See-Through（常に手前）
+                // 疑似 See-Through（常に最前面）
                 if (_Offset > 0.5)
                 {
                     o.positionCS.z = o.positionCS.w * 0.0001;
                 }
 
-                o.worldPos = worldPos;      // ★
                 o.posOS = v.positionOS.xyz;
                 o.color = v.color;
                 return o;
@@ -90,14 +85,21 @@ Shader "URP/TransparentLines"
                 int z = (int)floor(p.z);
                 return ((x & 1) ^ (y & 1) ^ (z & 1)) == 1;
             }
+
             half4 frag (Varyings i) : SV_Target
             {
-                // ★ 断面クリップ
-                float d = dot(i.worldPos, _ClipPlane.xyz) + _ClipPlane.w;
-                clip(-d);
+                // ダッシュ表現
+                if (_Dashes > 0.5)
+                {
+                    float scale = 1000.0 / (_DashesScale + 0.001);
+                    float3 p = floor(i.posOS * scale);
+                    if (Checker(p))
+                        discard;
+                }
 
-                // ★ すべて無視して完全な黒
-                return half4(0, 0, 0, 1);
+                half4 col = (_UseVertexColor > 0.5) ? i.color : _Color;
+                col.a *= _Alpha;   // ★ 透明度
+                return col;
             }
             ENDHLSL
         }

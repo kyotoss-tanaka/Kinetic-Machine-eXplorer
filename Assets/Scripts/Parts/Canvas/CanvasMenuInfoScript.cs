@@ -109,7 +109,7 @@ public class CanvasMenuInfoScript : KssBaseScript
         btnDirect = GetComponentsInChildren<Button>().ToList().Find(d => d.name == "BntCom");
         btnMotion = GetComponentsInChildren<Button>().ToList().Find(d => d.name == "BntMotion");
         btnAsm = GetComponentsInChildren<Button>().ToList().Find(d => d.name == "BntAsm");
-        //btnSlice = GetComponentsInChildren<Button>().ToList().Find(d => d.name == "BntSlice");
+        btnSlice = GetComponentsInChildren<Button>().ToList().Find(d => d.name == "BntSlice");
 
         // ÉLÉÉÉìÉoÉXçÏê¨
         CreateCanvas();
@@ -125,7 +125,7 @@ public class CanvasMenuInfoScript : KssBaseScript
         btnDirect.onClick.AddListener(btnDirect_onClick);
         btnMotion.onClick.AddListener(btnMotion_onClick);
         btnAsm.onClick.AddListener(btnAsm_onClick);
-        //btnSlice.onClick.AddListener(btnSlice_onClick);
+        btnSlice.onClick.AddListener(btnSlice_onClick);
     }
 
     protected override void OnDisable()
@@ -138,7 +138,7 @@ public class CanvasMenuInfoScript : KssBaseScript
         btnDirect.onClick.RemoveAllListeners();
         btnMotion.onClick.RemoveAllListeners();
         btnAsm.onClick.RemoveAllListeners();
-        //btnSlice.onClick.RemoveAllListeners();
+        btnSlice.onClick.RemoveAllListeners();
     }
 
     /// <summary>

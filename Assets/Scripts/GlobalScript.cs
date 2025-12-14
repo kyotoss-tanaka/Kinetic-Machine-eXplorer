@@ -120,6 +120,10 @@ public static class GlobalScript
     public class ClipInfo
     {
         /// <summary>
+        /// 断面表示機能
+        /// </summary>
+        public bool isOn;
+        /// <summary>
         /// 描画エリア
         /// </summary>
         public Bounds bounds;
