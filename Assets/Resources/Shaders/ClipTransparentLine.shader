@@ -1,4 +1,4 @@
-Shader "URP/TransparentLines"
+Shader "Custom/TransparentLines"
 {
     Properties
     {

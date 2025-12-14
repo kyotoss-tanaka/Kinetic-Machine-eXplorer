@@ -43,7 +43,7 @@ public class CanvasMenuSliceScript : CanvasMenuBaseScript
         viewText = GetComponentsInChildren<TextMeshProUGUI>().ToList().Find(d => d.name == "ClipText");
 
         clipShader = Shader.Find("Shader Graphs/DANMEN");
-        clipLineShader = Shader.Find("URP/TransparentLines");
+        clipLineShader = Shader.Find("Custom/TransparentLines");
         lineShader = Shader.Find("Universal Render Pipeline/Lit");
         //lineShader = Shader.Find("Custom/Lines");
     }
