@@ -122,7 +122,7 @@ namespace Parameters
             CommonFunction.DebugLog($"***** Start Load *****");
 
             // シェーダーロード
-            //            linesShader = Shader.Find("Custom/Lines");
+            //linesShader = Shader.Find("URP/Lines");
             linesShader = Shader.Find("Universal Render Pipeline/Lit");
 
             // キャンバス生成
@@ -1367,12 +1367,18 @@ namespace Parameters
                                 {
                                     if (mat.name.Contains("Default Line Material"))
                                     {
-                                        allLineMaterials.Add(mat);
-                                        mat.SetColor("_BaseColor", new Color(0, 0, 0, 0));
+                                        if (!allLineMaterials.Contains(mat))
+                                        {
+                                            allLineMaterials.Add(mat);
+                                            mat.SetColor("_BaseColor", new Color(0, 0, 0, 0));
+                                        }
                                     }
                                     else
                                     {
-                                        allMaterials.Add(mat);
+                                        if (!allMaterials.Contains(mat))
+                                        {
+                                            allMaterials.Add(mat);
+                                        }
                                     }
                                 }
                             }
@@ -1385,6 +1391,7 @@ namespace Parameters
                 foreach (var mat in allLineMaterials)
                 {
                     mat.shader = linesShader;
+                    mat.SetColor("_BaseColor", new Color(0, 0, 0, 0.75f));
                 }
             }
         }

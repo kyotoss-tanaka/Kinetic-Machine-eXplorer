@@ -27,6 +27,7 @@ public class CanvasMenuAssemblyScript : CanvasMenuBaseScript
 
     private CanvasMenuInfoScript menuInfoScript = null;
 
+    private Dictionary<GameObject, Dictionary<Renderer, Material[]>> selectedRenderer = new();
     private List<Material> selectedMaterials = new();
 
     /// <summary>
@@ -59,7 +60,7 @@ public class CanvasMenuAssemblyScript : CanvasMenuBaseScript
         baseText.gameObject.SetActive(false);
         menuInfoScript = FindObjectsByType<CanvasMenuInfoScript>(FindObjectsSortMode.None).ToList()[0];
 
-        selectedShader = Shader.Find("Custom/Lines");
+        selectedShader = Shader.Find("UPR/Lines");
         linesShader = Shader.Find("Universal Render Pipeline/Lit");
 
         SetAssembly(null);
@@ -450,9 +451,22 @@ public class CanvasMenuAssemblyScript : CanvasMenuBaseScript
         selectedMaterials.RemoveAll(d => d == null);
         foreach (var mat in selectedMaterials)
         {
-            mat.shader = linesShader;
+            //            mat.shader = linesShader;
+            //mat.SetColor("_Color", new Color(0, 0, 0, 0.75f));
+            Destroy(mat);
         }
         selectedMaterials.Clear();
+        foreach (var gameObject in selectedRenderer)
+        {
+            foreach (var renderer in gameObject.Key.GetComponentsInChildren<Renderer>())
+            {
+                if (selectedRenderer[gameObject.Key].ContainsKey(renderer))
+                {
+                    renderer.sharedMaterials = selectedRenderer[gameObject.Key][renderer];
+                }
+            }
+        }
+        selectedRenderer.Clear();
     }
 
     /// <summary>
@@ -467,17 +481,19 @@ public class CanvasMenuAssemblyScript : CanvasMenuBaseScript
         if (gameObject != null)
         {
             // 再選択
+            selectedRenderer[gameObject] = new Dictionary<Renderer, Material[]>();
             var renderers = gameObject.GetComponentsInChildren<Renderer>().ToList();
             foreach (var renderer in renderers)
             {
+                selectedRenderer[gameObject][renderer] = renderer.sharedMaterials;
                 foreach (Material mat in renderer.materials)
                 {
                     if (mat != null)
                     {
                         if (mat.name.Contains("Default Line Material"))
                         {
-                            mat.shader = selectedShader;
-                            mat.SetColor("_Color", new Color(1f, 1 / 8f, 0, 0));
+//                            mat.shader = selectedShader;
+                            mat.SetColor("_BaseColor", new Color(1f, 1 / 8f, 0, 1f));
                             selectedMaterials.Add(mat);
                         }
                     }

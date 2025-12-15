@@ -21,8 +21,6 @@ public class CanvasMenuSliceScript : CanvasMenuBaseScript
     // シェーダー
     private HashSet<Material> allMaterials = new HashSet<Material>();
     private HashSet<Material> allLineMaterials = new HashSet<Material>();
-    private Shader lineShader;
-    private Shader clipLineShader;
     private Shader clipShader;
     private Shader standardShader;
 
@@ -43,9 +41,6 @@ public class CanvasMenuSliceScript : CanvasMenuBaseScript
         viewText = GetComponentsInChildren<TextMeshProUGUI>().ToList().Find(d => d.name == "ClipText");
 
         clipShader = Shader.Find("Shader Graphs/DANMEN");
-        clipLineShader = Shader.Find("Custom/TransparentLines");
-        lineShader = Shader.Find("Universal Render Pipeline/Lit");
-        //lineShader = Shader.Find("Custom/Lines");
     }
 
     /// <summary>
@@ -206,7 +201,17 @@ public class CanvasMenuSliceScript : CanvasMenuBaseScript
             }
             foreach (Material mat in allLineMaterials)
             {
-                mat.shader = clipLineShader;
+                mat.SetColor("_BaseColor", new Color(0, 0, 0, 0));
+                // SurfaceType = Transparent
+                mat.SetFloat("_Surface", 1);
+                // Alpha Clipping ON
+                mat.SetFloat("_AlphaClip", 1);
+                // Threshold
+                mat.SetFloat("_Cutoff", 0.5f);
+                // キーワード（念のため）
+                mat.EnableKeyword("_ALPHATEST_ON");
+                // RenderQueue
+                mat.renderQueue = (int)UnityEngine.Rendering.RenderQueue.AlphaTest;
             }
         }
         else
@@ -218,7 +223,8 @@ public class CanvasMenuSliceScript : CanvasMenuBaseScript
             }
             foreach (Material mat in allLineMaterials)
             {
-                mat.shader = lineShader;
+                mat.SetColor("_BaseColor", new Color(0, 0, 0, 0.75f));
+                mat.DisableKeyword("_ALPHATEST_ON");
             }
         }
         slicePlane.transform.transform.localPosition = new Vector3(GlobalScript.clipInfo.x, GlobalScript.clipInfo.y, GlobalScript.clipInfo.z);

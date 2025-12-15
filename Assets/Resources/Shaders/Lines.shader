@@ -1,87 +1,105 @@
-﻿Shader "Custom/Lines"
+﻿Shader "URP/Lines"
 {
-	Properties
-	{
-		[Header(Main Properties)]
-		[HDR]
-		_Color ("Color", Color) = (0,0,0,1)
-      [Toggle]
-      _UseVertexColor ("Use Vertex Colors", Float) = 0
+    Properties
+    {
+        [Header(Main Properties)]
+        [HDR]_Color ("Color", Color) = (0,0,0,1)
+        [Toggle]_UseVertexColor ("Use Vertex Colors", Float) = 0
 
-		[Toggle]
-		_Offset ("See-Through", Float) = 0
+        [Header(Render)]
+        [Toggle]_Offset ("See-Through", Float) = 0
 
-		[Header(Dashes)]
-		[Toggle]
-		_Dashes ("Enabled", Float) = 0
-      _DashesScale ("Scale", Range(1, 10)) = 1.0
-	}
-	SubShader
-	{
-		Tags { "Queue" = "Overlay" }
-		LOD 200
+        [Header(Dashes)]
+        [Toggle]_Dashes ("Enabled", Float) = 0
+        _DashesScale ("Scale", Range(1,10)) = 1.0
+    }
 
-		Pass
-		{
-			CGPROGRAM
-			#pragma target 3.0
-			#pragma vertex vert
-			#pragma fragment frag
+    SubShader
+    {
+        Tags
+        {
+            "RenderPipeline"="UniversalRenderPipeline"
+            "Queue"="Transparent"
+            "RenderType"="Transparent"
+        }
 
-			#include "UnityCG.cginc"
+        Pass
+        {
+            Name "Forward"
+            Tags { "LightMode"="UniversalForward" }
 
-			struct appdata
-			{
-				float4 position : POSITION;
-                float4 color : COLOR; // vertex color
-			};
+            ZWrite Off
+            ZTest LEqual
+            Blend SrcAlpha OneMinusSrcAlpha
+            Cull Off
 
-			struct input
-			{
-				float4 position : POSITION;
-				float3 coords : TEXCOORD1;
-            float4 vertexColor : COLOR0;
-			};
+            HLSLPROGRAM
+            #pragma target 3.0
+            #pragma vertex vert
+            #pragma fragment frag
 
-			float _Offset;
+            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
 
-			input vert (appdata i)
-			{
-				input o;
-				o.position = UnityObjectToClipPos(i.position);
-				if (unity_CameraProjection._m33 == 0) {
-					o.position.z *= 1 + 0.004 * (1 + _Offset * 1000) / unity_CameraProjection._m11;
-				}
-				o.coords = i.position.xyz;
-            o.vertexColor = i.color;
-				return o;
-			}
+            struct Attributes
+            {
+                float4 positionOS : POSITION;
+                float4 color : COLOR;
+            };
 
-			fixed4 _Color;
-         float _UseVertexColor;
-			float _Dashes;
-			float _DashesScale;
+            struct Varyings
+            {
+                float4 positionCS : SV_POSITION;
+                float3 posOS      : TEXCOORD0;
+                float4 color      : COLOR0;
+            };
 
-			bool checkerboard(int x, int y, int z)
-			{
-				return (fmod(x, 2) == 0) ^ (fmod(y, 2) == 0) ^ (fmod(z, 2) == 0);
-			}
+            float4 _Color;
+            float _UseVertexColor;
+            float _Offset;
+            float _Dashes;
+            float _DashesScale;
 
-			fixed4 frag (input i) : SV_Target
-			{
-				if (_Dashes) {
-					i.coords *= int(1000 / (_DashesScale + 0.001));
-					if (checkerboard(i.coords.x, i.coords.y, i.coords.z)) {
-						discard;
-					}
-				}
-            if (_UseVertexColor)
-                return i.vertexColor;
-            else
-                return _Color;
-			}
-			ENDCG
-		}
-	}
-	FallBack "Diffuse"
+            Varyings vert (Attributes v)
+            {
+                Varyings o;
+
+                float3 worldPos = TransformObjectToWorld(v.positionOS.xyz);
+                o.positionCS = TransformWorldToHClip(worldPos);
+
+                // 疑似 See-Through（常に手前に寄せる）
+                if (_Offset > 0.5)
+                {
+                    o.positionCS.z = o.positionCS.w * 0.0001;
+                }
+
+                o.posOS = v.positionOS.xyz;
+                o.color = v.color;
+                return o;
+            }
+
+            bool Checker(float3 p)
+            {
+                int x = (int)floor(p.x);
+                int y = (int)floor(p.y);
+                int z = (int)floor(p.z);
+                return ((x & 1) ^ (y & 1) ^ (z & 1)) == 1;
+            }
+
+            half4 frag (Varyings i) : SV_Target
+            {
+                // ダッシュ表現
+                if (_Dashes > 0.5)
+                {
+                    float scale = 1000.0 / (_DashesScale + 0.001);
+                    float3 p = floor(i.posOS * scale);
+                    if (Checker(p))
+                        discard;
+                }
+
+                half4 col = (_UseVertexColor > 0.5) ? i.color : _Color;
+                return col;
+            }
+            ENDHLSL
+        }
+    }
 }

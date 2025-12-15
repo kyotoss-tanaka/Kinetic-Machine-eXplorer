@@ -158,7 +158,7 @@ public class LedScript : KssBaseScript
             {
                 foreach (var mat in renderer.materials)
                 {
-                    if (mat.shader.name != "Custom/Lines")
+                    if (!mat.name.Contains("Default Line Material"))
                     {
                         mat.SetColor("_EmissionColor", leds[0].material.color);
                     }
