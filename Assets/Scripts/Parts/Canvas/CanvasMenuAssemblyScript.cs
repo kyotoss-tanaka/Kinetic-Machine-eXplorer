@@ -42,9 +42,6 @@ public class CanvasMenuAssemblyScript : CanvasMenuBaseScript
     /// </summary>
     private List<string> motionUnits = new();
 
-    private Shader selectedShader;
-    private Shader linesShader;
-
     /// <summary>
     /// 開始処理
     /// </summary>
@@ -59,9 +56,6 @@ public class CanvasMenuAssemblyScript : CanvasMenuBaseScript
         baseText = GetComponentsInChildren<TextMeshProUGUI>().ToList().Find(d => d.name == "AssemblyText");
         baseText.gameObject.SetActive(false);
         menuInfoScript = FindObjectsByType<CanvasMenuInfoScript>(FindObjectsSortMode.None).ToList()[0];
-
-        selectedShader = Shader.Find("UPR/Lines");
-        linesShader = Shader.Find("Universal Render Pipeline/Lit");
 
         SetAssembly(null);
     }
@@ -451,8 +445,6 @@ public class CanvasMenuAssemblyScript : CanvasMenuBaseScript
         selectedMaterials.RemoveAll(d => d == null);
         foreach (var mat in selectedMaterials)
         {
-            //            mat.shader = linesShader;
-            //mat.SetColor("_Color", new Color(0, 0, 0, 0.75f));
             Destroy(mat);
         }
         selectedMaterials.Clear();
@@ -492,8 +484,7 @@ public class CanvasMenuAssemblyScript : CanvasMenuBaseScript
                     {
                         if (mat.name.Contains("Default Line Material"))
                         {
-//                            mat.shader = selectedShader;
-                            mat.SetColor("_BaseColor", new Color(1f, 1 / 8f, 0, 1f));
+                            mat.SetColor("_BaseColor", new Color(1f, 1 / 2f, 0, 1f));
                             selectedMaterials.Add(mat);
                         }
                     }

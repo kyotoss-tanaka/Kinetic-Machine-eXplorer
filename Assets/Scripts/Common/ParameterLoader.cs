@@ -84,6 +84,7 @@ namespace Parameters
         // シェーダー
         private HashSet<Material> allMaterials = new HashSet<Material>();
         private HashSet<Material> allLineMaterials = new HashSet<Material>();
+        private Shader standardShader;
         private Shader linesShader;
 
         // パラメータ描画用
@@ -95,12 +96,6 @@ namespace Parameters
 
         private GameObject uiInfoPrefab;
         private CanvasPrefabInfoScript prefabInfoScript;
-
-        // 断面切断
-        /*
-        private CanvasMenuViewScript viewScript;
-        private GameObject uiView;
-        */
 
         // プログレスバー
         private int devMax = 4;
@@ -122,8 +117,8 @@ namespace Parameters
             CommonFunction.DebugLog($"***** Start Load *****");
 
             // シェーダーロード
-            //linesShader = Shader.Find("URP/Lines");
-            linesShader = Shader.Find("Universal Render Pipeline/Lit");
+            standardShader = Shader.Find("Universal Render Pipeline/Lit");
+            linesShader = Shader.Find("Universal Render Pipeline/Unlit");
 
             // キャンバス生成
             CreateCanvas();
@@ -698,8 +693,6 @@ namespace Parameters
                         {
                             GlobalScript.clipInfo.bounds.Encapsulate(rend.bounds);
                         }
-                        // 初期値セット
-                        //viewScript.clipToggle_onValueChanged(true);
                     }
                 }
 
@@ -1159,18 +1152,6 @@ namespace Parameters
                 uiInfoPrefab.transform.SetParent(canvaObj.transform, false);
                 prefabInfoScript = uiInfoPrefab.AddComponent<CanvasPrefabInfoScript>();
             }
-
-            // 断面表示設定
-            /*
-            var clip = GlobalScript.LoadPrefabObject("Prefabs/Canvas", "ViewSetting");
-            if (clip.Count > 0)
-            {
-                uiView = Instantiate(clip[0]);
-                uiView.transform.SetParent(canvaObj.transform, false);
-                viewScript = uiView.AddComponent<CanvasMenuViewScript>();
-                uiView.SetActive(false);
-            }
-            */
         }
 
         /// <summary>
@@ -1370,7 +1351,6 @@ namespace Parameters
                                         if (!allLineMaterials.Contains(mat))
                                         {
                                             allLineMaterials.Add(mat);
-                                            mat.SetColor("_BaseColor", new Color(0, 0, 0, 0));
                                         }
                                     }
                                     else
@@ -1388,10 +1368,24 @@ namespace Parameters
             }
             if (isFirstLoad)
             {
+                foreach (var mat in allMaterials)
+                {
+                    mat.shader = standardShader;
+                }
                 foreach (var mat in allLineMaterials)
                 {
                     mat.shader = linesShader;
                     mat.SetColor("_BaseColor", new Color(0, 0, 0, 0.75f));
+                    // SurfaceType = Transparent
+                    mat.SetFloat("_Surface", 1);
+                    // Alpha Clipping ON
+                    mat.SetFloat("_AlphaClip", 1);
+                    // Threshold
+                    mat.SetFloat("_Cutoff", 0.5f);
+                    // キーワード（念のため）
+                    mat.EnableKeyword("_ALPHATEST_ON");
+                    // RenderQueue
+                    mat.renderQueue = (int)UnityEngine.Rendering.RenderQueue.AlphaTest;
                 }
             }
         }

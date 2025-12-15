@@ -18,7 +18,6 @@ using UnityEditor.AddressableAssets.Settings.GroupSchemas;
 
 public class BuildAndRun
 {
-
     private static string serverPath = "ServerData";
 
     private static string bundlePath = "StandaloneWindows64";
@@ -55,11 +54,18 @@ public class BuildAndRun
             build.isMaster = true;
             build.name = "Master";
 
+            build.isRelease = true;
+            var folderPath = BuildAndRunProcess(build, true);
+
             build.isRelease = false;
             BuildAndRunProcess(build, false);
-
-            build.isRelease = true;
-            BuildAndRunProcess(build, true);
+            if (folderPath != "")
+            {
+                // エクスプローラーで開く
+                System.Diagnostics.Process.Start("explorer.exe", folderPath);
+                // タイトル、メッセージ、ボタン名
+                EditorUtility.DisplayDialog("情報", "ビルドが完了しました。", "OK");
+            }
         }
         catch
         {
@@ -110,11 +116,19 @@ public class BuildAndRun
 
             string json = File.ReadAllText(configPath, Encoding.UTF8);
             Parameters.BuildConfig build = JsonSerializer.Deserialize<Parameters.BuildConfig>(json);
-            build.isRelease = false;
-            BuildAndRunProcess(build, false, true);
 
             build.isRelease = true;
-            BuildAndRunProcess(build, true, true);
+            var folderPath = BuildAndRunProcess(build, true, true);
+
+            build.isRelease = false;
+            BuildAndRunProcess(build, false, true);
+            if (folderPath != "")
+            {
+                // エクスプローラーで開く
+                System.Diagnostics.Process.Start("explorer.exe", folderPath);
+                // タイトル、メッセージ、ボタン名
+                EditorUtility.DisplayDialog("情報", "ビルドが完了しました。", "OK");
+            }
         }
         catch
         {
@@ -153,7 +167,7 @@ public class BuildAndRun
     /// <summary>
     /// ビルド処理
     /// </summary>
-    private static void BuildAndRunProcess(Parameters.BuildConfig build, bool isOpen, bool isProd = false)
+    private static string BuildAndRunProcess(Parameters.BuildConfig build, bool isRun, bool isProd = false)
     {
         var productName = build.isMaster ? "KMXMaster" : (build.isMR ? $"{build.mechId}_{build.name}(MR)" : build.isVR ? $"{build.mechId}_{build.name}(VR)" : $"{build.mechId}_{build.name}");
         var productDir = Path.Combine(Path.Combine(Path.Combine("Builds", build.isVR || build.isMR ? "Android" : "Windows"), build.isRelease ? "Release" : "Debug"), productName);
@@ -176,7 +190,7 @@ public class BuildAndRun
         if (!TryParseTarget(config.target, out BuildTarget target, out BuildTargetGroup group))
         {
             Debug.LogError("不正なビルドターゲット: " + config.target);
-            return;
+            return "";
         }
 
         // プラットフォーム切り替え
@@ -200,16 +214,17 @@ public class BuildAndRun
             scenes = config.scenes.ToArray(),
             locationPathName = config.outputPath,
             target = target,
-            options = (isOpen ? BuildOptions.AutoRunPlayer : BuildOptions.None) | config.buildOptions | BuildOptions.CompressWithLz4HC
+            options = (isRun ? BuildOptions.AutoRunPlayer : BuildOptions.None) | config.buildOptions | BuildOptions.CompressWithLz4HC
         };
 
         EditorUserBuildSettings.androidBuildSystem = AndroidBuildSystem.Gradle;
         EditorUserBuildSettings.exportAsGoogleAndroidProject = false;
-//        EditorUserBuildSettings.development = !build.isRelease;
+        //        EditorUserBuildSettings.development = !build.isRelease;
 
         // Addressable設定
         AddressableAssetSettings settings = AddressableAssetSettingsDefaultObject.Settings;
         settings.DefaultGroup.Settings.ActivePlayModeDataBuilderIndex = 1;
+        AddPrefabToAddressables("Assets/Resources/Prefabs/DummyPrefab.prefab");
         AddressableAssetGroupSchema sc = settings.DefaultGroup.Schemas.Find(d => d.GetType() == typeof(BundledAssetGroupSchema));
         var buildName = ((BundledAssetGroupSchema)sc).BuildPath.GetName(settings);
         var loadName = ((BundledAssetGroupSchema)sc).LoadPath.GetName(settings);
@@ -248,13 +263,7 @@ public class BuildAndRun
             Directory.CreateDirectory(dataPath);
             Directory.CreateDirectory(prefabPath);
         }
-        if (isOpen)
-        {
-            // エクスプローラーで開く
-            System.Diagnostics.Process.Start("explorer.exe", folderPath);
-            // タイトル、メッセージ、ボタン名
-            EditorUtility.DisplayDialog("情報", "ビルドが完了しました。", "OK");
-        }
+        return folderPath;
     }
 
 
@@ -374,6 +383,35 @@ public class BuildAndRun
         catch (System.Exception e)
         {
             UnityEngine.Debug.LogError("ADBコマンドの実行に失敗しました: " + e.Message);
+        }
+    }
+
+    /// <summary>
+    /// プレハブを登録しておく
+    /// </summary>
+    /// <param name="prefabPath"></param>
+    private static void AddPrefabToAddressables(string prefabPath)
+    {
+        var settings = AddressableAssetSettingsDefaultObject.Settings;
+        if (settings == null)
+        {
+            Debug.LogError("AddressableAssetSettings が見つかりません");
+            return;
+        }
+
+        // デフォルトグループ（必要なら専用グループでもOK）
+        AddressableAssetGroup group = settings.DefaultGroup;
+
+        string guid = AssetDatabase.AssetPathToGUID(prefabPath);
+
+        // すでに登録済みなら何もしない
+        AddressableAssetEntry entry = settings.FindAssetEntry(guid);
+        if (entry == null)
+        {
+            entry = settings.CreateOrMoveEntry(guid, group);
+            entry.address = Path.GetFileNameWithoutExtension(prefabPath);
+
+            Debug.Log($"Addressables に Prefab 登録: {entry.address}");
         }
     }
 }
