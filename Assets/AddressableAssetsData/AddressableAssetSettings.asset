@@ -15,7 +15,7 @@ MonoBehaviour:
   m_DefaultGroup: f464dc39c3f5b7a488d666c4b38f12ec
   m_currentHash:
     serializedVersion: 2
-    Hash: 7dc9a418cffeca9cc1d87627318e51da
+    Hash: 00000000000000000000000000000000
   m_OptimizeCatalogSize: 0
   m_BuildRemoteCatalog: 0
   m_CatalogRequestsTimeout: 0
@@ -33,6 +33,7 @@ MonoBehaviour:
   m_UniqueBundleIds: 0
   m_EnableJsonCatalog: 0
   m_NonRecursiveBuilding: 1
+  m_AllowNestedBundleFolders: 0
   m_CCDEnabled: 0
   m_maxConcurrentWebRequests: 3
   m_UseUWRForLocalBundles: 0
@@ -74,11 +75,11 @@ MonoBehaviour:
       - m_Id: 33831ebff37b1d6499527b790161df15
         m_Value: '{UnityEngine.AddressableAssets.Addressables.RuntimePath}/[BuildTarget]'
       - m_Id: 7214f3d1ef1648d458402b79d354f722
-        m_Value: <undefined>
+        m_Value: ServerData/StandaloneWindows64
       - m_Id: 94fd012dedc1a58448e86443c2fe631a
         m_Value: '[UnityEngine.AddressableAssets.Addressables.BuildPath]/[BuildTarget]'
       - m_Id: ff6cc25a4707b2a47aa1a360578ae7ec
-        m_Value: 'ServerData/[BuildTarget]'
+        m_Value: ServerData/StandaloneWindows64
     m_ProfileEntryNames:
     - m_Id: 084b90f06230d4845bd17232c53382c3
       m_Name: BuildTarget

@@ -32,6 +32,7 @@ public class CanvasMenuSliceScript : CanvasMenuBaseScript
         base.Awake();
 
         slicePlane = GameObject.FindObjectsByType<GameObject>(FindObjectsSortMode.None).Where(d => d.name == "SlicePlane").ToList()[0];
+        slicePlane.SetActive(false);
 
         viewXToggle = GetComponentsInChildren<Toggle>().ToList().Find(d => d.name == "ClipXToggle");
         viewYToggle = GetComponentsInChildren<Toggle>().ToList().Find(d => d.name == "ClipYToggle");
@@ -71,6 +72,7 @@ public class CanvasMenuSliceScript : CanvasMenuBaseScript
         viewSlider.onValueChanged.RemoveAllListeners();
         GlobalScript.clipInfo.isOn = false;
         UpdateClip();
+        slicePlane.SetActive(false);
     }
 
     /// <summary>
@@ -216,6 +218,7 @@ public class CanvasMenuSliceScript : CanvasMenuBaseScript
                 mat.SetColor("_BaseColor", new Color(0, 0, 0, 0.75f));
             }
         }
+        slicePlane.SetActive(GlobalScript.clipInfo.isOn);
         slicePlane.transform.transform.localPosition = new Vector3(GlobalScript.clipInfo.x, GlobalScript.clipInfo.y, GlobalScript.clipInfo.z);
         /*
         Vector4 clipPlane = new Vector4(planeNormal.x, planeNormal.y, planeNormal.z, -Vector3.Dot(planeNormal, planePoint));

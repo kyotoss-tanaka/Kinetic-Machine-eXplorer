@@ -181,7 +181,7 @@ public class BuildAndRun
         };
 
         // ÉVÅ[Éìì«Ç›çûÇ›
-        SwitchBuild(build);
+//        SwitchBuild(build);
 
         AssetDatabase.SaveAssets();
         AssetDatabase.Refresh();
@@ -232,6 +232,9 @@ public class BuildAndRun
         var loadPath = $"{serverPath}/{bundlePath}";
         settings.profileSettings.SetValue(settings.activeProfileId, buildName, savePath);
         settings.profileSettings.SetValue(settings.activeProfileId, loadName, loadPath);
+
+        QualitySettings.SetQualityLevel(System.Array.IndexOf(QualitySettings.names, "High"), true);
+
         // ï€ë∂
         AssetDatabase.SaveAssets();
 

@@ -47,6 +47,7 @@ namespace Parameters
         private GameObject prefabObj;
         private GameObject deviceObj;
         private GameObject prePrefabObj;
+        private GameObject slicePlane;
         private List<GameObject> hiddenObjs = new List<GameObject>();
         private List<ObjEntry> movableObjs = new List<ObjEntry>();
         private List<ObjEntry> undefinedUnits = new List<ObjEntry>();
@@ -117,7 +118,6 @@ namespace Parameters
             CommonFunction.DebugLog($"***** Start Load *****");
 
             // シェーダーロード
-            standardShader = Shader.Find("Universal Render Pipeline/Lit");
             linesShader = Shader.Find("Universal Render Pipeline/Unlit");
 
             // キャンバス生成
@@ -164,8 +164,7 @@ namespace Parameters
             {
                 prePrefabObj = new GameObject("PreLoadPrefab");
             }
-            var globalSettings = GameObject.FindObjectsByType<GameObject>(FindObjectsSortMode.None).Where(d => d.name == "GlobalSetting").ToList();
-            globalSetting = globalSettings.Count > 0 ? globalSettings[0] : new GameObject("GlobalSetting");
+            globalSetting = GameObject.FindObjectsByType<GameObject>(FindObjectsSortMode.None).Where(d => d.name == "GlobalSetting").ToList()[0];
             {
                 // 各種設定ファイルロード
                 CommonFunction.DebugLog($"***** Parameter Load *****");
@@ -1368,10 +1367,6 @@ namespace Parameters
             }
             if (isFirstLoad)
             {
-                foreach (var mat in allMaterials)
-                {
-                    mat.shader = standardShader;
-                }
                 foreach (var mat in allLineMaterials)
                 {
                     mat.shader = linesShader;

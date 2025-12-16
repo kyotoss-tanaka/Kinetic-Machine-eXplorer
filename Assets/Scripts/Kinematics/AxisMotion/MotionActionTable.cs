@@ -51,7 +51,7 @@ public class MotionActionTable : AxisMotionBase
     /// オフセット
     /// </summary>
     [SerializeField]
-    protected int offset;
+    protected float offset;
 
     /// <summary>
     /// 動作テーブル
@@ -81,7 +81,7 @@ public class MotionActionTable : AxisMotionBase
 
         rate = (float)unitSetting.actionSetting.rate;
 
-        offset = unitSetting.actionSetting.offset;
+        offset = isRotate ? unitSetting.actionSetting.offset : unitSetting.actionSetting.offset / 1000f;
 
         // テーブル取得
         actionTableData = GlobalScript.actionTableDatas.Find(d => (d.mechId == unitSetting.mechId) && (d.name == unitSetting.name));
@@ -119,7 +119,7 @@ public class MotionActionTable : AxisMotionBase
             {
                 value = before != null ? before.value : (after != null ? after.value : value);
             }
-            position = (float)(value + offset) / (rate == 0 ? 1000f : rate) * unitSetting.actionSetting.dir;
+            position = ((float)value / (rate == 0 ? 1000f : rate) + offset) * unitSetting.actionSetting.dir;
             if (isRotate)
             {
                 moveObject.transform.localEulerAngles = moveDir * position;
