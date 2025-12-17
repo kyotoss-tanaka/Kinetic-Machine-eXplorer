@@ -170,9 +170,9 @@ public class CanvasMenuSliceScript : CanvasMenuBaseScript
             // シェーダー切り替え
             foreach (Material mat in allMaterials)
             {
-                if (mat.shader.name.Contains("transparent"))
+                if (mat.shader.name.Contains("Transparent"))
                 {
-                    mat.shader = transpaentDanmen;
+                    mat.shader = transparentDanmen;
                 }
                 else
                 {
@@ -186,9 +186,9 @@ public class CanvasMenuSliceScript : CanvasMenuBaseScript
             // シェーダー通常
             foreach (Material mat in allMaterials)
             {
-                if (mat.shader.name.Contains("transparent"))
+                if (mat.shader.name.Contains("Transparent"))
                 {
-                    mat.shader = transpaentShader;
+                    mat.shader = transparentShader;
                 }
                 else
                 {
