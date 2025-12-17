@@ -154,12 +154,12 @@ public class CanvasMenuInfoScript : KssBaseScript
         }
 
         // 動作ユニット表示
-        settingScript.SetEvents();
+        settingScript.SetEvents(allLineMaterials);
         timeScript.SetEvents();
         directComScript.SetEvents();
         actUnitScript.SetEvents(unitSettings);
         assemblyScript.SetEvents(uiActUnitInfo);
-        sliceScript.SetEvents(allMaterials, allLineMaterials);
+        sliceScript.SetEvents(allMaterials);
 
         // 有効/無効切り替え
         btnInner.interactable = timeScript.IsEnabled;

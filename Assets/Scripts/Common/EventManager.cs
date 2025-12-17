@@ -49,9 +49,6 @@ public class EventManager : BaseBehaviour
     /// <param name="gameObject"></param>
     public void ProcessObjectSelect(GameObject gameObject)
     {
-        if (!GlobalScript.clipInfo.isOn)
-        {
-            objectSelectEvents?.Invoke(gameObject);
-        }
+        objectSelectEvents?.Invoke(gameObject);
     }
 }

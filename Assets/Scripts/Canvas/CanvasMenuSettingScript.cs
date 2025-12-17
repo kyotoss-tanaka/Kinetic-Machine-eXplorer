@@ -1,3 +1,4 @@
+using NUnit.Framework;
 using Parameters;
 using System;
 using System.Collections.Generic;
@@ -14,10 +15,13 @@ public class CanvasMenuSettingScript : CanvasMenuBaseScript
 {
     private TextMeshProUGUI fpsText;
     private TextMeshProUGUI timeText;
+    private Toggle useLiensToggle;
     private Toggle usePhysicsToggle;
     private Toggle useColliderToggle;
     private List<float> times = new();
     private List<float> fpss = new();
+
+    private HashSet<Material> allLineMaterials;
 
     #region 初期化処理
     /// <summary>
@@ -29,6 +33,7 @@ public class CanvasMenuSettingScript : CanvasMenuBaseScript
 
         fpsText = GetComponentsInChildren<TextMeshProUGUI>().Where(d => d.name == "FpsText").ToList()[0];
         timeText = GetComponentsInChildren<TextMeshProUGUI>().Where(d => d.name == "TimeText").ToList()[0];
+        useLiensToggle = GetComponentsInChildren<Toggle>().ToList().Find(d => d.name == "UseLinesToggle");
         usePhysicsToggle = GetComponentsInChildren<Toggle>().ToList().Find(d => d.name == "UsePhysicsToggle");
         useColliderToggle = GetComponentsInChildren<Toggle>().ToList().Find(d => d.name == "UseColliderToggle");
     }
@@ -46,6 +51,7 @@ public class CanvasMenuSettingScript : CanvasMenuBaseScript
     protected override void OnEnable()
     {
         base.OnEnable();
+        useLiensToggle.onValueChanged.AddListener(useLiensToggle_onValueChanged);
         usePhysicsToggle.onValueChanged.AddListener(usePhysicsToggle_onValueChanged);
         useColliderToggle.onValueChanged.AddListener(useColliderToggle_onValueChanged);
     }
@@ -56,6 +62,7 @@ public class CanvasMenuSettingScript : CanvasMenuBaseScript
     protected override void OnDisable()
     {
         base.OnDisable();
+        useLiensToggle.onValueChanged.RemoveAllListeners();
         usePhysicsToggle.onValueChanged.RemoveAllListeners();
         useColliderToggle.onValueChanged.RemoveAllListeners();
     }
@@ -83,6 +90,19 @@ public class CanvasMenuSettingScript : CanvasMenuBaseScript
     /// 物理使用トグル変更イベント
     /// </summary>
     /// <param name="value"></param>
+    public void useLiensToggle_onValueChanged(bool value)
+    {
+        GlobalScript.isLiens = value;
+        foreach (Material mat in allLineMaterials)
+        {
+            mat.SetFloat("_Alpha", GlobalScript.isLiens ? 0.5f : 0f);
+        }
+    }
+
+    /// <summary>
+    /// 物理使用トグル変更イベント
+    /// </summary>
+    /// <param name="value"></param>
     public void usePhysicsToggle_onValueChanged(bool value)
     {
         Physics.simulationMode = value ? SimulationMode.FixedUpdate : SimulationMode.Script;
@@ -99,5 +119,14 @@ public class CanvasMenuSettingScript : CanvasMenuBaseScript
     #endregion イベント
 
     #region メソッド
+    /// <summary>
+    /// イベントセット
+    /// </summary>
+    public virtual void SetEvents(HashSet<Material> allLineMaterials)
+    {
+        this.allLineMaterials = allLineMaterials;
+
+        SetEvents();
+    }
     #endregion メソッド
 }

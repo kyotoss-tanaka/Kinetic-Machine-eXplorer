@@ -1,6 +1,7 @@
 using MongoDB.Driver;
 using NUnit.Framework;
 using Oculus.Interaction.UnityCanvas;
+using Org.BouncyCastle.Ocsp;
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -85,7 +86,8 @@ namespace Parameters
         // シェーダー
         private HashSet<Material> allMaterials = new HashSet<Material>();
         private HashSet<Material> allLineMaterials = new HashSet<Material>();
-        private Shader standardShader;
+        private Shader opaqueShader;
+        private Shader transpaentShader;
         private Shader linesShader;
 
         // パラメータ描画用
@@ -118,7 +120,9 @@ namespace Parameters
             CommonFunction.DebugLog($"***** Start Load *****");
 
             // シェーダーロード
-            linesShader = Shader.Find("Universal Render Pipeline/Unlit");
+            linesShader = Shader.Find("Shader Graphs/LinesShader");
+            opaqueShader = Shader.Find("Shader Graphs/OpaqueShader");
+            transpaentShader = Shader.Find("Shader Graphs/TransparentShader");
 
             // キャンバス生成
             CreateCanvas();
@@ -741,6 +745,8 @@ namespace Parameters
                     }
                 }
             }
+            // 全てのマテリアル更新
+            RefreshAllMaterials();
 
             //　プログレスバー終了
             if (SetProgress(devMax, devMax, 0))
@@ -755,6 +761,68 @@ namespace Parameters
             GlobalScript.isLoading = false;
             GlobalScript.isLoaded = true;
             CommonFunction.DebugLog($"***** Load Finished *****", true);
+        }
+
+        /// <summary>
+        /// 全てのマテリアル更新
+        /// </summary>
+        private void RefreshAllMaterials()
+        {
+            if (isFirstLoad)
+            {
+                var objs = new List<GameObject>();
+                objs.Add(prefabObj);
+                objs.AddRange(movableObjs.Where(d => d.obj != null).Select(d => d.obj));
+                foreach (var obj in objs)
+                {
+                    // シェーダーセット
+                    foreach (Renderer renderer in obj.transform.GetComponentsInChildren<Renderer>())
+                    {
+                        foreach (Material mat in renderer.sharedMaterials)
+                        {
+                            if (mat != null)
+                            {
+                                if (mat.name.Contains("Default Line Material"))
+                                {
+                                    if (!allLineMaterials.Contains(mat))
+                                    {
+                                        allLineMaterials.Add(mat);
+                                    }
+                                }
+                                else
+                                {
+                                    if (!allMaterials.Contains(mat))
+                                    {
+                                        allMaterials.Add(mat);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                foreach (var mat in allMaterials)
+                {
+                    if (mat.HasProperty("_Surface"))
+                    {
+                        float surface = mat.GetFloat("_Surface");
+                        bool isTransparent = surface > 0.5f;
+                        if (isTransparent)
+                        {
+                            mat.shader = transpaentShader;
+                        }
+                        else
+                        {
+                            mat.shader = opaqueShader;
+                        }
+                    }
+                }
+                foreach (var mat in allLineMaterials)
+                {
+                    mat.shader = linesShader;
+                    mat.SetColor("_Color", new Color(0, 0, 0, 1f));
+                    mat.SetFloat("_Alpha", GlobalScript.isLiens ? 0.5f : 0f);
+                }
+            }
         }
 
         /// <summary>
@@ -1336,51 +1404,6 @@ namespace Parameters
                         prefabData.transform.position = new();
                         prefabData.transform.parent = prefabObj.transform;
                     }
-                    if (isFirstLoad)
-                    {
-                        // シェーダーセット
-                        foreach (Renderer renderer in prefabData.GetComponentsInChildren<Renderer>())
-                        {
-                            foreach (Material mat in renderer.sharedMaterials)
-                            {
-                                if (mat != null)
-                                {
-                                    if (mat.name.Contains("Default Line Material"))
-                                    {
-                                        if (!allLineMaterials.Contains(mat))
-                                        {
-                                            allLineMaterials.Add(mat);
-                                        }
-                                    }
-                                    else
-                                    {
-                                        if (!allMaterials.Contains(mat))
-                                        {
-                                            allMaterials.Add(mat);
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            if (isFirstLoad)
-            {
-                foreach (var mat in allLineMaterials)
-                {
-                    mat.shader = linesShader;
-                    mat.SetColor("_BaseColor", new Color(0, 0, 0, 0.75f));
-                    // SurfaceType = Transparent
-                    mat.SetFloat("_Surface", 1);
-                    // Alpha Clipping ON
-                    mat.SetFloat("_AlphaClip", 1);
-                    // Threshold
-                    mat.SetFloat("_Cutoff", 0.5f);
-                    // キーワード（念のため）
-                    mat.EnableKeyword("_ALPHATEST_ON");
-                    // RenderQueue
-                    mat.renderQueue = (int)UnityEngine.Rendering.RenderQueue.AlphaTest;
                 }
             }
         }

@@ -20,8 +20,10 @@ public class CanvasMenuSliceScript : CanvasMenuBaseScript
 
     // シェーダー
     private HashSet<Material> allMaterials = new HashSet<Material>();
-    private HashSet<Material> allLineMaterials = new HashSet<Material>();
-    private Shader clipShader;
+    private Shader opaqueDanmen;
+    private Shader transparentDanmen;
+    private Shader opaqueShader;
+    private Shader transparentShader;
     private Shader standardShader;
 
     /// <summary>
@@ -32,7 +34,6 @@ public class CanvasMenuSliceScript : CanvasMenuBaseScript
         base.Awake();
 
         slicePlane = GameObject.FindObjectsByType<GameObject>(FindObjectsSortMode.None).Where(d => d.name == "SlicePlane").ToList()[0];
-        slicePlane.SetActive(false);
 
         viewXToggle = GetComponentsInChildren<Toggle>().ToList().Find(d => d.name == "ClipXToggle");
         viewYToggle = GetComponentsInChildren<Toggle>().ToList().Find(d => d.name == "ClipYToggle");
@@ -41,7 +42,10 @@ public class CanvasMenuSliceScript : CanvasMenuBaseScript
         viewSlider = GetComponentInChildren<Slider>();
         viewText = GetComponentsInChildren<TextMeshProUGUI>().ToList().Find(d => d.name == "ClipText");
 
-        clipShader = Shader.Find("Shader Graphs/DANMEN");
+        opaqueDanmen = Shader.Find("Shader Graphs/OpaqueDANMEN");
+        transparentDanmen = Shader.Find("Shader Graphs/TransparentDANMEN");
+        opaqueShader = Shader.Find("Shader Graphs/OpaqueShader");
+        transparentShader = Shader.Find("Shader Graphs/TransparentShader");
     }
 
     /// <summary>
@@ -72,16 +76,14 @@ public class CanvasMenuSliceScript : CanvasMenuBaseScript
         viewSlider.onValueChanged.RemoveAllListeners();
         GlobalScript.clipInfo.isOn = false;
         UpdateClip();
-        slicePlane.SetActive(false);
     }
 
     /// <summary>
     /// イベントセット
     /// </summary>
-    public virtual void SetEvents(HashSet<Material> allMaterials, HashSet<Material> allLineMaterials)
+    public virtual void SetEvents(HashSet<Material> allMaterials)
     {
         this.allMaterials = allMaterials;
-        this.allLineMaterials = allLineMaterials;
         standardShader = allMaterials.Count > 0 ? allMaterials.First().shader : Shader.Find("Universal Render Pipeline/Lit");
 
         SetEvents();
@@ -93,16 +95,6 @@ public class CanvasMenuSliceScript : CanvasMenuBaseScript
     public override void ResetEvents()
     {
         base.ResetEvents();
-    }
-
-    /// <summary>
-    /// 衝突検知トグル変更イベント
-    /// </summary>
-    /// <param name="value"></param>
-    private void collisionToggle_onValueChanged(bool value)
-    {
-        // 衝突
-        GlobalScript.isCollision = value;
     }
 
     /// <summary>
@@ -173,56 +165,38 @@ public class CanvasMenuSliceScript : CanvasMenuBaseScript
     /// </summary>
     private void UpdateClip()
     {
-        /*
-        var clipInfo = GlobalScript.clipInfo;
-        // 平面の向き
-        Vector3 planeNormal = Vector3.down;
-        // 平面が通る点
-        Vector3 planePoint = Vector3.zero;
-        // 削除済みマテリアルを削除
-        allMaterials.RemoveWhere(d => d.IsDestroyed());
-        allLineMaterials.RemoveWhere(d => d.IsDestroyed());
-        */
         if (GlobalScript.clipInfo.isOn)
         {
-            /*
-            if (viewRvsToggle.isOn)
-            {
-                planeNormal = viewXToggle.isOn ? Vector3.left : (viewYToggle.isOn ? Vector3.down : Vector3.back);
-            }
-            else
-            {
-                planeNormal = viewXToggle.isOn ? Vector3.right : (viewYToggle.isOn ? Vector3.up : Vector3.forward);
-            }
-            planePoint = new Vector3(viewXToggle.isOn ? clipInfo.x : 0, viewYToggle.isOn ? clipInfo.y : 0, viewZToggle.isOn ? clipInfo.z : 0);
-            */
             // シェーダー切り替え
             foreach (Material mat in allMaterials)
             {
-                mat.shader = clipShader;
+                if (mat.shader.name.Contains("transparent"))
+                {
+                    mat.shader = transpaentDanmen;
+                }
+                else
+                {
+                    mat.shader = opaqueDanmen;
+                }
             }
-            foreach (Material mat in allLineMaterials)
-            {
-                mat.SetColor("_BaseColor", new Color(0, 0, 0, 0));
-            }
+            slicePlane.transform.transform.localPosition = new Vector3(GlobalScript.clipInfo.x, GlobalScript.clipInfo.y, GlobalScript.clipInfo.z);
         }
         else
         {
             // シェーダー通常
             foreach (Material mat in allMaterials)
             {
-                mat.shader = standardShader;
+                if (mat.shader.name.Contains("transparent"))
+                {
+                    mat.shader = transpaentShader;
+                }
+                else
+                {
+                    mat.shader = opaqueShader;
+                }
             }
-            foreach (Material mat in allLineMaterials)
-            {
-                mat.SetColor("_BaseColor", new Color(0, 0, 0, 0.75f));
-            }
+            slicePlane.transform.transform.localPosition = Vector3.zero;
+            slicePlane.transform.localEulerAngles = Vector3.zero;
         }
-        slicePlane.SetActive(GlobalScript.clipInfo.isOn);
-        slicePlane.transform.transform.localPosition = new Vector3(GlobalScript.clipInfo.x, GlobalScript.clipInfo.y, GlobalScript.clipInfo.z);
-        /*
-        Vector4 clipPlane = new Vector4(planeNormal.x, planeNormal.y, planeNormal.z, -Vector3.Dot(planeNormal, planePoint));
-        Shader.SetGlobalVector("_ClipPlane", clipPlane);
-        */
     }
 }

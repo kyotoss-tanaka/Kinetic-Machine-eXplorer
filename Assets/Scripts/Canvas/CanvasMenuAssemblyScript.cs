@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.InteropServices;
 using TMPro;
+using Unity.VisualScripting;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.UI;
@@ -445,16 +446,22 @@ public class CanvasMenuAssemblyScript : CanvasMenuBaseScript
         selectedMaterials.RemoveAll(d => d == null);
         foreach (var mat in selectedMaterials)
         {
-            Destroy(mat);
+            if (!mat.IsDestroyed())
+            {
+                Destroy(mat);
+            }
         }
         selectedMaterials.Clear();
         foreach (var gameObject in selectedRenderer)
         {
-            foreach (var renderer in gameObject.Key.GetComponentsInChildren<Renderer>())
+            if (!gameObject.Key.IsUnityNull())
             {
-                if (selectedRenderer[gameObject.Key].ContainsKey(renderer))
+                foreach (var renderer in gameObject.Key.GetComponentsInChildren<Renderer>())
                 {
-                    renderer.sharedMaterials = selectedRenderer[gameObject.Key][renderer];
+                    if (selectedRenderer[gameObject.Key].ContainsKey(renderer))
+                    {
+                        renderer.sharedMaterials = selectedRenderer[gameObject.Key][renderer];
+                    }
                 }
             }
         }
@@ -484,7 +491,8 @@ public class CanvasMenuAssemblyScript : CanvasMenuBaseScript
                     {
                         if (mat.name.Contains("Default Line Material"))
                         {
-                            mat.SetColor("_BaseColor", new Color(1f, 1 / 2f, 0, 1f));
+                            mat.SetColor("_Color", new Color(1, 1 / 3f, 0));
+                            mat.SetFloat("_Alpha", 1f);
                             selectedMaterials.Add(mat);
                         }
                     }

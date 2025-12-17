@@ -242,6 +242,11 @@ public static class GlobalScript
     public static bool isCollision = false;
 
     /// <summary>
+    /// ƒ‰ƒCƒ“•\¦
+    /// </summary>
+    public static bool isLiens = true;
+
+    /// <summary>
     /// ’f–Ê•\¦î•ñ
     /// </summary>
     public static ClipInfo clipInfo = new();
