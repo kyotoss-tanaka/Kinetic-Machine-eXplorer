@@ -66,6 +66,7 @@ public class CameraController : MonoBehaviour
     /// </summary>
     void OnEnable()
     {
+        InputManager.Instance.RegisterKey(Key.F, HandleKey);
         InputManager.Instance.RegisterKey(Key.R, HandleKey);
         InputManager.Instance.RegisterKey(Key.M, HandleKey);
         InputManager.Instance.RegisterKey(Key.O, HandleKey);
@@ -84,6 +85,7 @@ public class CameraController : MonoBehaviour
     /// </summary>
     void OnDisable()
     {
+        InputManager.Instance.UnregisterKey(Key.F, HandleKey);
         InputManager.Instance.UnregisterKey(Key.R, HandleKey);
         InputManager.Instance.UnregisterKey(Key.M, HandleKey);
         InputManager.Instance.UnregisterKey(Key.O, HandleKey);
@@ -106,7 +108,12 @@ public class CameraController : MonoBehaviour
         if (value)
         {
             // ON処理
-            if (key == Key.R)
+            if (key == Key.F)
+            {
+                // F
+                FocusTo();
+            }
+            else if (key == Key.R)
             {
                 // R
                 SetInitPosition();
@@ -413,5 +420,18 @@ public class CameraController : MonoBehaviour
         transform.position = target.position - forward * focusDistance;
 
         SetTargetPosition(target.position);
+    }
+
+    /// <summary>
+    /// フォーカス
+    /// </summary>
+    public void FocusTo()
+    {
+        var position = GlobalScript.selectedObject == null ? targetPosition : GlobalScript.selectedObject.transform.position;
+        focusDistance = focusDistance <= 1f ? 3f : 1f;
+        Vector3 forward = transform.forward;
+        transform.position = position - forward * focusDistance;
+
+        SetTargetPosition(position);
     }
 }

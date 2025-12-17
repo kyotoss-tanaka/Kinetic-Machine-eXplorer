@@ -49,6 +49,7 @@ public class EventManager : BaseBehaviour
     /// <param name="gameObject"></param>
     public void ProcessObjectSelect(GameObject gameObject)
     {
+        GlobalScript.selectedObject = gameObject;
         objectSelectEvents?.Invoke(gameObject);
     }
 }

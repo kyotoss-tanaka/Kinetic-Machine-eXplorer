@@ -768,7 +768,7 @@ namespace Parameters
         /// </summary>
         private void RefreshAllMaterials()
         {
-            if (isFirstLoad)
+            if (allMaterials.Count == 0)
             {
                 var objs = new List<GameObject>();
                 objs.Add(prefabObj);

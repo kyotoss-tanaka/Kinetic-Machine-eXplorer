@@ -88,7 +88,6 @@ public class CanvasMenuInfoScript : KssBaseScript
     /// <summary>
     /// 軸表示用
     /// </summary>
-    private GameObject selectedObject;
     private GameObject axis;
     private bool isAxisVisible = true;
 
@@ -290,7 +289,7 @@ public class CanvasMenuInfoScript : KssBaseScript
     private void OnObjectSelect(GameObject gameObject)
     {
         assemblyScript.SetAssembly(gameObject);
-        selectedObject = gameObject;
+        GlobalScript.selectedObject = gameObject;
     }
     #endregion イベント
 
@@ -410,7 +409,7 @@ public class CanvasMenuInfoScript : KssBaseScript
         {
             assemblyScript.SetAssembly(gameObject);
         }
-        selectedObject = gameObject;
+        GlobalScript.selectedObject = gameObject;
     }
 
     /// <summary>
@@ -449,7 +448,7 @@ public class CanvasMenuInfoScript : KssBaseScript
             CreateAxis(axis, Vector3.up, Color.green);
             CreateAxis(axis, Vector3.forward, Color.blue);
         }
-        if ((selectedObject == null) || !isAxisVisible)
+        if ((GlobalScript.selectedObject == null) || !isAxisVisible)
         {
             if (axis.activeSelf)
             {
@@ -462,10 +461,10 @@ public class CanvasMenuInfoScript : KssBaseScript
             {
                 axis.SetActive(true);
             }
-            axis.transform.parent = selectedObject.transform;
+            axis.transform.parent = GlobalScript.selectedObject.transform;
             axis.transform.localPosition = Vector3.zero;
             axis.transform.localEulerAngles = Vector3.zero;
-            axis.transform.localScale = selectedObject.transform.localScale;
+            axis.transform.localScale = GlobalScript.selectedObject.transform.localScale;
 
             float dist = Vector3.Distance(transform.position, cameraController.transform.position);
             float t = Mathf.InverseLerp(0.5f, 5f, dist);

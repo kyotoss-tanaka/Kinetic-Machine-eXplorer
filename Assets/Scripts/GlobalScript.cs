@@ -282,6 +282,11 @@ public static class GlobalScript
     public static int _workId = 0;
 
     /// <summary>
+    /// 選択オブジェクト
+    /// </summary>
+    public static GameObject selectedObject;
+
+    /// <summary>
     /// ワークID
     /// </summary>
     public static int workId

@@ -30,7 +30,6 @@ public class MainProcess : KssBaseScript
 //    private bool isReloading = false;
 
     private List<RaycastHit> raycastHits = new();
-    private GameObject? selectedObject = null;
 
     private bool isControl;
 
@@ -139,21 +138,14 @@ public class MainProcess : KssBaseScript
         if (value)
         {
             // ON処理
-            if (key == Key.F)
-            {
-                // F
-                if ((cameraController != null) && (selectedObject != null))
-                {
-                    cameraController.FocusTo(selectedObject.transform);
-                }
-            }
-            else if ((key == Key.LeftCtrl) || (key == Key.RightCtrl))
+            if ((key == Key.LeftCtrl) || (key == Key.RightCtrl))
             {
                 isControl = true;
             }
         }
         else
         {
+            // OFF処理
             if ((key == Key.LeftCtrl) || (key == Key.RightCtrl))
             {
                 isControl = false;
@@ -186,7 +178,7 @@ public class MainProcess : KssBaseScript
             if (hits.Count > 0)
             {
                 // 選択あり
-                clickedGameObject = ((selectedObject == null) || (hits.FindIndex(d => d.collider.gameObject == selectedObject) < 0)) ? hits[0].collider.gameObject : hits[(hits.FindIndex(d => d.collider.gameObject == selectedObject) + 1) % hits.Count].collider.gameObject;
+                clickedGameObject = ((GlobalScript.selectedObject == null) || (hits.FindIndex(d => d.collider.gameObject == GlobalScript.selectedObject) < 0)) ? hits[0].collider.gameObject : hits[(hits.FindIndex(d => d.collider.gameObject == GlobalScript.selectedObject) + 1) % hits.Count].collider.gameObject;
                 if (clickedGameObject.name == "Floor")
                 {
                     // 床なら床の上でクリックされたところを検索
@@ -208,8 +200,7 @@ public class MainProcess : KssBaseScript
                     if (isControl)
                     {
                         // 選択中のマテリアルを解除
-                        selectedObject = null;
-                        EventManager.Instance.ProcessObjectSelect(selectedObject);
+                        EventManager.Instance.ProcessObjectSelect(null);
                     }
                     // ゲームオブジェクトの名前を出力
                     Debug.Log(clickedGameObject.name);
@@ -219,16 +210,14 @@ public class MainProcess : KssBaseScript
                     // 選択中のマテリアルをセット
                     if (isControl)
                     {
-                        if (selectedObject == clickedGameObject)
+                        if (GlobalScript.selectedObject == clickedGameObject)
                         {
                             // 既に選択済みなのでマテリアルを解除
-                            selectedObject = null;
-                            EventManager.Instance.ProcessObjectSelect(selectedObject);
+                            EventManager.Instance.ProcessObjectSelect(null);
                         }
                         else
                         {
-                            selectedObject = clickedGameObject;
-                            EventManager.Instance.ProcessObjectSelect(selectedObject);
+                            EventManager.Instance.ProcessObjectSelect(clickedGameObject);
                         }
                     }
                     // ゲームオブジェクトの名前を出力
@@ -249,9 +238,8 @@ public class MainProcess : KssBaseScript
             if (isControl)
             {
                 // 選択中のマテリアルを解除
-                selectedObject = null;
                 selectedScript = null;
-                EventManager.Instance.ProcessObjectSelect(selectedObject);
+                EventManager.Instance.ProcessObjectSelect(null);
             }
         }
     }
