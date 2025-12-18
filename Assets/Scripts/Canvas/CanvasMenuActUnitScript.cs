@@ -251,6 +251,9 @@ public class CanvasMenuActUnitScript : CanvasMenuBaseScript
             else if (unitSetting.actionSetting.isRobo)
             {
             }
+            else if (unitSetting.actionSetting.isActionTable)
+            {
+            }
             else
             {
                 continue;
@@ -292,7 +295,7 @@ public class CanvasMenuActUnitScript : CanvasMenuBaseScript
     public void SelectParts(GameObject parts)
     {
         // 選択クリア
-        OnValueChanged(-1);
+        dropDown.value = 0;
         // 位置更新
         txtPosX.text = parts.transform.localPosition.x.ToString("0.000");
         txtPosY.text = parts.transform.localPosition.y.ToString("0.000");
@@ -300,7 +303,7 @@ public class CanvasMenuActUnitScript : CanvasMenuBaseScript
         txtAngX.text = parts.transform.localEulerAngles.x.ToString("0.000");
         txtAngY.text = parts.transform.localEulerAngles.y.ToString("0.000");
         txtAngZ.text = parts.transform.localEulerAngles.z.ToString("0.000");
-        actUnitContentsActList.GetComponent<RectTransform>().sizeDelta = new Vector2(500, 30 * actUnitInfos.Count);
+        actUnitContentsActList.GetComponent<RectTransform>().sizeDelta = new Vector2(600, 30 * actUnitInfos.Count);
     }
 
     /// <summary>
@@ -346,8 +349,6 @@ public class CanvasMenuActUnitScript : CanvasMenuBaseScript
                         var txtTarget = actUnit.GetComponentsInChildren<TextMeshProUGUI>().ToList().Find(d => d.name == "TxtTarget");
                         var txtStart = actUnit.GetComponentsInChildren<TextMeshProUGUI>().ToList().Find(d => d.name == "TxtStartTag");
                         var txtEnd = actUnit.GetComponentsInChildren<TextMeshProUGUI>().ToList().Find(d => d.name == "TxtEndTag");
-                        var startTag = act.start.Length > 12 ? act.start.Substring(0, 10) + ".." : act.start;
-                        var endTag = act.end.Length > 12 ? act.end.Substring(0, 10) + ".." : act.end;
                         var actInfo = new ActUnitInfo
                         {
                             actObject = actUnit,
@@ -361,9 +362,13 @@ public class CanvasMenuActUnitScript : CanvasMenuBaseScript
                         GetTagValue(actInfo.devEnd, ref actInfo.tagEnd);
                         var startDev = actInfo.tagStart == null ? "none" : actInfo.tagStart.Device;
                         var endDev = actInfo.tagEnd == null ? "none" : actInfo.tagEnd.Device;
+                        var starText = startDev + " / " + act.start;
+                        var endText = endDev + " / " + act.end;
+                        starText = starText.Length > 20 ? starText.Substring(0, 18) + ".." : starText;
+                        endText = endText.Length > 20 ? endText.Substring(0, 18) + ".." : endText;
                         txtTarget.text = act.endName == "" ? "Pos" + i : act.endName;
-                        txtStart.text = startDev + " / " + startTag;
-                        txtEnd.text = endDev + " / " + endTag;
+                        txtStart.text = startDev + " / " + starText;
+                        txtEnd.text = endDev + " / " + endText;
                         actUnitInfos.Add(actInfo);
                     }
                 }
@@ -394,7 +399,7 @@ public class CanvasMenuActUnitScript : CanvasMenuBaseScript
                 actUnitInfos.Add(actInfo);
             }
         }
-        actUnitContentsActList.GetComponent<RectTransform>().sizeDelta = new Vector2(500, 30 * actUnitInfos.Count);
+        actUnitContentsActList.GetComponent<RectTransform>().sizeDelta = new Vector2(600, 30 * actUnitInfos.Count);
         if ((unitSetting != null) && (actUnitInfos.Count > 0) && !isSelectProcess)
         {
             //オブジェクト選択

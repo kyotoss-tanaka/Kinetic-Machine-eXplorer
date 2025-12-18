@@ -17,6 +17,12 @@ public class MotionExternal : AxisMotionBase
     protected TagInfo actTag;
 
     /// <summary>
+    /// åªç›ÇÃíl
+    /// </summary>
+    [SerializeField]
+    private int value;
+
+    /// <summary>
     /// î‰ó¶
     /// </summary>
     protected float rate;
@@ -44,7 +50,11 @@ public class MotionExternal : AxisMotionBase
     /// </summary>
     protected override void MyFixedUpdate()
     {
-        var data = moveDir * unitSetting.actionSetting.dir * GetTagValue(unitSetting.actionSetting.tag, ref actTag) / (rate == 0 ? 1000f : rate) + (moveDir * unitSetting.actionSetting.offset / (isRotate ? 1f : 1000f));
+        if (!isManual)
+        {
+            value = GetTagValue(unitSetting.actionSetting.tag, ref actTag);
+        }
+        var data = moveDir * unitSetting.actionSetting.dir * value / (rate == 0 ? 1000f : rate) + (moveDir * unitSetting.actionSetting.offset / (isRotate ? 1f : 1000f));
         if (isRotate)
         {
             moveObject.transform.localEulerAngles = data;

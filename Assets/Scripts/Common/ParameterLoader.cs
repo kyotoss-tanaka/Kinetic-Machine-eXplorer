@@ -815,6 +815,14 @@ namespace Parameters
                             mat.shader = opaqueShader;
                         }
                     }
+                    else if (mat.shader.name.Contains("Transparent"))
+                    {
+                        mat.shader = transpaentShader;
+                    }
+                    else if (mat.shader.name.Contains("Opaque"))
+                    {
+                        mat.shader = opaqueShader;
+                    }
                 }
                 foreach (var mat in allLineMaterials)
                 {
