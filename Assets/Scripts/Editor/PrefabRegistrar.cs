@@ -1,5 +1,4 @@
 #if UNITY_EDITOR
-#if DEV_PC
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -10,10 +9,9 @@ using UnityEditor;
 using UnityEditor.AddressableAssets;
 using UnityEditor.AddressableAssets.Settings;
 using UnityEditor.AddressableAssets.Settings.GroupSchemas;
-using UnityEditor.PixyzPlugin4Unity;
-using UnityEditor.PixyzPlugin4Unity.Actions;
 using UnityEngine;
-using static Meta.WitAi.Data.AudioEncoding;
+//using UnityEditor.PixyzPlugin4Unity;
+//using UnityEditor.PixyzPlugin4Unity.Actions;
 
 public class AddressablePrefabRegistrar
 {
@@ -30,6 +28,7 @@ public class AddressablePrefabRegistrar
     {
         isProcessing = true;
         // ダイアログを開いて、OK時にコールバックで処理を行う
+        /*
         InputDialogWindow.Show("Register Prefab to Addressables", "Addressablesに登録するフォルダを入力してください：", Path.GetFullPath(Path.Combine(Application.dataPath, "3DModels")), (string input) =>
         {
             if (string.IsNullOrEmpty(input))
@@ -40,6 +39,14 @@ public class AddressablePrefabRegistrar
             isVR = false;
             RegisterProcess(input);
         });
+        */
+        string path = EditorUtility.OpenFolderPanel("Addressablesに登録するフォルダを選択", Path.GetFullPath(Path.Combine(Application.dataPath, "3DModels")), "");
+        if (path != "")
+        {
+            isVR = false;
+            RegisterProcess(path);
+        }
+        isProcessing = false;
     }
 
 
@@ -47,6 +54,7 @@ public class AddressablePrefabRegistrar
     public static void RegisterPrefabToAddressablesVR()
     {
         isProcessing = true;
+        /*
         // ダイアログを開いて、OK時にコールバックで処理を行う
         InputDialogWindow.Show("Register Prefab to Addressables(VR)", "Addressablesに登録するフォルダを入力してください：", Path.GetFullPath(Path.Combine(Application.dataPath, "3DModels")), (string input) =>
         {
@@ -58,6 +66,15 @@ public class AddressablePrefabRegistrar
             isVR = true;
             RegisterProcess(input);
         });
+        */
+
+        string path = EditorUtility.OpenFolderPanel("Addressablesに登録するフォルダを選択(VR)", Path.GetFullPath(Path.Combine(Application.dataPath, "3DModels")), "");
+        if (path != "")
+        {
+            isVR = true;
+            RegisterProcess(path);
+        }
+        isProcessing = false;
     }
 
     // validate関数（trueなら有効、falseなら無効）
@@ -229,5 +246,4 @@ public class AddressablePrefabRegistrar
         }
     }
 }
-#endif
 #endif
