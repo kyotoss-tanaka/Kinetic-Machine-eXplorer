@@ -19,6 +19,8 @@ public class AddressablePrefabRegistrar
 {
     private static bool isProcessing = false;
 
+    private static bool isVR = false;
+
     private static  string serverPath = "ServerData";
 
     private static string bundlePath = "StandaloneWindows64";
@@ -35,10 +37,28 @@ public class AddressablePrefabRegistrar
                 isProcessing = false;
                 return;
             }
+            isVR = false;
             RegisterProcess(input);
         });
     }
 
+
+    [MenuItem("Kyotoss/Register Prefab to Addressables(VR)", false, 12)]
+    public static void RegisterPrefabToAddressablesVR()
+    {
+        isProcessing = true;
+        // ダイアログを開いて、OK時にコールバックで処理を行う
+        InputDialogWindow.Show("Register Prefab to Addressables(VR)", "Addressablesに登録するフォルダを入力してください：", Path.GetFullPath(Path.Combine(Application.dataPath, "3DModels")), (string input) =>
+        {
+            if (string.IsNullOrEmpty(input))
+            {
+                isProcessing = false;
+                return;
+            }
+            isVR = true;
+            RegisterProcess(input);
+        });
+    }
 
     // validate関数（trueなら有効、falseなら無効）
     [MenuItem("Kyotoss/Register Prefab to Addressables", true)]
@@ -46,6 +66,14 @@ public class AddressablePrefabRegistrar
     {
         return !isProcessing; // 処理中なら無効化
     }
+
+    // validate関数（trueなら有効、falseなら無効）
+    [MenuItem("Kyotoss/Register Prefab to Addressables(VR)", true)]
+    private static bool ValidateRegisterPrefabToAddressablesVR()
+    {
+        return !isProcessing; // 処理中なら無効化
+    }
+
 
     /// <summary>
     /// 登録処理
@@ -65,8 +93,7 @@ public class AddressablePrefabRegistrar
                 var prodNo = Path.GetFileName(Path.GetFullPath(folder));
 
                 // プレハブファイル取得
-                var files = Directory.GetFiles(folder).ToList().FindAll(d => Path.GetExtension(d) ==  ".prefab");
-
+                var files = Directory.GetFiles(isVR ? Path.Combine(folder, "VR") : folder).ToList().FindAll(d => Path.GetExtension(d) == ".prefab");
                 if (files.Count > 0)
                 {
                     // 設定作成
@@ -74,8 +101,9 @@ public class AddressablePrefabRegistrar
                     AddressableAssetGroupSchema sc = settings.DefaultGroup.Schemas.Find(d => d.GetType() == typeof(BundledAssetGroupSchema));
                     var buildName = ((BundledAssetGroupSchema)sc).BuildPath.GetName(settings);
                     var loadName = ((BundledAssetGroupSchema)sc).LoadPath.GetName(settings);
-                    var savePath = $"{serverPath}/{prodNo}/{bundlePath}";
-                    var loadPath = $"{serverPath}/{prodNo}/{bundlePath}";
+                    var vrParh = isVR ? "VR/" : "";
+                    var savePath = $"{serverPath}/{prodNo}/{vrParh}{bundlePath}";
+                    var loadPath = $"{serverPath}/{prodNo}/{vrParh}{bundlePath}";
 
                     settings.profileSettings.SetValue(settings.activeProfileId, buildName, savePath);
                     settings.profileSettings.SetValue(settings.activeProfileId, loadName, loadPath);

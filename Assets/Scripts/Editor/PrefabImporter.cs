@@ -430,6 +430,33 @@ public class PrefabImporter
             {
                 m_Settings = ScriptableObject.CreateInstance<KssImporterScriptableObject>();
             }
+            m_Settings.MeshQuality = Quality.Maximum;
+            m_Settings.PrepareForImport(prefabImporter);
+            prefabImporter.Process(input);
+        });
+    }
+
+    [MenuItem("Kyotoss/Create Prefab Files(VR)", false, 2)]
+    public static void ImportFolderVR()
+    {
+        isProcessing = true;
+        // ダイアログを開いて、OK時にコールバックで処理を行う
+        InputDialogWindow.Show("Prefab Creator", "インポート元フォルダ(ファイル)を入力してください：", @"H:\data", (string input) =>
+        {
+            if (string.IsNullOrEmpty(input))
+            {
+                isProcessing = false;
+                return;
+            }
+            if (prefabImporter == null)
+            {
+                prefabImporter = new KssPrefabImport();
+            }
+            if (m_Settings == null)
+            {
+                m_Settings = ScriptableObject.CreateInstance<KssImporterScriptableObject>();
+            }
+            m_Settings.MeshQuality = Quality.Low;
             m_Settings.PrepareForImport(prefabImporter);
             prefabImporter.Process(input);
         });
@@ -441,6 +468,14 @@ public class PrefabImporter
     {
         return !isProcessing; // 処理中なら無効化
     }
+
+    // validate関数（trueなら有効、falseなら無効）
+    [MenuItem("Kyotoss/Create Prefab Files(VR)", true)]
+    private static bool ValidateCreatePrefabVRFiles()
+    {
+        return !isProcessing; // 処理中なら無効化
+    }
+
 
     public class KssPrefabImport
     {
@@ -457,7 +492,15 @@ public class PrefabImporter
         {
             get
             {
-                m_ImportProgress ??= new SyncedProgress(this, true, "Importing " + m_FileName, true);
+                if (m_ImportProgress == null)
+                {
+                    m_ImportProgress = new SyncedProgress(this, true, "Importing " + m_FileName, true);
+                }
+                else if (m_ImportProgress.IsCanceling)
+                {
+                    m_ImportProgress.Finish();
+                    m_ImportProgress = new SyncedProgress(this, true, "Importing " + m_FileName, true);
+                }
                 return m_ImportProgress;
             }
         }
@@ -1003,6 +1046,11 @@ public class PrefabImporter
                 EditorUtility.DisplayDialog("情報", "Prefab作成処理が完了しました。", "OK");
                 string projectPath = Directory.GetParent(UnityEngine.Application.dataPath).FullName;
                 string folderPath = Path.Combine(Path.Combine(Path.Combine(projectPath, "Assets"), PixyzProjectSettings.PrefabFolder), m_ProdNo);
+                if (m_Settings.MeshQuality == Quality.Low)
+                {
+                    // VR用
+                    folderPath = Path.Combine(folderPath, "VR");
+                }
                 // エクスプローラーで開く
                 System.Diagnostics.Process.Start("explorer.exe", folderPath);
             }
@@ -1198,7 +1246,7 @@ public class PrefabImporter
 
         private void SetTolerances()
         {
-            m_Tolerances = new Tolerances(Quality.Maximum);
+            m_Tolerances = new Tolerances(m_Settings.MeshQuality);
 
             //Set Line Tolerance with a quality above the one selected (when possible)
             if (m_Settings.MeshQuality != Quality.Custom && m_Settings.MeshQuality != Quality.Maximum)
@@ -1492,10 +1540,9 @@ public class PrefabImporter
         private void PostProcess(Action<UnityEngine.Object> resetVariablesCallback)
         {
             GetSubTreeStatsReturn stats = Scene.GetSubTreeStats(new OccurrenceList(new uint[] { Scene.GetRoot() }));
-            
+            /*
             if (stats.partOccurrenceCount > 10000 && m_Settings.ImportMode != ImportMode.Scene)
             {
-                /*
                 PersistantAskDialog askDialog = PersistantAskDialog.Create(
                         "Large File Warning",
                         $"This file contains {stats.partCount.ToString("#,0").Replace(",", " ")} meshes and {stats.triangleCount.ToString("#,0").Replace(",", " ")} triangles.\n\nPrefab mode will be slow to import and bloat the Asset Database. Scene mode provides \nfaster import and better performance for large files.\n\nRecommendation: Use Scene Mode for better performance.",
@@ -1516,12 +1563,13 @@ public class PrefabImporter
                     PostProcessInternal(resetVariablesCallback);
                 };
                 askDialog.Show();
-                */
             }
             else
             {
                 PostProcessInternal(resetVariablesCallback);
             }
+            */
+            PostProcessInternal(resetVariablesCallback);
         }
 
         private void PostProcessInternal(Action<UnityEngine.Object> resetVariablesCallback)
@@ -1701,6 +1749,11 @@ public class PrefabImporter
         private void SetupFolder(out string path, out string fileName)
         {
             string folderPath = "Assets/" + PixyzProjectSettings.PrefabFolder + "/" + m_ProdNo;
+            if (m_Settings.MeshQuality == Quality.Low)
+            {
+                // VR用
+                folderPath = Path.Combine(folderPath, "VR");
+            }
             fileName = m_FileName;
             path = folderPath + "/" + m_FileName + ".prefab";
             if (!Directory.Exists(folderPath))
