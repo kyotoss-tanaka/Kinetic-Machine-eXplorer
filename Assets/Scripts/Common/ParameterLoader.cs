@@ -48,7 +48,7 @@ namespace Parameters
         private GameObject prefabObj;
         private GameObject deviceObj;
         private GameObject prePrefabObj;
-        private GameObject slicePlane;
+        private GameObject mtRoom;
         private List<GameObject> hiddenObjs = new List<GameObject>();
         private List<ObjEntry> movableObjs = new List<ObjEntry>();
         private List<ObjEntry> undefinedUnits = new List<ObjEntry>();
@@ -110,11 +110,15 @@ namespace Parameters
         void Awake()
         {
             CommonFunction.DebugLog($"***** Start Load *****");
+            GlobalScript.isVR = false;
 
             // シェーダーロード
             linesShader = Shader.Find("Shader Graphs/LinesShader");
             opaqueShader = Shader.Find("Shader Graphs/OpaqueShader");
             transpaentShader = Shader.Find("Shader Graphs/TransparentShader");
+
+            // 精神と時の部屋取得
+            mtRoom = transform.parent.GetComponentsInChildren<Transform>(true).Where(d => d.name == "精神と時の部屋").First().gameObject;
 
             // キャンバス生成
             CreateCanvas();
@@ -126,11 +130,13 @@ namespace Parameters
         private void OnEnable()
         {
             InputManager.Instance.RegisterKey(Key.F5, HandleKey);
+            InputManager.Instance.RegisterKey(Key.F12, HandleKey);
         }
 
         private void OnDisable()
         {
             InputManager.Instance.UnregisterKey(Key.F5, HandleKey);
+            InputManager.Instance.UnregisterKey(Key.F12, HandleKey);
         }
 
         /// <summary>
@@ -159,7 +165,7 @@ namespace Parameters
             {
                 prePrefabObj = new GameObject("PreLoadPrefab");
             }
-            globalSetting = GameObject.FindObjectsByType<GameObject>(FindObjectsSortMode.None).Where(d => d.name == "GlobalSetting").ToList()[0];
+            globalSetting = FindObjectsByType<GameObject>(FindObjectsSortMode.None).Where(d => d.name == "GlobalSetting").ToList()[0];
             {
                 // 各種設定ファイルロード
                 CommonFunction.DebugLog($"***** Parameter Load *****");
@@ -232,7 +238,7 @@ namespace Parameters
                         }
                     }
                     // 全てのオブジェクト取得
-                    List<GameObject> allObjects = GameObject.FindObjectsByType<GameObject>(FindObjectsSortMode.None).ToList();
+                    List<GameObject> allObjects = FindObjectsByType<GameObject>(FindObjectsSortMode.None).ToList();
 
                     // ユニットオブジェクト先に生成しておく
                     CreateUnitObject();
@@ -477,7 +483,7 @@ namespace Parameters
                     CommonFunction.DebugLog($"***** Organize Units *****", true);
                     yield return null; // 1フレーム待(下のオブジェクト取得時にNULLにならないようにするために必要)
                     // 使い勝手向上のため動作可能オブジェクトを移動
-                    var allMobableObjs = GameObject.FindObjectsByType<GameObject>(FindObjectsSortMode.None).ToList().FindAll(d => d.name.Contains(movableName + "_"));
+                    var allMobableObjs = FindObjectsByType<GameObject>(FindObjectsSortMode.None).ToList().FindAll(d => d.name.Contains(movableName + "_"));
                     // 名前順にソート
                     allMobableObjs.Sort((a, b) => a.transform.parent.name.CompareTo(b.transform.parent.name));
                     var moveObjs = new List<GameObject>();
@@ -1116,7 +1122,7 @@ namespace Parameters
         private void CreateCanvas()
         {
             // キャンバス取得
-            var canvasObjs = GameObject.FindObjectsByType<GameObject>(FindObjectsSortMode.None).Where(d => d.name == "Canvas").ToList();
+            var canvasObjs = FindObjectsByType<GameObject>(FindObjectsSortMode.None).Where(d => d.name == "Canvas").ToList();
             canvaObj = canvasObjs.Count == 0 ? new GameObject("Canvas", typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster)) : canvasObjs[0];
 
             // プログレスバー
@@ -1516,7 +1522,7 @@ namespace Parameters
                     if (m.mode == 0)
                     {
                         // 一致
-                        foreach (var o in GameObject.FindObjectsByType<GameObject>(FindObjectsSortMode.None).ToList().FindAll(d => d.name == m.name))
+                        foreach (var o in FindObjectsByType<GameObject>(FindObjectsSortMode.None).ToList().FindAll(d => d.name == m.name))
                         {
                             if ((m.parent == null) || (m.parent == "") || CommonFunction.GetScenePath(o).Contains(m.parent))
                             {
@@ -1528,7 +1534,7 @@ namespace Parameters
                     else if (m.mode == 1)
                     {
                         // 前方一致
-                        foreach (var o in GameObject.FindObjectsByType<GameObject>(FindObjectsSortMode.None).ToList().FindAll(d => d.name.StartsWith(m.name)))
+                        foreach (var o in FindObjectsByType<GameObject>(FindObjectsSortMode.None).ToList().FindAll(d => d.name.StartsWith(m.name)))
                         {
                             if ((m.parent == null) || (m.parent == "") || CommonFunction.GetScenePath(o).Contains(m.parent))
                             {
@@ -1540,7 +1546,7 @@ namespace Parameters
                     else if (m.mode == 2)
                     {
                         // 後方一致
-                        foreach (var o in GameObject.FindObjectsByType<GameObject>(FindObjectsSortMode.None).ToList().FindAll(d => d.name.EndsWith(m.name)))
+                        foreach (var o in FindObjectsByType<GameObject>(FindObjectsSortMode.None).ToList().FindAll(d => d.name.EndsWith(m.name)))
                         {
                             if ((m.parent == null) || (m.parent == "") || CommonFunction.GetScenePath(o).Contains(m.parent))
                             {
@@ -1553,7 +1559,7 @@ namespace Parameters
                     else if (m.mode == 3)
                     {
                         // 含まれている
-                        foreach (var o in GameObject.FindObjectsByType<GameObject>(FindObjectsSortMode.None).ToList().FindAll(d => d.name.Contains(m.name)))
+                        foreach (var o in FindObjectsByType<GameObject>(FindObjectsSortMode.None).ToList().FindAll(d => d.name.Contains(m.name)))
                         {
                             if ((m.parent == null) || (m.parent == "") || CommonFunction.GetScenePath(o).Contains(m.parent))
                             {
@@ -1573,7 +1579,7 @@ namespace Parameters
         {
             foreach (var wk in wkSettings)
             {
-                var work = GameObject.FindObjectsByType<GameObject>(FindObjectsSortMode.None).ToList().FindAll(d => d.name == wk.work);
+                var work = FindObjectsByType<GameObject>(FindObjectsSortMode.None).ToList().FindAll(d => d.name == wk.work);
                 if (work.Count > 0)
                 {
                     var w = works.Find(d => d.key == wk.work);
@@ -1599,7 +1605,7 @@ namespace Parameters
                 var unit = unitSettings.Find(d => (d.mechId == cb.mechId) && (d.name == cb.name));
                 if (unit != null)
                 {
-                    var cardboard = GameObject.FindObjectsByType<GameObject>(FindObjectsSortMode.None).ToList().FindAll(d => d.name == unit.parent);
+                    var cardboard = FindObjectsByType<GameObject>(FindObjectsSortMode.None).ToList().FindAll(d => d.name == unit.parent);
                     if (cardboard.Count > 0)
                     {
                         var c = works.Find(d => d.key == cb.name);
@@ -1804,6 +1810,10 @@ namespace Parameters
                         // プレハブもロード
                         ReloadParameter(isCtrl);
                     }
+                }
+                else if (key == Key.F12)
+                {
+                    mtRoom.SetActive(!mtRoom.activeSelf);
                 }
             }
         }

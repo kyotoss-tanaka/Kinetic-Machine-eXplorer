@@ -363,7 +363,7 @@ public class AxisMotionBase : KinematicsBase
             }
             if (unitSetting.isCollision || GlobalScript.buildConfig.isCollision)
             {
-                unitSetting.moveObject.transform.AddComponent<CollisionScript>();
+                unitSetting.moveObject.transform.AddComponent<WorkCollisionScript>();
             }
         }
         else

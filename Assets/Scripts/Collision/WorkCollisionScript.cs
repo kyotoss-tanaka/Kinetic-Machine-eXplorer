@@ -6,7 +6,7 @@ using UnityEngine.SocialPlatforms;
 using static KssBaseScript;
 using static OVRPlugin;
 
-public class CollisionScript : KssBaseScript
+public class WorkCollisionScript : KssBaseScript
 {
     private bool isWork;
 

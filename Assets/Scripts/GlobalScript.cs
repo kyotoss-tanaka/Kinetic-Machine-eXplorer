@@ -809,10 +809,10 @@ public static class GlobalScript
         {
             rigi = work.AddComponent<Rigidbody>();
         }
-        var script = work.GetComponentInChildren<CollisionScript>();
+        var script = work.GetComponentInChildren<WorkCollisionScript>();
         if (script == null)
         {
-            script = work.AddComponent<CollisionScript>();
+            script = work.AddComponent<WorkCollisionScript>();
         }
         var mesh = work.GetComponentInChildren<MeshRenderer>();
         if (mesh != null)
