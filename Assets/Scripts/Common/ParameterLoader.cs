@@ -107,14 +107,6 @@ namespace Parameters
         private TextMeshProUGUI prgText;
         private TextMeshProUGUI prgText2;
 
-        // 編集モード
-        private bool isEditMode = false;
-
-        // 初回起動
-        private bool isFirstLoad = false;
-
-        // 以前のモード
-        bool isOldMode = false;
         void Awake()
         {
             CommonFunction.DebugLog($"***** Start Load *****");
@@ -148,7 +140,6 @@ namespace Parameters
         private IEnumerator LoadParameter(bool isEditMode = false)
         {
             // ロード開始
-            this.isEditMode = isEditMode;
             GlobalScript.isLoading = true;
             // デバッグ時間開始
             CommonFunction.DebugInfoInit();
@@ -266,22 +257,6 @@ namespace Parameters
                         unitSetting.childrenObject = new List<GameObject>();
 
                         var gameObjects = new List<GameObject>();
-                        if (isOldMode)
-                        {
-                            // 親モデル検索用(非表示オブジェクトも含む) ※ループ内で行わないとNG
-                            allObjects = GameObject.FindObjectsByType<GameObject>(FindObjectsSortMode.None).ToList();
-                            gameObjects = allObjects.FindAll(d => d.name == unitSetting.parent);
-                            if (gameObjects.Count == 0)
-                            {
-                                // 空オブジェクト作成
-                                var dummy = new GameObject(unitSetting.parent);
-                                dummy.transform.parent = deviceObj.transform;
-                                dummy.name = unitSetting.name;
-                                dummy.isStatic = true;
-                                gameObjects.Add(dummy);
-                                CommonFunction.DebugLog($"エラー：ユニット名「{unitSetting.name}」の親モデル「{unitSetting.parent}」が存在しません。");
-                            }
-                        }
                         if (unitSetting.moveObject != null)
                         {
                             //　子モデルセット
@@ -290,51 +265,6 @@ namespace Parameters
                                 if (child.childObject != null)
                                 {
                                     unitSetting.childrenObject.Add(child.childObject);
-                                }
-                            }
-                            if (isOldMode)
-                            {
-                                if ((gameObjects.Count == 1) || (unitSetting.group == null) || (unitSetting.group == ""))
-                                {
-                                    // 先頭を親にする
-                                    unitSetting.moveObject = gameObjects[0];
-                                    unitSetting.unitObject.isStatic = gameObjects[0].isStatic;
-                                    // 先頭以外は子供として紐づける
-                                    for (var i = 1; i < gameObjects.Count; i++)
-                                    {
-                                        unitSetting.childrenObject.Add(gameObjects[i]);
-                                    }
-                                    //　子モデルセット
-                                    foreach (var child in unitSetting.children)
-                                    {
-                                        var childObjects = allObjects.FindAll(d => d.name == child.name);
-                                        GameObject childObject = null;
-                                        if (FindInGroup(childObjects, child.group, ref childObject))
-                                        {
-                                            unitSetting.childrenObject.Add(childObject);
-                                        }
-                                    }
-                                }
-                                else
-                                {
-                                    if (FindInGroup(gameObjects, unitSetting.group, ref unitSetting.moveObject))
-                                    {
-                                        //　子モデルセット
-                                        foreach (var child in unitSetting.children)
-                                        {
-                                            var childObjects = allObjects.FindAll(d => d.name == child.name);
-                                            GameObject childObject = null;
-                                            if (FindInGroup(childObjects, child.group, ref childObject))
-                                            {
-                                                unitSetting.childrenObject.Add(childObject);
-                                            }
-                                        }
-                                    }
-                                    else
-                                    {
-                                        Debug.Log($"エラー：ユニット名「{unitSetting.name}」の親モデル「{unitSetting.parent}」がグループ[{unitSetting.group}]に存在しません。");
-                                        continue;
-                                    }
                                 }
                             }
                             // 非表示オブジェクトなら非表示から削除
@@ -359,22 +289,6 @@ namespace Parameters
                             unitSetting.ledSetting = ledSettings.Find(d => (d.mechId == unitSetting.mechId) && (d.name == unitSetting.name));
                             // 機構拡張設定紐づけ
                             unitSetting.exMechSetting = exMechSettings.Find(d => (d.mechId == unitSetting.mechId) && (d.name == unitSetting.name));
-                            if (isOldMode)
-                            {
-                                if (unitSetting.exMechSetting != null)
-                                {
-                                    // 機構拡張設定
-                                    foreach (var data in unitSetting.exMechSetting.datas)
-                                    {
-                                        // モデルを設定しておく
-                                        data.gameObject = allObjects.FindAll(d => d.name == data.model).Find(d => CommonFunction.GetScenePath(d).Contains(data.group));
-                                        foreach (var child in data.children)
-                                        {
-                                            child.gameObject = allObjects.FindAll(d => d.name == child.model).Find(d => CommonFunction.GetScenePath(d).Contains(child.group));
-                                        }
-                                    }
-                                }
-                            }
                             // チャック設定更新
                             var chuckSetting = chuckUnitSettings.Find(d => (d.mechId == unitSetting.mechId) && (d.name == unitSetting.name));
                             if (chuckSetting != null)
@@ -663,28 +577,23 @@ namespace Parameters
                     {
                         renderers.AddRange(m.obj.GetComponentsInChildren<Renderer>().ToList());
                     }
+
+                    // BoxCOllider作成
+                    CreateBoxCollider(renderers);
+                    /*
                     foreach (Renderer renderer in renderers)
                     {
-                        if (renderer.GetComponent<Collider>() == null)
+                        if (!GlobalScript.isVR)
                         {
-                            var bc = renderer.AddComponent<BoxCollider>();
-                            bc.isTrigger = true;
-                        }
-                        /*
-                        foreach (Material mat in renderer.sharedMaterials)
-                        {
-                            if (mat != null)
+                            if (renderer.GetComponent<Collider>() == null)
                             {
-                                if (mat.name.Contains("Default Line Material"))
-                                {
-                                }
-                                else
-                                {
-                                }
+                                var bc = renderer.AddComponent<BoxCollider>();
+                                bc.isTrigger = true;
                             }
                         }
-                        */
                     }
+                    */
+
                     //  描画エリア取得
                     renderers = prefabObj.GetComponentsInChildren<Renderer>().ToList();
                     if (renderers.Count > 0)
@@ -710,18 +619,31 @@ namespace Parameters
                         renderers[i].gameObject.isStatic = true;
                         batchTargets[i] = renderers[i].gameObject;
                         // VRは透明オブジェクトを削除
-                        if ((Application.platform == RuntimePlatform.Android) || (Application.platform == RuntimePlatform.IPhonePlayer))
+                        if ((Application.platform == RuntimePlatform.Android) || (Application.platform == RuntimePlatform.IPhonePlayer))// || GlobalScript.isVR)
                         {
                             // 透明オブジェクトチェック
                             Material material = renderers[i].sharedMaterial;
-                            if (material != null && material.HasProperty("_Mode"))
+                            if (material != null)
                             {
-                                // _Modeプロパティの値を取得
-                                if (material.GetFloat("_Mode") == 3f)
+                                if (material.HasProperty("_Mode"))
                                 {
-                                    // 透明は非表示
-                                    renderers[i].gameObject.SetActive(false);
+                                    // _Modeプロパティの値を取得
+                                    if (material.GetFloat("_Mode") == 3f)
+                                    {
+                                        // 透明は非表示
+                                        renderers[i].gameObject.SetActive(false);
+                                    }
                                 }
+                                /*
+                                else if (material.HasColor("_BaseColor"))
+                                {
+                                    if (material.GetColor("_BaseColor").a < 1f)
+                                    {
+                                        // 透明は非表示
+                                        renderers[i].gameObject.SetActive(false);
+                                    }
+                                }
+                                */
                             }
                         }
                     }
@@ -1359,6 +1281,52 @@ namespace Parameters
             }
         }
 
+        /// <summary>
+        /// コライダー作成
+        /// </summary>
+        /// <param name="root"></param>
+        private void CreateBoxCollider(List<Renderer> meshRenderers)
+        {
+            foreach (var mr in meshRenderers)
+            {
+                // Line / 特殊用途は除外
+                if (mr.GetComponent<LineRenderer>() != null)
+                    continue;
+
+                // 既に BoxCollider があるならスキップ
+                if (mr.GetComponent<BoxCollider>() != null)
+                    continue;
+
+                var mf = mr.GetComponent<MeshFilter>();
+                if (mf == null || mf.sharedMesh == null)
+                    continue;
+
+                if (!GlobalScript.isVR)
+                {
+                    if (mr.GetComponent<Collider>() == null)
+                    {
+                        var box = mr.gameObject.AddComponent<BoxCollider>();
+
+                        // ローカル bounds を使用
+                        Bounds b = mf.sharedMesh.bounds;
+
+                        box.center = b.center;
+                        box.size = b.size;
+                        box.isTrigger = true;
+                        /*
+                        // Rigidbody 設定（VR向け）
+                        var rb = mr.GetComponent<Rigidbody>();
+                        if (rb == null)
+                            rb = mr.gameObject.AddComponent<Rigidbody>();
+
+                        rb.isKinematic = true;
+                        rb.useGravity = false;
+                        */
+                    }
+                }
+            }
+        }
+
         #region ロード処理本体
         /// <summary>
         /// プレハブロード
@@ -1367,15 +1335,19 @@ namespace Parameters
         private IEnumerator LoadPrefabModel()
         {
             var rootObjects = SceneManager.GetActiveScene().GetRootGameObjects().ToList();
-            isFirstLoad = prefabs.Count == 0;
             // 既にprefabがあるかチェック
             if (prefabs.Count == 0)
             {
                 foreach (var prefab in prefabSettings)
                 {
-                    var data = rootObjects.Find(d => d.name == Path.GetFileNameWithoutExtension(prefab.name));
+                    var data = rootObjects.Find(d => (d.name == Path.GetFileNameWithoutExtension(prefab.name)) || (d.name == Path.GetFileNameWithoutExtension(prefab.name) + "_VR"));
                     if (data != null)
                     {
+                        GlobalScript.isVR = data.name.Contains("_VR");
+                        if (GlobalScript.isVR)
+                        {
+                            data.name = data.name.Replace("_VR", "");
+                        }
                         prefabs.Add(data);
                         rootObjects.Remove(data);
                         data.SetActive(false);
@@ -1534,7 +1506,7 @@ namespace Parameters
         /// <summary>
         /// 無視オブジェクト更新
         /// </summary>
-        void RenewHiddenObjs()
+        private void RenewHiddenObjs()
         {
             hiddenObjs.Clear();
             foreach (var m in hiddenSettings)
@@ -1672,17 +1644,22 @@ namespace Parameters
                     undefinedUnits[undefinedUnits.Count - 1].obj.transform.parent = movableObjs[movableObjs.Count - 1].obj.transform;
                 }
                 // ゲームオブジェクト紐づけ
-                if (unitSetting.path != "")
-                {
-                    var obj = prefabObj.transform.Find(unitSetting.path);
-                    unitSetting.moveObject = obj != null ? obj.gameObject : null;
-                }
-                else if (unitSetting.isRoboTimeChart)
+                if (unitSetting.isRoboTimeChart)
                 {
                     // タイムチャート使用ユニット
                     unitSetting.moveObject = new GameObject("RoboTimeChart");
                     unitSetting.moveObject.transform.parent = unitSetting.unitObject.transform;
                     unitSetting.moveObject.transform.position = Vector3.zero;
+                    unitSetting.path = "";
+                    unitSetting.group = "";
+                    unitSetting.parent = "";
+                    unitSetting.children = new();
+                    // モデル情報と
+                }
+                else if (unitSetting.path != "")
+                {
+                    var obj = prefabObj.transform.Find(unitSetting.path);
+                    unitSetting.moveObject = obj != null ? obj.gameObject : null;
                 }
             }
             // 子供オブジェクト

@@ -23,7 +23,7 @@ public class AddressablePrefabRegistrar
 
     private static string bundlePath = "StandaloneWindows64";
 
-    [MenuItem("Kyotoss/Register Prefab to Addressables", false , 11)]
+    [MenuItem("Kyotoss/Register Prefab to Addressables", false , 15)]
     public static void RegisterPrefabToAddressables()
     {
         isProcessing = true;
@@ -49,7 +49,14 @@ public class AddressablePrefabRegistrar
         isProcessing = false;
     }
 
+    // validate関数（trueなら有効、falseなら無効）
+    [MenuItem("Kyotoss/Register Prefab to Addressables", true)]
+    private static bool ValidateRegisterPrefabToAddressables()
+    {
+        return !isProcessing; // 処理中なら無効化
+    }
 
+#if false
     [MenuItem("Kyotoss/Register Prefab to Addressables(VR)", false, 12)]
     public static void RegisterPrefabToAddressablesVR()
     {
@@ -78,19 +85,12 @@ public class AddressablePrefabRegistrar
     }
 
     // validate関数（trueなら有効、falseなら無効）
-    [MenuItem("Kyotoss/Register Prefab to Addressables", true)]
-    private static bool ValidateRegisterPrefabToAddressables()
-    {
-        return !isProcessing; // 処理中なら無効化
-    }
-
-    // validate関数（trueなら有効、falseなら無効）
     [MenuItem("Kyotoss/Register Prefab to Addressables(VR)", true)]
     private static bool ValidateRegisterPrefabToAddressablesVR()
     {
         return !isProcessing; // 処理中なら無効化
     }
-
+#endif
 
     /// <summary>
     /// 登録処理

@@ -42,6 +42,8 @@ public class PrefabImporter
 
     private static bool isSuccess = false;
 
+    private static bool isVR = false;
+
     private static string m_FileName = "";
 
     private static uint m_Root = 0;
@@ -431,9 +433,19 @@ public class PrefabImporter
                 m_Settings = ScriptableObject.CreateInstance<KssImporterScriptableObject>();
             }
             m_Settings.MeshQuality = Quality.Maximum;
+            m_Settings.ImportPatchBoundaries = true;
+            m_Settings.ImportLines = true;
+            isVR = false;
             m_Settings.PrepareForImport(prefabImporter);
             prefabImporter.Process(input);
         });
+    }
+
+    // validate関数（trueなら有効、falseなら無効）
+    [MenuItem("Kyotoss/Create Prefab Files", true)]
+    private static bool ValidateCreatePrefabFiles()
+    {
+        return !isProcessing; // 処理中なら無効化
     }
 
     [MenuItem("Kyotoss/Create Prefab Files(VR)", false, 2)]
@@ -456,17 +468,13 @@ public class PrefabImporter
             {
                 m_Settings = ScriptableObject.CreateInstance<KssImporterScriptableObject>();
             }
-            m_Settings.MeshQuality = Quality.Low;
+            m_Settings.MeshQuality = Quality.Maximum;
+            m_Settings.ImportPatchBoundaries = false;
+            m_Settings.ImportLines = false;
+            isVR = true;
             m_Settings.PrepareForImport(prefabImporter);
             prefabImporter.Process(input);
         });
-    }
-
-    // validate関数（trueなら有効、falseなら無効）
-    [MenuItem("Kyotoss/Create Prefab Files", true)]
-    private static bool ValidateCreatePrefabFiles()
-    {
-        return !isProcessing; // 処理中なら無効化
     }
 
     // validate関数（trueなら有効、falseなら無効）
@@ -475,7 +483,6 @@ public class PrefabImporter
     {
         return !isProcessing; // 処理中なら無効化
     }
-
 
     public class KssPrefabImport
     {
@@ -1043,14 +1050,16 @@ public class PrefabImporter
             if (isSuccess)
             {
                 // タイトル、メッセージ、ボタン名
-                EditorUtility.DisplayDialog("情報", "Prefab作成処理が完了しました。", "OK");
                 string projectPath = Directory.GetParent(UnityEngine.Application.dataPath).FullName;
                 string folderPath = Path.Combine(Path.Combine(Path.Combine(projectPath, "Assets"), PixyzProjectSettings.PrefabFolder), m_ProdNo);
-                if (m_Settings.MeshQuality == Quality.Low)
+                if (isVR)
                 {
                     // VR用
                     folderPath = Path.Combine(folderPath, "VR");
+                    // VR用データ作成
+//                    PrefabMeshMerger.MergePrefabProcess(folderPath);
                 }
+                EditorUtility.DisplayDialog("情報", "Prefab作成処理が完了しました。", "OK");
                 // エクスプローラーで開く
                 System.Diagnostics.Process.Start("explorer.exe", folderPath);
             }
@@ -1749,7 +1758,7 @@ public class PrefabImporter
         private void SetupFolder(out string path, out string fileName)
         {
             string folderPath = "Assets/" + PixyzProjectSettings.PrefabFolder + "/" + m_ProdNo;
-            if (m_Settings.MeshQuality == Quality.Low)
+            if (isVR)
             {
                 // VR用
                 folderPath = Path.Combine(folderPath, "VR");

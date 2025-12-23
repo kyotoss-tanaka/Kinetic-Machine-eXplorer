@@ -247,6 +247,11 @@ public static class GlobalScript
     public static bool isLiens = true;
 
     /// <summary>
+    /// VRÉÇÅ[Éh
+    /// </summary>
+    public static bool isVR = true;
+
+    /// <summary>
     /// ífñ ï\é¶èÓïÒ
     /// </summary>
     public static ClipInfo clipInfo = new();
