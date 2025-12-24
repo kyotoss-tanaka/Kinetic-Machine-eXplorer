@@ -44,6 +44,15 @@ public class InputManager : BaseBehaviour
         RTouch = 1,
     }
 
+    public enum ControllerButton : int
+    {
+        None = 0,
+        A,
+        B,
+        X,
+        Y
+    }
+
     /// <summary>
     /// 左タッチ
     /// </summary>
@@ -85,6 +94,14 @@ public class InputManager : BaseBehaviour
     /// タッチアップイベント
     /// </summary>
     private Action<TouchButton, GameObject> touchUpEvents;
+    /// <summary>
+    /// ボタンダウンイベント
+    /// </summary>
+    private Action<ControllerButton> buttonDownEvents;
+    /// <summary>
+    /// アップイベント
+    /// </summary>
+    private Action<ControllerButton> buttonUpEvents;
 
     /// <summary>
     /// マウス位置
@@ -211,24 +228,67 @@ public class InputManager : BaseBehaviour
 
     /// <summary>
     /// タッチアップデート
+    /// ボタン
+    ///    A Button.One
+    ///    B Button.Two
+    ///    X Button.Three
+    ///    Y Button.Four
     /// </summary>
     private void TouchUpdate()
     {
-        if (OVRInput.GetDown(OVRInput.Button.PrimaryIndexTrigger, OVRInput.Controller.LTouch))
+        if (GlobalScript.isXRMode)
         {
-            touchDownEvents?.Invoke(TouchButton.LTouch, rayInteractorL.Interactable == null ? null : rayInteractorL.Interactable.gameObject);
-        }
-        else if (OVRInput.GetUp(OVRInput.Button.PrimaryIndexTrigger, OVRInput.Controller.LTouch))
-        {
-            touchUpEvents?.Invoke(TouchButton.LTouch, rayInteractorL.Interactable == null ? null : rayInteractorL.Interactable.gameObject);
-        }
-        else if (OVRInput.GetDown(OVRInput.Button.PrimaryIndexTrigger, OVRInput.Controller.RTouch))
-        {
-            touchDownEvents?.Invoke(TouchButton.RTouch, rayInteractorR.Interactable == null ? null : rayInteractorR.Interactable.gameObject);
-        }
-        else if (OVRInput.GetUp(OVRInput.Button.PrimaryIndexTrigger, OVRInput.Controller.RTouch))
-        {
-            touchUpEvents?.Invoke(TouchButton.RTouch, rayInteractorR.Interactable == null ? null : rayInteractorR.Interactable.gameObject);
+            GlobalScript.rayLObject = rayInteractorL.Interactable == null ? null : rayInteractorL.Interactable.gameObject;
+            GlobalScript.rayRObject = rayInteractorR.Interactable == null ? null : rayInteractorR.Interactable.gameObject;
+            Debug.Log(GlobalScript.rayLObject);
+            if (OVRInput.GetDown(OVRInput.Button.PrimaryIndexTrigger, OVRInput.Controller.LTouch))
+            {
+                touchDownEvents?.Invoke(TouchButton.LTouch, GlobalScript.rayLObject);
+            }
+            else if (OVRInput.GetUp(OVRInput.Button.PrimaryIndexTrigger, OVRInput.Controller.LTouch))
+            {
+                touchUpEvents?.Invoke(TouchButton.LTouch, GlobalScript.rayLObject);
+            }
+            if (OVRInput.GetDown(OVRInput.Button.PrimaryIndexTrigger, OVRInput.Controller.RTouch))
+            {
+                touchDownEvents?.Invoke(TouchButton.RTouch, GlobalScript.rayRObject);
+            }
+            else if (OVRInput.GetUp(OVRInput.Button.PrimaryIndexTrigger, OVRInput.Controller.RTouch))
+            {
+                touchUpEvents?.Invoke(TouchButton.RTouch, GlobalScript.rayRObject);
+            }
+            if (OVRInput.GetDown(OVRInput.Button.One))
+            {
+                buttonDownEvents?.Invoke(ControllerButton.A);
+            }
+            else if (OVRInput.GetUp(OVRInput.Button.One))
+            {
+                buttonUpEvents?.Invoke(ControllerButton.A);
+            }
+            if (OVRInput.GetDown(OVRInput.Button.Two))
+            {
+                buttonDownEvents?.Invoke(ControllerButton.B);
+            }
+            else if (OVRInput.GetUp(OVRInput.Button.Two))
+            {
+                buttonUpEvents?.Invoke(ControllerButton.B);
+            }
+            if (OVRInput.GetDown(OVRInput.Button.Three))
+            {
+                buttonDownEvents?.Invoke(ControllerButton.X);
+            }
+            else if (OVRInput.GetUp(OVRInput.Button.Three))
+            {
+                buttonUpEvents?.Invoke(ControllerButton.X);
+            }
+            if (OVRInput.GetDown(OVRInput.Button.Four))
+            {
+                buttonDownEvents?.Invoke(ControllerButton.Y);
+            }
+            else if (OVRInput.GetUp(OVRInput.Button.Four))
+            {
+                buttonUpEvents?.Invoke(ControllerButton.Y);
+            }
         }
     }
 
@@ -371,5 +431,37 @@ public class InputManager : BaseBehaviour
     public void UnregisterTouchUp(Action<TouchButton, GameObject> action)
     {
         touchUpEvents -= action;
+    }
+
+    /// <summary>
+    /// ボタンダウンイベント登録
+    /// </summary>
+    public void RegisterButtonDown(Action<ControllerButton> action)
+    {
+        buttonDownEvents += action;
+    }
+
+    /// <summary>
+    /// ボタンダウンイベント登録解除
+    /// </summary>
+    public void UnregisterButtonDown(Action<ControllerButton> action)
+    {
+        buttonDownEvents -= action;
+    }
+
+    /// <summary>
+    /// ボタンアップイベント登録
+    /// </summary>
+    public void RegisterButtonUp(Action<ControllerButton> action)
+    {
+        buttonUpEvents += action;
+    }
+
+    /// <summary>
+    /// ボタンアップイベント登録解除
+    /// </summary>
+    public void UnregisterButtonUp(Action<ControllerButton> action)
+    {
+        buttonUpEvents -= action;
     }
 }

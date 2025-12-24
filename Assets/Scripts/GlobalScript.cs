@@ -246,10 +246,16 @@ public static class GlobalScript
     /// </summary>
     public static bool isLiens = true;
 
+
     /// <summary>
-    /// VRモード
+    /// XR表示モード
     /// </summary>
-    public static bool isVR = true;
+    public static bool isXRMode = true;
+
+    /// <summary>
+    /// VR用プレハブモード
+    /// </summary>
+    public static bool isXRPrefab = true;
 
     /// <summary>
     /// 断面表示情報
@@ -290,6 +296,16 @@ public static class GlobalScript
     /// 選択オブジェクト
     /// </summary>
     public static GameObject selectedObject;
+
+    /// <summary>
+    /// 左オブジェクト
+    /// </summary>
+    public static GameObject rayLObject;
+
+    /// <summary>
+    /// 右オブジェクト
+    /// </summary>
+    public static GameObject rayRObject;
 
     /// <summary>
     /// ワークID
