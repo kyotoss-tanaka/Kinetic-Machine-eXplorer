@@ -30,6 +30,10 @@ public class BuildAndRun
         public BuildOptions buildOptions;
     }
 
+    private static GameObject normalCamera;
+    private static GameObject vrCamera;
+    private static GameObject mrCamera;
+
     static string scenePath = "Assets/Scenes/Simuration.unity";
 
     [MenuItem("Kyotoss/Master Build and Run", false, 51)]
@@ -181,7 +185,7 @@ public class BuildAndRun
         };
 
         // シーン読み込み
-//        SwitchBuild(build);
+        //        SwitchBuild(build);
 
         AssetDatabase.SaveAssets();
         AssetDatabase.Refresh();
@@ -270,19 +274,19 @@ public class BuildAndRun
     }
 
 
-    [MenuItem("Kyotoss/Switch to Windows Config", false, 101)]
+    [MenuItem("Kyotoss/Switch to Normal Config", false, 101)]
     public static void SwitchToWindowsConfig()
     {
         SwitchBuild(new Parameters.BuildConfig { });
     }
 
-    [MenuItem("Kyotoss/Switch and Run VR Config", false, 102)]
+    [MenuItem("Kyotoss/Switch to VR Config", false, 102)]
     public static void SwitchToVRConfig()
     {
         SwitchBuild(new Parameters.BuildConfig { isVR = true });
     }
 
-    [MenuItem("Kyotoss/Switch and Run MR Config", false, 103)]
+    [MenuItem("Kyotoss/Switch to MR Config", false, 103)]
     public static void SwitchToMRConfig()
     {
         SwitchBuild(new Parameters.BuildConfig { isMR = true });
@@ -294,12 +298,75 @@ public class BuildAndRun
         var scene = EditorSceneManager.OpenScene(scenePath, OpenSceneMode.Single);
 
         // オブジェクトを検索
-        var windwosSetting = FindInScene(scene, "WindowsSetting");
+        var normalSetting = FindInScene(scene, "NormalSetting");
         var vrSetting = FindInScene(scene, "VRSetting");
         var mrSetting = FindInScene(scene, "MRSetting");
-        windwosSetting.SetActive(!build.isVR && !build.isMR);
-        vrSetting.SetActive(build.isVR);
-        mrSetting.SetActive(build.isMR);
+        var parent = normalSetting != null ? normalSetting.transform.parent : (vrSetting != null ? vrSetting.transform.parent : mrSetting.transform.parent);
+
+        // 設定切り替え
+        if (build.isVR)
+        {
+            if (vrCamera == null)
+            {
+                vrCamera = GlobalScript.LoadPrefabObject("Prefabs/Camera", "VRSetting", false)[0];
+            }
+            if (vrSetting == null)
+            {
+                vrSetting = GameObject.Instantiate(vrCamera) as GameObject;
+                vrSetting.name = "VRSetting";
+                vrSetting.transform.parent = parent;
+            }
+            if (normalSetting != null)
+            {
+                GameObject.DestroyImmediate(normalSetting);
+            }
+            if (mrSetting != null)
+            {
+                GameObject.DestroyImmediate(mrSetting);
+            }
+        }
+        else if (build.isMR)
+        {
+            if (mrCamera == null)
+            {
+                mrCamera = GlobalScript.LoadPrefabObject("Prefabs/Camera", "MRSetting", false)[0];
+            }
+            if (mrSetting == null)
+            {
+                mrSetting = GameObject.Instantiate(mrCamera) as GameObject;
+                mrSetting.name = "MRSetting";
+                mrSetting.transform.parent = parent;
+            }
+            if (normalSetting != null)
+            {
+                GameObject.DestroyImmediate(normalSetting);
+            }
+            if (vrSetting != null)
+            {
+                GameObject.DestroyImmediate(vrSetting);
+            }
+        }
+        else
+        {
+            if (normalCamera == null)
+            {
+                normalCamera = GlobalScript.LoadPrefabObject("Prefabs/Camera", "NormalSetting", false)[0];
+            }
+            if (normalSetting == null)
+            {
+                normalSetting = GameObject.Instantiate(normalCamera) as GameObject;
+                normalSetting.name = "NormalSetting";
+                normalSetting.transform.parent = parent;
+            }
+            if (vrSetting != null)
+            {
+                GameObject.DestroyImmediate(vrSetting);
+            }
+            if (mrSetting != null)
+            {
+                GameObject.DestroyImmediate(mrSetting);
+            }
+        }
 
         // シーン保存
         EditorSceneManager.SaveScene(scene);
