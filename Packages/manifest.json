@@ -1,6 +1,6 @@
 {
   "dependencies": {
-    "com.meta.xr.sdk.all": "81.0.0",
+    "com.meta.xr.sdk.all": "69.0.1",
     "com.monitor1394.xcharts": "https://github.com/XCharts-Team/XCharts.git",
     "com.unity.2d.sprite": "1.0.0",
     "com.unity.addressables": "2.7.4",
