@@ -16,7 +16,6 @@ using UnityEngine;
 using UnityEngine.Networking;
 using MongoDB.Driver;
 using System.Text;
-using static OVRPlugin;
 using System.Collections.Concurrent;
 using System.Diagnostics;
 
