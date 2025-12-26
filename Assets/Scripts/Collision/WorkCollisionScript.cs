@@ -4,7 +4,6 @@ using Unity.VisualScripting;
 using UnityEngine;
 using UnityEngine.SocialPlatforms;
 using static KssBaseScript;
-using static OVRPlugin;
 
 public class WorkCollisionScript : KssBaseScript
 {

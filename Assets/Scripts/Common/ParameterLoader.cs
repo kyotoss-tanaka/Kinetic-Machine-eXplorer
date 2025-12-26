@@ -1,6 +1,5 @@
 using MongoDB.Driver;
 using NUnit.Framework;
-using Oculus.Interaction.UnityCanvas;
 using Org.BouncyCastle.Ocsp;
 using System;
 using System.Collections;
@@ -110,7 +109,6 @@ namespace Parameters
         void Awake()
         {
             CommonFunction.DebugLog($"***** Start Load *****");
-            GlobalScript.isVR = false;
 
             // シェーダーロード
             linesShader = Shader.Find("Shader Graphs/LinesShader");
@@ -119,6 +117,8 @@ namespace Parameters
 
             // 精神と時の部屋取得
             mtRoom = transform.parent.GetComponentsInChildren<Transform>(true).Where(d => d.name == "精神と時の部屋").First().gameObject;
+            GlobalScript.isXRMode = (transform.parent.GetComponentsInChildren<Transform>().Where(d => d.name == "VRSetting").FirstOrDefault() != null) || (transform.parent.GetComponentsInChildren<Transform>().Where(d => d.name == "MRSetting").FirstOrDefault() != null);
+            GlobalScript.isXRPrefab = false;
 
             // キャンバス生成
             CreateCanvas();
@@ -147,6 +147,7 @@ namespace Parameters
         {
             // ロード開始
             GlobalScript.isLoading = true;
+
             // デバッグ時間開始
             CommonFunction.DebugInfoInit();
             CommonFunction.DebugLog($"***** Load Start *****", true);
@@ -589,7 +590,7 @@ namespace Parameters
                     /*
                     foreach (Renderer renderer in renderers)
                     {
-                        if (!GlobalScript.isVR)
+                        if (!GlobalScript.isVRPrefab)
                         {
                             if (renderer.GetComponent<Collider>() == null)
                             {
@@ -625,7 +626,7 @@ namespace Parameters
                         renderers[i].gameObject.isStatic = true;
                         batchTargets[i] = renderers[i].gameObject;
                         // VRは透明オブジェクトを削除
-                        if ((Application.platform == RuntimePlatform.Android) || (Application.platform == RuntimePlatform.IPhonePlayer))// || GlobalScript.isVR)
+                        if ((Application.platform == RuntimePlatform.Android) || (Application.platform == RuntimePlatform.IPhonePlayer))// || GlobalScript.isVRPrefab)
                         {
                             // 透明オブジェクトチェック
                             Material material = renderers[i].sharedMaterial;
@@ -1307,7 +1308,7 @@ namespace Parameters
                 if (mf == null || mf.sharedMesh == null)
                     continue;
 
-                if (!GlobalScript.isVR)
+                if (!GlobalScript.isXRPrefab)
                 {
                     if (mr.GetComponent<Collider>() == null)
                     {
@@ -1349,8 +1350,8 @@ namespace Parameters
                     var data = rootObjects.Find(d => (d.name == Path.GetFileNameWithoutExtension(prefab.name)) || (d.name == Path.GetFileNameWithoutExtension(prefab.name) + "_VR"));
                     if (data != null)
                     {
-                        GlobalScript.isVR = data.name.Contains("_VR");
-                        if (GlobalScript.isVR)
+                        GlobalScript.isXRPrefab = data.name.Contains("_VR");
+                        if (GlobalScript.isXRPrefab)
                         {
                             data.name = data.name.Replace("_VR", "");
                         }

@@ -8,6 +8,8 @@ using UnityEngine.InputSystem;
 using Parameters;
 using Application =UnityEngine.Application;
 using Oculus.Interaction;
+using MongoDB.Driver;
+
 
 #if UNITY_EDITOR
 using UnityEditor;
@@ -20,12 +22,12 @@ public class MainProcess : KssBaseScript
     [SerializeField]
     List<GlobalScript.CbTagInfo> cbTags;
 
-    private bool isVR { get { return (Application.platform == RuntimePlatform.Android) || (Application.platform == RuntimePlatform.IPhonePlayer); } }
     private CameraController cameraController = null;
     private RayInteractor rayInteractorL = null;
     private RayInteractor rayInteractorR = null;
     private KssBaseScript selectedScript = null;
-    private CanvasMenuInfoScript menuInfoScript = null;
+
+    private GameObject xrCanvas = null;
 
 //    private bool isReloading = false;
 
@@ -41,11 +43,8 @@ public class MainProcess : KssBaseScript
         base.Awake();
 
         // カメラ設定
-        // var ovr = transform.parent.gameObject.GetComponentInChildren<OVRPlayerController>();
-        // var camera = transform.parent.gameObject.GetComponentInChildren<Camera>();
-
         // フレームレート
-        if (isVR)
+        if (GlobalScript.isXRMode)
         {
             // アンドロイド
             Application.targetFrameRate = 120;
@@ -75,6 +74,17 @@ public class MainProcess : KssBaseScript
         {
             rayInteractorR = rayInteractors[0];
         }
+
+        // キャンバスロード
+        if (GlobalScript.isXRMode)
+        {
+            var canvases = GlobalScript.LoadPrefabObject("Prefabs/Canvas", "XRCanvas");
+            if (canvases.Count > 0)
+            {
+                xrCanvas = Instantiate(canvases[0]);
+                xrCanvas.SetActive(false);
+            }
+        }
     }
 
     protected override void OnEnable()
@@ -87,6 +97,8 @@ public class MainProcess : KssBaseScript
         InputManager.Instance.RegisterMouseUp(MouseUpEvent);
         InputManager.Instance.RegisterTouchDown(TouchDownEvent);
         InputManager.Instance.RegisterTouchUp(TouchUpEvent);
+        InputManager.Instance.RegisterButtonDown(ButtonDownEvent);
+        InputManager.Instance.RegisterButtonUp(ButtonUpEvent);
     }
 
     protected override void OnDisable()
@@ -99,17 +111,14 @@ public class MainProcess : KssBaseScript
         InputManager.Instance.UnregisterMouseUp(MouseUpEvent);
         InputManager.Instance.UnregisterTouchDown(TouchDownEvent);
         InputManager.Instance.UnregisterTouchUp(TouchUpEvent);
+        InputManager.Instance.UnregisterButtonDown(ButtonDownEvent);
+        InputManager.Instance.UnregisterButtonUp(ButtonUpEvent);
     }
 
     protected override void Start()
     {
         base.Start();
 
-        var menuInfoScripts = FindObjectsByType<CanvasMenuInfoScript>(FindObjectsSortMode.None).ToList();
-        if (menuInfoScripts.Count > 0)
-        {
-            menuInfoScript = menuInfoScripts[0];
-        }
 //        InitCallbackData();
     }
 
@@ -276,6 +285,27 @@ public class MainProcess : KssBaseScript
     private void TouchUpEvent(InputManager.TouchButton button, GameObject gameObject)
     {
     }
+
+    /// <summary>
+    /// ボタンダウンイベント
+    /// </summary>
+    /// <param name="button"></param>
+    private void ButtonDownEvent(InputManager.ControllerButton button)
+    {
+        if (button == InputManager.ControllerButton.B)
+        {
+            xrCanvas.SetActive(!xrCanvas.activeSelf);
+        }
+    }
+
+    /// <summary>
+    /// ボタンアップイベント
+    /// </summary>
+    /// <param name="button"></param>
+    private void ButtonUpEvent(InputManager.ControllerButton button)
+    {
+    }
+
     /*    
     private void InitCallbackData()
     {

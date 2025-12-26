@@ -9,7 +9,6 @@ using System.Threading.Tasks;
 using UnityEngine;
 using UnityEngine.Networking;
 using static Parameters.PostgresSetting;
-using static OVRPlugin;
 using System;
 using static KssBaseScript;
 using System.Linq;

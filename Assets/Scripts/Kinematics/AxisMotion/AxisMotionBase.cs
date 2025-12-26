@@ -11,7 +11,6 @@ using System.Reflection;
 using UnityEngine.UI;
 //using static OVRPlugin;
 using static KssMeshColliderEditorCommon;
-using static OVRPlugin;
 using UnityEngine.UIElements;
 using System.Security.Cryptography;
 using Pipelines.Sockets.Unofficial.Arenas;
