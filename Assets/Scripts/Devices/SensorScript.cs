@@ -55,24 +55,6 @@ public class SensorScript : UseTagBaseScript
         GlobalScript.SetTagData(Tag, Status ? 1 : 0);
     }
 
-    public void RenewPosition(Transform parent, Vector3 size)
-    {
-        /*
-        this.parent = parent;
-        transform.eulerAngles = new Vector3(90, parent.eulerAngles.y, 0);
-        transform.parent = parent;
-        var offset = RightOffset - LeftOffset;
-        // 角度算出
-        var rad = Mathf.Atan2(offset, size.z);
-        // 長さ算出
-        var m = MathF.Sqrt(offset * offset + size.z * size.z);
-        // 位置調整
-        transform.localScale = new Vector3(transform.localScale.x, m, transform.localScale.z);
-        transform.localPosition = new Vector3(-LeftOffset - offset / 2, size.y / 2 + HeightOffset, 0);
-        transform.localEulerAngles = new Vector3(transform.localEulerAngles.x, rad * 180 / MathF.PI, transform.localEulerAngles.z);
-        */
-    }
-
     /// <summary>
     /// 使用しているタグを取得する
     /// </summary>
@@ -86,14 +68,26 @@ public class SensorScript : UseTagBaseScript
 
     protected override void OnTriggerEnter(Collider collider)
     {
+        if (collider.GetComponent<IgnoreCollisionScript>() == null)
+        {
+            if (!colliders.Contains(collider))
+            {
+                colliders.Add(collider);
+            }
+        }
     }
 
     protected override void OnTriggerStay(Collider collider)
     {
-        if (!colliders.Contains(collider))
+        /*
+        if (collider.GetComponent<IgnoreCollisionScript>() == null)
         {
-            colliders.Add(collider);
+            if (!colliders.Contains(collider))
+            {
+                colliders.Add(collider);
+            }
         }
+        */
     }
 
     protected override void OnTriggerExit(Collider collider)

@@ -1,5 +1,3 @@
-using Oculus.Interaction;
-using Oculus.Interaction.HandGrab;
 using System.Collections;
 using System.Collections.Generic;
 using Unity.Mathematics;
@@ -61,17 +59,6 @@ public class ObjectScript : BaseBehaviour
         rigi.sleepThreshold = 0f;
         if (IsGrabbable)
         {
-            // ’Í‚ß‚é
-            var grab = rigi.gameObject.AddComponent<Grabbable>();
-            var gft = rigi.gameObject.AddComponent<GrabFreeTransformer>();
-            var gi = rigi.gameObject.AddComponent<GrabInteractable>();
-            var hgi = rigi.gameObject.AddComponent<HandGrabInteractable>();
-            grab.InjectOptionalOneGrabTransformer(gft);
-            grab.InjectOptionalTwoGrabTransformer(gft);
-            gi.InjectOptionalPointableElement(grab);
-            gi.InjectRigidbody(rigi);
-            hgi.InjectOptionalPointableElement(grab);
-            hgi.InjectRigidbody(rigi);
         }
     }
 

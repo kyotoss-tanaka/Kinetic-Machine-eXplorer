@@ -53,7 +53,7 @@ public class CanvasMenuAssemblyScript : CanvasMenuBaseScript
         mainProcess = GameObject.FindObjectsByType<MainProcess>(FindObjectsSortMode.None)[0];
         sv = GetComponentsInChildren<RectTransform>().ToList().Find(d => d.name == "Scroll View");
         content = GetComponentsInChildren<RectTransform>().ToList().Find(d => d.name == "Content");
-        baseText = GetComponentsInChildren<TextMeshProUGUI>().ToList().Find(d => d.name == "AssemblyText");
+        baseText = GetComponentsInChildren<TextMeshProUGUI>(true).ToList().Find(d => d.name == "AssemblyText");
         baseText.gameObject.SetActive(false);
         menuInfoScript = FindObjectsByType<CanvasMenuInfoScript>(FindObjectsSortMode.None).ToList()[0];
 

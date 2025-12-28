@@ -22,6 +22,8 @@ using UnityEngine.InputSystem.XR;
 using UnityEngine.ResourceManagement.AsyncOperations;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
+using XCharts.Runtime;
+using static GlobalScript;
 using static UnityEngine.UI.CanvasScaler;
 
 namespace Parameters
@@ -86,8 +88,13 @@ namespace Parameters
         private HashSet<Material> allMaterials = new HashSet<Material>();
         private HashSet<Material> allLineMaterials = new HashSet<Material>();
         private Shader opaqueShader;
-        private Shader transpaentShader;
+        private Shader transparentShader;
         private Shader linesShader;
+        private Shader opaqueDanmen;
+        private Shader transparentDanmen;
+
+        // スライス用プレーン
+        private GameObject slicePlane;
 
         // パラメータ描画用
         private GameObject canvaObj;
@@ -106,25 +113,54 @@ namespace Parameters
         private TextMeshProUGUI prgText;
         private TextMeshProUGUI prgText2;
 
+        private bool isLines = false;
+        private GlobalScript.ClipInfo clipInfo = new();
+
         void Awake()
         {
+            // 精神と時の部屋取得
+            mtRoom = transform.parent.GetComponentsInChildren<Transform>(true).Where(d => d.name == "精神と時の部屋").First().gameObject;
+            GlobalScript.isXRMode = transform.parent.GetComponentsInChildren<Transform>().Where(d => (d.name == "VRSetting") || (d.name == "MRSetting")).FirstOrDefault() != null;
+            GlobalScript.isXRPrefab = false;
+
+            // メインプロセス実行
+            globalSetting = FindObjectsByType<GameObject>(FindObjectsSortMode.None).Where(d => d.name == "GlobalSetting").ToList()[0];
+            globalSetting.AddComponent<MainProcess>();
+
             CommonFunction.DebugLog($"***** Start Load *****");
 
             // シェーダーロード
             linesShader = Shader.Find("Shader Graphs/LinesShader");
             opaqueShader = Shader.Find("Shader Graphs/OpaqueShader");
-            transpaentShader = Shader.Find("Shader Graphs/TransparentShader");
+            transparentShader = Shader.Find("Shader Graphs/TransparentShader");
+            opaqueDanmen = Shader.Find("Shader Graphs/OpaqueDANMEN");
+            transparentDanmen = Shader.Find("Shader Graphs/TransparentDANMEN");
 
-            // 精神と時の部屋取得
-            mtRoom = transform.parent.GetComponentsInChildren<Transform>(true).Where(d => d.name == "精神と時の部屋").First().gameObject;
-            GlobalScript.isXRMode = (transform.parent.GetComponentsInChildren<Transform>().Where(d => d.name == "VRSetting").FirstOrDefault() != null) || (transform.parent.GetComponentsInChildren<Transform>().Where(d => d.name == "MRSetting").FirstOrDefault() != null);
-            GlobalScript.isXRPrefab = false;
+            // スライス用プレーン取得
+            slicePlane = GameObject.FindObjectsByType<GameObject>(FindObjectsSortMode.None).Where(d => d.name == "SlicePlane").ToList()[0];
+
+            isLines = GlobalScript.isLiens;
+            clipInfo.isOn = GlobalScript.clipInfo.isOn;
+            clipInfo.isRvs = GlobalScript.clipInfo.isRvs;
+            clipInfo.mode = GlobalScript.clipInfo.mode;
+            clipInfo.x = GlobalScript.clipInfo.x;
+            clipInfo.y = GlobalScript.clipInfo.y;
+            clipInfo.z = GlobalScript.clipInfo.z;
 
             // キャンバス生成
             CreateCanvas();
 
             // ロード開始
             StartCoroutine(LoadParameter());
+        }
+
+        private void Update()
+        {
+            // 線表示更新
+            RenewLines();
+
+            // 断面表示更新
+            RenewDanmen();
         }
 
         private void OnEnable()
@@ -166,7 +202,6 @@ namespace Parameters
             {
                 prePrefabObj = new GameObject("PreLoadPrefab");
             }
-            globalSetting = FindObjectsByType<GameObject>(FindObjectsSortMode.None).Where(d => d.name == "GlobalSetting").ToList()[0];
             {
                 // 各種設定ファイルロード
                 CommonFunction.DebugLog($"***** Parameter Load *****");
@@ -418,7 +453,6 @@ namespace Parameters
                                     if (pm != null)
                                     {
                                         pm.moverUnit = unitSettings.Find(d => d.name == pm.mover);
-                                        //                                    var pmObj = globalSetting.AddComponent<Br6DScript>();
                                         var pmObj = unitSetting.unitObject.AddComponent<Br6DScript>();
                                         pmObj.SetParameter(unitSetting, pm);
                                     }
@@ -585,7 +619,7 @@ namespace Parameters
                         renderers.AddRange(m.obj.GetComponentsInChildren<Renderer>().ToList());
                     }
 
-                    // BoxCOllider作成
+                    // BoxCollider作成
                     CreateBoxCollider(renderers);
                     /*
                     foreach (Renderer renderer in renderers)
@@ -684,7 +718,7 @@ namespace Parameters
             }
 
             // イベント登録
-            menuInfoScript.SetEvents(unitSettings, allMaterials, allLineMaterials);
+            menuInfoScript.SetEvents(unitSettings);
             prefabInfoScript.SetEvents();
 
             GlobalScript.isLoading = false;
@@ -737,7 +771,7 @@ namespace Parameters
                         bool isTransparent = surface > 0.5f;
                         if (isTransparent)
                         {
-                            mat.shader = transpaentShader;
+                            mat.shader = transparentShader;
                         }
                         else
                         {
@@ -746,7 +780,7 @@ namespace Parameters
                     }
                     else if (mat.shader.name.Contains("Transparent"))
                     {
-                        mat.shader = transpaentShader;
+                        mat.shader = transparentShader;
                     }
                     else if (mat.shader.name.Contains("Opaque"))
                     {
@@ -884,7 +918,7 @@ namespace Parameters
                 }
             }
             // メニュー設定
-            menuInfoScript.SetEvents(unitSettings, allMaterials, allLineMaterials);
+            menuInfoScript.SetEvents(unitSettings);
 
             Resources.UnloadUnusedAssets();
             CommonFunction.DebugLog($"***** Load Finished *****", true);
@@ -1312,6 +1346,7 @@ namespace Parameters
                 {
                     if (mr.GetComponent<Collider>() == null)
                     {
+                        mr.gameObject.AddComponent<IgnoreCollisionScript>();
                         var box = mr.gameObject.AddComponent<BoxCollider>();
 
                         // ローカル bounds を使用
@@ -1819,5 +1854,99 @@ namespace Parameters
             }
         }
         #endregion ロード処理
+
+        #region 各種処理
+        /// <summary>
+        /// 線更新
+        /// </summary>
+        private void RenewLines()
+        {
+            if (isLines != GlobalScript.isLiens)
+            {
+                foreach (Material mat in allLineMaterials)
+                {
+                    mat.SetFloat("_Alpha", GlobalScript.isLiens ? 0.5f : 0f);
+                }
+                isLines = GlobalScript.isLiens;
+            }
+        }
+
+        /// <summary>
+        /// 断面更新
+        /// </summary>
+        private void RenewDanmen()
+        {
+            if (clipInfo.isOn != GlobalScript.clipInfo.isOn)
+            {
+                if (GlobalScript.clipInfo.isOn)
+                {
+                    // シェーダー切り替え
+                    foreach (Material mat in allMaterials)
+                    {
+                        if (mat.shader.name.Contains("Transparent"))
+                        {
+                            mat.shader = transparentDanmen;
+                        }
+                        else
+                        {
+                            mat.shader = opaqueDanmen;
+                        }
+                    }
+                    slicePlane.transform.transform.localPosition = new Vector3(GlobalScript.clipInfo.x, GlobalScript.clipInfo.y, GlobalScript.clipInfo.z);
+                }
+                else
+                {
+                    // シェーダー通常
+                    foreach (Material mat in allMaterials)
+                    {
+                        if (mat.shader.name.Contains("Transparent"))
+                        {
+                            mat.shader = transparentShader;
+                        }
+                        else
+                        {
+                            mat.shader = opaqueShader;
+                        }
+                    }
+                    slicePlane.transform.transform.localPosition = Vector3.zero;
+                    slicePlane.transform.localEulerAngles = Vector3.zero;
+                    GlobalScript.clipInfo.mode = GlobalScript.ClipInfo.SlideMode.None;
+                    clipInfo.mode = GlobalScript.clipInfo.mode;
+                }
+                clipInfo.isOn = GlobalScript.clipInfo.isOn;
+            }
+            if (clipInfo.isOn)
+            {
+                var isChange = false;
+                if ((clipInfo.mode != GlobalScript.clipInfo.mode) || (clipInfo.isRvs != GlobalScript.clipInfo.isRvs))
+                {
+                    // スライスモード変更
+                    if (GlobalScript.clipInfo.mode == GlobalScript.ClipInfo.SlideMode.X)
+                    {
+                        slicePlane.transform.localEulerAngles = new Vector3(0, 0, GlobalScript.clipInfo.isRvs ? -90 : 90);
+                    }
+                    else if (GlobalScript.clipInfo.mode == GlobalScript.ClipInfo.SlideMode.Y)
+                    {
+                        slicePlane.transform.localEulerAngles = new Vector3(GlobalScript.clipInfo.isRvs ? 180 : 0, 0, 0);
+                    }
+                    else if (GlobalScript.clipInfo.mode == GlobalScript.ClipInfo.SlideMode.Z)
+                    {
+                        slicePlane.transform.localEulerAngles = new Vector3(GlobalScript.clipInfo.isRvs ? 90 : -90, 0, 0);
+                    }
+                    clipInfo.mode = GlobalScript.clipInfo.mode;
+                    clipInfo.isRvs = GlobalScript.clipInfo.isRvs;
+                    isChange = true;
+                }
+                if (isChange || (clipInfo.value != GlobalScript.clipInfo.value))
+                {
+                    slicePlane.transform.transform.localPosition = new Vector3(GlobalScript.clipInfo.x, GlobalScript.clipInfo.y, GlobalScript.clipInfo.z);
+                    clipInfo.x = GlobalScript.clipInfo.x;
+                    clipInfo.y = GlobalScript.clipInfo.y;
+                    clipInfo.z = GlobalScript.clipInfo.z;
+                    clipInfo.value = GlobalScript.clipInfo.value;
+                }
+            }
+        }
+        #endregion 各種処理
     }
 }

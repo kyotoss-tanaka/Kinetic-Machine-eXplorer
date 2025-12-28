@@ -669,22 +669,33 @@ public class AxisMotionBase : KinematicsBase
             {
                 foreach (var sensor in unitSetting.sensorSettings)
                 {
-                    var o = GlobalScript.CreateSensor(this.transform.parent.gameObject, sensor, "CvSensor");
-                    o.transform.parent = unitSetting.unitObject.transform;
-                    o.transform.localPosition = new Vector3
+                    if (sensor.isCreate)
                     {
-                        x = sensor.pos[0] * transform.localScale.x,
-                        y = sensor.pos[2] * transform.localScale.y,
-                        z = sensor.pos[1] * transform.localScale.z
-                    };
-                    o.transform.localEulerAngles = new Vector3
+                        // センサ形状生成
+                        var o = GlobalScript.CreateSensor(this.transform.parent.gameObject, sensor, "CvSensor");
+                        o.transform.parent = unitSetting.unitObject.transform;
+                        o.transform.localPosition = new Vector3
+                        {
+                            x = sensor.pos[0] * transform.localScale.x,
+                            y = sensor.pos[2] * transform.localScale.y,
+                            z = sensor.pos[1] * transform.localScale.z
+                        };
+                        o.transform.localEulerAngles = new Vector3
+                        {
+                            x = sensor.rot[0] * transform.localScale.x,
+                            y = sensor.rot[2] * transform.localScale.y,
+                            z = sensor.rot[1] * transform.localScale.z
+                        };
+                        var ss = o.AddComponent<SensorScript>();
+                        ss.SetParameter(unitSetting, sensor);
+                    }
+                    else
                     {
-                        x = sensor.rot[0] * transform.localScale.x,
-                        y = sensor.rot[2] * transform.localScale.y,
-                        z = sensor.rot[1] * transform.localScale.z
-                    };
-                    var ss = o.AddComponent<SensorScript>();
-                    ss.SetParameter(unitSetting, sensor);
+                        // 形状をそのまま使用
+                        var ss = unitSetting.moveObject.AddComponent<SensorScript>();
+                        ss.SetParameter(unitSetting, sensor);
+                        break;
+                    }
                 }
             }
         }

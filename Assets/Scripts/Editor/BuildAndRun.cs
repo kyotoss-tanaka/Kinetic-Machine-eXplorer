@@ -296,6 +296,14 @@ public class BuildAndRun
     {
         // シーン読み込み
         var scene = EditorSceneManager.OpenScene(scenePath, OpenSceneMode.Single);
+        
+        // イベントシステム取得
+        var eventSystem = FindInScene(scene, "EventSystem");
+        var pointableInput = eventSystem != null ? eventSystem.GetComponent<UnityEngine.EventSystems.PointerInputModule>() : null;
+        if (pointableInput != null)
+        {
+            pointableInput.enabled = build.isVR || build.isMR;
+        }
 
         // オブジェクトを検索
         var normalSetting = FindInScene(scene, "NormalSetting");

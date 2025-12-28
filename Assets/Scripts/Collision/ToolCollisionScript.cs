@@ -1,15 +1,23 @@
+using Unity.VisualScripting;
 using UnityEngine;
 
 public class ToolCollisionScript : MonoBehaviour
 {
     public OVRInput.Controller controller;
     public float amplitude = 0.5f;   // êUìÆã≠ìx (0Å`1)
-    public float duration = 0.1f;    // êUìÆéûä‘
+    public float duration = 0.2f;    // êUìÆéûä‘
+    public Collider colliderObject;
 
     // Start is called once before the first execution of Update after the MonoBehaviour is created
     void Start()
     {
-        
+        var rb = transform.GetComponent<Rigidbody>();
+        if(rb == null)
+        {
+            rb = transform.AddComponent<Rigidbody>();
+        }
+        rb.useGravity = false;
+        rb.isKinematic = true;
     }
 
     // Update is called once per frame
@@ -20,7 +28,26 @@ public class ToolCollisionScript : MonoBehaviour
 
     private void OnTriggerEnter(Collider other)
     {
-        TriggerHaptic();
+        if (!other.name.Contains("Controller"))
+        {
+            TriggerHaptic();
+        }
+        else
+        {
+            colliderObject = other;
+        }
+    }
+
+    private void OnTriggerExit(Collider other)
+    {
+        if (!other.name.Contains("Controller"))
+        {
+            TriggerHaptic();
+        }
+        else
+        {
+            colliderObject = null;
+        }
     }
 
     /// <summary>

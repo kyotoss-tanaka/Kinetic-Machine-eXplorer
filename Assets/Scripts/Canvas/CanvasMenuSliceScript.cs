@@ -10,21 +10,12 @@ using UnityEngine.Windows;
 
 public class CanvasMenuSliceScript : CanvasMenuBaseScript
 {
-    private GameObject slicePlane;
     private Toggle viewXToggle;
     private Toggle viewYToggle;
     private Toggle viewZToggle;
     private Toggle viewRvsToggle;
     private Slider viewSlider;
     private TextMeshProUGUI viewText;
-
-    // シェーダー
-    private HashSet<Material> allMaterials = new HashSet<Material>();
-    private Shader opaqueDanmen;
-    private Shader transparentDanmen;
-    private Shader opaqueShader;
-    private Shader transparentShader;
-    private Shader standardShader;
 
     /// <summary>
     /// 開始処理
@@ -33,19 +24,12 @@ public class CanvasMenuSliceScript : CanvasMenuBaseScript
     {
         base.Awake();
 
-        slicePlane = GameObject.FindObjectsByType<GameObject>(FindObjectsSortMode.None).Where(d => d.name == "SlicePlane").ToList()[0];
-
         viewXToggle = GetComponentsInChildren<Toggle>().ToList().Find(d => d.name == "ClipXToggle");
         viewYToggle = GetComponentsInChildren<Toggle>().ToList().Find(d => d.name == "ClipYToggle");
         viewZToggle = GetComponentsInChildren<Toggle>().ToList().Find(d => d.name == "ClipZToggle");
         viewRvsToggle = GetComponentsInChildren<Toggle>().ToList().Find(d => d.name == "ClipRvsToggle");
         viewSlider = GetComponentInChildren<Slider>();
         viewText = GetComponentsInChildren<TextMeshProUGUI>().ToList().Find(d => d.name == "ClipText");
-
-        opaqueDanmen = Shader.Find("Shader Graphs/OpaqueDANMEN");
-        transparentDanmen = Shader.Find("Shader Graphs/TransparentDANMEN");
-        opaqueShader = Shader.Find("Shader Graphs/OpaqueShader");
-        transparentShader = Shader.Find("Shader Graphs/TransparentShader");
     }
 
     /// <summary>
@@ -75,18 +59,7 @@ public class CanvasMenuSliceScript : CanvasMenuBaseScript
         viewRvsToggle.onValueChanged.RemoveAllListeners();
         viewSlider.onValueChanged.RemoveAllListeners();
         GlobalScript.clipInfo.isOn = false;
-        UpdateClip();
-    }
-
-    /// <summary>
-    /// イベントセット
-    /// </summary>
-    public virtual void SetEvents(HashSet<Material> allMaterials)
-    {
-        this.allMaterials = allMaterials;
-        standardShader = allMaterials.Count > 0 ? allMaterials.First().shader : Shader.Find("Universal Render Pipeline/Lit");
-
-        SetEvents();
+        GlobalScript.clipInfo.mode = GlobalScript.ClipInfo.SlideMode.None;
     }
 
     /// <summary>
@@ -116,7 +89,6 @@ public class CanvasMenuSliceScript : CanvasMenuBaseScript
             viewSlider.minValue = GlobalScript.clipInfo.bounds.min.x;
             viewSlider.maxValue = GlobalScript.clipInfo.bounds.max.x;
             viewSlider.value = GlobalScript.clipInfo.x;
-            slicePlane.transform.localEulerAngles = new Vector3(0, 0, viewRvsToggle.isOn ? -90 : 90);
         }
         else if (viewYToggle.isOn)
         {
@@ -124,7 +96,6 @@ public class CanvasMenuSliceScript : CanvasMenuBaseScript
             viewSlider.minValue = GlobalScript.clipInfo.bounds.min.y;
             viewSlider.maxValue = GlobalScript.clipInfo.bounds.max.y;
             viewSlider.value = GlobalScript.clipInfo.y;
-            slicePlane.transform.localEulerAngles = new Vector3(viewRvsToggle.isOn ? 180 : 0, 0, 0);
         }
         else if (viewZToggle.isOn)
         {
@@ -132,9 +103,10 @@ public class CanvasMenuSliceScript : CanvasMenuBaseScript
             viewSlider.minValue = GlobalScript.clipInfo.bounds.min.z;
             viewSlider.maxValue = GlobalScript.clipInfo.bounds.max.z;
             viewSlider.value = GlobalScript.clipInfo.z;
-            slicePlane.transform.localEulerAngles = new Vector3(viewRvsToggle.isOn ? 90 : -90, 0, 0);
         }
-        UpdateClip();
+        GlobalScript.clipInfo.mode = viewXToggle.isOn ? GlobalScript.ClipInfo.SlideMode.X : (viewYToggle.isOn ? GlobalScript.ClipInfo.SlideMode.Y : GlobalScript.ClipInfo.SlideMode.Z);
+        GlobalScript.clipInfo.isRvs = viewRvsToggle.isOn;
+        GlobalScript.clipInfo.value = viewSlider.value;
     }
 
     /// <summary>
@@ -156,47 +128,7 @@ public class CanvasMenuSliceScript : CanvasMenuBaseScript
         {
             GlobalScript.clipInfo.z = value;
         }
+        GlobalScript.clipInfo.value = value;
         viewText.text = value.ToString("0.00");
-        UpdateClip();
-    }
-
-    /// <summary>
-    /// 断面更新
-    /// </summary>
-    private void UpdateClip()
-    {
-        if (GlobalScript.clipInfo.isOn)
-        {
-            // シェーダー切り替え
-            foreach (Material mat in allMaterials)
-            {
-                if (mat.shader.name.Contains("Transparent"))
-                {
-                    mat.shader = transparentDanmen;
-                }
-                else
-                {
-                    mat.shader = opaqueDanmen;
-                }
-            }
-            slicePlane.transform.transform.localPosition = new Vector3(GlobalScript.clipInfo.x, GlobalScript.clipInfo.y, GlobalScript.clipInfo.z);
-        }
-        else
-        {
-            // シェーダー通常
-            foreach (Material mat in allMaterials)
-            {
-                if (mat.shader.name.Contains("Transparent"))
-                {
-                    mat.shader = transparentShader;
-                }
-                else
-                {
-                    mat.shader = opaqueShader;
-                }
-            }
-            slicePlane.transform.transform.localPosition = Vector3.zero;
-            slicePlane.transform.localEulerAngles = Vector3.zero;
-        }
     }
 }

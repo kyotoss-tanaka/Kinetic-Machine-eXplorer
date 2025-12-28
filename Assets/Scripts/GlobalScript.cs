@@ -119,6 +119,14 @@ public static class GlobalScript
     /// </summary>
     public class ClipInfo
     {
+        public enum SlideMode : int
+        {
+            None = 0,
+            X = 1,
+            Y = 2,
+            Z = 3
+        }
+
         /// <summary>
         /// 断面表示機能
         /// </summary>
@@ -127,6 +135,14 @@ public static class GlobalScript
         /// 描画エリア
         /// </summary>
         public Bounds bounds;
+        /// <summary>
+        /// モード 0:なし 1:X, 2:Y, 3:Z
+        /// </summary>
+        public SlideMode mode;
+        /// <summary>
+        /// 反転
+        /// </summary>
+        public bool isRvs;
         /// <summary>
         /// X値
         /// </summary>
@@ -139,6 +155,10 @@ public static class GlobalScript
         /// Z値
         /// </summary>
         public float z;
+        /// <summary>
+        /// 値
+        /// </summary>
+        public float value;
     }
 
     /// <summary>
@@ -246,11 +266,10 @@ public static class GlobalScript
     /// </summary>
     public static bool isLiens = true;
 
-
     /// <summary>
     /// XR表示モード
     /// </summary>
-    public static bool isXRMode = true;
+    public static bool isXRMode = false;
 
     /// <summary>
     /// VR用プレハブモード

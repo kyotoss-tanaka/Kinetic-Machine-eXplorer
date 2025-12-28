@@ -21,8 +21,6 @@ public class CanvasMenuSettingScript : CanvasMenuBaseScript
     private List<float> times = new();
     private List<float> fpss = new();
 
-    private HashSet<Material> allLineMaterials;
-
     #region 初期化処理
     /// <summary>
     /// 開始処理
@@ -93,10 +91,6 @@ public class CanvasMenuSettingScript : CanvasMenuBaseScript
     public void useLiensToggle_onValueChanged(bool value)
     {
         GlobalScript.isLiens = value;
-        foreach (Material mat in allLineMaterials)
-        {
-            mat.SetFloat("_Alpha", GlobalScript.isLiens ? 0.5f : 0f);
-        }
     }
 
     /// <summary>
@@ -119,14 +113,5 @@ public class CanvasMenuSettingScript : CanvasMenuBaseScript
     #endregion イベント
 
     #region メソッド
-    /// <summary>
-    /// イベントセット
-    /// </summary>
-    public virtual void SetEvents(HashSet<Material> allLineMaterials)
-    {
-        this.allLineMaterials = allLineMaterials;
-
-        SetEvents();
-    }
     #endregion メソッド
 }

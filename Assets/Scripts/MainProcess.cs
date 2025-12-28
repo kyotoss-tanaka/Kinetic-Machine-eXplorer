@@ -6,9 +6,10 @@ using UnityEngine;
 using UnityEngine.Networking;
 using UnityEngine.InputSystem;
 using Parameters;
-using Application =UnityEngine.Application;
-using Oculus.Interaction;
+using Application = UnityEngine.Application;
 using MongoDB.Driver;
+using Oculus.Interaction.Locomotion;
+
 
 
 #if UNITY_EDITOR
@@ -23,13 +24,9 @@ public class MainProcess : KssBaseScript
     List<GlobalScript.CbTagInfo> cbTags;
 
     private CameraController cameraController = null;
-    private RayInteractor rayInteractorL = null;
-    private RayInteractor rayInteractorR = null;
     private KssBaseScript selectedScript = null;
 
-    private GameObject xrCanvas = null;
-
-//    private bool isReloading = false;
+    //    private bool isReloading = false;
 
     private List<RaycastHit> raycastHits = new();
 
@@ -64,24 +61,13 @@ public class MainProcess : KssBaseScript
         {
             cameraController = cameraControllers[0];
         }
-        var rayInteractors = FindObjectsByType<RayInteractor>(FindObjectsSortMode.None).Where(d => d.transform.parent.parent.name == "LeftController").ToList();
-        if (rayInteractors.Count > 0)
-        {
-            rayInteractorL = rayInteractors[0];
-        }
-        rayInteractors = FindObjectsByType<RayInteractor>(FindObjectsSortMode.None).Where(d => d.transform.parent.parent.name == "RightController").ToList();
-        if (rayInteractors.Count > 0)
-        {
-            rayInteractorR = rayInteractors[0];
-        }
-
         // キャンバスロード
         if (GlobalScript.isXRMode)
         {
             var canvases = GlobalScript.LoadPrefabObject("Prefabs/Canvas", "XRCanvas");
             if (canvases.Count > 0)
             {
-                xrCanvas = Instantiate(canvases[0]);
+                var xrCanvas = Instantiate(canvases[0]);
                 xrCanvas.SetActive(false);
             }
         }
@@ -95,8 +81,6 @@ public class MainProcess : KssBaseScript
         InputManager.Instance.RegisterKey(Key.RightCtrl, HandleKey);
         InputManager.Instance.RegisterMouseDown(MouseDownEvent);
         InputManager.Instance.RegisterMouseUp(MouseUpEvent);
-        InputManager.Instance.RegisterTouchDown(TouchDownEvent);
-        InputManager.Instance.RegisterTouchUp(TouchUpEvent);
         InputManager.Instance.RegisterButtonDown(ButtonDownEvent);
         InputManager.Instance.RegisterButtonUp(ButtonUpEvent);
     }
@@ -109,8 +93,6 @@ public class MainProcess : KssBaseScript
         InputManager.Instance.UnregisterKey(Key.RightCtrl, HandleKey);
         InputManager.Instance.UnregisterMouseDown(MouseDownEvent);
         InputManager.Instance.UnregisterMouseUp(MouseUpEvent);
-        InputManager.Instance.UnregisterTouchDown(TouchDownEvent);
-        InputManager.Instance.UnregisterTouchUp(TouchUpEvent);
         InputManager.Instance.UnregisterButtonDown(ButtonDownEvent);
         InputManager.Instance.UnregisterButtonUp(ButtonUpEvent);
     }
@@ -271,31 +253,11 @@ public class MainProcess : KssBaseScript
     }
 
     /// <summary>
-    /// タッチダウンイベント
-    /// </summary>
-    /// <param name="button"></param>
-    private void TouchDownEvent(InputManager.TouchButton button, GameObject gameObject)
-    {
-    }
-
-    /// <summary>
-    /// タッチアップイベント
-    /// </summary>
-    /// <param name="button"></param>
-    private void TouchUpEvent(InputManager.TouchButton button, GameObject gameObject)
-    {
-    }
-
-    /// <summary>
     /// ボタンダウンイベント
     /// </summary>
     /// <param name="button"></param>
     private void ButtonDownEvent(InputManager.ControllerButton button)
     {
-        if (button == InputManager.ControllerButton.B)
-        {
-            xrCanvas.SetActive(!xrCanvas.activeSelf);
-        }
     }
 
     /// <summary>

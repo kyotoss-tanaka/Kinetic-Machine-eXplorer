@@ -1,6 +1,4 @@
 #if UNITY_EDITOR
-using Meta.WitAi.CallbackHandlers;
-using Meta.XR.Acoustics;
 using Parameters;
 using System;
 using System.Collections.Generic;

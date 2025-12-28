@@ -1,4 +1,3 @@
-using Oculus.Interaction;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -50,17 +49,21 @@ public class InputManager : BaseBehaviour
         A,
         B,
         X,
-        Y
+        Y,
+        HandTriggerL, 
+        HandTriggerR,
+        IndexTriggerL, 
+        IndexTriggerR,
+        StickUpL,
+        StickDownL,
+        StickLeftL,
+        StickRightL,
+        StickUpR,
+        StickDownR,
+        StickLeftR,
+        StickRightR,
+        Menu
     }
-
-    /// <summary>
-    /// 左タッチ
-    /// </summary>
-    private RayInteractor rayInteractorL = null;
-    /// <summary>
-    /// 右タッチ
-    /// </summary>
-    private RayInteractor rayInteractorR = null;
 
     /// <summary>
     /// キーボードイベント
@@ -124,16 +127,6 @@ public class InputManager : BaseBehaviour
     protected override void Awake()
     {
         base.Awake();
-        var rayInteractors = FindObjectsByType<RayInteractor>(FindObjectsSortMode.None).Where(d => d.transform.parent.parent.name == "LeftController").ToList();
-        if (rayInteractors.Count > 0)
-        {
-            rayInteractorL = rayInteractors[0];
-        }
-        rayInteractors = FindObjectsByType<RayInteractor>(FindObjectsSortMode.None).Where(d => d.transform.parent.parent.name == "RightController").ToList();
-        if (rayInteractors.Count > 0)
-        {
-            rayInteractorR = rayInteractors[0];
-        }
     }
 
     /// <summary>
@@ -238,9 +231,14 @@ public class InputManager : BaseBehaviour
     {
         if (GlobalScript.isXRMode)
         {
-            GlobalScript.rayLObject = rayInteractorL.Interactable == null ? null : rayInteractorL.Interactable.gameObject;
-            GlobalScript.rayRObject = rayInteractorR.Interactable == null ? null : rayInteractorR.Interactable.gameObject;
-            Debug.Log(GlobalScript.rayLObject);
+            if (OVRInput.GetDown(OVRInput.Button.Start))
+            {
+                buttonDownEvents?.Invoke(ControllerButton.Menu);
+            }
+            else if (OVRInput.GetUp(OVRInput.Button.Start))
+            {
+                buttonUpEvents?.Invoke(ControllerButton.Menu);
+            }
             if (OVRInput.GetDown(OVRInput.Button.PrimaryIndexTrigger, OVRInput.Controller.LTouch))
             {
                 touchDownEvents?.Invoke(TouchButton.LTouch, GlobalScript.rayLObject);
@@ -288,6 +286,102 @@ public class InputManager : BaseBehaviour
             else if (OVRInput.GetUp(OVRInput.Button.Four))
             {
                 buttonUpEvents?.Invoke(ControllerButton.Y);
+            }
+            if (OVRInput.GetDown(OVRInput.Button.PrimaryHandTrigger))
+            {
+                buttonDownEvents?.Invoke(ControllerButton.HandTriggerL);
+            }
+            else if (OVRInput.GetUp(OVRInput.Button.PrimaryHandTrigger))
+            {
+                buttonUpEvents?.Invoke(ControllerButton.HandTriggerL);
+            }
+            if (OVRInput.GetDown(OVRInput.Button.PrimaryIndexTrigger))
+            {
+                buttonDownEvents?.Invoke(ControllerButton.IndexTriggerL);
+            }
+            else if (OVRInput.GetUp(OVRInput.Button.PrimaryIndexTrigger))
+            {
+                buttonUpEvents?.Invoke(ControllerButton.IndexTriggerL);
+            }
+            if (OVRInput.GetDown(OVRInput.Button.SecondaryHandTrigger))
+            {
+                buttonDownEvents?.Invoke(ControllerButton.HandTriggerR);
+            }
+            else if (OVRInput.GetUp(OVRInput.Button.SecondaryHandTrigger))
+            {
+                buttonUpEvents?.Invoke(ControllerButton.HandTriggerR);
+            }
+            if (OVRInput.GetDown(OVRInput.Button.SecondaryIndexTrigger))
+            {
+                buttonDownEvents?.Invoke(ControllerButton.IndexTriggerR);
+            }
+            else if (OVRInput.GetUp(OVRInput.Button.SecondaryIndexTrigger))
+            {
+                buttonUpEvents?.Invoke(ControllerButton.IndexTriggerR);
+            }
+            if (OVRInput.GetDown(OVRInput.Button.PrimaryThumbstickUp))
+            {
+                buttonDownEvents?.Invoke(ControllerButton.StickUpL);
+            }
+            else if (OVRInput.GetUp(OVRInput.Button.PrimaryThumbstickUp))
+            {
+                buttonUpEvents?.Invoke(ControllerButton.StickUpL);
+            }
+            else if (OVRInput.GetDown(OVRInput.Button.PrimaryThumbstickDown))
+            {
+                buttonDownEvents?.Invoke(ControllerButton.StickDownL);
+            }
+            else if (OVRInput.GetUp(OVRInput.Button.PrimaryThumbstickDown))
+            {
+                buttonUpEvents?.Invoke(ControllerButton.StickDownL);
+            }
+            else if (OVRInput.GetDown(OVRInput.Button.PrimaryThumbstickLeft))
+            {
+                buttonDownEvents?.Invoke(ControllerButton.StickLeftL);
+            }
+            else if (OVRInput.GetUp(OVRInput.Button.PrimaryThumbstickLeft))
+            {
+                buttonUpEvents?.Invoke(ControllerButton.StickLeftL);
+            }
+            else if (OVRInput.GetDown(OVRInput.Button.PrimaryThumbstickRight))
+            {
+                buttonDownEvents?.Invoke(ControllerButton.StickRightL);
+            }
+            else if (OVRInput.GetUp(OVRInput.Button.PrimaryThumbstickRight))
+            {
+                buttonUpEvents?.Invoke(ControllerButton.StickRightL);
+            }
+            if (OVRInput.GetDown(OVRInput.Button.SecondaryThumbstickUp))
+            {
+                buttonDownEvents?.Invoke(ControllerButton.StickUpR);
+            }
+            else if (OVRInput.GetUp(OVRInput.Button.SecondaryThumbstickUp))
+            {
+                buttonUpEvents?.Invoke(ControllerButton.StickUpR);
+            }
+            else if (OVRInput.GetDown(OVRInput.Button.SecondaryThumbstickDown))
+            {
+                buttonDownEvents?.Invoke(ControllerButton.StickDownR);
+            }
+            else if (OVRInput.GetUp(OVRInput.Button.SecondaryThumbstickDown))
+            {
+                buttonUpEvents?.Invoke(ControllerButton.StickDownR);
+            }
+            else if (OVRInput.GetDown(OVRInput.Button.SecondaryThumbstickLeft))
+            {
+                buttonDownEvents?.Invoke(ControllerButton.StickLeftR);
+            }
+            else if (OVRInput.GetUp(OVRInput.Button.SecondaryThumbstickLeft))
+            {
+                buttonUpEvents?.Invoke(ControllerButton.StickLeftR);
+            }
+            else if (OVRInput.GetDown(OVRInput.Button.SecondaryThumbstickRight))
+            {
+                buttonDownEvents?.Invoke(ControllerButton.StickRightR);
+            }
+            else if (OVRInput.GetUp(OVRInput.Button.SecondaryThumbstickRight))
+            {
+                buttonUpEvents?.Invoke(ControllerButton.StickRightR);
             }
         }
     }

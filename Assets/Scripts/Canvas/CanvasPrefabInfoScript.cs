@@ -28,14 +28,6 @@ public class CanvasPrefabInfoScript : KssBaseScript
     // プレハブ
     private GameObject allPrefab;
 
-    // 設定
-    private List<UnitSetting> unitSettings = new();
-
-    /// <summary>
-    /// キャンバス
-    /// </summary>
-    private GameObject canvaObj;
-
     /// <summary>
     /// プレハブ
     /// </summary>
@@ -249,10 +241,6 @@ public class CanvasPrefabInfoScript : KssBaseScript
     /// </summary>
     private void CreateCanvas()
     {
-        // キャンバス取得
-        var canvasObjs = GameObject.FindObjectsByType<GameObject>(FindObjectsSortMode.None).Where(d => d.name == "Canvas").ToList();
-        canvaObj = canvasObjs.Count == 0 ? new GameObject("Canvas", typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster)) : canvasObjs[0];
-
     }
     #endregion メソッド
 }

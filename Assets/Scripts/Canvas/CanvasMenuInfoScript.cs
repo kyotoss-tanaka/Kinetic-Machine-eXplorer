@@ -21,8 +21,6 @@ public class CanvasMenuInfoScript : KssBaseScript
 
     // 設定
     private List<UnitSetting> unitSettings = new();
-    HashSet<Material> allMaterials;
-    HashSet<Material> allLineMaterials;
 
     /// <summary>
     /// キャンバス
@@ -153,12 +151,12 @@ public class CanvasMenuInfoScript : KssBaseScript
         }
 
         // 動作ユニット表示
-        settingScript.SetEvents(allLineMaterials);
+        settingScript.SetEvents();
         timeScript.SetEvents();
         directComScript.SetEvents();
         actUnitScript.SetEvents(unitSettings);
         assemblyScript.SetEvents(uiActUnitInfo);
-        sliceScript.SetEvents(allMaterials);
+        sliceScript.SetEvents();
 
         // 有効/無効切り替え
         btnInner.interactable = timeScript.IsEnabled;
@@ -171,11 +169,9 @@ public class CanvasMenuInfoScript : KssBaseScript
     /// <summary>
     /// イベントセット
     /// </summary>
-    public void SetEvents(List<UnitSetting> unitSettings, HashSet<Material> allMaterials, HashSet<Material> allLineMaterials)
+    public void SetEvents(List<UnitSetting> unitSettings)
     {
         this.unitSettings = unitSettings;
-        this.allMaterials = allMaterials;
-        this.allLineMaterials = allLineMaterials;
 
         Initialize();
     }
