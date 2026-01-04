@@ -52,6 +52,7 @@ public class ShapeScript : UseTagBaseScript
             };
         }
         // 親から設定されることを回避するためにセット
+        /* 不必要？
         foreach (var mesh in this.GetComponentsInChildren<MeshFilter>())
         {
             if (mesh.GetComponentInChildren<Collider>() == null)
@@ -61,5 +62,6 @@ public class ShapeScript : UseTagBaseScript
                 col.size = new Vector3();
             }
         }
+        */
     }
 }

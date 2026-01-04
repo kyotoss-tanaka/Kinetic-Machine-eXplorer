@@ -17,7 +17,7 @@ public class CanvasMenuInfoScript : KssBaseScript
     private GameObject globalSetting;
 
     // ÉJÉÅÉâ
-    private CameraController cameraController = null;
+    private Camera cameraController = null;
 
     // ê›íË
     private List<UnitSetting> unitSettings = new();
@@ -144,7 +144,7 @@ public class CanvasMenuInfoScript : KssBaseScript
     private void Initialize()
     {
         // ÉJÉÅÉâï\é¶
-        var cameraControllers = FindObjectsByType<CameraController>(FindObjectsSortMode.None).ToList();
+        var cameraControllers = FindObjectsByType<Camera>(FindObjectsSortMode.None).ToList();
         if (cameraControllers.Count > 0)
         {
             cameraController = cameraControllers[0];

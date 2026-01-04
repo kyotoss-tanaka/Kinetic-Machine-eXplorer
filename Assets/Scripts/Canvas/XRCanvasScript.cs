@@ -1,4 +1,5 @@
 using NUnit.Framework;
+using NUnit.Framework.Internal;
 using Oculus.Interaction.Input.Visuals;
 using Oculus.Interaction.Locomotion;
 using Parameters;
@@ -6,7 +7,6 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using TMPro;
-using Unity.VisualScripting;
 using UnityEngine;
 using UnityEngine.UI;
 using static KssBaseScript;
@@ -35,6 +35,11 @@ public class XRCanvasScript : CanvasBaseScript
     private FirstPersonLocomotor locomotor;
 
     /// <summary>
+    /// サブメニューレイキャンバス
+    /// </summary>
+    private GameObject rayCanvasInteraction;
+
+    /// <summary>
     /// 各種サブメニュー
     /// </summary>
     private GameObject subMenuSystem;
@@ -42,6 +47,7 @@ public class XRCanvasScript : CanvasBaseScript
     private GameObject subMenuTool;
     private GameObject subMenuPrefab;
     private GameObject subMenuSlice;
+    private GameObject subMenuAssembly;
     private List<GameObject> subMenus = new();
 
     /// <summary>
@@ -53,6 +59,7 @@ public class XRCanvasScript : CanvasBaseScript
     private Button btnMainTool;
     private Button btnMainPrefab;
     private Button btnMainSlice;
+    private Button btnMainAssembly;
     private Button btnSystemOutlline;
     private Button btnBodyNormal;
     private Button btnBodyUp;
@@ -72,6 +79,11 @@ public class XRCanvasScript : CanvasBaseScript
     /// </summary>
     private GlobalScript.ClipInfo.SlideMode sliceMode = GlobalScript.ClipInfo.SlideMode.X;
     private Slider sliderSlice;
+
+    /// <summary>
+    /// アセンブリ表示用テキスト
+    /// </summary>
+    private TextMeshProUGUI txtAssembly;
 
     /// <summary>
     /// 手オブジェクト
@@ -113,6 +125,21 @@ public class XRCanvasScript : CanvasBaseScript
     private List<GameObject> prefabs = new();
     private List<PrefabButtonInfo> btnPrefabs = new();
 
+    /// <summary>
+    /// 非表示オブジェクトリスト
+    /// </summary>
+    private List<GameObject> hideObjects = new();
+
+    /// <summary>
+    /// 選択オブジェクトリスト
+    /// </summary>
+    private List<GameObject> selectObjects = new();
+
+    /// <summary>
+    /// 選択オブジェクト
+    /// </summary>
+    private GameObject selectObject;
+
     protected override void Awake()
     {
         base.Awake();
@@ -122,6 +149,9 @@ public class XRCanvasScript : CanvasBaseScript
 
         // ロコモーター取得
         locomotor = FindObjectsByType<FirstPersonLocomotor>(FindObjectsSortMode.None).ToList()[0];
+
+        // サブメニューレイキャンバス取得
+        rayCanvasInteraction = GetComponentsInChildren<Transform>(true).Where(d => d.name == "ISDK_RayCanvasInteraction").ToList()[0].gameObject;
 
         // 手を取得
         var hands = FindObjectsByType<Transform>(FindObjectsSortMode.None).Where(d => d.name == "OVRControllerPrefab").ToList();
@@ -144,11 +174,13 @@ public class XRCanvasScript : CanvasBaseScript
         subMenuTool = GetComponentsInChildren<Transform>(true).Where(d => d.name == "SubMenu_Tool").ToList()[0].gameObject;
         subMenuPrefab = GetComponentsInChildren<Transform>(true).Where(d => d.name == "SubMenu_Prefab").ToList()[0].gameObject;
         subMenuSlice = GetComponentsInChildren<Transform>(true).Where(d => d.name == "SubMenu_Slice").ToList()[0].gameObject;
+        subMenuAssembly = GetComponentsInChildren<Transform>(true).Where(d => d.name == "SubMenu_Assembly").ToList()[0].gameObject;
         subMenus.Add(subMenuSystem);
         subMenus.Add(subMenuBody);
         subMenus.Add(subMenuTool);
         subMenus.Add(subMenuPrefab);
         subMenus.Add(subMenuSlice);
+        subMenus.Add(subMenuAssembly);
         SetMainButtonClick(subMenuSystem);
 
         // ツールボタン取得
@@ -159,11 +191,13 @@ public class XRCanvasScript : CanvasBaseScript
         btnMainTool = GetComponentsInChildren<Button>().Where(d => d.name == "BtnMainTool").ToList()[0];
         btnMainPrefab = GetComponentsInChildren<Button>().Where(d => d.name == "BtnMainPrefab").ToList()[0];
         btnMainSlice = GetComponentsInChildren<Button>().Where(d => d.name == "BtnMainSlice").ToList()[0];
+        btnMainAssembly = GetComponentsInChildren<Button>().Where(d => d.name == "BtnMainAssembly").ToList()[0];
         mainButtons.Add(btnMainSystem);
         mainButtons.Add(btnMainBody);
         mainButtons.Add(btnMainTool);
         mainButtons.Add(btnMainPrefab);
         mainButtons.Add(btnMainSlice);
+        mainButtons.Add(btnMainAssembly);
 
         btnSystemOutlline = GetComponentsInChildren<Button>(true).Where(d => d.name == "BtnSystemOutline").ToList()[0];
 
@@ -183,6 +217,8 @@ public class XRCanvasScript : CanvasBaseScript
 
         sliderSlice = GetComponentsInChildren<Slider>(true).Where(d => d.name == "SliderSlice").ToList()[0];
 
+        txtAssembly = GetComponentsInChildren<TextMeshProUGUI>(true).Where(d => d.name == "TxtAssembly").ToList()[0];
+
         // 各種ツールロード
         toolPlus = Instantiate(GlobalScript.LoadPrefabObject("Prefabs/Tools", "Screwdriver_Cross")[0]);
         toolMinus = Instantiate(GlobalScript.LoadPrefabObject("Prefabs/Tools", "Screwdriver_Single")[0]);
@@ -198,6 +234,7 @@ public class XRCanvasScript : CanvasBaseScript
 
         // イベント登録
         InputManager.Instance.RegisterButtonDown(ButtonDownEvent);
+        InputManager.Instance.RegisterTouchDown(TouchDownEvent);
     }
 
     /// <summary>
@@ -252,7 +289,6 @@ public class XRCanvasScript : CanvasBaseScript
     protected override void OnEnable()
     {
         base.OnEnable();
-        InputManager.Instance.RegisterTouchDown(TouchDownEvent);
 
         btnClose.onClick.AddListener(btnClose_onClick);
 
@@ -261,6 +297,7 @@ public class XRCanvasScript : CanvasBaseScript
         btnMainTool.onClick.AddListener(btnMainTool_onClick);
         btnMainPrefab.onClick.AddListener(btnMainPrefab_onClick);
         btnMainSlice.onClick.AddListener(btnMainSlice_onClick);
+        btnMainAssembly.onClick.AddListener(btnMainAssembly_onClick);
 
         btnSystemOutlline.onClick.AddListener(btnSystemOutlline_onClick);
 
@@ -292,7 +329,6 @@ public class XRCanvasScript : CanvasBaseScript
     protected override void OnDisable()
     {
         base.OnDisable();
-        InputManager.Instance.UnregisterTouchDown(TouchDownEvent);
 
         btnClose.onClick.RemoveAllListeners();
 
@@ -338,14 +374,167 @@ public class XRCanvasScript : CanvasBaseScript
 
     #region イベント
     /// <summary>
+    /// ボタンダウンイベント
+    /// </summary>
+    /// <param name="button"></param>
+    private void ButtonDownEvent(InputManager.ControllerButton button)
+    {
+        var clipDistance = 0f;
+        if (button == InputManager.ControllerButton.Menu)
+        {
+            gameObject.SetActive(!gameObject.activeSelf);
+        }
+        else if (button == InputManager.ControllerButton.X)
+        {
+            // 低いところへ
+            if (locomotor.IsCrouching)
+            {
+                SetBody(false, false);
+            }
+            else
+            {
+                SetBody(false, true);
+            }
+        }
+        else if (button == InputManager.ControllerButton.Y)
+        {
+            // 高いところへ
+            if (locomotor.IsCrouching)
+            {
+                SetBody(false, false);
+            }
+            else
+            {
+                SetBody(true, false);
+            }
+        }
+        else if (button == InputManager.ControllerButton.B)
+        {
+            // 表示/非表示
+            if (selectObject != null)
+            {
+                selectObject.SetActive(!selectObject.activeSelf);
+                if (!selectObject.activeSelf)
+                {
+                    hideObjects.Add(selectObject);
+                }
+                else
+                {
+                    hideObjects.Remove(selectObject);
+                }
+            }
+            else
+            {
+                if(hideObjects.Count > 0)
+                {
+                    hideObjects[hideObjects.Count - 1].SetActive(true);
+                    hideObjects.Remove(hideObjects[hideObjects.Count - 1]);
+                }
+            }
+        }
+        else if (button == InputManager.ControllerButton.HandTriggerL)
+        {
+            if (GlobalScript.clipInfo.isOn)
+            {
+                clipDistance = -0.25f;
+            }
+            else if (selectObjects.Count > 0)
+            {
+                var index = selectObjects.IndexOf(selectObject) + 1;
+                if (index < selectObjects.Count)
+                {
+                    selectObject = selectObjects[index];
+                    txtAssembly.text = selectObject.name;
+                    EventManager.Instance.ProcessObjectSelect(selectObject);
+                }
+            }
+        }
+        else if (button == InputManager.ControllerButton.HandTriggerR)
+        {
+            if (GlobalScript.clipInfo.isOn)
+            {
+                clipDistance = 0.25f;
+            }
+            else if (selectObjects.Count > 0)
+            {
+                var index = selectObjects.IndexOf(selectObject) - 1;
+                if (index >= 0)
+                {
+                    selectObject = selectObjects[index];
+                    txtAssembly.text = selectObject.name;
+                    EventManager.Instance.ProcessObjectSelect(selectObject);
+                }
+            }
+        }
+        else if (button == InputManager.ControllerButton.IndexTriggerL)
+        {
+            if (GlobalScript.clipInfo.isOn)
+            {
+                clipDistance = -0.01f;
+            }
+        }
+        else if (button == InputManager.ControllerButton.IndexTriggerR)
+        {
+            if (GlobalScript.clipInfo.isOn)
+            {
+                if (GlobalScript.clipInfo.isOn)
+                {
+                    clipDistance = 0.01f;
+                }
+            }
+        }
+
+        if (clipDistance != 0f)
+        {
+            GlobalScript.clipInfo.x += GlobalScript.clipInfo.mode == GlobalScript.ClipInfo.SlideMode.X ? clipDistance : 0;
+            GlobalScript.clipInfo.y += GlobalScript.clipInfo.mode == GlobalScript.ClipInfo.SlideMode.Y ? clipDistance : 0;
+            GlobalScript.clipInfo.z += GlobalScript.clipInfo.mode == GlobalScript.ClipInfo.SlideMode.Z ? clipDistance : 0;
+            GlobalScript.clipInfo.value += clipDistance;
+        }
+    }
+
+    /// <summary>
     /// トリガボタンダウンイベント
     /// </summary>
     /// <param name="button"></param>
     /// <param name="gameObject"></param>
     private void TouchDownEvent(InputManager.TouchButton button, GameObject gameObject)
     {
+        selectObject = null;
+        txtAssembly.text = "";
+        selectObjects.Clear();
         isLeftDown = button == InputManager.TouchButton.LTouch;
         isRightDown = button == InputManager.TouchButton.RTouch;
+        if (isRightDown)
+        {
+            if (gameObject != null)
+            {
+                var isMotion = gameObject.GetComponentInParent<AxisMotionBase>() != null;
+                for (var obj = gameObject.transform; obj != null; obj = obj.transform.parent)
+                {
+                    if (isMotion)
+                    {
+                        if (obj.GetComponent<AxisMotionBase>() != null)
+                        {
+                            selectObjects.Add(obj.gameObject);
+                        }
+                    }
+                    else
+                    {
+                        if (obj.GetComponent<UnityEngine.Pixyz.UnitySDK.Components.Metadata>() != null)
+                        {
+                            selectObjects.Add(obj.gameObject);
+                        }
+                    }
+                }
+                if (selectObjects.Count > 0)
+                {
+                    selectObject = selectObjects[0];
+                    txtAssembly.text = selectObject.name;
+                }
+            }
+        }
+        EventManager.Instance.ProcessObjectSelect(selectObject);
     }
 
     /// <summary>
@@ -418,6 +607,15 @@ public class XRCanvasScript : CanvasBaseScript
     }
 
     /// <summary>
+    /// 断面表示クリック
+    /// </summary>
+    private void btnMainAssembly_onClick()
+    {
+        SetMainButtonColor(btnMainAssembly);
+        SetMainButtonClick(subMenuAssembly);
+    }
+
+    /// <summary>
     /// ボタンの色をセットする
     /// </summary>
     /// <param name="on"></param>
@@ -435,6 +633,18 @@ public class XRCanvasScript : CanvasBaseScript
             {
                 button.GetComponent<Image>().color = new Color(1 / 2f, 200 / 255f, 1f, 1 / 2f);
             }
+        }
+        // レイキャストの範囲変更
+        if (select == btnMainAssembly)
+        {
+            ((RectTransform)rayCanvasInteraction.transform).sizeDelta = new Vector2(120, ((RectTransform)transform).sizeDelta.y);
+        }
+        else
+        {
+            ((RectTransform)rayCanvasInteraction.transform).sizeDelta = new Vector2(((RectTransform)transform).sizeDelta.x, ((RectTransform)transform).sizeDelta.y);
+            // 選択解除
+            EventManager.Instance.ProcessObjectSelect(null);
+            txtAssembly.text = "";
         }
     }
 
@@ -759,81 +969,6 @@ public class XRCanvasScript : CanvasBaseScript
         GlobalScript.clipInfo.value = value;
     }
     #endregion サブメニュー：断面表示
-
-    /// <summary>
-    /// ボタンダウンイベント
-    /// </summary>
-    /// <param name="button"></param>
-    private void ButtonDownEvent(InputManager.ControllerButton button)
-    {
-        var clipDistance = 0f;
-        if (button == InputManager.ControllerButton.Menu)
-        {
-            gameObject.SetActive(!gameObject.activeSelf);
-        }
-        else if (button == InputManager.ControllerButton.X)
-        {
-            // 低いところへ
-            if (locomotor.IsCrouching)
-            {
-                SetBody(false, false);
-            }
-            else
-            {
-                SetBody(false, true);
-            }
-        }
-        else if (button == InputManager.ControllerButton.Y)
-        {
-            // 高いところへ
-            if (locomotor.IsCrouching)
-            {
-                SetBody(false, false);
-            }
-            else
-            {
-                SetBody(true, false);
-            }
-        }
-        else if (button == InputManager.ControllerButton.HandTriggerL)
-        {
-            if (GlobalScript.clipInfo.isOn)
-            {
-                clipDistance = -0.25f;
-            }
-        }
-        else if (button == InputManager.ControllerButton.HandTriggerR)
-        {
-            if (GlobalScript.clipInfo.isOn)
-            {
-                clipDistance = 0.25f;
-            }
-        }
-        else if (button == InputManager.ControllerButton.IndexTriggerL)
-        {
-            if (GlobalScript.clipInfo.isOn)
-            {
-                clipDistance = -0.01f;
-            }
-        }
-        else if (button == InputManager.ControllerButton.IndexTriggerR)
-        {
-            if (GlobalScript.clipInfo.isOn)
-            {
-                if (GlobalScript.clipInfo.isOn)
-                {
-                    clipDistance = 0.01f;
-                }
-            }
-        }
-        if(clipDistance != 0f)
-        {
-            GlobalScript.clipInfo.x += GlobalScript.clipInfo.mode == GlobalScript.ClipInfo.SlideMode.X ? clipDistance : 0;
-            GlobalScript.clipInfo.y += GlobalScript.clipInfo.mode == GlobalScript.ClipInfo.SlideMode.Y ? clipDistance : 0;
-            GlobalScript.clipInfo.z += GlobalScript.clipInfo.mode == GlobalScript.ClipInfo.SlideMode.Z ? clipDistance : 0;
-            GlobalScript.clipInfo.value += clipDistance;
-        }
-    }
     #endregion イベント
 
     #region メソッド

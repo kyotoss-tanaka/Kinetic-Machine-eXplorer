@@ -1,6 +1,9 @@
+using Oculus.Interaction;
+using Oculus.Interaction.Input;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Unity.VisualScripting;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.InputSystem.Controls;
@@ -122,11 +125,45 @@ public class InputManager : BaseBehaviour
     private bool isInsideScreen;
 
     /// <summary>
+    /// RayInteractor
+    /// </summary>
+    private RayInteractor rayHandL;
+    private RayInteractor rayHandR;
+    private RayInteractor rayControllerL;
+    private RayInteractor rayControllerR;
+
+    /// <summary>
     /// 起床イベント
     /// </summary>
     protected override void Awake()
     {
         base.Awake();
+
+        // 各種RayInteractor取得
+        var handRays = FindObjectsByType<RayInteractor>(FindObjectsSortMode.None).Where(d => d.name == "HandRayInteractor");
+        foreach (var handRay in handRays)
+        {
+            if (handRay.gameObject.GetComponentsInParent<Transform>().Where(d => d.name == "LeftInteractions").Count() > 0)
+            {
+                rayHandL = handRay;
+            }
+            else if (handRay.gameObject.GetComponentsInParent<Transform>().Where(d => d.name == "RightInteractions").Count() > 0)
+            {
+                rayHandR = handRay;
+            }
+        }
+        var controllerRays = FindObjectsByType<RayInteractor>(FindObjectsSortMode.None).Where(d => d.name == "ControllerRayInteractor");
+        foreach (var controllerRay in controllerRays)
+        {
+            if (controllerRay.gameObject.GetComponentsInParent<Transform>().Where(d => d.name == "LeftInteractions").Count() > 0)
+            {
+                rayControllerL = controllerRay;
+            }
+            else if (controllerRay.gameObject.GetComponentsInParent<Transform>().Where(d => d.name == "RightInteractions").Count() > 0)
+            {
+                rayControllerR = controllerRay;
+            }
+        }
     }
 
     /// <summary>
@@ -142,6 +179,9 @@ public class InputManager : BaseBehaviour
 
         // マウスアップデート
         MouseUpdate();
+
+        // ボタンアップデート
+        ButtonUpdate();
 
         // タッチアップデート
         TouchUpdate();
@@ -220,14 +260,13 @@ public class InputManager : BaseBehaviour
     }
 
     /// <summary>
-    /// タッチアップデート
-    /// ボタン
+    /// ボタンアップデート
     ///    A Button.One
     ///    B Button.Two
     ///    X Button.Three
     ///    Y Button.Four
     /// </summary>
-    private void TouchUpdate()
+    private void ButtonUpdate()
     {
         if (GlobalScript.isXRMode)
         {
@@ -238,22 +277,6 @@ public class InputManager : BaseBehaviour
             else if (OVRInput.GetUp(OVRInput.Button.Start))
             {
                 buttonUpEvents?.Invoke(ControllerButton.Menu);
-            }
-            if (OVRInput.GetDown(OVRInput.Button.PrimaryIndexTrigger, OVRInput.Controller.LTouch))
-            {
-                touchDownEvents?.Invoke(TouchButton.LTouch, GlobalScript.rayLObject);
-            }
-            else if (OVRInput.GetUp(OVRInput.Button.PrimaryIndexTrigger, OVRInput.Controller.LTouch))
-            {
-                touchUpEvents?.Invoke(TouchButton.LTouch, GlobalScript.rayLObject);
-            }
-            if (OVRInput.GetDown(OVRInput.Button.PrimaryIndexTrigger, OVRInput.Controller.RTouch))
-            {
-                touchDownEvents?.Invoke(TouchButton.RTouch, GlobalScript.rayRObject);
-            }
-            else if (OVRInput.GetUp(OVRInput.Button.PrimaryIndexTrigger, OVRInput.Controller.RTouch))
-            {
-                touchUpEvents?.Invoke(TouchButton.RTouch, GlobalScript.rayRObject);
             }
             if (OVRInput.GetDown(OVRInput.Button.One))
             {
@@ -383,6 +406,53 @@ public class InputManager : BaseBehaviour
             {
                 buttonUpEvents?.Invoke(ControllerButton.StickRightR);
             }
+        }
+    }
+
+    /// <summary>
+    /// タッチアップデート
+    /// </summary>
+    private void TouchUpdate()
+    {
+        if (rayHandL.HasCandidate)
+        {
+            GlobalScript.rayLObject = rayHandL.Candidate.gameObject;
+        }
+        else if (rayControllerL.HasCandidate)
+        {
+            GlobalScript.rayLObject = rayControllerL.Candidate.gameObject;
+        }
+        else
+        {
+            GlobalScript.rayLObject = null;
+        }
+        if (rayHandR.HasCandidate)
+        {
+            GlobalScript.rayRObject = rayHandR.Candidate.gameObject;
+        }
+        else if (rayControllerR.HasCandidate)
+        {
+            GlobalScript.rayRObject = rayControllerR.Candidate.gameObject;
+        }
+        else
+        {
+            GlobalScript.rayRObject = null;
+        }
+        if (OVRInput.GetDown(OVRInput.Button.PrimaryIndexTrigger, OVRInput.Controller.LTouch))
+        {
+            touchDownEvents?.Invoke(TouchButton.LTouch, GlobalScript.rayLObject);
+        }
+        else if (OVRInput.GetUp(OVRInput.Button.PrimaryIndexTrigger, OVRInput.Controller.LTouch))
+        {
+            touchUpEvents?.Invoke(TouchButton.LTouch, GlobalScript.rayLObject);
+        }
+        if (OVRInput.GetDown(OVRInput.Button.PrimaryIndexTrigger, OVRInput.Controller.RTouch))
+        {
+            touchDownEvents?.Invoke(TouchButton.RTouch, GlobalScript.rayRObject);
+        }
+        else if (OVRInput.GetUp(OVRInput.Button.PrimaryIndexTrigger, OVRInput.Controller.RTouch))
+        {
+            touchUpEvents?.Invoke(TouchButton.RTouch, GlobalScript.rayRObject);
         }
     }
 

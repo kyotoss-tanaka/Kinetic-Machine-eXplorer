@@ -27,8 +27,10 @@ public class CanvasMenuAssemblyScript : CanvasMenuBaseScript
 
     private CanvasMenuInfoScript menuInfoScript = null;
 
-    private Dictionary<GameObject, Dictionary<Renderer, Material[]>> selectedRenderer = new();
-    private List<Material> selectedMaterials = new();
+    private Dictionary<GameObject, Renderer> selectedRenderer = new();
+
+    private readonly int ColorId = Shader.PropertyToID("_Color");
+    private readonly int AlphaId = Shader.PropertyToID("_Alpha");
 
     /// <summary>
     /// メインプロセス
@@ -442,25 +444,13 @@ public class CanvasMenuAssemblyScript : CanvasMenuBaseScript
     /// </summary>
     private void ClearSelected()
     {
-        selectedMaterials.RemoveAll(d => d == null);
-        foreach (var mat in selectedMaterials)
-        {
-            if (!mat.IsDestroyed())
-            {
-                Destroy(mat);
-            }
-        }
-        selectedMaterials.Clear();
         foreach (var gameObject in selectedRenderer)
         {
             if (!gameObject.Key.IsUnityNull())
             {
                 foreach (var renderer in gameObject.Key.GetComponentsInChildren<Renderer>())
                 {
-                    if (selectedRenderer[gameObject.Key].ContainsKey(renderer))
-                    {
-                        renderer.sharedMaterials = selectedRenderer[gameObject.Key][renderer];
-                    }
+                        renderer.SetPropertyBlock(null);
                 }
             }
         }
@@ -479,23 +469,15 @@ public class CanvasMenuAssemblyScript : CanvasMenuBaseScript
         if (gameObject != null)
         {
             // 再選択
-            selectedRenderer[gameObject] = new Dictionary<Renderer, Material[]>();
             var renderers = gameObject.GetComponentsInChildren<Renderer>().ToList();
             foreach (var renderer in renderers)
             {
-                selectedRenderer[gameObject][renderer] = renderer.sharedMaterials;
-                foreach (Material mat in renderer.materials)
-                {
-                    if (mat != null)
-                    {
-                        if (mat.name.Contains("Default Line Material"))
-                        {
-                            mat.SetColor("_Color", new Color(1, 1 / 3f, 0));
-                            mat.SetFloat("_Alpha", 1f);
-                            selectedMaterials.Add(mat);
-                        }
-                    }
-                }
+                selectedRenderer[gameObject] = renderer;
+                MaterialPropertyBlock block = new MaterialPropertyBlock();
+                block.SetColor(ColorId, new Color(1f, 1f / 3f, 0f));
+                block.SetFloat(AlphaId, 1f);
+
+                renderer.SetPropertyBlock(block);
             }
         }
         yield return null;

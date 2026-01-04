@@ -1,5 +1,7 @@
 using MongoDB.Driver;
 using NUnit.Framework;
+using Oculus.Interaction;
+using Oculus.Interaction.Surfaces;
 using Org.BouncyCastle.Ocsp;
 using System;
 using System.Collections;
@@ -137,7 +139,7 @@ namespace Parameters
             transparentDanmen = Shader.Find("Shader Graphs/TransparentDANMEN");
 
             // スライス用プレーン取得
-            slicePlane = GameObject.FindObjectsByType<GameObject>(FindObjectsSortMode.None).Where(d => d.name == "SlicePlane").ToList()[0];
+            slicePlane = FindObjectsByType<GameObject>(FindObjectsSortMode.None).Where(d => d.name == "SlicePlane").ToList()[0];
 
             isLines = GlobalScript.isLiens;
             clipInfo.isOn = GlobalScript.clipInfo.isOn;
@@ -598,45 +600,10 @@ namespace Parameters
                         }
                     }
                 }
-                // シェーダー適用
+                // コライダーセット
                 {
-                    var renderers = new List<Renderer>();
-                    renderers.AddRange(prefabObj.GetComponentsInChildren<Renderer>().ToList());
-                    /*
-                    // プレハブファイルに選択用コライダーセット
-                    foreach (Renderer renderer in renderers)
-                    {
-                        if (renderer.GetComponent<Collider>() == null)
-                        {
-                            var bc = renderer.AddComponent<BoxCollider>();
-                            bc.isTrigger = true;
-                        }
-                    }
-                    */
-                    // 動作オブジェクト追加
-                    foreach (var m in movableObjs)
-                    {
-                        renderers.AddRange(m.obj.GetComponentsInChildren<Renderer>().ToList());
-                    }
-
-                    // BoxCollider作成
-                    CreateBoxCollider(renderers);
-                    /*
-                    foreach (Renderer renderer in renderers)
-                    {
-                        if (!GlobalScript.isVRPrefab)
-                        {
-                            if (renderer.GetComponent<Collider>() == null)
-                            {
-                                var bc = renderer.AddComponent<BoxCollider>();
-                                bc.isTrigger = true;
-                            }
-                        }
-                    }
-                    */
-
                     //  描画エリア取得
-                    renderers = prefabObj.GetComponentsInChildren<Renderer>().ToList();
+                    var renderers = prefabObj.GetComponentsInChildren<Renderer>().ToList();
                     if (renderers.Count > 0)
                     {
                         // 最初のRendererで初期化
@@ -647,6 +614,17 @@ namespace Parameters
                             GlobalScript.clipInfo.bounds.Encapsulate(rend.bounds);
                         }
                     }
+                    // BoxCollider作成(プレハブオブジェクトとセンサは反応させない)
+                    CreateBoxCollider(renderers, true);
+
+                    // 動作オブジェクト追加
+                    renderers = new();
+                    foreach (var m in movableObjs)
+                    {
+                        renderers.AddRange(m.obj.GetComponentsInChildren<Renderer>().ToList());
+                    }
+                    // BoxCollider作成
+                    CreateBoxCollider(renderers, false);
                 }
 
                 // デバッグ情報
@@ -1326,7 +1304,7 @@ namespace Parameters
         /// コライダー作成
         /// </summary>
         /// <param name="root"></param>
-        private void CreateBoxCollider(List<Renderer> meshRenderers)
+        private void CreateBoxCollider(List<Renderer> meshRenderers, bool ignore = false)
         {
             foreach (var mr in meshRenderers)
             {
@@ -1346,24 +1324,25 @@ namespace Parameters
                 {
                     if (mr.GetComponent<Collider>() == null)
                     {
-                        mr.gameObject.AddComponent<IgnoreCollisionScript>();
-                        var box = mr.gameObject.AddComponent<BoxCollider>();
-
+                        if (ignore)
+                        {
+                            // センサ当たり判定無視スクリプト追加
+                            mr.gameObject.AddComponent<IgnoreCollisionScript>();
+                        }
                         // ローカル bounds を使用
                         Bounds b = mf.sharedMesh.bounds;
-
+                        var box = mr.gameObject.AddComponent<BoxCollider>();
                         box.center = b.center;
                         box.size = b.size;
                         box.isTrigger = true;
-                        /*
-                        // Rigidbody 設定（VR向け）
-                        var rb = mr.GetComponent<Rigidbody>();
-                        if (rb == null)
-                            rb = mr.gameObject.AddComponent<Rigidbody>();
-
-                        rb.isKinematic = true;
-                        rb.useGravity = false;
-                        */
+                        if (GlobalScript.isXRMode)
+                        {
+                            // XRモード時はインタラクタ追加
+                            var cs = mr.gameObject.AddComponent<ColliderSurface>();
+                            cs.InjectCollider(box);
+                            var ray = mr.gameObject.AddComponent<RayInteractable>();
+                            ray.InjectSurface(cs);
+                        }
                     }
                 }
             }
