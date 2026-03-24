@@ -146,10 +146,12 @@ public class InputManager : BaseBehaviour
             if (handRay.gameObject.GetComponentsInParent<Transform>().Where(d => d.name == "LeftInteractions").Count() > 0)
             {
                 rayHandL = handRay;
+                rayHandL.WhenStateChanged += rayHandL_WhenStateChanged;
             }
             else if (handRay.gameObject.GetComponentsInParent<Transform>().Where(d => d.name == "RightInteractions").Count() > 0)
             {
                 rayHandR = handRay;
+                rayHandR.WhenStateChanged += rayHandR_WhenStateChanged;
             }
         }
         var controllerRays = FindObjectsByType<RayInteractor>(FindObjectsSortMode.None).Where(d => d.name == "ControllerRayInteractor");
@@ -158,10 +160,12 @@ public class InputManager : BaseBehaviour
             if (controllerRay.gameObject.GetComponentsInParent<Transform>().Where(d => d.name == "LeftInteractions").Count() > 0)
             {
                 rayControllerL = controllerRay;
+                rayControllerL.WhenStateChanged += RayControllerL_WhenStateChanged;
             }
             else if (controllerRay.gameObject.GetComponentsInParent<Transform>().Where(d => d.name == "RightInteractions").Count() > 0)
             {
                 rayControllerR = controllerRay;
+                rayControllerR.WhenStateChanged += RayControllerR_WhenStateChanged;
             }
         }
     }
@@ -180,11 +184,14 @@ public class InputManager : BaseBehaviour
         // マウスアップデート
         MouseUpdate();
 
-        // ボタンアップデート
-        ButtonUpdate();
+        if (GlobalScript.isXRMode)
+        {
+            // ボタンアップデート
+            ButtonUpdate();
 
-        // タッチアップデート
-        TouchUpdate();
+            // タッチアップデート
+            TouchUpdate();
+        }
     }
 
     /// <summary>
@@ -268,144 +275,141 @@ public class InputManager : BaseBehaviour
     /// </summary>
     private void ButtonUpdate()
     {
-        if (GlobalScript.isXRMode)
+        if (OVRInput.GetDown(OVRInput.Button.Start))
         {
-            if (OVRInput.GetDown(OVRInput.Button.Start))
-            {
-                buttonDownEvents?.Invoke(ControllerButton.Menu);
-            }
-            else if (OVRInput.GetUp(OVRInput.Button.Start))
-            {
-                buttonUpEvents?.Invoke(ControllerButton.Menu);
-            }
-            if (OVRInput.GetDown(OVRInput.Button.One))
-            {
-                buttonDownEvents?.Invoke(ControllerButton.A);
-            }
-            else if (OVRInput.GetUp(OVRInput.Button.One))
-            {
-                buttonUpEvents?.Invoke(ControllerButton.A);
-            }
-            if (OVRInput.GetDown(OVRInput.Button.Two))
-            {
-                buttonDownEvents?.Invoke(ControllerButton.B);
-            }
-            else if (OVRInput.GetUp(OVRInput.Button.Two))
-            {
-                buttonUpEvents?.Invoke(ControllerButton.B);
-            }
-            if (OVRInput.GetDown(OVRInput.Button.Three))
-            {
-                buttonDownEvents?.Invoke(ControllerButton.X);
-            }
-            else if (OVRInput.GetUp(OVRInput.Button.Three))
-            {
-                buttonUpEvents?.Invoke(ControllerButton.X);
-            }
-            if (OVRInput.GetDown(OVRInput.Button.Four))
-            {
-                buttonDownEvents?.Invoke(ControllerButton.Y);
-            }
-            else if (OVRInput.GetUp(OVRInput.Button.Four))
-            {
-                buttonUpEvents?.Invoke(ControllerButton.Y);
-            }
-            if (OVRInput.GetDown(OVRInput.Button.PrimaryHandTrigger))
-            {
-                buttonDownEvents?.Invoke(ControllerButton.HandTriggerL);
-            }
-            else if (OVRInput.GetUp(OVRInput.Button.PrimaryHandTrigger))
-            {
-                buttonUpEvents?.Invoke(ControllerButton.HandTriggerL);
-            }
-            if (OVRInput.GetDown(OVRInput.Button.PrimaryIndexTrigger))
-            {
-                buttonDownEvents?.Invoke(ControllerButton.IndexTriggerL);
-            }
-            else if (OVRInput.GetUp(OVRInput.Button.PrimaryIndexTrigger))
-            {
-                buttonUpEvents?.Invoke(ControllerButton.IndexTriggerL);
-            }
-            if (OVRInput.GetDown(OVRInput.Button.SecondaryHandTrigger))
-            {
-                buttonDownEvents?.Invoke(ControllerButton.HandTriggerR);
-            }
-            else if (OVRInput.GetUp(OVRInput.Button.SecondaryHandTrigger))
-            {
-                buttonUpEvents?.Invoke(ControllerButton.HandTriggerR);
-            }
-            if (OVRInput.GetDown(OVRInput.Button.SecondaryIndexTrigger))
-            {
-                buttonDownEvents?.Invoke(ControllerButton.IndexTriggerR);
-            }
-            else if (OVRInput.GetUp(OVRInput.Button.SecondaryIndexTrigger))
-            {
-                buttonUpEvents?.Invoke(ControllerButton.IndexTriggerR);
-            }
-            if (OVRInput.GetDown(OVRInput.Button.PrimaryThumbstickUp))
-            {
-                buttonDownEvents?.Invoke(ControllerButton.StickUpL);
-            }
-            else if (OVRInput.GetUp(OVRInput.Button.PrimaryThumbstickUp))
-            {
-                buttonUpEvents?.Invoke(ControllerButton.StickUpL);
-            }
-            else if (OVRInput.GetDown(OVRInput.Button.PrimaryThumbstickDown))
-            {
-                buttonDownEvents?.Invoke(ControllerButton.StickDownL);
-            }
-            else if (OVRInput.GetUp(OVRInput.Button.PrimaryThumbstickDown))
-            {
-                buttonUpEvents?.Invoke(ControllerButton.StickDownL);
-            }
-            else if (OVRInput.GetDown(OVRInput.Button.PrimaryThumbstickLeft))
-            {
-                buttonDownEvents?.Invoke(ControllerButton.StickLeftL);
-            }
-            else if (OVRInput.GetUp(OVRInput.Button.PrimaryThumbstickLeft))
-            {
-                buttonUpEvents?.Invoke(ControllerButton.StickLeftL);
-            }
-            else if (OVRInput.GetDown(OVRInput.Button.PrimaryThumbstickRight))
-            {
-                buttonDownEvents?.Invoke(ControllerButton.StickRightL);
-            }
-            else if (OVRInput.GetUp(OVRInput.Button.PrimaryThumbstickRight))
-            {
-                buttonUpEvents?.Invoke(ControllerButton.StickRightL);
-            }
-            if (OVRInput.GetDown(OVRInput.Button.SecondaryThumbstickUp))
-            {
-                buttonDownEvents?.Invoke(ControllerButton.StickUpR);
-            }
-            else if (OVRInput.GetUp(OVRInput.Button.SecondaryThumbstickUp))
-            {
-                buttonUpEvents?.Invoke(ControllerButton.StickUpR);
-            }
-            else if (OVRInput.GetDown(OVRInput.Button.SecondaryThumbstickDown))
-            {
-                buttonDownEvents?.Invoke(ControllerButton.StickDownR);
-            }
-            else if (OVRInput.GetUp(OVRInput.Button.SecondaryThumbstickDown))
-            {
-                buttonUpEvents?.Invoke(ControllerButton.StickDownR);
-            }
-            else if (OVRInput.GetDown(OVRInput.Button.SecondaryThumbstickLeft))
-            {
-                buttonDownEvents?.Invoke(ControllerButton.StickLeftR);
-            }
-            else if (OVRInput.GetUp(OVRInput.Button.SecondaryThumbstickLeft))
-            {
-                buttonUpEvents?.Invoke(ControllerButton.StickLeftR);
-            }
-            else if (OVRInput.GetDown(OVRInput.Button.SecondaryThumbstickRight))
-            {
-                buttonDownEvents?.Invoke(ControllerButton.StickRightR);
-            }
-            else if (OVRInput.GetUp(OVRInput.Button.SecondaryThumbstickRight))
-            {
-                buttonUpEvents?.Invoke(ControllerButton.StickRightR);
-            }
+            buttonDownEvents?.Invoke(ControllerButton.Menu);
+        }
+        else if (OVRInput.GetUp(OVRInput.Button.Start))
+        {
+            buttonUpEvents?.Invoke(ControllerButton.Menu);
+        }
+        if (OVRInput.GetDown(OVRInput.Button.One))
+        {
+            buttonDownEvents?.Invoke(ControllerButton.A);
+        }
+        else if (OVRInput.GetUp(OVRInput.Button.One))
+        {
+            buttonUpEvents?.Invoke(ControllerButton.A);
+        }
+        if (OVRInput.GetDown(OVRInput.Button.Two))
+        {
+            buttonDownEvents?.Invoke(ControllerButton.B);
+        }
+        else if (OVRInput.GetUp(OVRInput.Button.Two))
+        {
+            buttonUpEvents?.Invoke(ControllerButton.B);
+        }
+        if (OVRInput.GetDown(OVRInput.Button.Three))
+        {
+            buttonDownEvents?.Invoke(ControllerButton.X);
+        }
+        else if (OVRInput.GetUp(OVRInput.Button.Three))
+        {
+            buttonUpEvents?.Invoke(ControllerButton.X);
+        }
+        if (OVRInput.GetDown(OVRInput.Button.Four))
+        {
+            buttonDownEvents?.Invoke(ControllerButton.Y);
+        }
+        else if (OVRInput.GetUp(OVRInput.Button.Four))
+        {
+            buttonUpEvents?.Invoke(ControllerButton.Y);
+        }
+        if (OVRInput.GetDown(OVRInput.Button.PrimaryHandTrigger))
+        {
+            buttonDownEvents?.Invoke(ControllerButton.HandTriggerL);
+        }
+        else if (OVRInput.GetUp(OVRInput.Button.PrimaryHandTrigger))
+        {
+            buttonUpEvents?.Invoke(ControllerButton.HandTriggerL);
+        }
+        if (OVRInput.GetDown(OVRInput.Button.PrimaryIndexTrigger))
+        {
+            buttonDownEvents?.Invoke(ControllerButton.IndexTriggerL);
+        }
+        else if (OVRInput.GetUp(OVRInput.Button.PrimaryIndexTrigger))
+        {
+            buttonUpEvents?.Invoke(ControllerButton.IndexTriggerL);
+        }
+        if (OVRInput.GetDown(OVRInput.Button.SecondaryHandTrigger))
+        {
+            buttonDownEvents?.Invoke(ControllerButton.HandTriggerR);
+        }
+        else if (OVRInput.GetUp(OVRInput.Button.SecondaryHandTrigger))
+        {
+            buttonUpEvents?.Invoke(ControllerButton.HandTriggerR);
+        }
+        if (OVRInput.GetDown(OVRInput.Button.SecondaryIndexTrigger))
+        {
+            buttonDownEvents?.Invoke(ControllerButton.IndexTriggerR);
+        }
+        else if (OVRInput.GetUp(OVRInput.Button.SecondaryIndexTrigger))
+        {
+            buttonUpEvents?.Invoke(ControllerButton.IndexTriggerR);
+        }
+        if (OVRInput.GetDown(OVRInput.Button.PrimaryThumbstickUp))
+        {
+            buttonDownEvents?.Invoke(ControllerButton.StickUpL);
+        }
+        else if (OVRInput.GetUp(OVRInput.Button.PrimaryThumbstickUp))
+        {
+            buttonUpEvents?.Invoke(ControllerButton.StickUpL);
+        }
+        else if (OVRInput.GetDown(OVRInput.Button.PrimaryThumbstickDown))
+        {
+            buttonDownEvents?.Invoke(ControllerButton.StickDownL);
+        }
+        else if (OVRInput.GetUp(OVRInput.Button.PrimaryThumbstickDown))
+        {
+            buttonUpEvents?.Invoke(ControllerButton.StickDownL);
+        }
+        else if (OVRInput.GetDown(OVRInput.Button.PrimaryThumbstickLeft))
+        {
+            buttonDownEvents?.Invoke(ControllerButton.StickLeftL);
+        }
+        else if (OVRInput.GetUp(OVRInput.Button.PrimaryThumbstickLeft))
+        {
+            buttonUpEvents?.Invoke(ControllerButton.StickLeftL);
+        }
+        else if (OVRInput.GetDown(OVRInput.Button.PrimaryThumbstickRight))
+        {
+            buttonDownEvents?.Invoke(ControllerButton.StickRightL);
+        }
+        else if (OVRInput.GetUp(OVRInput.Button.PrimaryThumbstickRight))
+        {
+            buttonUpEvents?.Invoke(ControllerButton.StickRightL);
+        }
+        if (OVRInput.GetDown(OVRInput.Button.SecondaryThumbstickUp))
+        {
+            buttonDownEvents?.Invoke(ControllerButton.StickUpR);
+        }
+        else if (OVRInput.GetUp(OVRInput.Button.SecondaryThumbstickUp))
+        {
+            buttonUpEvents?.Invoke(ControllerButton.StickUpR);
+        }
+        else if (OVRInput.GetDown(OVRInput.Button.SecondaryThumbstickDown))
+        {
+            buttonDownEvents?.Invoke(ControllerButton.StickDownR);
+        }
+        else if (OVRInput.GetUp(OVRInput.Button.SecondaryThumbstickDown))
+        {
+            buttonUpEvents?.Invoke(ControllerButton.StickDownR);
+        }
+        else if (OVRInput.GetDown(OVRInput.Button.SecondaryThumbstickLeft))
+        {
+            buttonDownEvents?.Invoke(ControllerButton.StickLeftR);
+        }
+        else if (OVRInput.GetUp(OVRInput.Button.SecondaryThumbstickLeft))
+        {
+            buttonUpEvents?.Invoke(ControllerButton.StickLeftR);
+        }
+        else if (OVRInput.GetDown(OVRInput.Button.SecondaryThumbstickRight))
+        {
+            buttonDownEvents?.Invoke(ControllerButton.StickRightR);
+        }
+        else if (OVRInput.GetUp(OVRInput.Button.SecondaryThumbstickRight))
+        {
+            buttonUpEvents?.Invoke(ControllerButton.StickRightR);
         }
     }
 
@@ -414,30 +418,10 @@ public class InputManager : BaseBehaviour
     /// </summary>
     private void TouchUpdate()
     {
-        if (rayHandL.HasCandidate)
-        {
-            GlobalScript.rayLObject = rayHandL.Candidate.gameObject;
-        }
-        else if (rayControllerL.HasCandidate)
-        {
-            GlobalScript.rayLObject = rayControllerL.Candidate.gameObject;
-        }
-        else
-        {
-            GlobalScript.rayLObject = null;
-        }
-        if (rayHandR.HasCandidate)
-        {
-            GlobalScript.rayRObject = rayHandR.Candidate.gameObject;
-        }
-        else if (rayControllerR.HasCandidate)
-        {
-            GlobalScript.rayRObject = rayControllerR.Candidate.gameObject;
-        }
-        else
-        {
-            GlobalScript.rayRObject = null;
-        }
+        rayHandL.enabled = rayHandL.gameObject.activeSelf;
+        rayHandR.enabled = rayHandR.gameObject.activeSelf;
+        rayControllerL.enabled = rayControllerL.gameObject.activeSelf;
+        rayControllerR.enabled = rayControllerR.gameObject.activeSelf;
         if (OVRInput.GetDown(OVRInput.Button.PrimaryIndexTrigger, OVRInput.Controller.LTouch))
         {
             touchDownEvents?.Invoke(TouchButton.LTouch, GlobalScript.rayLObject);
@@ -628,4 +612,70 @@ public class InputManager : BaseBehaviour
     {
         buttonUpEvents -= action;
     }
+
+
+    /// <summary>
+    /// 左手レイの状態変更イベント
+    /// </summary>
+    /// <param name="obj"></param>
+    private void rayHandL_WhenStateChanged(InteractorStateChangeArgs obj)
+    {
+        if (rayHandL.HasCandidate)
+        {
+            GlobalScript.rayLObject = rayHandL.Candidate.gameObject;
+        }
+        else
+        {
+            GlobalScript.rayLObject = null;
+        }
+    }
+
+    /// <summary>
+    /// 右手レイの状態変更イベント
+    /// </summary>
+    /// <param name="obj"></param>
+    private void rayHandR_WhenStateChanged(InteractorStateChangeArgs obj)
+    {
+        if (rayHandR.HasCandidate)
+        {
+            GlobalScript.rayRObject = rayHandR.Candidate.gameObject;
+        }
+        else
+        {
+            GlobalScript.rayRObject = null;
+        }
+    }
+
+    /// <summary>
+    /// 左コントローラレイの状態変更イベント
+    /// </summary>
+    /// <param name="obj"></param>
+    private void RayControllerL_WhenStateChanged(InteractorStateChangeArgs obj)
+    {
+        if (rayControllerL.HasCandidate)
+        {
+            GlobalScript.rayLObject = rayControllerL.Candidate.gameObject;
+        }
+        else
+        {
+            GlobalScript.rayLObject = null;
+        }
+    }
+
+    /// <summary>
+    /// 右コントローラレイの状態変更イベント
+    /// </summary>
+    /// <param name="obj"></param>
+    private void RayControllerR_WhenStateChanged(InteractorStateChangeArgs obj)
+    {
+        if (rayControllerR.HasCandidate)
+        {
+            GlobalScript.rayRObject = rayControllerR.Candidate.gameObject;
+        }
+        else
+        {
+            GlobalScript.rayRObject = null;
+        }
+    }
+
 }

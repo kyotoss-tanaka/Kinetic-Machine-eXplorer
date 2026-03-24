@@ -15,6 +15,9 @@ using Unity.VisualScripting;
 using UnityEditor.AddressableAssets.Settings;
 using UnityEditor.AddressableAssets;
 using UnityEditor.AddressableAssets.Settings.GroupSchemas;
+using UnityEngine.XR.OpenXR;
+using Meta.XR;
+using UnityEngine.XR.Management;
 
 public class BuildAndRun
 {
@@ -61,8 +64,10 @@ public class BuildAndRun
             build.isRelease = true;
             var folderPath = BuildAndRunProcess(build, true);
 
+            /*
             build.isRelease = false;
             BuildAndRunProcess(build, false);
+            */
             if (folderPath != "")
             {
                 // エクスプローラーで開く
@@ -174,6 +179,7 @@ public class BuildAndRun
     private static string BuildAndRunProcess(Parameters.BuildConfig build, bool isRun, bool isProd = false)
     {
         var productName = build.isMaster ? "KMXMaster" : (build.isMR ? $"{build.mechId}_{build.name}(MR)" : build.isVR ? $"{build.mechId}_{build.name}(VR)" : $"{build.mechId}_{build.name}");
+        productName = productName.Replace("/", " ");
         var productDir = Path.Combine(Path.Combine(Path.Combine("Builds", build.isVR || build.isMR ? "Android" : "Windows"), build.isRelease ? "Release" : "Debug"), productName);
 
         BuildConfig config = new BuildConfig
@@ -310,7 +316,7 @@ public class BuildAndRun
         var vrSetting = FindInScene(scene, "VRSetting");
         var mrSetting = FindInScene(scene, "MRSetting");
         var parent = normalSetting != null ? normalSetting.transform.parent : (vrSetting != null ? vrSetting.transform.parent : mrSetting.transform.parent);
-
+        
         // 設定切り替え
         if (build.isVR)
         {
@@ -375,6 +381,11 @@ public class BuildAndRun
                 GameObject.DestroyImmediate(mrSetting);
             }
         }
+        // Meta XRの自動ロード機能設定
+        var settings = XRGeneralSettings.Instance;
+        settings.InitManagerOnStart = build.isXR;
+        EditorUtility.SetDirty(settings);
+        AssetDatabase.SaveAssets();
 
         // シーン保存
         EditorSceneManager.SaveScene(scene);

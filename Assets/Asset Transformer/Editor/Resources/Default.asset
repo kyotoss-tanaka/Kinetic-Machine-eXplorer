@@ -13,8 +13,8 @@ MonoBehaviour:
   m_Name: Default
   m_EditorClassIdentifier: 
   m_Rules:
-  - <IsCollapsed>k__BackingField: 0
-    m_IsEnabled: 1
+  - <IsCollapsed>k__BackingField: 1
+    m_IsEnabled: 0
     m_Name: KSS Rule
     m_Blocks:
     - m_SerializedNames:

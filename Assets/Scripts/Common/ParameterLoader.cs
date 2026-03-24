@@ -402,6 +402,11 @@ namespace Parameters
                                             var rObj = unitSetting.moveObject.AddComponent<ArmRobot>();
                                             rObj.SetParameter(unitSetting, robo);
                                         }
+                                        else if (roboType == RobotType.CEILING_ARM)
+                                        {
+                                            var rObj = unitSetting.moveObject.AddComponent<CeilingArmRobot>();
+                                            rObj.SetParameter(unitSetting, robo);
+                                        }
                                         else if (roboType == RobotType.MPS2_3AS)
                                         {
                                             var rObj = unitSetting.moveObject.AddComponent<MPS2_3AS>();
@@ -1125,6 +1130,7 @@ namespace Parameters
                    children.Find(d => d.name.Contains("W0250623-")) != null ? RobotType.MPX_R7 :
                    children.Find(d => d.name.Contains("W0578936-")) != null ? RobotType.MPX_R1 :
                    children.Find(d => d.name.Contains("W0334624-")) != null ? RobotType.ARM :
+                   children.Find(d => d.name.Contains("W0677866-")) != null ? RobotType.CEILING_ARM :
                    children.Find(d => d.name.Contains("CRX-30IA")) != null ? RobotType.CRX_30iA : 
                    RobotType.UNDEFINED;
         }

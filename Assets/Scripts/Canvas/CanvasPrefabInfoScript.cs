@@ -202,11 +202,11 @@ public class CanvasPrefabInfoScript : KssBaseScript
         else
         {
             var names = prefab.name.Split('-');
-            if (name.Length > 1)
+            if (names.Length > 1)
             {
                 name = names[1];
             }
-            else if (name.Length == 1)
+            else if (names.Length == 1)
             {
                 name = names[0].Substring(0, 2);
             }

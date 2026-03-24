@@ -14,6 +14,10 @@ namespace Parameters
         /// </summary>
         ARM,
         /// <summary>
+        /// 天吊り2軸アーム
+        /// </summary>
+        CEILING_ARM,
+        /// <summary>
         /// 村田パラレル(3軸)
         /// </summary>
         MPS2_3AS,
@@ -1289,6 +1293,7 @@ namespace Parameters
         public bool isMR { get; set; }
         public bool isMaster { get; set; }
         public bool isCollision { get; set; }
+        public bool isXR { get { return isVR || isMR; } }
     }
 
     [Serializable]

@@ -34,14 +34,14 @@ public class ArmRobot : UseHeadBase3DScript
     protected GameObject arm2_2;
     protected GameObject plate;
 
-    private Vector3 ang1_1;
-    private Vector3 ang1_2;
-    private Vector3 ang1_3;
-    private Vector3 ang1Lever;
-    private Vector3 angTri;
-    private Vector3 ang2_1;
-    private Vector3 ang2_2;
-    private Vector3 angP;
+    protected Vector3 ang1_1;
+    protected Vector3 ang1_2;
+    protected Vector3 ang1_3;
+    protected Vector3 ang1Lever;
+    protected Vector3 angTri;
+    protected Vector3 ang2_1;
+    protected Vector3 ang2_2;
+    protected Vector3 angP;
 
     /// <summary>
     /// 開始処理
@@ -78,7 +78,7 @@ public class ArmRobot : UseHeadBase3DScript
         armTri.transform.localEulerAngles = new Vector3(angTri.x, angTri.y, -angle[0]);
         arm2_1.transform.localEulerAngles = new Vector3(ang2_1.x, ang2_1.y, -angle[1]);
         arm2_2.transform.localEulerAngles = new Vector3(ang2_2.x, ang2_2.y, angle[0] - angle[1]);
-        plate.transform.localEulerAngles= new Vector3(angP.x, angP.y, angle[1] - angle[0]);
+        plate.transform.localEulerAngles= new Vector3(angP.x, angP.y, angle[1] - angle[0] + z);
     }
 
     /// <summary>
@@ -164,7 +164,7 @@ public class ArmRobot : UseHeadBase3DScript
         }
 
         // 三角プレート W0334712- W0652636-(フィン)
-        var armTriTmp = children.Find(d => d.name.Contains("W0334712-") || d.name.Contains("W0652636-"));
+        var armTriTmp = children.Find(d => d.name.Contains("W0334712-") || d.name.Contains("W0652636-") || d.name.Contains("W0693785-"));
         if (armTriTmp != null)
         {
             armTri = armTriTmp.parent.gameObject;
@@ -178,7 +178,7 @@ public class ArmRobot : UseHeadBase3DScript
         }
 
         // アーム2-2 W0656252-(第二姿勢保持リンク)
-        var arm2_2Tmp = children.Find(d => d.name.Contains("W0656252-"));
+        var arm2_2Tmp = children.Find(d => d.name.Contains("W0656252-") || d.name.Contains("W0693776-"));
         if (arm2_2Tmp != null)
         {
             arm2_2 = arm2_2Tmp.parent.gameObject;
