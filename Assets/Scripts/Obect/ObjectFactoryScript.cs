@@ -133,25 +133,32 @@ public class ObjectFactoryScript : UseTagBaseScript
 
     void CreateObject()
     {
-        var obj = Instantiate(work);
-        obj.transform.parent = objBase.transform;
-        obj.transform.localPosition = CreatePoint;
-        obj.transform.localEulerAngles = CreateRotate;
-        // 既に生成済みかチェック(平面距離が1mm以下なら同一オブジェクトとみなす)
-        var near = objBase.transform.GetComponentsInChildren<ObjectScript>().ToList().Find(d => Vector2.Distance(new Vector2(d.transform.localPosition.x, d.transform.localPosition.z), new Vector2(obj.transform.localPosition.x, obj.transform.localPosition.z)) < 0.001f);
-        if (near == null)
+        if (GlobalScript.isLoaded)
         {
-            obj.SetActive(true);
-            var script = obj.AddComponent<ObjectScript>();
-            script.AliveDistance = AliveDistance;
-            script.IsGrabbable = IsGrabbable;
-            script.IsGravity = IsGravity;
-            var cbs = obj.GetComponent<CardboardScript>();
-            if (cbs != null)
+            var obj = Instantiate(work);
+            obj.transform.parent = objBase.transform;
+            obj.transform.localPosition = CreatePoint;
+            obj.transform.localEulerAngles = CreateRotate;
+            // 既に生成済みかチェック(平面距離が1mm以下なら同一オブジェクトとみなす)
+            var near = objBase.transform.GetComponentsInChildren<ObjectScript>().ToList().Find(d => Vector2.Distance(new Vector2(d.transform.localPosition.x, d.transform.localPosition.z), new Vector2(obj.transform.localPosition.x, obj.transform.localPosition.z)) < 0.001f);
+            if (near == null)
             {
-                // 設定をコピー
-                var org = work.GetComponent<CardboardScript>();
-                cbs.SetParameter(org);
+                obj.SetActive(true);
+                var script = obj.AddComponent<ObjectScript>();
+                script.AliveDistance = AliveDistance;
+                script.IsGrabbable = IsGrabbable;
+                script.IsGravity = IsGravity;
+                var cbs = obj.GetComponent<CardboardScript>();
+                if (cbs != null)
+                {
+                    // 設定をコピー
+                    var org = work.GetComponent<CardboardScript>();
+                    cbs.SetParameter(org);
+                }
+            }
+            else
+            {
+                Destroy(obj);
             }
         }
     }

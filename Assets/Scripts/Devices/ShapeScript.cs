@@ -36,20 +36,43 @@ public class ShapeScript : UseTagBaseScript
         var shape = (ShapeSetting)obj;
         foreach (var s in shape.datas)
         {
-            var box = transform.AddComponent<BoxCollider>();
-            box.isTrigger = false;
-            box.center = new Vector3
+            if (s.auto)
             {
-                x = s.center[0],
-                y = s.center[1],
-                z = s.center[2]
-            };
-            box.size = new Vector3
+                // 自動生成
+                foreach (var r in unitSetting.moveObject.GetComponentsInChildren<Renderer>())
+                {
+                    var mf = r.GetComponent<MeshFilter>();
+                    if (mf == null || mf.sharedMesh == null)
+                        continue;
+
+                    if (r.GetComponent<Collider>() == null)
+                    {
+                        // ローカル bounds を使用
+                        Bounds b = mf.sharedMesh.bounds;
+                        var box = r.gameObject.AddComponent<BoxCollider>();
+                        box.center = b.center;
+                        box.size = b.size;
+                        box.isTrigger = false;
+                    }
+                }
+            }
+            else
             {
-                x = s.size[0],
-                y = s.size[1],
-                z = s.size[2]
-            };
+                var box = transform.AddComponent<BoxCollider>();
+                box.isTrigger = false;
+                box.center = new Vector3
+                {
+                    x = s.center[0],
+                    y = s.center[1],
+                    z = s.center[2]
+                };
+                box.size = new Vector3
+                {
+                    x = s.size[0],
+                    y = s.size[1],
+                    z = s.size[2]
+                };
+            }
         }
         // 親から設定されることを回避するためにセット
         /* 不必要？

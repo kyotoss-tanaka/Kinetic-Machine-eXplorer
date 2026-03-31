@@ -2,7 +2,6 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
-using System.Runtime.InteropServices;
 using TMPro;
 using Unity.VisualScripting;
 using UnityEngine;
@@ -38,6 +37,7 @@ public class CanvasMenuAssemblyScript : CanvasMenuBaseScript
     private MainProcess mainProcess;
 
     private bool isMoving = false;
+    private bool isWork = false;
 
     /// <summary>
     /// 動作ユニット
@@ -72,6 +72,7 @@ public class CanvasMenuAssemblyScript : CanvasMenuBaseScript
         InputManager.Instance.RegisterKey(Key.X, HandleKey);
         InputManager.Instance.RegisterKey(Key.Y, HandleKey);
         InputManager.Instance.RegisterKey(Key.Z, HandleKey);
+        InputManager.Instance.RegisterKey(Key.Delete, HandleKey);
     }
 
     /// <summary>
@@ -84,6 +85,7 @@ public class CanvasMenuAssemblyScript : CanvasMenuBaseScript
         InputManager.Instance.UnregisterKey(Key.X, HandleKey);
         InputManager.Instance.UnregisterKey(Key.Y, HandleKey);
         InputManager.Instance.UnregisterKey(Key.Z, HandleKey);
+        InputManager.Instance.UnregisterKey(Key.Delete, HandleKey);
     }
 
     /// <summary>
@@ -155,6 +157,10 @@ public class CanvasMenuAssemblyScript : CanvasMenuBaseScript
                 {
                     StartCoroutine(MoveAxis(selectedVisible, new Vector3(0, 0, 1), isShift));
                 }
+            }
+            else if (isWork && (key == Key.Delete))
+            {
+                StartCoroutine(DeleteWork(selectedVisible));
             }
         }
     }
@@ -312,6 +318,18 @@ public class CanvasMenuAssemblyScript : CanvasMenuBaseScript
     }
 
     /// <summary>
+    /// ワークを削除する
+    /// </summary>
+    /// <param name="work"></param>
+    /// <returns></returns>
+    IEnumerator DeleteWork(GameObject work)
+    {
+        yield return null;
+        Destroy(work);
+        SetAssembly(null);
+    }
+
+    /// <summary>
     /// アセンブリセット
     /// </summary>
     public void SetAssembly(GameObject gameObject)
@@ -321,10 +339,10 @@ public class CanvasMenuAssemblyScript : CanvasMenuBaseScript
         {
             ClearSelected();
         }
-
         selectedObject = gameObject;
         selectedVisible = gameObject;
         selectedText = null;
+        isWork = false;
         foreach (var text in viewTexts)
         {
             try
@@ -344,37 +362,67 @@ public class CanvasMenuAssemblyScript : CanvasMenuBaseScript
             texts.RemoveAt(0);
         }
         // 動作ユニット取得
-        var motions = gameObject == null ? new List<AxisMotionBase>() : gameObject.GetComponentsInParent<AxisMotionBase>().ToList();
-        motionUnits = motions.Select(d => d.name).ToList();
         var fontSize = baseText.fontSize + 5;
         var width = 0f;
-        var names = new List<string>();
         var index = 0;
-        for (var i = 0; i < texts.Count; i++)
+        var works = gameObject == null ? new List<ObjectScript>(): gameObject.GetComponentsInParent<ObjectScript>().ToList();
+        var names = new List<string>();
+        if (works.Count == 1)
         {
-            var text = texts[i];
-            names.Add(text);
-            if ((motionUnits.Count > 0) && !motionUnits.Contains(text))
-            {
-                continue;
-            }
+            motionUnits = new List<string>();
             var obj = Instantiate(baseText.gameObject);
             var t = obj.gameObject.GetComponentInChildren<TextMeshProUGUI>();
             var rt = obj.GetComponent<RectTransform>();
-            var left = index * 10;
+            var text = works[0].name;
+            foreach (var tmp in texts)
+            {
+                names.Add(tmp);
+                if (text == tmp)
+                {
+                    break;
+                }
+            }
             t.text = (index == 0 ? "" : "- ") + text + (motionUnits.Count > 0 ? "(Motion)" : "");
             t.transform.SetParent(baseText.transform.parent);
-            t.transform.localPosition = new Vector3(5 + left, -5 - (fontSize * index), 0);
+            t.transform.localPosition = new Vector3(5, -5 - (fontSize * index), 0);
             t.gameObject.SetActive(true);
-//            t.fontSharedMaterial.EnableKeyword("GLOW_ON");
+            //            t.fontSharedMaterial.EnableKeyword("GLOW_ON");
             t.name = string.Join('\\', names);
             viewTexts.Add(t);
             LayoutRebuilder.ForceRebuildLayoutImmediate(rt);
-            if (width < rt.rect.width + left)
-            {
-                width = rt.rect.width + left;
-            }
             index++;
+            isWork = true;
+        }
+        else
+        {
+            var motions = gameObject == null ? new List<AxisMotionBase>() : gameObject.GetComponentsInParent<AxisMotionBase>().ToList();
+            motionUnits = motions.Select(d => d.name).ToList();
+            for (var i = 0; i < texts.Count; i++)
+            {
+                var text = texts[i];
+                names.Add(text);
+                if ((motionUnits.Count > 0) && !motionUnits.Contains(text))
+                {
+                    continue;
+                }
+                var obj = Instantiate(baseText.gameObject);
+                var t = obj.gameObject.GetComponentInChildren<TextMeshProUGUI>();
+                var rt = obj.GetComponent<RectTransform>();
+                var left = index * 10;
+                t.text = (index == 0 ? "" : "- ") + text + (motionUnits.Count > 0 ? "(Motion)" : "");
+                t.transform.SetParent(baseText.transform.parent);
+                t.transform.localPosition = new Vector3(5 + left, -5 - (fontSize * index), 0);
+                t.gameObject.SetActive(true);
+                //            t.fontSharedMaterial.EnableKeyword("GLOW_ON");
+                t.name = string.Join('\\', names);
+                viewTexts.Add(t);
+                LayoutRebuilder.ForceRebuildLayoutImmediate(rt);
+                if (width < rt.rect.width + left)
+                {
+                    width = rt.rect.width + left;
+                }
+                index++;
+            }
         }
         var height = index * fontSize + 10;
         var size = content.sizeDelta;

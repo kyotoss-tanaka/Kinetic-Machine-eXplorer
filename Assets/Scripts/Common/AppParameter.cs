@@ -1008,6 +1008,10 @@ namespace Parameters
     public class UnitShape
     {
         /// <summary>
+        /// ©“®İ’è
+        /// </summary>
+        public bool auto { get; set; }
+        /// <summary>
         /// ’†S“_
         /// </summary>
         public List<float> center { get; set; }
