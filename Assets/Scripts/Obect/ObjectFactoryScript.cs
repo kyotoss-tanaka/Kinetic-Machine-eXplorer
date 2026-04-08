@@ -21,6 +21,12 @@ public class ObjectFactoryScript : UseTagBaseScript
     private bool IsGravity = true;
 
     /// <summary>
+    /// 接触可能か
+    /// </summary>
+    [SerializeField]
+    private bool IsTouch = true;
+
+    /// <summary>
     ///  タイマー
     /// </summary>
     [SerializeField]
@@ -69,6 +75,18 @@ public class ObjectFactoryScript : UseTagBaseScript
     private float AliveDistance = 10f;
 
     /// <summary>
+    /// バケット番号
+    /// </summary>
+    [SerializeField]
+    private int BacketNo = -1;
+
+    /// <summary>
+    /// ワーク変更
+    /// </summary>
+    [SerializeField]
+    private bool IsChange = false;
+
+    /// <summary>
     /// オブジェクト生成用
     /// </summary>
     private GameObject objBase;
@@ -82,10 +100,28 @@ public class ObjectFactoryScript : UseTagBaseScript
     /// タグ名
     /// </summary>
     private string tagName = "";
+
     /// <summary>
     /// ワークーオブジェクト
     /// </summary>
     private GameObject work;
+
+    /// <summary>
+    /// バケット情報
+    /// </summary>
+    private AxisMotionBase.BacketInfo backetInfo;
+
+    /// <summary>
+    /// バケットか
+    /// </summary>
+
+    private bool isBacket
+    {
+        get
+        {
+            return backetInfo != null;
+        }
+    }
     // Start is called before the first frame update
     protected override void Start()
     {
@@ -135,19 +171,40 @@ public class ObjectFactoryScript : UseTagBaseScript
     {
         if (GlobalScript.isLoaded)
         {
+            if (isBacket)
+            {
+                if ((backetInfo.backetno < 0) || (backetInfo.backetno != BacketNo))
+                {
+                    return;
+                }
+            }
+            var change = false;
             var obj = Instantiate(work);
             obj.transform.parent = objBase.transform;
             obj.transform.localPosition = CreatePoint;
             obj.transform.localEulerAngles = CreateRotate;
             // 既に生成済みかチェック(平面距離が1mm以下なら同一オブジェクトとみなす)
             var near = objBase.transform.GetComponentsInChildren<ObjectScript>().ToList().Find(d => Vector2.Distance(new Vector2(d.transform.localPosition.x, d.transform.localPosition.z), new Vector2(obj.transform.localPosition.x, obj.transform.localPosition.z)) < 0.001f);
-            if (near == null)
+            if (near != null)
+            {
+                if (near.name.Contains(work.name) || !IsChange)
+                {
+                    DestroyImmediate(obj);
+                }
+                else
+                {
+                    DestroyImmediate(near.gameObject);
+                    change = true;
+                }
+            }
+            if ((IsChange && change) || (!IsChange && (near == null)))
             {
                 obj.SetActive(true);
                 var script = obj.AddComponent<ObjectScript>();
                 script.AliveDistance = AliveDistance;
                 script.IsGrabbable = IsGrabbable;
                 script.IsGravity = IsGravity;
+                script.IsTouch = IsTouch;
                 var cbs = obj.GetComponent<CardboardScript>();
                 if (cbs != null)
                 {
@@ -155,10 +212,6 @@ public class ObjectFactoryScript : UseTagBaseScript
                     var org = work.GetComponent<CardboardScript>();
                     cbs.SetParameter(org);
                 }
-            }
-            else
-            {
-                Destroy(obj);
             }
         }
     }
@@ -184,6 +237,7 @@ public class ObjectFactoryScript : UseTagBaseScript
         var wk = (WorkCreateSetting)obj;
         IsGrabbable = wk.isGrabbable;
         IsGravity = wk.gravity;
+        IsTouch = wk.isTouch;
         IsTimer = wk.isTimer;
         WorkName = wk.work;
         CreatePoint = new Vector3
@@ -200,5 +254,16 @@ public class ObjectFactoryScript : UseTagBaseScript
         };
         tagName = wk.tag;
         AliveDistance = wk.alive;
+        BacketNo = wk.backetno;
+        IsChange = wk.change;
+    }
+
+    /// <summary>
+    /// バケット情報セット
+    /// </summary>
+    /// <param name="backetInfo"></param>
+    public void SetBacketInfo(AxisMotionBase.BacketInfo backetInfo)
+    {
+        this.backetInfo = backetInfo;
     }
 }

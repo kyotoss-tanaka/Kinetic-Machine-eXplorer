@@ -13,7 +13,7 @@ PlayerSettings:
   useOnDemandResources: 0
   accelerometerFrequency: 60
   companyName: Kyoto Seisakusho Co., Ltd.
-  productName: "KMX R2050_JAPAN PACK2025 \uFF8A\uFF9F\uFF9A\uFF80\uFF72\uFF7B\uFF9E\uFF70"
+  productName: KMX R4210_SAL-200 FE incl. BS ANG+ Assembly
   defaultCursor: {fileID: 0}
   cursorHotspot: {x: 0, y: 0}
   m_SplashScreenBackgroundColor: {r: 0.13725491, g: 0.12156863, b: 0.1254902, a: 1}
@@ -171,7 +171,7 @@ PlayerSettings:
   androidMinAspectRatio: 1
   applicationIdentifier:
     Android: com.kyotoss.kmx_352_mr
-    Standalone: com.kyotoss.kmx-R2050
+    Standalone: com.kyotoss.kmx-R4210
   buildNumber:
     Standalone: 0
     VisionOS: 0

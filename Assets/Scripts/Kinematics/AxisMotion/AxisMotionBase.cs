@@ -1,4 +1,4 @@
-using Parameters;
+ï»¿using Parameters;
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -10,61 +10,149 @@ using static UnityEngine.GraphicsBuffer;
 using System.Reflection;
 using UnityEngine.UI;
 //using static OVRPlugin;
-using static KssMeshColliderEditorCommon;
-using UnityEngine.UIElements;
-using System.Security.Cryptography;
 using Pipelines.Sockets.Unofficial.Arenas;
+using MongoDB.Driver;
 
 public class AxisMotionBase : KinematicsBase
 {
     /// <summary>
-    /// ’è”
+    /// ãƒã‚±ãƒƒãƒˆæƒ…å ±
+    /// </summary>
+    public class BacketInfo
+    {
+        public GameObject obj;
+        public float offset;
+        public int backetno = -1;
+    }
+
+    /// <summary>
+    /// é ‚ç‚¹æƒ…å ±
+    /// </summary>
+    public class VerticeInfo
+    {
+        public Vector3 vertice;
+        public Vector3 normal;
+    }
+
+    /// <summary>
+    /// å®šæ•°
     /// </summary>
     protected const float Thousand = 1000f;
     protected const float Million = 1000000f;
 
     /// <summary>
-    /// ƒ`ƒƒƒbƒNƒ†ƒjƒbƒgİ’è
+    /// ãƒãƒ£ãƒƒã‚¯ãƒ¦ãƒ‹ãƒƒãƒˆè¨­å®š
     /// </summary>
     protected ChuckUnitSetting chuckSetting;
 
     /// <summary>
-    /// “®ì‘ÎÛƒIƒuƒWƒFƒNƒg
+    /// ãƒªãƒ‹ã‚¢è¨­å®š
+    /// </summary>
+    protected LinearSetting linearSetting;
+
+    /// <summary>
+    /// å‹•ä½œå¯¾è±¡ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆ
     /// </summary>
     protected GameObject moveObject;
 
     /// <summary>
-    /// “®ì‘ÎÛ‚Ìƒ`ƒƒƒbƒNƒIƒuƒWƒFƒNƒg
+    /// å‹•ä½œå¯¾è±¡ã®ãƒãƒ£ãƒƒã‚¯ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆ
     /// </summary>
     protected List<GameObject> chuckObjects = new List<GameObject>();
 
     /// <summary>
-    /// “®ì•ûŒü
+    /// å‹•ä½œæ–¹å‘
     /// </summary>
     protected Vector3 moveDir;
 
     /// <summary>
-    /// “®ì—p
+    /// å‹•ä½œç”¨
     /// </summary>
     protected Rigidbody rb;
 
     /// <summary>
-    /// ƒTƒCƒNƒ‹ƒ^ƒO
+    /// ã‚µã‚¤ã‚¯ãƒ«ã‚¿ã‚°
     /// </summary>
     protected TagInfo cycleTag;
 
     /// <summary>
-    /// Šg’£‹@\ƒXƒNƒŠƒvƒg
+    /// æ‹¡å¼µæ©Ÿæ§‹ã‚¹ã‚¯ãƒªãƒ—ãƒˆ
     /// </summary>
     public ExMechScript exScript;
 
     /// <summary>
-    /// Šg’£‹@\ƒ‚[ƒh•ÏX
+    /// æ‹¡å¼µæ©Ÿæ§‹ãƒ¢ãƒ¼ãƒ‰å¤‰æ›´
     /// </summary>
     protected bool exModeChange;
 
+    #region ãƒã‚±ãƒƒãƒˆé–¢é€£
     /// <summary>
-    /// “®ì‚ ‚è
+    /// ãƒ«ãƒ¼ãƒ—ãƒ©ã‚¤ãƒ³
+    /// </summary>
+    protected List<Vector3> loopPathPoints = new List<Vector3>();
+
+    /// <summary>
+    /// ãƒã‚±ãƒƒãƒˆæƒ…å ±
+    /// </summary>
+    private List<BacketInfo> backets = new List<BacketInfo>();
+
+    /// <summary>
+    /// ãƒã‚±ãƒƒãƒˆä¸­å¿ƒ
+    /// </summary>
+    private Vector3 backetCenter;
+
+    /// <summary>
+    /// ãƒã‚±ãƒƒãƒˆå‹•ä½œæ–¹å‘
+    /// </summary>
+    private Vector3 backetDir;
+
+    /// <summary>
+    /// ãƒã‚±ãƒƒãƒˆé•·
+    /// </summary>
+    private float backetPitch;
+
+    /// <summary>
+    /// ãƒã‚±ãƒƒãƒˆã‚ªãƒ•ã‚»ãƒƒãƒˆ
+    /// </summary>
+    private float backetOffset;
+
+    /// <summary>
+    /// ãƒã‚±ãƒƒãƒˆãƒ«ãƒ¼ãƒ—é•·
+    /// </summary>
+    private float backetLength;
+
+    /// <summary>
+    /// ãƒã‚±ãƒƒãƒˆä½ç½®
+    /// </summary>
+    private float backetPos;
+
+    /// <summary>
+    /// ãƒã‚±ãƒƒãƒˆå‹•ä½œã‚«ã‚¦ãƒ³ã‚¿
+    /// </summary>
+    private int backetCounter;
+
+    /// <summary>
+    /// æœ€å¤§ãƒã‚±ãƒƒãƒˆæ•°
+    /// </summary>
+    private int backetCountMax;
+
+    /// <summary>
+    /// ãƒã‚±ãƒƒãƒˆå‹•ä½œæ–¹å‘
+    /// </summary>
+    private bool isBacketMoveRvs;
+
+    /// <summary>
+    /// ãƒã‚±ãƒƒãƒˆé€†è»¢
+    /// </summary>
+    private bool isBacketRvs;
+
+    /// <summary>
+    /// ãƒã‚±ãƒƒãƒˆè¡¨ç¤ºè¨­å®š
+    /// </summary>
+    private bool backetVisible;
+    #endregion ãƒã‚±ãƒƒãƒˆé–¢é€£
+    /// <summary>
+    /// å‹•ä½œã‚ã‚Š
     /// </summary>
     public bool isAction
     {
@@ -75,7 +163,7 @@ public class AxisMotionBase : KinematicsBase
     }
 
     /// <summary>
-    /// ƒIƒuƒWƒFƒNƒgŒ`ó‚ ‚è
+    /// ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆå½¢çŠ¶ã‚ã‚Š
     /// </summary>
     public bool isShape
     {
@@ -86,7 +174,7 @@ public class AxisMotionBase : KinematicsBase
     }
 
     /// <summary>
-    /// ‹zˆø‚ ‚è
+    /// å¸å¼•ã‚ã‚Š
     /// </summary>
     public bool isSuction
     {
@@ -97,7 +185,7 @@ public class AxisMotionBase : KinematicsBase
     }
 
     /// <summary>
-    /// ƒ[ƒN¶¬‚ ‚è
+    /// ãƒ¯ãƒ¼ã‚¯ç”Ÿæˆã‚ã‚Š
     /// </summary>
     public bool isWorkCreate
     {
@@ -108,7 +196,7 @@ public class AxisMotionBase : KinematicsBase
     }
 
     /// <summary>
-    /// ƒ[ƒNíœ‚ ‚è
+    /// ãƒ¯ãƒ¼ã‚¯å‰Šé™¤ã‚ã‚Š
     /// </summary>
     public bool isWorkDelete
     {
@@ -119,7 +207,7 @@ public class AxisMotionBase : KinematicsBase
     }
 
     /// <summary>
-    /// ƒXƒCƒbƒ`
+    /// ã‚¹ã‚¤ãƒƒãƒ
     /// </summary>
     public bool isSwitch
     {
@@ -130,7 +218,7 @@ public class AxisMotionBase : KinematicsBase
     }
 
     /// <summary>
-    /// ƒVƒOƒiƒ‹ƒ^ƒ[
+    /// ã‚·ã‚°ãƒŠãƒ«ã‚¿ãƒ¯ãƒ¼
     /// </summary>
     public bool isSignalTower
     {
@@ -152,7 +240,7 @@ public class AxisMotionBase : KinematicsBase
     }
 
     /// <summary>
-    /// ‹@\Šg’£İ’è
+    /// æ©Ÿæ§‹æ‹¡å¼µè¨­å®š
     /// </summary>
     public bool isExMech
     {
@@ -163,7 +251,18 @@ public class AxisMotionBase : KinematicsBase
     }
 
     /// <summary>
-    /// ‰ñ“]“®ì
+    /// ãƒã‚±ãƒƒãƒˆè¨­å®š
+    /// </summary>
+    public bool isBacket
+    {
+        get
+        {
+            return (unitSetting != null) && (unitSetting.backetSetting != null);
+        }
+    }
+
+    /// <summary>
+    /// å›è»¢å‹•ä½œ
     /// </summary>
     public bool isRotate
     {
@@ -178,11 +277,11 @@ public class AxisMotionBase : KinematicsBase
         base.Start();
         if (unitSetting != null)
         {
-            // ƒ†ƒjƒbƒgî•ñXV
+            // ãƒ¦ãƒ‹ãƒƒãƒˆæƒ…å ±æ›´æ–°
             RenewMoveDir();
 
             /*
-            // “®ì—pRigitbodyƒZƒbƒg
+            // å‹•ä½œç”¨Rigitbodyã‚»ãƒƒãƒˆ
             rb = unitSetting.moveObject.GetComponent<Rigidbody>();
             if (rb == null)
             {
@@ -196,30 +295,30 @@ public class AxisMotionBase : KinematicsBase
     }
 
     /// <summary>
-    /// ƒpƒ‰ƒ[ƒ^ƒ[ƒhƒXƒNƒŠƒvƒg‚©‚ç‚Ìî•ñ‚ÉŠî‚Ã‚«ƒ‚ƒfƒ‹Ä\’z
+    /// ãƒ‘ãƒ©ãƒ¡ãƒ¼ã‚¿ãƒ­ãƒ¼ãƒ‰ã‚¹ã‚¯ãƒªãƒ—ãƒˆã‹ã‚‰ã®æƒ…å ±ã«åŸºã¥ããƒ¢ãƒ‡ãƒ«å†æ§‹ç¯‰
     /// </summary>
-    protected void PreModelRestruct()
+    protected virtual void PreModelRestruct()
     {
-        // ƒ†ƒjƒbƒg–¼‚ÌƒIƒuƒWƒFƒNƒgì¬
+        // ãƒ¦ãƒ‹ãƒƒãƒˆåã®ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆä½œæˆ
         var unit = unitSetting.unitObject;
-        // eqŠÖŒWì¬
+        // è¦ªå­é–¢ä¿‚ä½œæˆ
         unit.transform.parent = moveObject.transform.parent;
         unit.transform.localPosition = moveObject.transform.localPosition;
         unit.transform.localEulerAngles = moveObject.transform.localEulerAngles;
         moveObject.transform.parent = unit.transform;
         moveObject.transform.localPosition = new Vector3(0, 0, 0);
         moveObject.transform.localEulerAngles = new Vector3(0, 0, 0);
-        // qƒIƒuƒWƒFƒNƒg‚ğ
+        // å­ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆã‚’
         foreach (var child in unitSetting.childrenObject)
         {
-            // qƒIƒuƒWƒFƒNƒgˆÚ“®
+            // å­ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆç§»å‹•
             child.transform.parent = moveObject.transform;
-            // qƒIƒuƒWƒFƒNƒg‚Ìƒ`ƒƒƒbƒNƒ†ƒjƒbƒg‚àˆÚ“®‚·‚é•K—v‚ª‚ ‚é
+            // å­ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆã®ãƒãƒ£ãƒƒã‚¯ãƒ¦ãƒ‹ãƒƒãƒˆã‚‚ç§»å‹•ã™ã‚‹å¿…è¦ãŒã‚ã‚‹
             var motion = child.GetComponent<AxisMotionBase>();
             if (motion != null)
             {
                 motion.SetChuckParent();
-                // ƒXƒCƒbƒ`‚ÆƒVƒOƒiƒ‹ƒ^ƒ[‚ÌÀ•W‚Íe‚©‚ç‚ÌƒIƒtƒZƒbƒg‚É•ÏX
+                // ã‚¹ã‚¤ãƒƒãƒã¨ã‚·ã‚°ãƒŠãƒ«ã‚¿ãƒ¯ãƒ¼ã®åº§æ¨™ã¯è¦ªã‹ã‚‰ã®ã‚ªãƒ•ã‚»ãƒƒãƒˆã«å¤‰æ›´
                 if ((motion.moveObject.GetComponent<SwitchScript>() != null) || (motion.moveObject.GetComponent<SignalTowerScript>() != null))
                 {
                     child.transform.localPosition += unit.transform.localPosition;
@@ -227,29 +326,50 @@ public class AxisMotionBase : KinematicsBase
                 }
             }
         }
-        // ƒ`ƒƒƒbƒNƒIƒuƒWƒFƒNƒgİ’è
+        // ãƒãƒ£ãƒƒã‚¯ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆè¨­å®š
         if (chuckSetting != null)
         {
+            // ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆå–å¾—
+            var objectFactory = GameObject.FindObjectsByType<MultiObjectFactoryScript>(FindObjectsSortMode.None)[0];
             foreach (var chuck in chuckSetting.children)
             {
-                // ˆê’Uƒ†ƒjƒbƒg‚ÌeqŠÖŒW‚ğ¶¬
+                // ä¸€æ—¦ãƒ¦ãƒ‹ãƒƒãƒˆã®è¦ªå­é–¢ä¿‚ã‚’ç”Ÿæˆ
                 if (chuck.setting.moveObject != null)
                 {
                     chuck.setting.unitObject.transform.parent = chuck.setting.moveObject.transform.parent;
                     chuck.setting.unitObject.transform.localPosition = chuck.setting.moveObject.transform.localPosition;
                     chuck.setting.unitObject.transform.localEulerAngles = chuck.setting.moveObject.transform.localEulerAngles;
 
-                    // “®ìƒIƒuƒWƒFƒNƒg‚ğˆÚ“®
+                    // å‹•ä½œã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆã‚’ç§»å‹•
                     chuck.setting.moveObject.transform.parent = chuck.setting.unitObject.transform;
                     chuck.setting.moveObject.transform.localPosition = new Vector3(0, 0, 0);
                     chuck.setting.moveObject.transform.localEulerAngles = new Vector3(0, 0, 0);
                     foreach (var child in chuck.setting.childrenObject)
                     {
-                        // qƒIƒuƒWƒFƒNƒgˆÚ“®
+                        // å­ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆç§»å‹•
                         child.transform.parent = chuck.setting.moveObject.transform;
                     }
                     SetCollision(chuck.setting);
-                    // ƒ†ƒjƒbƒgíœ
+
+                    // ãƒ¯ãƒ¼ã‚¯ç”Ÿæˆè¨­å®š
+                    if (chuck.setting.workSettings.Count > 0)
+                    {
+                        // ãƒ¯ãƒ¼ã‚¯ç”Ÿæˆè¨­å®šã‚ã‚Š
+                        foreach (var wk in chuck.setting.workSettings)
+                        {
+                            objectFactory.SetObjectParameter(chuck.setting, wk);
+                        }
+                    }
+                    // ãƒ¯ãƒ¼ã‚¯å‰Šé™¤è¨­å®š
+                    if (chuck.setting.workDeleteSettings.Count > 0)
+                    {
+                        foreach (var wk in chuck.setting.workDeleteSettings)
+                        {
+                            objectFactory.SetObjectParameter(chuck.setting, wk);
+                        }
+                    }
+
+                    // ãƒ¦ãƒ‹ãƒƒãƒˆå‰Šé™¤
                     //                Destroy(chuck.setting.unitObject);
                 }
                 else
@@ -257,12 +377,49 @@ public class AxisMotionBase : KinematicsBase
                 }
             }
         }
-        // Õ“ËƒZƒbƒg
-        SetCollision(unitSetting);
+        if (isBacket)
+        {
+            // ãƒã‚±ãƒƒãƒˆã‚¯ãƒªã‚¢
+            foreach (var backet in backets)
+            {
+                Destroy(backet.obj);
+            }
+            backets.Clear();
+
+            // ãƒã‚±ãƒƒãƒˆè¨­å®šã‚ã‚Š
+            CreateBacketPathPoints();
+
+            // ãƒã‚±ãƒƒãƒˆã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆä½œæˆ
+            CreateBacketObject();
+        }
     }
 
+#if UNITY_EDITOR
+    void OnDrawGizmos()
+    {
+        if (loopPathPoints == null || loopPathPoints.Count < 2) return;
+        Gizmos.color = Color.yellow;
+        for (int i = 0; i < loopPathPoints.Count; i++)
+        {
+            Vector3 p0 = moveObject.transform.transform.TransformPoint(loopPathPoints[i]);
+            if (i + 1 >= loopPathPoints.Count)
+            {
+                Gizmos.DrawSphere(p0, 0.001f);
+            }
+            else
+            {
+                Vector3 p1 = moveObject.transform.transform.TransformPoint(loopPathPoints[i + 1]);
+                Gizmos.DrawLine(p0, p1);
+                Gizmos.DrawSphere(p0, 0.001f);
+                // ç•ªå·ã‚’è¡¨ç¤º
+                UnityEditor.Handles.Label(p0, i.ToString());
+            }
+        }
+    }
+#endif
+
     /// <summary>
-    /// ƒ†ƒjƒbƒgİ’è‚©‚ç“®ìİ’èXV
+    /// ãƒ¦ãƒ‹ãƒƒãƒˆè¨­å®šã‹ã‚‰å‹•ä½œè¨­å®šæ›´æ–°
     /// </summary>
     public virtual void RenewMoveDir()
     {
@@ -303,7 +460,7 @@ public class AxisMotionBase : KinematicsBase
     }
 
     /// <summary>
-    /// Õ“Ë‚³‚ê‚½
+    /// è¡çªã•ã‚ŒãŸ
     /// </summary>
     /// <param name="other"></param>
     protected override void OnCollisionEnter(Collision other)
@@ -317,18 +474,18 @@ public class AxisMotionBase : KinematicsBase
     }
 
     /// <summary>
-    /// “–‚½‚è”»’è’Ç‰Á
+    /// å½“ãŸã‚Šåˆ¤å®šè¿½åŠ 
     /// </summary>
     protected override void SetCollision(UnitSetting unitSetting)
     {
         base.SetCollision(unitSetting);
 
-        // •¨‘ÌŒ`óİ’è
+        // ç‰©ä½“å½¢çŠ¶è¨­å®š
         if (!isShape)
         {
             if (!GlobalScript.buildConfig.isCollision && unitSetting.isCollision)
             {
-                // “–‚½‚è”»’è’Ç‰Á
+                // å½“ãŸã‚Šåˆ¤å®šè¿½åŠ 
                 /*
                 foreach (var mesh in this.GetComponentsInChildren<MeshFilter>())
                 {
@@ -343,11 +500,11 @@ public class AxisMotionBase : KinematicsBase
 
                 if ((Application.platform == RuntimePlatform.Android) || (Application.platform == RuntimePlatform.IPhonePlayer))
                 {
-                    // VR‚Å‚Í–³‹
+                    // VRã§ã¯ç„¡è¦–
                 }
                 else
                 {
-                    // Windows‚Å‚ÍColliderì¬
+                    // Windowsã§ã¯Colliderä½œæˆ
                     GlobalScript.CreateCollider(unitSetting.moveObject);
                 }
             }
@@ -373,75 +530,32 @@ public class AxisMotionBase : KinematicsBase
         {
             rb.useGravity = false;
             rb.isKinematic = true;
-//            rb.collisionDetectionMode = CollisionDetectionMode.Continuous;
-//            rb.interpolation = RigidbodyInterpolation.Interpolate;
+            //            rb.collisionDetectionMode = CollisionDetectionMode.Continuous;
+            //            rb.interpolation = RigidbodyInterpolation.Interpolate;
         }
     }
 
     /// <summary>
-    /// ƒƒbƒVƒ…‚ª3D‚©ƒ`ƒFƒbƒN
-    /// </summary>
-    /// <param name="mesh"></param>
-    /// <returns></returns>
-    private bool IsMesh3D(UnityEngine.Mesh mesh, ref string message)
-    {
-        if (mesh == null || mesh.vertexCount < 4) return false;
-
-        var verts = mesh.vertices;
-        var min = verts[0];
-        var max = verts[0];
-
-        foreach (var v in verts)
-        {
-            min = Vector3.Min(min, v);
-            max = Vector3.Max(max, v);
-        }
-
-        float thicknessZ = Mathf.Abs(max.z - min.z);
-        float thicknessY = Mathf.Abs(max.y - min.y);
-        float thicknessX = Mathf.Abs(max.x - min.x);
-
-        message = (thicknessX * thicknessX * 1000000 + thicknessY * thicknessY * 1000000 + thicknessZ * thicknessZ * 1000000).ToString();
-
-        // Å¬‚Å‚à3•ûŒü‚É‚ ‚é’ö“x‚ÌL‚ª‚è‚ª‚È‚¢‚Æ“Ê•ï‚Í¸”s‚·‚é‰Â”\«
-        return (thicknessX > 1e-4f && thicknessY > 1e-4f && thicknessZ > 1e-4f);
-    }
-
-    /// <summary>
-    /// Œú‚İ‚ğ‰Á‚¦‚é
-    /// </summary>
-    /// <param name="mesh"></param>
-    /// <param name="offset"></param>
-    private void AddFakeThickness(UnityEngine.Mesh mesh, float offset = 0.0001f)
-    {
-        Vector3[] verts = mesh.vertices;
-        for (int i = 0; i < verts.Length; i++)
-        {
-            verts[i].z += UnityEngine.Random.Range(-offset, offset); // Z•ûŒü‚ÉŒú‚İ
-        }
-        mesh.vertices = verts;
-        mesh.RecalculateBounds();
-        mesh.RecalculateNormals();
-    }
-
-    /// <summary>
-    /// ƒ`ƒƒƒbƒNƒ†ƒjƒbƒg‚Ìe‚ğİ’è‚·‚é
+    /// ãƒãƒ£ãƒƒã‚¯ãƒ¦ãƒ‹ãƒƒãƒˆã®è¦ªã‚’è¨­å®šã™ã‚‹
     /// </summary>
     public void SetChuckParent()
     {
-        // ƒ`ƒƒƒbƒNƒIƒuƒWƒFƒNƒgİ’è
+        // ãƒãƒ£ãƒƒã‚¯ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆè¨­å®š
         if (chuckSetting != null)
         {
             foreach (var chuck in chuckSetting.children)
             {
-                // ©•ª‚Æ“¯‚¶e‚É
-                chuck.setting.unitObject.transform.parent = transform.parent;
+                // è‡ªåˆ†ã¨åŒã˜è¦ªã«
+                if (chuck.setting.unitObject != null)
+                {
+                    chuck.setting.unitObject.transform.parent = transform.parent;
+                }
             }
         }
     }
 
     /// <summary>
-    /// ƒ`ƒƒƒbƒNİ’è‚ğs‚¤
+    /// ãƒãƒ£ãƒƒã‚¯è¨­å®šã‚’è¡Œã†
     /// </summary>
     public void RenewChuckSetting(ChuckUnitSetting chuckSetting)
     {
@@ -461,11 +575,11 @@ public class AxisMotionBase : KinematicsBase
     }
 
     /// <summary>
-    /// ‹@\Šg’£İ’è
+    /// æ©Ÿæ§‹æ‹¡å¼µè¨­å®š
     /// </summary>
     private void SetExMechSetting()
     {
-        // ƒ†ƒjƒbƒg’Ç‰Á
+        // ãƒ¦ãƒ‹ãƒƒãƒˆè¿½åŠ 
         var exObj = new GameObject(unitSetting.name + "(ExMech)");
         exObj.transform.parent = unitSetting.unitObject.transform;
         exObj.transform.localPosition = Vector3.zero;
@@ -473,13 +587,13 @@ public class AxisMotionBase : KinematicsBase
         exObj.transform.localScale = new(1, 1, 1);
         exScript = unitSetting.exMechSetting.datas[0].gameObject.AddComponent<ExMechScript>();
         exScript.SetParameter(unitSetting, unitSetting.exMechSetting);
-        // eqŠÖŒWƒ`ƒFƒbƒN
+        // è¦ªå­é–¢ä¿‚ãƒã‚§ãƒƒã‚¯
         var datas = unitSetting.exMechSetting.datas.Where(d => d.gameObject != null).ToList();
         foreach (var data in datas)
         {
             data.isChild = datas.Find(d => (d != data) && data.gameObject.transform.IsChildOf(d.gameObject.transform)) != null;
         }
-        // eqŠÖŒWİ’è
+        // è¦ªå­é–¢ä¿‚è¨­å®š
         foreach (var data in datas)
         {
             if (!data.isChild)
@@ -491,12 +605,12 @@ public class AxisMotionBase : KinematicsBase
                 }
             }
         }
-        // Šg’£‹@\‚È‚çq‹Ÿ‚ÍŠg’£‹@\‚Ì“®ì’[‚Ö
+        // æ‹¡å¼µæ©Ÿæ§‹ãªã‚‰å­ä¾›ã¯æ‹¡å¼µæ©Ÿæ§‹ã®å‹•ä½œç«¯ã¸
         if (exScript.parentModel != null)
         {
             foreach (var child in unitSetting.childrenObject)
             {
-                // qƒIƒuƒWƒFƒNƒgˆÚ“®
+                // å­ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆç§»å‹•
                 var isUnit = false;
                 for (int i = 0; i < child.transform.childCount; i++)
                 {
@@ -508,7 +622,7 @@ public class AxisMotionBase : KinematicsBase
                 }
                 if (isUnit)
                 {
-                    // ƒ†ƒjƒbƒg‚È‚ç“®ì’[‚Ö
+                    // ãƒ¦ãƒ‹ãƒƒãƒˆãªã‚‰å‹•ä½œç«¯ã¸
                     child.transform.parent = exScript.parentModel.transform;
                 }
             }
@@ -516,32 +630,41 @@ public class AxisMotionBase : KinematicsBase
     }
 
     /// <summary>
-    /// ƒ†ƒjƒbƒgî•ñ‚ğŠO•”‚©‚çİ’è‚·‚é
+    /// ãƒ¦ãƒ‹ãƒƒãƒˆæƒ…å ±ã‚’å¤–éƒ¨ã‹ã‚‰è¨­å®šã™ã‚‹
     /// </summary>
     /// <param name="unitSetting"></param>
-    public void SetUnitSettings(UnitSetting unitSetting, ChuckUnitSetting chuckSetting)
+    public void SetUnitSettings(UnitSetting unitSetting, ChuckUnitSetting chuckSetting, LinearSetting linearSetting = null)
     {
         this.unitSetting = unitSetting;
         this.chuckSetting = chuckSetting;
-        this.moveObject = unitSetting.moveObject;
+        this.linearSetting = linearSetting;
+
+        moveObject = unitSetting.moveObject;
         if (moveObject == null)
         {
             return;
         }
+        // åˆå›ãƒ¢ãƒ‡ãƒ«å†æ§‹ç¯‰
         PreModelRestruct();
 
-        // ƒ†ƒjƒbƒgİ’è
+        // è¡çªã‚»ãƒƒãƒˆ
+        SetCollision(unitSetting);
+
+        // ãƒ¦ãƒ‹ãƒƒãƒˆè¨­å®š
         RenewUnitSetting();
     }
 
     /// <summary>
-    /// “®ìİ’è
+    /// å‹•ä½œè¨­å®š
     /// </summary>
     /// <param name="unitSetting"></param>
 
     public virtual void RenewUnitSetting(bool reload = false)
     {
-        // ƒRƒ‰ƒCƒ_[‚Ì2“o˜^‰ñ”ğ‚Ì‚½‚ßíœ
+        // ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆå–å¾—
+        var objectFactory = GameObject.FindObjectsByType<MultiObjectFactoryScript>(FindObjectsSortMode.None)[0];
+
+        // ã‚³ãƒ©ã‚¤ãƒ€ãƒ¼ã®2ç™»éŒ²å›é¿ã®ãŸã‚å‰Šé™¤
         {
             if (isShape)
             {
@@ -566,7 +689,7 @@ public class AxisMotionBase : KinematicsBase
                 }
             }
         }
-        // Œ`óİ’è
+        // å½¢çŠ¶è¨­å®š
         if (isShape)
         {
             var instance = unitSetting.moveObject.GetComponent<ShapeScript>();
@@ -576,8 +699,21 @@ public class AxisMotionBase : KinematicsBase
             }
             instance = unitSetting.moveObject.AddComponent<ShapeScript>();
             instance.SetParameter(unitSetting, unitSetting.shapeSetting);
+            if (isBacket)
+            {
+                foreach (var backet in backets)
+                {
+                    instance = backet.obj.GetComponent<ShapeScript>();
+                    if (instance != null)
+                    {
+                        Destroy(instance);
+                    }
+                    instance = backet.obj.AddComponent<ShapeScript>();
+                    instance.SetParameter(unitSetting, unitSetting.shapeSetting);
+                }
+            }
         }
-        // ‹zˆøİ’è
+        // å¸å¼•è¨­å®š
         if (isSuction)
         {
             var instance = unitSetting.moveObject.GetComponent<SuctionScript>();
@@ -588,40 +724,54 @@ public class AxisMotionBase : KinematicsBase
             instance = unitSetting.moveObject.AddComponent<SuctionScript>();
             instance.SetParameter(unitSetting, unitSetting.suctionSetting);
         }
-        // ƒ[ƒN¶¬İ’è
+        // ãƒ¯ãƒ¼ã‚¯ç”Ÿæˆè¨­å®š
         if (isWorkCreate)
         {
-            // ƒ[ƒN¶¬İ’è‚ ‚è
-            foreach (var wk in unitSetting.workSettings)
+            if (isBacket)
             {
-                var work = transform.GetComponent<ObjectFactoryScript>();
-                if (work != null)
+                foreach (var backet in backets)
                 {
-                    Destroy(work);
+                    foreach (var wk in unitSetting.workSettings)
+                    {
+                        objectFactory.SetObjectParameter(unitSetting, wk, backet);
+                    }
                 }
-                work = transform.AddComponent<ObjectFactoryScript>();
-                work.SetParameter(unitSetting, wk);
+            }
+            else
+            {
+                // ãƒ¯ãƒ¼ã‚¯ç”Ÿæˆè¨­å®šã‚ã‚Š
+                foreach (var wk in unitSetting.workSettings)
+                {
+                    objectFactory.SetObjectParameter(unitSetting, wk);
+                }
             }
         }
-        // ƒ[ƒNíœİ’è
+        // ãƒ¯ãƒ¼ã‚¯å‰Šé™¤è¨­å®š
         if (isWorkDelete)
         {
-            // ƒ[ƒNíœİ’è‚ ‚è
-            foreach (var wk in unitSetting.workSettings)
+            if (isBacket)
             {
-                var work = transform.GetComponent<ObjectDeleteScript>();
-                if (work != null)
+                foreach (var backet in backets)
                 {
-                    Destroy(work);
+                    foreach (var wk in unitSetting.workDeleteSettings)
+                    {
+                        objectFactory.SetObjectParameter(unitSetting, wk, backet);
+                    }
                 }
-                work = transform.AddComponent<ObjectDeleteScript>();
-                work.SetParameter(unitSetting, wk);
+            }
+            else
+            {
+                // ãƒ¯ãƒ¼ã‚¯ç”Ÿæˆè¨­å®šã‚ã‚Š
+                foreach (var wk in unitSetting.workDeleteSettings)
+                {
+                    objectFactory.SetObjectParameter(unitSetting, wk);
+                }
             }
         }
-        // ƒXƒCƒbƒ`İ’è
+        // ã‚¹ã‚¤ãƒƒãƒè¨­å®š
         if (isSwitch)
         {
-            // ƒXƒCƒbƒ`
+            // ã‚¹ã‚¤ãƒƒãƒ
             var sw = unitSetting.moveObject.GetComponent<SwitchScript>();
             if (sw != null)
             {
@@ -630,10 +780,10 @@ public class AxisMotionBase : KinematicsBase
             sw = unitSetting.moveObject.AddComponent<SwitchScript>();
             sw.SetParameter(unitSetting, unitSetting.switchSetting);
         }
-        // ƒVƒOƒiƒ‹ƒ^ƒ[İ’è
+        // ã‚·ã‚°ãƒŠãƒ«ã‚¿ãƒ¯ãƒ¼è¨­å®š
         if (isSignalTower)
         {
-            // ƒVƒOƒiƒ‹ƒ^ƒ[
+            // ã‚·ã‚°ãƒŠãƒ«ã‚¿ãƒ¯ãƒ¼
             var st = unitSetting.moveObject.GetComponent<SignalTowerScript>();
             if (st != null)
             {
@@ -642,7 +792,7 @@ public class AxisMotionBase : KinematicsBase
             st = unitSetting.moveObject.AddComponent<SignalTowerScript>();
             st.SetParameter(unitSetting, unitSetting.towerSetting);
         }
-        // LEDİ’è
+        // LEDè¨­å®š
         if (isLed)
         {
             // LED
@@ -657,21 +807,21 @@ public class AxisMotionBase : KinematicsBase
         exModeChange = false;
         if (!reload)
         {
-            // ‹@\Šg’£İ’è
+            // æ©Ÿæ§‹æ‹¡å¼µè¨­å®š
             if (isExMech)
             {
-                // ‹@\Šg’£
+                // æ©Ÿæ§‹æ‹¡å¼µ
                 exModeChange = unitSetting.actionSetting.exModeChange;
                 SetExMechSetting();
             }
-            // ƒZƒ“ƒT¶¬İ’è
+            // ã‚»ãƒ³ã‚µç”Ÿæˆè¨­å®š
             if (this.transform.parent != null)
             {
                 foreach (var sensor in unitSetting.sensorSettings)
                 {
                     if (sensor.isCreate)
                     {
-                        // ƒZƒ“ƒTŒ`ó¶¬
+                        // ã‚»ãƒ³ã‚µå½¢çŠ¶ç”Ÿæˆ
                         var o = GlobalScript.CreateSensor(this.transform.parent.gameObject, sensor, "CvSensor");
                         o.transform.parent = unitSetting.unitObject.transform;
                         o.transform.localPosition = new Vector3
@@ -691,7 +841,7 @@ public class AxisMotionBase : KinematicsBase
                     }
                     else
                     {
-                        // Œ`ó‚ğ‚»‚Ì‚Ü‚Üg—p
+                        // å½¢çŠ¶ã‚’ãã®ã¾ã¾ä½¿ç”¨
                         var ss = unitSetting.moveObject.AddComponent<SensorScript>();
                         ss.SetParameter(unitSetting, sensor);
                         break;
@@ -700,4 +850,297 @@ public class AxisMotionBase : KinematicsBase
             }
         }
     }
+    #region ãƒã‚±ãƒƒãƒˆé–¢é€£
+    /// <summary>
+    /// ãƒã‚±ãƒƒãƒˆãƒ«ãƒ¼ãƒ—ã®ãƒã‚¤ãƒ³ãƒˆä½œæˆ
+    /// </summary>
+    private void CreateBacketPathPoints()
+    {
+        if (unitSetting.backetSetting.gameObject != null)
+        {
+            MeshFilter[] meshFilters = unitSetting.backetSetting.gameObject.GetComponentsInChildren<MeshFilter>();
+            if (meshFilters.Length > 0)
+            {
+                if (meshFilters.Length == 1)
+                {
+                    // ãƒ™ãƒ«ãƒˆç³»
+                    var vertices = meshFilters[0].sharedMesh.vertices.ToList();
+                    var normals = meshFilters[0].sharedMesh.normals.ToList();
+                    loopPathPoints.AddRange(ClusterToCenterLine(vertices, normals).Select(v => meshFilters[0].transform.TransformPoint(v)).Select(v => moveObject.transform.InverseTransformPoint(v)));
+                    if (loopPathPoints.Count > 4)
+                    {
+                        var x = loopPathPoints[1].x - loopPathPoints[0].x;
+                        var y = loopPathPoints[1].y - loopPathPoints[0].y;
+                        var z = loopPathPoints[1].z - loopPathPoints[0].z;
+                        var mx = loopPathPoints.Max(d => d.x) - loopPathPoints.Min(d => d.x);
+                        var my = loopPathPoints.Max(d => d.y) - loopPathPoints.Min(d => d.y);
+                        var mz = loopPathPoints.Max(d => d.z) - loopPathPoints.Min(d => d.z);
+                        if ((Math.Abs(x) > Math.Abs(y)) && (Math.Abs(x) > Math.Abs(z)))
+                        {
+                            // æµã‚Œé¢ãŒXæ–¹å‘
+                            backetDir = x > 0 ? Vector3.right : Vector3.left;
+                            if (my > mz)
+                            {
+                                // é«˜ã•æ–¹å‘ãŒY
+                                loopPathPoints = loopPathPoints.Select(v => new Vector3(v.x, v.y, 0)).ToList();
+                            }
+                            else
+                            {
+                                // é«˜ã•æ–¹å‘ãŒZ
+                                loopPathPoints = loopPathPoints.Select(v => new Vector3(v.x, 0, v.z)).ToList();
+                            }
+                        }
+                        else if ((Math.Abs(y) > Math.Abs(x)) && (Math.Abs(y) > Math.Abs(z)))
+                        {
+                            // æµã‚Œé¢ãŒYæ–¹å‘
+                            backetDir = y > 0 ? Vector3.up : Vector3.down;
+                            if (mx > mz)
+                            {
+                                // é«˜ã•æ–¹å‘ãŒX
+                                loopPathPoints = loopPathPoints.Select(v => new Vector3(v.x, v.y, 0)).ToList();
+                            }
+                            else
+                            {
+                                // é«˜ã•æ–¹å‘ãŒZ
+                                loopPathPoints = loopPathPoints.Select(v => new Vector3(0, v.y, v.z)).ToList();
+                            }
+                        }
+                        else
+                        {
+                            // æµã‚Œé¢ãŒZæ–¹å‘
+                            backetDir = z > 0 ? Vector3.forward : Vector3.back;
+                            if (mx > my)
+                            {
+                                // é«˜ã•æ–¹å‘ãŒX
+                                loopPathPoints = loopPathPoints.Select(v => new Vector3(v.x, 0, v.z)).ToList();
+                            }
+                            else
+                            {
+                                // é«˜ã•æ–¹å‘ãŒY
+                                loopPathPoints = loopPathPoints.Select(v => new Vector3(0, v.y, v.z)).ToList();
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// ãƒã‚±ãƒƒãƒˆã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆä½œæˆ
+    /// </summary>
+    private void CreateBacketObject()
+    {
+        // æ—¢å­˜ã®å‹•ä½œã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆã‚’ç„¡åŠ¹åŒ–
+        moveObject.SetActive(false);
+        if (loopPathPoints.Count > 4)
+        {
+            // ãƒ‘ã‚¹ã®ç·è·é›¢ã‚’è¨ˆç®—
+            float totalLength = 0f;
+            for (int i = 0; i < loopPathPoints.Count - 1; i++)
+            {
+                totalLength += Vector3.Distance(loopPathPoints[i], loopPathPoints[i + 1]);
+            }
+            // ãƒã‚±ãƒƒãƒˆé–“éš”
+            backetPitch = unitSetting.backetSetting.pitch / 1000f;
+            backetOffset = unitSetting.backetSetting.offset / 1000f;
+            /*
+            backetLength = unitSetting.backetSetting.count * unitSetting.backetSetting.pitch / 1000f;
+            backetCountMax = (int)Math.Round(backetLength / backetPitch);
+            */
+            backetCountMax = (int)Math.Round(totalLength / backetPitch);
+            backetLength = backetCountMax * backetPitch;
+            backetCenter = new Vector3(loopPathPoints.Average(d => d.x), loopPathPoints.Average(d => d.y), loopPathPoints.Average(d => d.z));
+            for (var i = 0; i < unitSetting.backetSetting.count; i++)
+            {
+                var backet = new BacketInfo
+                {
+                    obj = unitSetting.backetSetting.visible ? Instantiate(moveObject) : new GameObject(),
+                    offset = backetPitch * i,
+                };
+                // ãƒ‘ã‚¹ä¸Šã®ãã®è·é›¢ã®ä½ç½®ã‚’å–å¾—
+                GetPositionOnPath(backet.offset, out Vector3 pos, out Vector3 dir);
+                backet.obj.transform.parent = moveObject.transform.parent;
+                backet.obj.transform.localPosition = pos;
+                if (dir != Vector3.zero)
+                {
+                    // å††å¼§ã®ä¸­å¿ƒã‹ã‚‰posã¸ã®æ–¹å‘ã‚’ã€Œä¸Šã€ã¨ã—ã¦ä½¿ã†
+                    Vector3 toPos = (pos - new Vector3(backetCenter.x, pos.y, backetCenter.z)).normalized;
+                    Quaternion rot = Quaternion.LookRotation(dir, toPos);
+                    backet.obj.transform.localRotation = rot * Quaternion.Euler(Vector3.zero);
+                }
+                backet.obj.SetActive(true);
+                backets.Add(backet);
+            }
+            // åˆæœŸå€¤ã‚»ãƒƒãƒˆ
+            MoveBacket(0);
+        }
+    }
+
+    /// <summary>
+    /// ã‚³ãƒ³ãƒ™ã‚¢ãƒ©ã‚¤ãƒ³ç®—å‡º(Yæ–¹å‘ã¯ç„¡è¦–)
+    /// </summary>
+    /// <param name="verts"></param>
+    /// <param name="count"></param>
+    /// <returns></returns>
+    private List<Vector3> ClusterToCenterLine(List<Vector3> verts, List<Vector3> norms)
+    {
+        float minX = verts.Min(v => v.x);
+        float maxX = verts.Max(v => v.x);
+        float minZ = verts.Min(v => v.z);
+        float maxZ = verts.Max(v => v.z);
+        float tolerance = 0.0001f; // è¨±å®¹èª¤å·®ï¼ˆå¿…è¦ã«å¿œã˜ã¦èª¿æ•´ï¼‰
+
+        List<Vector3> tmpV = new List<Vector3>();
+        List<Vector3> tmpN = new List<Vector3>(); // å¯¾å¿œã™ã‚‹æ³•ç·šã‚‚ä¸€ç·’ã«å–å¾—
+
+        var isXDirection = Mathf.Abs(maxX - minX) > Mathf.Abs(maxZ - minZ);
+
+        for (int i = 0; i < verts.Count; i++)
+        {
+            if (isXDirection)
+            {
+                if (Mathf.Abs(verts[i].z - maxZ) < tolerance)
+                {
+                    tmpV.Add(verts[i]);
+                    tmpN.Add(norms[i]);
+                }
+            }
+            else
+            {
+                if (Mathf.Abs(verts[i].x - maxX) < tolerance)
+                {
+                    tmpV.Add(verts[i]);
+                    tmpN.Add(norms[i]);
+                }
+            }
+        }
+
+        // å††å¼§ã®ä¸­å¿ƒã‚’vertsã‹ã‚‰ç®—å‡º
+        Vector3 center = new Vector3(verts.Average(v => v.x), 0f, verts.Average(v => v.z));
+
+        // æ³•ç·šãŒä¸­å¿ƒã‹ã‚‰å¤–å‘ãã®é ‚ç‚¹ã ã‘æŠ½å‡º
+        var outerVerts = new List<Vector3>();
+        for (int i = 0; i < tmpV.Count; i++)
+        {
+            // ä¸­å¿ƒâ†’é ‚ç‚¹ã®æ–¹å‘ãƒ™ã‚¯ãƒˆãƒ«ï¼ˆXZå¹³é¢ï¼‰
+            Vector3 toVertex = new Vector3(
+                tmpV[i].x - center.x,
+                0f,
+                tmpV[i].z - center.z
+            ).normalized;
+
+            // æ³•ç·šã‚‚XZå¹³é¢ã«æŠ•å½±
+            Vector3 normal = new Vector3(tmpN[i].x, 0f, tmpN[i].z).normalized;
+
+            // å†…ç©ãŒæ­£ = æ³•ç·šãŒå¤–å‘ã = å¤–å´ã®é ‚ç‚¹
+            if (Vector3.Dot(toVertex, normal) > 0.5f)
+            {
+                outerVerts.Add(tmpV[i]);
+            }
+        }
+
+        // é–‹å§‹ç‚¹å–å¾—
+        var firstPoint = outerVerts.OrderBy(v => isXDirection ? (isBacketRvs ? Math.Abs(v.x) : v.x) : (isBacketRvs ? Math.Abs(v.z) : v.z)).OrderByDescending(v => v.y).First();
+        center = new Vector3(isXDirection ? outerVerts.Average(v => v.x) : 0f, verts.Average(v => v.y), !isXDirection ? outerVerts.Average(v => v.z) : 0f);
+        var result = isBacketRvs ? outerVerts.OrderBy(v => Mathf.Atan2(v.y - center.y, isXDirection ? v.x - center.x : v.z - center.z)).ToList() : outerVerts.OrderByDescending(v => Mathf.Atan2(v.y - center.y, isXDirection ? v.x - center.x : v.z - center.z)).ToList();
+
+        var index = result.IndexOf(firstPoint);
+        return result.Skip(index).Concat(result.Take(index)).ToList();
+    }
+
+    /// <summary>
+    /// ãƒ‘ã‚¹ä¸Šã®ãƒã‚¤ãƒ³ãƒˆå–å¾—
+    /// </summary>
+    /// <param name="path"></param>
+    /// <param name="distance"></param>
+    /// <param name="pos"></param>
+    /// <param name="dir"></param>
+    private void GetPositionOnPath(float distance, out Vector3 pos, out Vector3 dir)
+    {
+        float accumulated = 0f;
+
+        for (int i = 0; i < loopPathPoints.Count - 1; i++)
+        {
+            float segLen = Vector3.Distance(loopPathPoints[i], loopPathPoints[i + 1]);
+
+            if (accumulated + segLen >= distance)
+            {
+                float t = (distance - accumulated) / segLen;
+                pos = Vector3.Lerp(loopPathPoints[i], loopPathPoints[i + 1], t);
+                dir = (loopPathPoints[i + 1] - loopPathPoints[i]).normalized;
+                if (!isBacketRvs)
+                {
+                    dir = -dir;
+                }
+                return;
+            }
+
+            accumulated += segLen;
+        }
+
+        // ãƒ‘ã‚¹ã®çµ‚ç«¯
+        pos = loopPathPoints[loopPathPoints.Count - 1];
+        dir = (loopPathPoints[loopPathPoints.Count - 1] - loopPathPoints[loopPathPoints.Count - 2]).normalized;
+        if (!isBacketRvs)
+        {
+            dir = -dir;
+        }
+    }
+
+    /// <summary>
+    /// ãƒã‚±ãƒƒãƒˆç§»å‹•
+    /// </summary>
+    /// <param name="pos"></param>
+    protected void MoveBacket(float distance)
+    {
+        var length = distance - backetPos;
+        if (Math.Abs(length) > 0.0001f)
+        {
+            // å‹•ä½œä¸­
+            // å›è»¢æ–¹å‘ãŒå¤‰ã‚ã£ã¦ãªã„ã‹ãƒã‚§ãƒƒã‚¯
+            if (isBacketMoveRvs != (length < 0))
+            {
+                if (!isBacketMoveRvs)
+                {
+                    backetCounter += (int)Math.Round(backetPos / unitSetting.backetSetting.pitch);
+                    if (backetCounter >= backetCountMax)
+                    {
+                        backetCounter = 0;
+                    }
+                }
+                else
+                {
+                    backetCounter -= (int)Math.Round(backetPos / unitSetting.backetSetting.pitch);
+                    if (backetCounter < 0)
+                    {
+                        backetCounter = backetCountMax - 1;
+                    }
+                }
+            }
+            else
+            {
+                isBacketMoveRvs = length < 0;
+            }
+        }
+        backetPos = distance;
+        //ã€€å‹•ä½œã‚ªãƒ•ã‚»ãƒƒãƒˆ
+        var backetNext = backetCounter * backetPitch + backetPos / 1000f + backetOffset;
+        foreach (var backet in backets)
+        {
+            var p = (backet.offset + backetNext) % backetLength;
+            backet.backetno = (int)(p / backetPitch);
+            // ãƒ‘ã‚¹ä¸Šã®ãã®è·é›¢ã®ä½ç½®ã‚’å–å¾—
+            GetPositionOnPath(p, out Vector3 pos, out Vector3 dir);
+            backet.obj.transform.localPosition = pos;
+            if (dir != Vector3.zero)
+            {
+                // å††å¼§ã®ä¸­å¿ƒã‹ã‚‰posã¸ã®æ–¹å‘ã‚’ã€Œä¸Šã€ã¨ã—ã¦ä½¿ã†
+                Vector3 toPos = (pos - new Vector3(backetCenter.x, pos.y, backetCenter.z)).normalized;
+                Quaternion rot = Quaternion.LookRotation(dir, toPos);
+                backet.obj.transform.localRotation = rot * Quaternion.Euler(Vector3.zero);
+            }
+        }
+    }
+    #endregion ãƒã‚±ãƒƒãƒˆé–¢é€£
 }

@@ -128,7 +128,6 @@ public class BuildAndRun
 
             build.isRelease = true;
             var folderPath = BuildAndRunProcess(build, true, true);
-
             build.isRelease = false;
             BuildAndRunProcess(build, false, true);
             if (folderPath != "")
@@ -245,6 +244,15 @@ public class BuildAndRun
 
         QualitySettings.SetQualityLevel(System.Array.IndexOf(QualitySettings.names, "High"), true);
 
+        // ÉpÉXê›íË
+        string projectPath = Directory.GetParent(Application.dataPath).FullName;
+        string folderPath = Path.Combine(projectPath, productDir);
+        var jsonPath = Path.Combine(folderPath, "RuntimeActionBindings.json");
+        if (File.Exists(jsonPath))
+        {
+            File.Delete(jsonPath);
+        }
+
         // ï€ë∂
         AssetDatabase.SaveAssets();
 
@@ -255,9 +263,6 @@ public class BuildAndRun
         settings.DefaultGroup.Settings.ActivePlayModeDataBuilderIndex = 0;
         // ï€ë∂
         AssetDatabase.SaveAssets();
-
-        string projectPath = Directory.GetParent(Application.dataPath).FullName;
-        string folderPath = Path.Combine(projectPath, productDir);
 
         if (!isProd)
         {

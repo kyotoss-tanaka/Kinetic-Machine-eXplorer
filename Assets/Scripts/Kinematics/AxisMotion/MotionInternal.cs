@@ -374,8 +374,13 @@ public class MotionInternal : AxisMotionBase
         camPosInfos = new List<CamPosInfo>();
 
         // 現在位置保持
-        innerPosition = exModeChange ? Vector3.zero : (isRotate ? moveObject.transform.localEulerAngles : moveObject.transform.localPosition);
-
+        if (isBacket)
+        {
+        }
+        else
+        {
+            innerPosition = exModeChange ? Vector3.zero : (isRotate ? moveObject.transform.localEulerAngles : moveObject.transform.localPosition);
+        }
         // 初期位置保持
         foreach (var action in unitSetting.actionSetting.actions)
         {
@@ -565,21 +570,28 @@ public class MotionInternal : AxisMotionBase
                 }
                 else
                 {
-                    if (isRotate)
+                    if (isBacket)
                     {
-                        // 回転動作
-                        moveObject.transform.localEulerAngles = actionCurve.targetPos * Thousand;
-                        innerPosition = actionCurve.targetPos * Thousand;
-                        nowPos = Vector3.Distance(Vector3.zero, moveObject.transform.localEulerAngles);
+                        MoveBacket(pos);
                     }
                     else
                     {
-                        // 直線動作
-                        var position = transform.TransformPoint(actionCurve.targetPos);
-                        //rb.MovePosition(position);
-                        moveObject.transform.localPosition = actionCurve.targetPos;
-                        innerPosition = actionCurve.targetPos;
-                        nowPos = Vector3.Distance(Vector3.zero, moveObject.transform.localPosition) * Thousand;
+                        if (isRotate)
+                        {
+                            // 回転動作
+                            moveObject.transform.localEulerAngles = actionCurve.targetPos * Thousand;
+                            innerPosition = actionCurve.targetPos * Thousand;
+                            nowPos = Vector3.Distance(Vector3.zero, moveObject.transform.localEulerAngles);
+                        }
+                        else
+                        {
+                            // 直線動作
+                            var position = transform.TransformPoint(actionCurve.targetPos);
+                            //rb.MovePosition(position);
+                            moveObject.transform.localPosition = actionCurve.targetPos;
+                            innerPosition = actionCurve.targetPos;
+                            nowPos = Vector3.Distance(Vector3.zero, moveObject.transform.localPosition) * Thousand;
+                        }
                     }
                 }
             }
@@ -592,6 +604,10 @@ public class MotionInternal : AxisMotionBase
                         // 拡張機構モード変更時
                         innerPosition = isRotate ? actionCurve.startPos * Thousand + pos * moveDir : actionCurve.startPos + pos * moveDir / Thousand;
                         exScript.SetExTarget(innerPosition);
+                    }
+                    else if (isBacket)
+                    {
+                        MoveBacket(pos);
                     }
                     else
                     {
@@ -642,6 +658,14 @@ public class MotionInternal : AxisMotionBase
             }
 
         }
+
+        /****************************************/
+        if (isBacket)
+        {
+
+        }
+        /****************************************/
+
         // 位置取得
         if (isRotate)
         {

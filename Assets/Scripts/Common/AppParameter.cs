@@ -314,6 +314,10 @@ namespace Parameters
         /// </summary>
         public ExMechSetting exMechSetting;
         /// <summary>
+        /// バケット設定
+        /// </summary>
+        public BacketSetting backetSetting;
+        /// <summary>
         /// 動作オブジェクト
         /// </summary>
         public GameObject moveObject = null;
@@ -431,18 +435,25 @@ namespace Parameters
                 return mode == 4;
             }
         }
-        public bool isPlanarMotor
+        public bool isLinear
         {
             get
             {
                 return mode == 5;
             }
         }
-        public bool isConveyer
+        public bool isPlanarMotor
         {
             get
             {
                 return mode == 6;
+            }
+        }
+        public bool isConveyer
+        {
+            get
+            {
+                return mode == 7;
             }
         }
     }
@@ -719,6 +730,46 @@ namespace Parameters
     }
 
     [Serializable]
+    public class LinearSetting
+    {
+        [Serializable]
+        public class PointInfo
+        {
+            public string name { get; set; }
+            public float pos { get; set; }
+            public string tagAct { get; set; }
+            public string tagFin { get; set; }
+            public string type { get; set; }
+            public int spd { get; set; }
+            public int count { get; set; }
+            public int wait { get; set; }
+        }
+        [Serializable]
+        public class SpdInfo
+        {
+            public float vm { get; set; }
+            public float vf { get; set; }
+            public float ve { get; set; }
+            public float acl { get; set; }
+            public float jerk { get; set; }
+        }
+        public string mechId { get; set; }
+        public string name { get; set; }
+        public string model { get; set; }
+        public string group { get; set; }
+        public string path { get; set; }
+        public string type { get; set; }
+        public float length { get; set; }
+        public int count { get; set; }
+        public float pitch { get; set; }
+        public float offset { get; set; }
+        public List<PointInfo> points { get; set; }
+        public List<SpdInfo> spds { get; set; }
+        [JsonIgnore]
+        public GameObject gameObject { get; set; }
+    }
+
+    [Serializable]
     public class PlanarMotorSetting
     {
         /// <summary>
@@ -857,6 +908,10 @@ namespace Parameters
         /// </summary>
         public float alive { get; set; }
         /// <summary>
+        /// バケット番号
+        /// </summary>
+        public int backetno { get; set; }
+        /// <summary>
         /// オフセット(位置)
         /// </summary>
         public List<float> pos { get; set; }
@@ -868,6 +923,18 @@ namespace Parameters
         /// 重力使用
         /// </summary>
         public bool gravity { get; set; }
+        /// <summary>
+        /// 変更
+        /// </summary>
+        public bool change { get; set; }
+        /// <summary>
+        /// 動作無視
+        /// </summary>
+        public bool ignoreMove { get; set; }
+        /// <summary>
+        /// 触れないように
+        /// </summary>
+        public bool isTouch { get; set; } = true;
         public bool isGrabbable
         {
             get
@@ -903,6 +970,10 @@ namespace Parameters
         /// 距離
         /// </summary>
         public float distance { get; set; }
+        /// <summary>
+        /// バケット番号
+        /// </summary>
+        public int backetno { get; set; }
         /// <summary>
         /// オフセット(位置)
         /// </summary>
@@ -1046,6 +1117,22 @@ namespace Parameters
         public GameObject gameObject { get; set; }
         [JsonIgnore]
         public bool isChild { get; set; }
+    }
+
+    [Serializable]
+    public class BacketSetting
+    {
+        public string mechId { get; set; } = "";
+        public string name { get; set; } = "";
+        public string model { get; set; } = "";
+        public string group { get; set; } = "";
+        public string path { get; set; } = "";
+        public int count { get; set; }
+        public float pitch { get; set; }
+        public float offset { get; set; }
+        public bool visible { get; set; }
+        [JsonIgnore]
+        public GameObject gameObject { get; set; }
     }
 
     [Serializable]

@@ -28,6 +28,11 @@ public class ObjectScript : BaseBehaviour
     public bool IsGravity;
 
     /// <summary>
+    /// 接触可能
+    /// </summary>
+    public bool IsTouch;
+
+    /// <summary>
     /// オブジェクトID
     /// </summary>
     public int id;
@@ -50,6 +55,7 @@ public class ObjectScript : BaseBehaviour
         {
             this.gameObject.AddComponent<Collider>();
         }
+        collider.isTrigger = IsTouch;
         rigi = GetComponentInChildren<Rigidbody>();
         if (rigi == null)
         {

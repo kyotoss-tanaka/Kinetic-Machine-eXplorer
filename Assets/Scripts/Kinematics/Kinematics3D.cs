@@ -61,14 +61,17 @@ public class Kinematics3D : KinematicsBase
             if (robo.isTm)
             {
                 // タイムチャートからタグ取得
-                var x = tmActs[0] != null ? tmActs[0].nowValue : 0;
-                var y = tmActs[1] != null ? tmActs[1].nowValue : 0;
-                var z = tmActs[2] != null ? tmActs[2].nowValue : 0;
-                // mm単位系に変換
-                target.x = x * 1000f;
-                target.y = y * 1000f;
-                target.z = z * 1000f;
-                setTarget(target);
+                if (tmActs.Count > 0)
+                {
+                    var x = tmActs[0] != null ? tmActs[0].nowValue : 0;
+                    var y = tmActs[1] != null ? tmActs[1].nowValue : 0;
+                    var z = tmActs[2] != null ? tmActs[2].nowValue : 0;
+                    // mm単位系に変換
+                    target.x = x * 1000f;
+                    target.y = y * 1000f;
+                    target.z = z * 1000f;
+                    setTarget(target);
+                }
             }
             else
             {
@@ -196,7 +199,7 @@ public class Kinematics3D : KinematicsBase
         tmActs = new();
         foreach (var tm in robo.tmUnits)
         {
-            if (tm != null)
+            if ((tm != null) && (tm.unitObject != null))
             {
                 tmActs.Add(tm.unitObject.GetComponent<MotionInternal>());
             }

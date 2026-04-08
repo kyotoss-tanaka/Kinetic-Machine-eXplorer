@@ -44,6 +44,7 @@ public class MainProcess : KssBaseScript
         if (GlobalScript.isXRMode)
         {
             // アンドロイド
+            QualitySettings.vSyncCount = 0;
             Application.targetFrameRate = 120;
             // VR時
             // camera.gameObject.SetActive(false);
@@ -51,6 +52,7 @@ public class MainProcess : KssBaseScript
         else
         {
             // Windows
+            QualitySettings.vSyncCount = 0;
             Application.targetFrameRate = 120;
             // ovr.gameObject.SetActive(false);
         }

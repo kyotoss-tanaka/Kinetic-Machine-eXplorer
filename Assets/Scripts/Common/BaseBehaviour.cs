@@ -8,6 +8,8 @@ public class BaseBehaviour : MonoBehaviour
     protected virtual void Awake() { }
     protected virtual void OnEnable() { }
     protected virtual void Start() { }
+    protected virtual void OnDisable() { }
+    protected virtual void OnDestroy() { }
     protected virtual void OnTriggerEnter(Collider other) { }
     protected virtual void OnTriggerEnter2D(Collider2D other) { }
     protected virtual void OnTriggerStay(Collider other) { }
@@ -28,6 +30,7 @@ public class BaseBehaviour : MonoBehaviour
     protected virtual void OnMouseUpAsButton() { }
     public virtual void OnMouseExit() { }
     protected virtual void LateUpdate() { }
+    /*
     protected virtual void OnWillRenderObject() { }
     protected virtual void OnPreCull() { }
     protected virtual void OnBecameVisible() { }
@@ -39,11 +42,9 @@ public class BaseBehaviour : MonoBehaviour
     protected virtual void OnDrawGizmos() { }
     protected virtual void OnGUI() { }
     protected virtual void OnApplicationPause(bool pauseStatus) { }
-    protected virtual void OnDisable() { }
-    protected virtual void OnDestroy() { }
     protected virtual void OnApplicationQuit() { }
     protected virtual void OnApplicationFocus(bool focusStatus) { }
-    
+    */
     private Coroutine updateProceess { get; set; }
 
     /// <summary>

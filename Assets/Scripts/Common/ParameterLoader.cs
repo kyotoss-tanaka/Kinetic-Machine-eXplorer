@@ -69,6 +69,7 @@ namespace Parameters
         private List<HiddenUnit> hiddenSettings;
         private List<ChuckUnitSetting> chuckUnitSettings;
         private List<RobotSetting> robotSettings;
+        private List<LinearSetting> linearSettings;
         private List<PlanarMotorSetting> pmSettings;
         private List<ConveyerSetting> cvSettings;
         private List<WorkCreateSetting> wkSettings;
@@ -77,6 +78,7 @@ namespace Parameters
         private List<SuctionSetting> suctionSettings;
         private List<ShapeSetting> shapeSettings;
         private List<ExMechSetting> exMechSettings;
+        private List<BacketSetting> backetSettings;
         private List<SwitchSetting> switchSettings;
         private List<SignalTowerSetting> towerSettings;
         private List<LedSetting> ledSettings;
@@ -118,6 +120,9 @@ namespace Parameters
         private bool isLines = false;
         private GlobalScript.ClipInfo clipInfo = new();
 
+        // マルチオブジェクトファクトリー
+        MultiObjectFactoryScript multiObjectFactory;
+
         void Awake()
         {
             // 精神と時の部屋取得
@@ -128,6 +133,9 @@ namespace Parameters
             // メインプロセス実行
             globalSetting = FindObjectsByType<GameObject>(FindObjectsSortMode.None).Where(d => d.name == "GlobalSetting").ToList()[0];
             globalSetting.AddComponent<MainProcess>();
+
+            // マルチオブジェクトファクトリー作成
+            multiObjectFactory =  globalSetting.AddComponent<MultiObjectFactoryScript>();
 
             CommonFunction.DebugLog($"***** Start Load *****");
 
@@ -333,6 +341,8 @@ namespace Parameters
                             unitSetting.ledSetting = ledSettings.Find(d => (d.mechId == unitSetting.mechId) && (d.name == unitSetting.name));
                             // 機構拡張設定紐づけ
                             unitSetting.exMechSetting = exMechSettings.Find(d => (d.mechId == unitSetting.mechId) && (d.name == unitSetting.name));
+                            // バケット設定紐づけ
+                            unitSetting.backetSetting = backetSettings.Find(d => (d.mechId == unitSetting.mechId) && (d.name == unitSetting.name));
                             // チャック設定更新
                             var chuckSetting = chuckUnitSettings.Find(d => (d.mechId == unitSetting.mechId) && (d.name == unitSetting.name));
                             if (chuckSetting != null)
@@ -451,9 +461,17 @@ namespace Parameters
                                         Debug.Log($"エラー：ユニット名(ロボット名)「{unitSetting.name}」の動作設定が存在しません。");
                                     }
                                 }
+                                else if (unitSetting.actionSetting.isLinear)
+                                {
+                                    // リニアなら
+                                    var instance = unitSetting.unitObject.AddComponent<MotionLinear>();
+                                    // チャック設定更新
+                                    var linearSetting = linearSettings.Find(d => (d.mechId == unitSetting.mechId) && (d.name == unitSetting.name));
+                                    instance.SetUnitSettings(unitSetting, chuckSetting, linearSetting);
+                                }
                                 else if (unitSetting.actionSetting.isPlanarMotor)
                                 {
-                                    // 外部平面リニアなら(再構築のみ)
+                                    // 平面リニアなら(再構築のみ)
                                     var instance = unitSetting.unitObject.AddComponent<AxisMotionBase>();
                                     instance.SetUnitSettings(unitSetting, chuckSetting);
                                     var pm = pmSettings.Find(d => (d.mechId == unitSetting.mechId) && (d.name == unitSetting.name));
@@ -465,7 +483,7 @@ namespace Parameters
                                     }
                                     else
                                     {
-                                        Debug.Log($"エラー：ユニット名(ロボット名)「{unitSetting.name}」の動作設定が存在しません。");
+                                        Debug.Log($"エラー：ユニット名(平面リニア名)「{unitSetting.name}」の動作設定が存在しません。");
                                     }
                                 }
                                 else if (unitSetting.actionSetting.isConveyer)
@@ -790,6 +808,13 @@ namespace Parameters
             var motions = new List<AxisMotionBase>();
             var works = new List<ObjectScript>();
 
+            // ユニット設定を保持
+            var dctUnitSetting = new Dictionary<string, GameObject>();
+            foreach (var setting in unitSettings)
+            {
+                dctUnitSetting.Add(setting.name, setting.unitObject);
+            }
+
             // Taskを実行
             var task = LoadParameterFiles();
             // 完了するまで待つ
@@ -804,6 +829,16 @@ namespace Parameters
             {
                 Destroy(work.gameObject);
             }
+            // ユニット設定戻し
+            foreach (var unitSetting in unitSettings)
+            {
+                if (dctUnitSetting.ContainsKey(unitSetting.name))
+                {
+                    unitSetting.unitObject = dctUnitSetting[unitSetting.name];
+                }
+            }
+            multiObjectFactory.DeleteSetting();
+
             // 通信設定
             SetDatabaseSetting();
             foreach (var unitSetting in unitSettings)
@@ -831,6 +866,8 @@ namespace Parameters
                     motion.unitSetting.ledSetting = ledSettings.Find(d => (d.mechId == unitSetting.mechId) && (d.name == unitSetting.name));
                     // 機構拡張設定紐づけ
                     motion.unitSetting.exMechSetting = exMechSettings.Find(d => (d.mechId == unitSetting.mechId) && (d.name == unitSetting.name));
+                    // バケット設定紐づけ
+                    unitSetting.backetSetting = backetSettings.Find(d => (d.mechId == unitSetting.mechId) && (d.name == unitSetting.name));
                     // 動作設定との紐づけ
                     motion.unitSetting.actionSetting = actionSettings.Find(d => (d.mechId == unitSetting.mechId) && (d.name == unitSetting.name));
                     // チャック設定
@@ -981,53 +1018,31 @@ namespace Parameters
         /// </summary>
         private async Task LoadParameterFiles()
         {
-            CommonFunction.DebugLog($"***** Parameter Load : Postgres *****");
             postgresSettings = (List<PostgresSetting>)await GlobalScript.LoadListJson<List<PostgresSetting>>("Postgres");
-            CommonFunction.DebugLog($"***** Parameter Load : DataExchangeInfo *****");
             dataExSettings = (List<DataExchangeSetting>)await GlobalScript.LoadListJson<List<DataExchangeSetting>>("DataExchangeInfo");
-            CommonFunction.DebugLog($"***** Parameter Load : UnitInfo *****");
             unitSettings = (List<UnitSetting>)await GlobalScript.LoadListJson<List<UnitSetting>>("UnitInfo");
-            CommonFunction.DebugLog($"***** Parameter Load : ActionInfo *****");
             actionSettings = (List<UnitActionSetting>)await GlobalScript.LoadListJson<List<UnitActionSetting>>("ActionInfo");
-            CommonFunction.DebugLog($"***** Parameter Load : InnerProcessInfo *****");
             innerSettings = (List<InnerProcessSetting>)await GlobalScript.LoadListJson<List<InnerProcessSetting>>("InnerProcess");
-            CommonFunction.DebugLog($"***** Parameter Load : HiddenUnitInfo *****");
             hiddenSettings = (List<HiddenUnit>)await GlobalScript.LoadListJson<List<HiddenUnit>>("HiddenUnitInfo");
-            CommonFunction.DebugLog($"***** Parameter Load : ChuckUnitInfo *****");
             chuckUnitSettings = (List<ChuckUnitSetting>)await GlobalScript.LoadListJson<List<ChuckUnitSetting>>("ChuckUnitInfo");
-            CommonFunction.DebugLog($"***** Parameter Load : RobotInfo *****");
             robotSettings = (List<RobotSetting>)await GlobalScript.LoadListJson<List<RobotSetting>>("RobotInfo");
-            CommonFunction.DebugLog($"***** Parameter Load : PlanarMotorInfo *****");
             pmSettings = (List<PlanarMotorSetting>)await GlobalScript.LoadListJson<List<PlanarMotorSetting>>("PlanarMotorInfo");
-            CommonFunction.DebugLog($"***** Parameter Load : ConveyerInfo *****");
             cvSettings = (List<ConveyerSetting>)await GlobalScript.LoadListJson<List<ConveyerSetting>>("ConveyerInfo");
-            CommonFunction.DebugLog($"***** Parameter Load : WorkCreateInfo *****");
             wkSettings = (List<WorkCreateSetting>)await GlobalScript.LoadListJson<List<WorkCreateSetting>>("WorkCreateInfo");
-            CommonFunction.DebugLog($"***** Parameter Load : WorkDeleteInfo *****");
             wkDeleteSettings = (List<WorkDeleteSetting>)await GlobalScript.LoadListJson<List<WorkDeleteSetting>>("WorkDeleteInfo");
-            CommonFunction.DebugLog($"***** Parameter Load : SensorInfo *****");
             sensorSettings = (List<SensorSetting>)await GlobalScript.LoadListJson<List<SensorSetting>>("SensorInfo");
-            CommonFunction.DebugLog($"***** Parameter Load : SuctionInfo *****");
             suctionSettings = (List<SuctionSetting>)await GlobalScript.LoadListJson<List<SuctionSetting>>("SuctionInfo");
-            CommonFunction.DebugLog($"***** Parameter Load : ShapeInfo *****");
             shapeSettings = (List<ShapeSetting>)await GlobalScript.LoadListJson<List<ShapeSetting>>("ShapeInfo");
-            CommonFunction.DebugLog($"***** Parameter Load : ExMechInfo *****");
             exMechSettings = (List<ExMechSetting>)await GlobalScript.LoadListJson<List<ExMechSetting>>("ExMechInfo");
-            CommonFunction.DebugLog($"***** Parameter Load : SwitchInfo *****");
+            backetSettings = (List<BacketSetting>)await GlobalScript.LoadListJson<List<BacketSetting>>("BacketInfo");
+            linearSettings = (List<LinearSetting>)await GlobalScript.LoadListJson<List<LinearSetting>>("LinearInfo");
             switchSettings = (List<SwitchSetting>)await GlobalScript.LoadListJson<List<SwitchSetting>>("SwitchInfo");
-            CommonFunction.DebugLog($"***** Parameter Load : SignalTowerInfo *****");
             towerSettings = (List<SignalTowerSetting>)await GlobalScript.LoadListJson<List<SignalTowerSetting>>("SignalTowerInfo");
-            CommonFunction.DebugLog($"***** Parameter Load : LedInfo *****");
             ledSettings = (List<LedSetting>)await GlobalScript.LoadListJson<List<LedSetting>>("LedInfo");
-            CommonFunction.DebugLog($"***** Parameter Load : PrefabInfo *****");
             prefabSettings = (List<PrefabSetting>)await GlobalScript.LoadListJson<List<PrefabSetting>>("PrefabInfo");
-            CommonFunction.DebugLog($"***** Parameter Load : CardboardInfo *****");
             cardboardSettings = (List<CardboardSetting>)await GlobalScript.LoadListJson<List<CardboardSetting>>("CardboardInfo");
-            CommonFunction.DebugLog($"***** Parameter Load : DebugInfo *****");
             debugSettings = (List<DebugSetting>)await GlobalScript.LoadListJson<List<DebugSetting>>("DebugInfo");
-            CommonFunction.DebugLog($"***** Parameter Load : BuildConfig *****");
             GlobalScript.buildConfig = (BuildConfig)await GlobalScript.LoadListJson<BuildConfig>("BuildConfig");
-            CommonFunction.DebugLog($"***** Parameter Load : ActionTable *****");
             actionTableDatas = (List<ActionTableData>)await GlobalScript.LoadListJson<List<ActionTableData>>("ActionTableInfo");
         }
 
@@ -1318,8 +1333,12 @@ namespace Parameters
                 if (mr.GetComponent<LineRenderer>() != null)
                     continue;
 
-                // 既に BoxCollider があるならスキップ
+                // 既にBoxColliderがあるならスキップ
                 if (mr.GetComponent<BoxCollider>() != null)
+                    continue;
+
+                // 既に親がBoxCollider があるならスキップ
+                if (mr.GetComponentInParent<BoxCollider>() != null)
                     continue;
 
                 var mf = mr.GetComponent<MeshFilter>();
@@ -1598,6 +1617,8 @@ namespace Parameters
         /// </summary>
         private void CreateWork()
         {
+            multiObjectFactory.DeleteSetting();
+
             foreach (var wk in wkSettings)
             {
                 var work = FindObjectsByType<GameObject>(FindObjectsSortMode.None).ToList().FindAll(d => d.name == wk.work);
@@ -1741,6 +1762,24 @@ namespace Parameters
                         var obj = prefabObj.transform.Find(child.path);
                         child.gameObject = obj != null ? obj.gameObject : null;
                     }
+                }
+            }
+            // バケット設定
+            foreach (var backet in backetSettings)
+            {
+                if (backet.path != null)
+                {
+                    var obj = prefabObj.transform.Find(backet.path);
+                    backet.gameObject = obj != null ? obj.gameObject : null;
+                }
+            }
+            // リニア設定
+            foreach (var linear in linearSettings)
+            {
+                if (linear.path != null)
+                {
+                    var obj = prefabObj.transform.Find(linear.path);
+                    linear.gameObject = obj != null ? obj.gameObject : null;
                 }
             }
             SortUnitSettings(unitNames, unitSettings, ref tmpUnits);

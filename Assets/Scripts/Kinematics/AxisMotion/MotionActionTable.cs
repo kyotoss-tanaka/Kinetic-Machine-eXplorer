@@ -18,12 +18,6 @@ public class MotionActionTable : AxisMotionBase
     protected float rate;
 
     /// <summary>
-    /// è“®İ’è
-    /// </summary>
-    [SerializeField]
-    protected bool isManual;
-
-    /// <summary>
     /// Œ»İŠÔ
     /// </summary>
     [SerializeField]
