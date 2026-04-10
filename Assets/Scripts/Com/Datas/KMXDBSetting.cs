@@ -47,7 +47,6 @@ namespace Parameters
         /// <summary>
         /// ユニットタグ設定
         /// </summary>
-        [SerializeField]
         public UnitTagSetting unitTag { get; set; }
 
         /// <summary>

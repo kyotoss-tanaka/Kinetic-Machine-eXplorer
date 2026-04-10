@@ -747,11 +747,13 @@ namespace Parameters
         [Serializable]
         public class SpdInfo
         {
-            public float vm { get; set; }
-            public float vf { get; set; }
-            public float ve { get; set; }
-            public float acl { get; set; }
-            public float jerk { get; set; }
+            public float vm { get; set; } = 1000;
+            public float vf { get; set; } = 0;
+            public float ve { get; set; } = 0;
+            public float acl { get; set; } = 1;
+            public float dcl { get; set; } = 1;
+            public float jerkA { get; set; }
+            public float jerkD { get; set; }
         }
         public string mechId { get; set; }
         public string name { get; set; }

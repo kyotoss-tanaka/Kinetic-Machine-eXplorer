@@ -56,13 +56,11 @@ public class KssBaseScript : BaseBehaviour
     /// <summary>
     /// マニュアル設定
     /// </summary>
-    [SerializeField]
     protected bool isManual;
 
     /// <summary>
     /// キャンバス表示
     /// </summary>
-    [SerializeField]
     protected virtual bool isCanvas { get { return false; } }
 
     /// <summary>

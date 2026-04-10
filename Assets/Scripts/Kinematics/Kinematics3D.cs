@@ -25,7 +25,6 @@ public class Kinematics3D : KinematicsBase
     [SerializeField]
     protected Vector3 target;
 
-    [SerializeField]
     protected List<MotionInternal> tmActs { get; set; } = new();
     #endregion プロパティ
 

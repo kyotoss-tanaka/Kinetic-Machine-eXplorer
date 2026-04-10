@@ -34,7 +34,6 @@ public class LedScript : KssBaseScript
     /// <summary>
     /// “®ìƒ^ƒCƒv
     /// </summary>
-    [SerializeField]
     private int type { get; set; }
 
     /// <summary>

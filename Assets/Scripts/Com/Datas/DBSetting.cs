@@ -124,44 +124,37 @@ namespace Parameters
         /// <summary>
         /// 名称
         /// </summary>
-        [SerializeField]
         public string Name { get; set; } = "";
 
         /// <summary>
         /// レジスタタイプ
         /// </summary>
         //public string RegisterType { get; set; } = "D";
-        [SerializeField]
         public string RegisterType { get; set; } = "";
 
         /// <summary>
         /// レジスタ番号
         /// </summary>
-        [SerializeField]
         public int RegisterNo { get; set; }
 
         /// <summary>
         /// ビット番号
         /// </summary>
-        [SerializeField]
         public int BitNo { get; set; } = -1;
 
         /// <summary>
         /// プログラム番号
         /// </summary>
-        [SerializeField]
         public int ProgramNo { get; set; }
 
         /// <summary>
         /// データ数
         /// </summary>
-        [SerializeField]
         public int DataCount { get; set; } = 1;
 
         /// <summary>
         /// データ型
         /// </summary>
-        [SerializeField]
         public eDeviceSize DataType { get; set; } = eDeviceSize.None;
 
         /// <summary>
@@ -183,7 +176,6 @@ namespace Parameters
         /// <summary>
         /// データタグ
         /// </summary>
-        [SerializeField]
         public string DataTag { get; set; } = "";
 
         /// <summary>
@@ -204,7 +196,6 @@ namespace Parameters
         /// <summary>
         /// 書き込み用データフラグ
         /// </summary>
-        [SerializeField]
         public bool IsWrite { get; set; } = false;
 
         /// <summary>
