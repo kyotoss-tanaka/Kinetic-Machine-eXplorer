@@ -405,7 +405,7 @@ namespace Parameters
         /// <summary>
         /// “®ìİ’è
         /// </summary>
-        public List<UnitAction> actions { get; set; }
+        public List<UnitAction> actions { get; set; } = new();
 
         public bool isInternal
         {
@@ -738,6 +738,7 @@ namespace Parameters
             public string name { get; set; }
             public float pos { get; set; }
             public string tagAct { get; set; }
+            public string tagProcess { get; set; }
             public string tagFin { get; set; }
             public string type { get; set; }
             public int spd { get; set; }
@@ -765,6 +766,10 @@ namespace Parameters
         public int count { get; set; }
         public float pitch { get; set; }
         public float offset { get; set; }
+        public bool stat { get; set; }
+        public int org { get; set; }
+        public bool rvs { get; set; }
+        public List<float> statPos { get; set; }
         public List<PointInfo> points { get; set; }
         public List<SpdInfo> spds { get; set; }
         [JsonIgnore]

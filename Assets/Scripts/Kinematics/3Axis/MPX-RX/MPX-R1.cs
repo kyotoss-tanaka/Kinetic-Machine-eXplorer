@@ -40,8 +40,8 @@ public class MPX_R1 : MPX_RX
         arm2_1.transform.localEulerAngles = new Vector3(ang2_1.x, ang2_1.y, -angle[1]);
         arm2_2.transform.localEulerAngles = new Vector3(ang2_2.x, ang2_2.y, 180 - (angle[0] + angle[1]));
         arm3.transform.localEulerAngles = new Vector3(ang3.x, ang3.y, offset - angle[1]);
-        arm4.transform.localEulerAngles = new Vector3(ang4.x, ang4.y, -90 - arm3.transform.localEulerAngles.z);
-        plate.transform.localEulerAngles = new Vector3(angP.x, angP.y, 90 - angle[2] - head_offset);
+        arm4.transform.localEulerAngles = new Vector3(ang4.x, ang4.y, (isRvs ? 90 : -90) - arm3.transform.localEulerAngles.z);
+        plate.transform.localEulerAngles = new Vector3(angP.x, angP.y, (isRvs ? -90 : 90) - head_offset - angle[2]);
     }
 
     /// <summary>
@@ -60,10 +60,17 @@ public class MPX_R1 : MPX_RX
         if (children.Find(d => d.name.Contains("W0578936-")) != null)
         {
             axisType = 3;
+            isRvs = false;
+        }
+        else if (children.Find(d => d.name.Contains("W0652706-")) != null)
+        {
+            axisType = 3;
+            offset = -offset; 
+            isRvs = true;
         }
 
         // アーム1-1 W0578802-
-        var arm1_1Tmp = children.Find(d => d.name.Contains("W0578802-"));
+        var arm1_1Tmp = children.Find(d => d.name.Contains("W0578802-") || d.name.Contains("W0652681-"));
         if (arm1_1Tmp != null)
         {
             arm1_1 = arm1_1Tmp.parent.gameObject;
@@ -77,22 +84,21 @@ public class MPX_R1 : MPX_RX
         }
 
         // アーム2-1 W0579111-(三角プレート)
-        var arm2_1Tmp = children.Find(d => d.name.Contains("W0579111-"));
+        var arm2_1Tmp = children.Find(d => d.name.Contains("W0579111-") || d.name.Contains("W0652733-"));
         if (arm2_1Tmp != null)
         {
             arm2_1 = arm2_1Tmp.parent.gameObject;
         }
 
         // アーム2-2 W0578963-
-        var arm2_2Tmp = children.Find(d => d.name.Contains("W0578963-"));
+        var arm2_2Tmp = children.Find(d => d.name.Contains("W0578963-") || d.name.Contains("W0652724-"));
         if (arm2_2Tmp != null)
         {
             arm2_2 = arm2_2Tmp.parent.gameObject;
         }
 
-
         // アーム3 W0578936-
-        var arm3Tmp = children.Find(d => d.name.Contains("W0578936-"));
+        var arm3Tmp = children.Find(d => d.name.Contains("W0578936-") || d.name.Contains("W0652706-"));
         if (arm3Tmp != null)
         {
             arm3 = arm3Tmp.parent.gameObject;

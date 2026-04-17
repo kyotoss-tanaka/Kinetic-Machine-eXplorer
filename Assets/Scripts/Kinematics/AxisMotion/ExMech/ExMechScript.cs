@@ -103,6 +103,11 @@ public class ExMechScript : UseTagBaseScript
             // レバー機構
             mechInfo.RenewPos();
         }
+        else if (mechType == 3)
+        {
+            // 並行リンク機構
+            mechInfo.RenewPos();
+        }
     }
 
     /// <summary>
@@ -299,6 +304,44 @@ public class ExMechScript : UseTagBaseScript
             }
             parentModel = mechInfo.sliderAxis.model;
         }
+        else if (mechType == 3)
+        {
+            // 並行リンク
+            var isDouble = exMechSetting.datas[3].gameObject != null &&
+                           exMechSetting.datas[4].gameObject != null &&
+                           exMechSetting.datas[5].gameObject != null;
+            mechInfo = new ExMechParallelLinkInfo
+            {
+                workSpace = workSpace,
+                mainAxis = mainAxis,
+                mainDir = moveDir,
+                initAngle = initAngle,
+                exModeChange = unitSetting.actionSetting.exModeChange,
+                isDouble = isDouble
+            };
+            // アーム
+            foreach (var data in exMechSetting.datas)
+            {
+                var axis = new ExMechAxisInfo
+                {
+                    model = data.gameObject,
+                    children = new()
+                };
+                foreach (var child in data.children)
+                {
+                    axis.children.Add(child.gameObject);
+                }
+                mechInfo.axisInfos.Add(axis);
+            }
+            if (isDouble)
+            {
+                parentModel = mechInfo.axisInfos[4].model;
+            }
+            else
+            {
+                parentModel = mechInfo.axisInfos[0].model;
+            }
+        }
     }
 
     /// <summary>
@@ -319,6 +362,11 @@ public class ExMechScript : UseTagBaseScript
         else if (mechType == 2)
         {
             // レバー機構
+            mechInfo.Initialize();
+        }
+        else if (mechType == 3)
+        {
+            // 並行リンク機構
             mechInfo.Initialize();
         }
     }

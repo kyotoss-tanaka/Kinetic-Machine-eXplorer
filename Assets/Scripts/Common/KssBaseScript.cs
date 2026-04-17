@@ -56,6 +56,7 @@ public class KssBaseScript : BaseBehaviour
     /// <summary>
     /// ƒ}ƒjƒ…ƒAƒ‹İ’è
     /// </summary>
+    [SerializeField]
     protected bool isManual;
 
     /// <summary>

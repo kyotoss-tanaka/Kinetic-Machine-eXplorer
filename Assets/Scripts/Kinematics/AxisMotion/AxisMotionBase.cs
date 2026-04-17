@@ -30,6 +30,7 @@ public class AxisMotionBase : KinematicsBase
     /// </summary>
     public class VerticeInfo
     {
+        public int id;
         public Vector3 vertice;
         public Vector3 normal;
     }
@@ -257,7 +258,7 @@ public class AxisMotionBase : KinematicsBase
     {
         get
         {
-            return (unitSetting != null) && (unitSetting.backetSetting != null);
+            return (unitSetting != null) && (unitSetting.backetSetting != null) && (unitSetting.backetSetting.gameObject != null);
         }
     }
 
@@ -921,6 +922,7 @@ public class AxisMotionBase : KinematicsBase
                             }
                         }
                     }
+                    loopPathPoints.Add(loopPathPoints[0]);
                 }
             }
         }
@@ -951,7 +953,8 @@ public class AxisMotionBase : KinematicsBase
             backetCountMax = (int)Math.Round(totalLength / backetPitch);
             backetLength = backetCountMax * backetPitch;
             backetCenter = new Vector3(loopPathPoints.Average(d => d.x), loopPathPoints.Average(d => d.y), loopPathPoints.Average(d => d.z));
-            for (var i = 0; i < unitSetting.backetSetting.count; i++)
+            var count = unitSetting.backetSetting.count == 0 ? backetCountMax : unitSetting.backetSetting.count;
+            for (var i = 0; i < count; i++)
             {
                 var backet = new BacketInfo
                 {

@@ -28,6 +28,11 @@ public class MPX_RX : UseHeadBase3DScript
 
     protected int axisType = 0;
 
+    /// <summary>
+    /// ãtèüéË
+    /// </summary>
+    protected bool isRvs = false;
+
     #endregion ïœêî
     /// <summary>
     /// äJénèàóù
@@ -112,9 +117,9 @@ public class MPX_RX : UseHeadBase3DScript
         ddWkX = Mathf.Rad2Deg * ddWkX;
         ddWkY = Mathf.Rad2Deg * ddWkY;
         ddWkZ = Mathf.Rad2Deg * ddWkZ;
-        ret.Add(float.IsNaN(ddWkX) ? 0 : ddWkX);
-        ret.Add(float.IsNaN(ddWkY) ? 0 : ddWkY);
-        ret.Add(float.IsNaN(ddWkZ) ? 0 : ddWkZ);
+        ret.Add(float.IsNaN(ddWkX) ? 0 : isRvs ? -ddWkX : ddWkX);
+        ret.Add(float.IsNaN(ddWkY) ? 0 : isRvs ? -ddWkY : ddWkY);
+        ret.Add(float.IsNaN(ddWkZ) ? 0 : isRvs ? -ddWkZ : ddWkZ);
         return ret;
     }
 

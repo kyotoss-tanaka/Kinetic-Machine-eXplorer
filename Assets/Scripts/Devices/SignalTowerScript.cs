@@ -65,7 +65,6 @@ public class SignalTowerScript : KssBaseScript
             blue = GetTagValue(st.blue, ref BlueTag);
             white = GetTagValue(st.white, ref WhiteTag);
         }
-
         SetEmmision(RedMaterial, st.red, red);
         SetEmmision(YellowMaterial, st.yellow, yellow);
         SetEmmision(GreenMaterial, st.green, green);
@@ -85,7 +84,6 @@ public class SignalTowerScript : KssBaseScript
             else
             {
                 mat.DisableKeyword("_EMISSION");
-
             }
         }
     }

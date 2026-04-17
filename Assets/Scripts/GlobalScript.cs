@@ -269,12 +269,20 @@ public static class GlobalScript
     /// <summary>
     /// XR表示モード
     /// </summary>
-    public static bool isXRMode = false;
+    public static bool isXRMode
+    {
+        get => PlayerPrefs.GetInt("isXRMode", 1) == 1;
+        set => PlayerPrefs.SetInt("isXRMode", value ? 1 : 0);
+    }
 
     /// <summary>
     /// VR用プレハブモード
     /// </summary>
-    public static bool isXRPrefab = true;
+    public static bool isXRPrefab
+    {
+        get => PlayerPrefs.GetInt("isXRPrefab", 1) == 1;
+        set => PlayerPrefs.SetInt("isXRPrefab", value ? 1 : 0);
+    }
 
     /// <summary>
     /// 断面表示情報

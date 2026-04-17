@@ -23,10 +23,17 @@ public class ExMechInfo
     public Vector3 nowPos;
     public Vector3 nowAngle;
     public Vector3 initAngle;
+    /// <summary>
+    /// メインモデル
+    /// </summary>
     public ExMechAxisInfo mainAxis;
+    /// <summary>
+    /// ガイド用(LM等)
+    /// </summary>
+    public ExMechAxisInfo guideAxis;
     public ExMechAxisInfo pntAAxis;
     public ExMechAxisInfo sliderAxis;
-    public ExMechAxisInfo guideAxis;
+    public List<ExMechAxisInfo> axisInfos = new();
     public GameObject workSpace;
     public GameObject guideSpace;
     public GameObject calcSpace;
@@ -119,9 +126,13 @@ public class ExMechInfo
             {
                 return guideSpace.transform.InverseTransformPoint(pntAAxis.model.transform.position);
             }
-            else
+            else if (pntAAxis != null)
             {
                 return workSpace.transform.InverseTransformPoint(pntAAxis.model.transform.position);
+            }
+            else
+            {
+                return new();
             }
         }
     }
@@ -133,9 +144,13 @@ public class ExMechInfo
             {
                 return guideSpace.transform.InverseTransformPoint(sliderAxis.model.transform.position);
             }
-            else
+            else if (sliderAxis != null)
             {
                 return workSpace.transform.InverseTransformPoint(sliderAxis.model.transform.position);
+            }
+            else
+            {
+                return new();
             }
         }
     }

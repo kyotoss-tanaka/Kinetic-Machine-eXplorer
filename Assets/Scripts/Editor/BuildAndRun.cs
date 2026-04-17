@@ -128,8 +128,10 @@ public class BuildAndRun
 
             build.isRelease = true;
             var folderPath = BuildAndRunProcess(build, true, true);
+            /*
             build.isRelease = false;
             BuildAndRunProcess(build, false, true);
+            */
             if (folderPath != "")
             {
                 // エクスプローラーで開く

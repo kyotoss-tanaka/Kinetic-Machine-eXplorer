@@ -6,6 +6,7 @@ using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
+using Unity.Mathematics;
 using Unity.VisualScripting;
 using UnityEngine;
 using static MotionLinear;
@@ -24,8 +25,11 @@ public class MotionLinear : AxisMotionBase
         BUFF,
         TP,
         TPE,
+        MTP,
+        MTPE
     }
     #endregion 列挙型定義
+
     #region クラス定義
     /// <summary>
     /// 動作ポイント
@@ -52,6 +56,18 @@ public class MotionLinear : AxisMotionBase
         /// 動作完了
         /// </summary>
         public bool fin = false;
+        /// <summary>
+        /// 衝突中
+        /// </summary>
+        public bool collision = false;
+        /// <summary>
+        /// 処理待ち
+        /// </summary>
+        public bool processwait = false;
+        /// <summary>
+        /// 処理中
+        /// </summary>
+        public bool processing = false;
         /// <summary>
         /// 処理完了
         /// </summary>
@@ -89,6 +105,10 @@ public class MotionLinear : AxisMotionBase
         /// </summary>
         public float spd = 0;
         /// <summary>
+        /// 定速移動
+        /// </summary>
+        public bool isEvenSpd;
+        /// <summary>
         /// 動作テーブル
         /// </summary>
         public List<MotionPoint> table = new List<MotionPoint>();
@@ -97,8 +117,22 @@ public class MotionLinear : AxisMotionBase
     /// <summary>
     /// ムーバー情報
     /// </summary>
-    protected class MoverInfo
+    protected class MoverInfo : IDisposable
     {
+        /// <summary>
+        /// ムーバー状態
+        /// </summary>
+        public enum MoverStatus
+        {
+            None,
+            Acl,
+            Even,
+            Dcl,
+            ProcessWait,
+            Processing,
+            Processed,
+            Collision
+        }
         /// <summary>
         /// ID
         /// </summary>
@@ -107,6 +141,14 @@ public class MotionLinear : AxisMotionBase
         /// オブジェクト
         /// </summary>
         public GameObject obj;
+        /// <summary>
+        /// ステータス表示用オブジェクト
+        /// </summary>
+        private GameObject statObj;
+        /// <summary>
+        /// ステータス表示用ステータス
+        /// </summary>
+        private Material statMat;
         /// <summary>
         /// 動作中ポイント番号
         /// </summary>
@@ -140,6 +182,28 @@ public class MotionLinear : AxisMotionBase
         /// </summary>
         public long cycle = 0;
         /// <summary>
+        /// サイクル
+        /// </summary>
+        public long prvCycle = 0;
+        /// <summary>
+        /// 加速完了時間
+        /// </summary>
+        private int T1;
+        /// <summary>
+        /// 定速完了時間
+        /// </summary>
+        private int T2;
+        /// <summary>
+        /// 前回からの時間
+        /// </summary>
+        public long laps
+        {
+            get
+            {
+                return cycle - prvCycle;
+            }
+        }
+        /// <summary>
         /// 先頭フラグ
         /// </summary>
         public bool isHead
@@ -147,6 +211,105 @@ public class MotionLinear : AxisMotionBase
             get
             {
                 return id == 0;
+            }
+        }
+        /// <summary>
+        /// ムーバー状態
+        /// </summary>
+        public MoverStatus status
+        {
+            get
+            {
+                if (motion.act)
+                {
+                    // 動作中
+                    if (motion.collision)
+                    {
+                        return MoverStatus.Collision;
+                    }
+                    else
+                    {
+                        if (motion.laps < T1)
+                        {
+                            return MoverStatus.Acl;
+                        }
+                        else if (motion.laps < T2)
+                        {
+                            return MoverStatus.Even;
+                        }
+                        else
+                        {
+                            return MoverStatus.Dcl;
+                        }
+                    }
+                }
+                else if (motion.processwait)
+                {
+                    return MoverStatus.ProcessWait;
+                }
+                else if (motion.processing)
+                {
+                    return MoverStatus.Processing;
+                }
+                else if (motion.processed)
+                {
+                    return MoverStatus.Processed;
+                }
+                else
+                {
+                    return MoverStatus.None;
+                }
+            }
+        }
+        /// <summary>
+        /// ステータス作成
+        /// </summary>
+        public void CreateStatus(Vector3 pos)
+        {
+            statObj = Instantiate((GameObject)Resources.Load("3DModel/Works/Sphere"), obj.transform);
+            statObj.transform.localPosition = pos;
+            statMat = statObj.GetComponent<MeshRenderer>().material;
+        }
+        /// <summary>
+        /// ステータスセット
+        /// </summary>
+        public void SetStatus()
+        {
+            if (statMat != null)
+            {
+                var stat = status;
+                if (stat == MoverStatus.Acl)
+                {
+                    statMat.SetColor("_BaseColor", UnityEngine.Color.yellow);
+                }
+                else if (stat == MoverStatus.Even)
+                {
+                    statMat.SetColor("_BaseColor", UnityEngine.Color.green);
+                }
+                else if (stat == MoverStatus.Dcl)
+                {
+                    statMat.SetColor("_BaseColor", UnityEngine.Color.orange);
+                }
+                else if (stat == MoverStatus.ProcessWait)
+                {
+                    statMat.SetColor("_BaseColor", UnityEngine.Color.purple);
+                }
+                else if (stat == MoverStatus.Processing)
+                {
+                    statMat.SetColor("_BaseColor", UnityEngine.Color.aquamarine);
+                }
+                else if (stat == MoverStatus.Processed)
+                {
+                    statMat.SetColor("_BaseColor", UnityEngine.Color.blue);
+                }
+                else if (stat == MoverStatus.Collision)
+                {
+                    statMat.SetColor("_BaseColor", UnityEngine.Color.red);
+                }
+                else
+                {
+                    statMat.SetColor("_BaseColor", UnityEngine.Color.gray);
+                }
             }
         }
         /// <summary>
@@ -159,9 +322,11 @@ public class MotionLinear : AxisMotionBase
             motion.vf = motion.spd;
             motion.ve = spdInfo.ve;
             motion.start = pos;
-            motion.table = GenerateProfile(dist, motion.vf, spdInfo.ve, spdInfo.vm, spdInfo.acl, spdInfo.dcl);
+            motion.table = GenerateProfile(dist, motion.vf, spdInfo.ve, spdInfo.vm, spdInfo.acl, spdInfo.dcl, ref T1, ref T2);
             motion.act = true;
             motion.fin = false;
+            motion.collision = false;
+            motion.isEvenSpd = (spdInfo.vf == spdInfo.vm) && (spdInfo.vf == spdInfo.ve);
             motion.lapsOffset = cycle;
         }
         /// <summary>
@@ -178,7 +343,14 @@ public class MotionLinear : AxisMotionBase
                 {
                     motion.act = false;
                     motion.fin = true;
-                    pos = motion.pos;
+                    if (motion.isEvenSpd)
+                    {
+                        pos += motion.ve * laps / 1000f;
+                    }
+                    else
+                    {
+                        pos = motion.pos;
+                    }
                     ret = pos;
                 }
                 else
@@ -189,7 +361,7 @@ public class MotionLinear : AxisMotionBase
                 {
                     // 1μm以上で接触
                     ret = ((prv.pos - size) + length) % length;
-                    motion.pos = ret - motion.start;
+                    motion.pos = ((ret - motion.start) + length) % length;
                     var index = motion.table.FindIndex(d => d.position >= motion.pos);
                     if (index >= 0)
                     {
@@ -199,8 +371,20 @@ public class MotionLinear : AxisMotionBase
                         motion.act = true;
                         motion.fin = false;
                     }
+                    motion.collision = true;
+                }
+                else
+                {
+                    motion.collision = false;
                 }
             }
+            else if (motion.isEvenSpd)
+            {
+                // 定速移動
+                ret += motion.ve * laps / 1000f;
+            }
+            SetStatus();
+            prvCycle = cycle;
             return ret;
         }
         /// <summary>
@@ -235,6 +419,14 @@ public class MotionLinear : AxisMotionBase
             }
             return false;
         }
+        /// <summary>
+        /// 削除時
+        /// </summary>
+        public void Dispose()
+        {
+            Destroy(statMat);
+            Destroy(statObj);
+        }
     }
 
     /// <summary>
@@ -259,9 +451,17 @@ public class MotionLinear : AxisMotionBase
         /// </summary>
         public bool isTP;
         /// <summary>
+        /// 通過開始ポイント
+        /// </summary>
+        public bool isMTP;
+        /// <summary>
         /// 通過終了ポイント
         /// </summary>
         public bool isTPE;
+        /// <summary>
+        /// 通過終了ポイント
+        /// </summary>
+        public bool isMTPE;
         /// <summary>
         /// 割当ムーバー
         /// </summary>
@@ -271,9 +471,17 @@ public class MotionLinear : AxisMotionBase
         /// </summary>
         public StopPoint? tp = null;
         /// <summary>
+        /// 通過ポイント
+        /// </summary>
+        public StopPoint? mtp = null;
+        /// <summary>
         /// 通過終了ポイントへ移動中
         /// </summary>
         public bool isMoveToTPE = false;
+        /// <summary>
+        /// 通過終了ポイントへ移動中
+        /// </summary>
+        public bool isMoveToMTPE = false;
         /// <summary>
         /// 目標位置
         /// </summary>
@@ -334,6 +542,10 @@ public class MotionLinear : AxisMotionBase
         /// </summary>
         public string actTag;
         /// <summary>
+        /// 処理開始タグ
+        /// </summary>
+        public string processTag;
+        /// <summary>
         /// 完了タグ
         /// </summary>
         public string finTag;
@@ -349,6 +561,10 @@ public class MotionLinear : AxisMotionBase
         /// 次のプロセスポイント
         /// </summary>
         public PointInfo nextPP;
+        /// <summary>
+        /// 次のマルチ通過ポイント
+        /// </summary>
+        public PointInfo nextMTP;
         /// <summary>
         /// 次のポイント
         /// </summary>
@@ -366,10 +582,6 @@ public class MotionLinear : AxisMotionBase
         /// </summary>
         public SpeedInfo spdInfo;
         /// <summary>
-        /// 速度情報
-        /// </summary>
-        public SpeedInfo tpSpdInfo;
-        /// <summary>
         /// 経過時間
         /// </summary>
         public long laps = 0;
@@ -385,6 +597,10 @@ public class MotionLinear : AxisMotionBase
         /// 処理中か
         /// </summary>
         public bool isProcess = false;
+        /// <summary>
+        /// 処理完了
+        /// </summary>
+        public bool isProcessed = false;
         /// <summary>
         /// 空か？
         /// </summary>
@@ -406,6 +622,16 @@ public class MotionLinear : AxisMotionBase
             }
         }
         /// <summary>
+        /// 通過開始ポイントか？
+        /// </summary>
+        public bool isMTP
+        {
+            get
+            {
+                return type == PointType.MTP;
+            }
+        }
+        /// <summary>
         /// 通過終了ポイントか？
         /// </summary>
         public bool isTPE
@@ -413,6 +639,56 @@ public class MotionLinear : AxisMotionBase
             get
             {
                 return type == PointType.TPE;
+            }
+        }
+        /// <summary>
+        /// 通過終了ポイントか？
+        /// </summary>
+        public bool isMTPE
+        {
+            get
+            {
+                return type == PointType.MTPE;
+            }
+        }
+        /// <summary>
+        /// 通過開始ポイント完了
+        /// </summary>
+        public StopPoint tpFinPoint
+        {
+            get
+            {
+                return stopPoints.Find(sp => !sp.isMoveToTPE && (sp.mover != null) && sp.mover.motion.fin);
+            }
+        }
+        /// <summary>
+        /// 通過終了ポイント完了
+        /// </summary>
+        public StopPoint tpeFinPoint
+        {
+            get
+            {
+                return stopPoints.Find(sp => (sp.mover != null) && sp.mover.motion.fin);
+            }
+        }
+        /// <summary>
+        /// 通過開始ポイント完了
+        /// </summary>
+        public StopPoint mtpFinPoint
+        {
+            get
+            {
+                return stopPoints.Find(sp => !sp.isMoveToMTPE && (sp.mover != null) && sp.mover.motion.fin);
+            }
+        }
+        /// <summary>
+        /// 通過終了ポイント完了
+        /// </summary>
+        public StopPoint mtpeFinPoint
+        {
+            get
+            {
+                return stopPoints.Find(sp => (sp.mover != null) && sp.mover.motion.fin);
             }
         }
         /// <summary>
@@ -472,126 +748,44 @@ public class MotionLinear : AxisMotionBase
             }
         }
         /// <summary>
-        /// 処理可能か
+        /// 全ムーバー処理完了状態
+        /// </summary>
+        public bool isAllProcessed
+        {
+            get
+            {
+                var ret = true;
+                foreach (var sp in stopPoints)
+                {
+                    if (sp.mover == null)
+                    {
+                        return false;
+                    }
+                    ret &= sp.mover.motion.fin && sp.mover.motion.processed;
+                }
+                return ret;
+            }
+        }
+        /// <summary>
+        /// 動作可能か
         /// </summary>
         public bool isEnableMove
         {
             get
             {
                 var ret = false;
-                foreach (var sp in stopPoints)
-                {
-                    if (sp.mover == null)
-                    {
-                        continue;
-                    }
-                    ret |= sp.mover.motion.fin;
-                }
-                return ret;
-            }
-        }
-        /// <summary>
-        /// 処理完了
-        /// </summary>
-        public bool isProcessed
-        {
-            get
-            {
                 if (type == PointType.PP)
                 {
-                    // プロセスポイントの場合
-                    if (isEnableProcess)
-                    {
-                        // 処理可能状態
-                        if (!isProcess)
-                        {
-                            //　動作完了初回
-                            isProcess = true;
-                            lapsOffset = cycle;
-                            return false;
-                        }
-                        else
-                        {
-                            isProcess = (processTime > cycle - lapsOffset);
-                            if (!isProcess)
-                            {
-                                // 処理完了
-                                foreach (var sp in stopPoints)
-                                {
-                                    sp.mover.motion.processed = true;
-                                }
-                            }
-                            return !isProcess;
-                        }
-                    }
-                    else
-                    {
-                        return isEnableMove;
-                    }
-                }
-                else if (type == PointType.TP)
-                {
                     foreach (var sp in stopPoints)
                     {
-                        if ((sp.mover != null) && !sp.isMoveToTPE)
+                        if (sp.mover == null)
                         {
-                            if (sp.mover.motion.fin)
-                            {
-                                if (nextPP.nextMover != null)
-                                {
-                                    // 通過中保持
-                                    nextPP.nextMover.tp = sp;
-                                    // 通過終了ポイントへ
-                                    SetMover(sp, nextPP.nextMover, tpSpdInfo);
-                                    sp.isMoveToTPE = true;
-                                }
-                            }
+                            continue;
                         }
+                        ret |= sp.mover.motion.fin;
                     }
-                    return false;
                 }
-                else if (type == PointType.TPE)
-                {
-                    foreach (var sp in stopPoints)
-                    {
-                        if (sp.mover != null)
-                        {
-                            if (sp.mover.motion.fin)
-                            {
-                                // 次のポイントへ
-                                StopPoint target = null;
-                                for (var p = sp.next; p.pointId != nextPP.next.id; p = p.next)
-                                {
-                                    if (sp.pointId != p.pointId)
-                                    {
-                                        if (p.mover == null)
-                                        {
-                                            target = p;
-                                        }
-                                        else
-                                        {
-                                            break;
-                                        }
-                                    }
-                                }
-                                if (target != null)
-                                {
-                                    // 次のポイントへ
-                                    SetMover(sp, target);
-                                    sp.mover = null;
-                                    sp.tp.mover = null;
-                                    sp.tp.isMoveToTPE = false;
-                                    sp.tp = null;
-                                }
-                            }
-                        }
-                    }
-                    return false;
-                }
-                else
-                {
-                    return true;
-                }
+                return ret;
             }
         }
         /// <summary>
@@ -633,7 +827,7 @@ public class MotionLinear : AxisMotionBase
         /// ムーバーをセットする
         /// </summary>
         /// <param name="mover"></param>
-        public void SetMover(StopPoint nowPoint, StopPoint nextPoint, SpeedInfo spd = null)
+        public void SetMover(StopPoint nowPoint, StopPoint nextPoint)
         {
             var mover = nowPoint.mover;
             var next = nextPoint == null ? nextMover : nextPoint;
@@ -641,7 +835,7 @@ public class MotionLinear : AxisMotionBase
             {
                 var dist = (next.target + totalLength - mover.pos) % totalLength;
                 next.mover = mover;
-                mover.SetMotion(next.target, dist, spd == null ? spdInfo : spd);
+                mover.SetMotion(next.target, dist, spdInfo);
                 if (next.isPP)
                 {
                     if (nowPoint.pointId != nextPoint.pointId)
@@ -653,6 +847,73 @@ public class MotionLinear : AxisMotionBase
                 {
                     mover.motion.processed = true;
                 }
+            }
+        }
+
+        /// <summary>
+        /// 処理更新
+        /// </summary>
+        public void RenewProcess(long cycle, bool processTag)
+        {
+            this.cycle = cycle;
+            if (type == PointType.PP)
+            {
+                // プロセスポイントの場合
+                if (isEnableProcess)
+                {
+                    // 処理可能状態
+                    if (!isProcess)
+                    {
+                        //　動作完了初回
+                        if (processTag)
+                        {
+                            // 処理開始
+                            isProcess = true;
+                            lapsOffset = cycle;
+                        }
+                        // 処理待ち状態セット
+                        foreach (var sp in stopPoints)
+                        {
+                            sp.mover.motion.processwait = !processTag;
+                        }
+                        isProcessed = false;
+                    }
+                    else
+                    {
+                        isProcess = (processTime > cycle - lapsOffset);
+                        // 処理完了
+                        foreach (var sp in stopPoints)
+                        {
+                            sp.mover.motion.processing = isProcess;
+                            sp.mover.motion.processed = !isProcess;
+                        }
+                        isProcessed = !isProcess;
+                    }
+                }
+                else
+                {
+                    isProcessed = false;
+                }
+            }
+            else if (type == PointType.TP)
+            {
+                isProcessed = tpFinPoint != null;
+            }
+            else if (type == PointType.TPE)
+            {
+                isProcessed = tpeFinPoint != null;
+            }
+            else if (type == PointType.MTP)
+            {
+                isProcessed = mtpFinPoint != null;
+            }
+            else if (type == PointType.MTPE)
+            {
+                isProcessed = mtpeFinPoint != null;
+            }
+            else
+            {
+                isProcessed = true;
             }
         }
     }
@@ -748,16 +1009,16 @@ public class MotionLinear : AxisMotionBase
     /// 初期角度オフセット
     /// </summary>
     private Vector3 moverOffsetAng;
-
-    /// <summary>
-    /// リニアの動作方向
-    /// </summary>
-    private bool isLinearRvs;
-
+    
     /// <summary>
     /// モデル中心
     /// </summary>
     private Vector3 center;
+
+    /// <summary>
+    /// ムーバーから一番近い点
+    /// </summary>
+    private VerticeInfo near;
 
     /// <summary>
     /// タイマー
@@ -783,28 +1044,29 @@ public class MotionLinear : AxisMotionBase
         // ポイント更新
         foreach (var point in points)
         {
-            point.cycle = cycle;
-            if (!point.isBlank && point.isProcessed)
+            // ポイント処理
+            point.RenewProcess(cycle, point.processTag == "" ? true : tags[point.processTag].value);
+            // ポイント判定
+            if (!point.isBlank && (point.isProcessed || point.isEnableMove))
             {
                 var isPP = tags[point.nextPP.actTag].value;
-                foreach (var sp in point.stopPoints)
+                if (point.isTP)
                 {
-                    // 動作可能
+                    var sp = point.tpFinPoint;
+                    // 通過中保持
+                    point.nextPP.nextMover.tp = sp;
+                    // 通過終了ポイントへ
+                    point.nextPP.SetMover(sp, point.nextPP.nextMover);
+                    sp.isMoveToTPE = true;
+                }
+                else if (point.isTPE)
+                {
+                    // 次のポイントへ
                     StopPoint target = null;
-                    int endId = -1;
-                    if (sp.isReady)
+                    var sp = point.tpeFinPoint;
+                    for (var p = sp.next; p.pointId != point.nextPP.next.id; p = p.next)
                     {
-                        // 検索終了ID
-                        endId = sp.mover.motion.processed ? (isPP ? point.nextPP.next.id : point.nextPP.id) : point.next.id;
-                    }
-                    else if (sp.isMoving)
-                    {
-                        // 動作中
-                        endId = !sp.mover.motion.processed ? (isPP ? point.nextPP.next.id : point.nextPP.id) : point.next.id;
-                    }
-                    if (endId >= 0)
-                    {
-                        for (var p = sp.next; p.pointId != endId; p = p.next)
+                        if (sp.pointId != p.pointId)
                         {
                             if (p.mover == null)
                             {
@@ -812,21 +1074,133 @@ public class MotionLinear : AxisMotionBase
                             }
                             else
                             {
-                                if (!p.isTP && !p.isTPE)
-                                {
-                                    break;
-                                }
+                                break;
                             }
                         }
-                        if (target != null)
+                    }
+                    if (target != null)
+                    {
+                        // 目標位置移動可能
+                        var np = points.Find(d => d.id == target.pointId);
+                        np.SetMover(sp, target);
+                        sp.mover = null;
+                        sp.tp.mover = null;
+                        sp.tp.isMoveToTPE = false;
+                        sp.tp = null;
+                    }
+                }
+                else if (point.isMTP)
+                {
+                    var sp = point.mtpFinPoint;
+                    // 通過中保持
+                    point.nextPP.nextMover.mtp = sp;
+                    // 通過終了ポイントへ
+                    point.nextPP.SetMover(sp, point.nextPP.nextMover);
+                    sp.isMoveToMTPE = true;
+                }
+                else if (point.isMTPE)
+                {
+                    // 次のポイントへ
+                    StopPoint target = null;
+                    var sp = point.mtpeFinPoint;
+                    for (var p = sp.next; p.pointId != point.nextPP.next.id; p = p.next)
+                    {
+                        if (sp.pointId != p.pointId)
                         {
-                            // 目標位置移動可能
-                            var np = points.Find(d => d.id == target.pointId);
-                            np.SetMover(sp, target);
-                            sp.mover = null;
+                            if (p.mover == null)
+                            {
+                                target = p;
+                            }
+                            else
+                            {
+                                break;
+                            }
+                        }
+                    }
+                    if (target != null)
+                    {
+                        // 目標位置移動可能
+                        var np = points.Find(d => d.id == target.pointId);
+                        np.SetMover(sp, target);
+                        sp.mover = null;
+                        sp.mtp.mover = null;
+                        sp.mtp.isMoveToMTPE = false;
+                        sp.mtp = null;
+                    }
+                }
+                else
+                {
+                    foreach (var sp in point.stopPoints)
+                    {
+                        // 動作可能
+                        StopPoint target = null;
+                        int endId = -1;
+                        if (sp.isReady)
+                        {
+                            // 検索終了ID
+                            endId = sp.mover.motion.processed ? (isPP ? point.nextPP.next.id : point.nextPP.id) : point.next.id;
+                        }
+                        else if (sp.isMoving)
+                        {
+                            // 動作中
+                            endId = !sp.mover.motion.processed ? (isPP ? point.nextPP.next.id : point.nextPP.id) : point.next.id;
+                        }
+                        if (endId >= 0)
+                        {
+                            for (var p = sp.next; p.pointId != endId; p = p.next)
+                            {
+                                if (p.mover == null)
+                                {
+                                    if (p.isMTP)
+                                    {
+                                        // 複数通過の場合は前の通過が使えるかチェック
+                                        for (var m = p.next.next; m.isMTP; m = m.next.next)
+                                        {
+                                            if (p.next.isMTPE)
+                                            {
+                                                if (m.mover == null)
+                                                {
+                                                    p = m;
+                                                }
+                                            }
+                                        }
+                                        target = p;
+                                        break;
+                                    }
+                                    else
+                                    {
+                                        target = p;
+                                    }
+                                }
+                                else
+                                {
+                                    if (!p.isTP && !p.isTPE && !p.isMTP && !p.isMTPE)
+                                    {
+                                        break;
+                                    }
+                                    else
+                                    {
+                                    }
+                                }
+                            }
+                            if (target != null)
+                            {
+                                // 目標位置移動可能
+                                var np = points.Find(d => d.id == target.pointId);
+                                np.SetMover(sp, target);
+                                sp.mover = null;
+                            }
                         }
                     }
                 }
+            }
+        }
+        // ポイント出力更新
+        foreach (var point in points)
+        {
+            if ((point.type == PointType.PP) && (point.finTag != ""))
+            {
+                SetTagValue(point.finTag, ref tags[point.finTag].tag, point.isAllProcessed ? 1 : 0);
             }
         }
 
@@ -835,7 +1209,20 @@ public class MotionLinear : AxisMotionBase
         {
             mover.cycle = cycle;
             mover.pos = mover.RenewPosition() % totalLength;
-            RenewMoverPosition(mover);
+            RenewMover(mover);
+        }
+    }
+
+    /// <summary>
+    /// 削除時
+    /// </summary>
+    protected override void OnDisable()
+    {
+        base.OnDisable();
+        foreach (var mover in movers)
+        {
+            mover.Dispose();
+            Destroy(mover.obj);
         }
     }
 
@@ -843,9 +1230,8 @@ public class MotionLinear : AxisMotionBase
     /// ムーバーをの位置を更新
     /// </summary>
     /// <param name="mover"></param>
-    private void RenewMoverPosition(MoverInfo mover)
+    private void RenewMover(MoverInfo mover)
     {
-//        Debug.Log(mover.pos.ToString());
         GetPositionOnPath(mover.pos, out Vector3 pos, out Vector3 dir);
         mover.obj.transform.parent = moveObject.transform.parent;
         mover.obj.transform.localPosition = pos;
@@ -899,6 +1285,7 @@ public class MotionLinear : AxisMotionBase
         {
             // 全頂点情報取得
             var allVerts = new List<VerticeInfo>();
+            var index = 0;
             foreach (var mf in meshFilters)
             {
                 var mesh = mf.sharedMesh;
@@ -908,9 +1295,11 @@ public class MotionLinear : AxisMotionBase
                 {
                     allVerts.Add(new VerticeInfo
                     {
+                        id = index,
                         vertice = moveObject.transform.InverseTransformPoint(mf.transform.TransformPoint(verts[i])),
                         normal = moveObject.transform.InverseTransformPoint(mf.transform.TransformPoint(normals[i]))
                     });
+                    index++;
                 }
             }
             // 許容誤差（必要に応じて調整）
@@ -950,7 +1339,7 @@ public class MotionLinear : AxisMotionBase
             var outlines = allVerts.FindAll(d =>
                 min == 0 ? Math.Abs(d.vertice.x - farthest.vertice.x) < tolerance :
                 min == 1 ? Math.Abs(d.vertice.y - farthest.vertice.y) < tolerance :
-                Math.Abs(d.vertice.z - farthest.vertice.z) < tolerance);
+                Math.Abs(d.vertice.z - farthest.vertice.z) < tolerance).ToList();
             // 高さ方向の最大最小取得
             var hMin = outlines.Min(d => mid == 0 ? d.vertice.x : mid == 1 ? d.vertice.y : d.vertice.z);
             var hMax = outlines.Max(d => mid == 0 ? d.vertice.x : mid == 1 ? d.vertice.y : d.vertice.z);
@@ -990,17 +1379,7 @@ public class MotionLinear : AxisMotionBase
             // 凸凹を無くす
             outlines = ConvexHull(outlines, max, mid);
             // 回転方向にソート
-            outlines = isLinearRvs ?
-                outlines.OrderBy(d =>
-                {
-                    double angle = Math.Atan2(
-                        mid == 0 ? d.vertice.x - center.x : mid == 1 ? d.vertice.y - center.y : d.vertice.z - center.z,
-                        max == 0 ? d.vertice.x - center.x : max == 1 ? d.vertice.y - center.y : d.vertice.z - center.z
-                    );
-                    if (angle < 0) angle += Math.PI * 2; // 0〜2πに正規化
-                    return angle;
-                }).ToList() :
-                outlines.OrderByDescending(d =>
+            outlines = outlines.OrderByDescending(d =>
                 {
                     double angle = Math.Atan2(
                         mid == 0 ? d.vertice.x - center.x : mid == 1 ? d.vertice.y - center.y : d.vertice.z - center.z,
@@ -1009,12 +1388,26 @@ public class MotionLinear : AxisMotionBase
                     if (angle < 0) angle += Math.PI * 2; // 0〜2πに正規化
                     return angle;
                 }).ToList();
-            var index = outlines.IndexOf(hMaxVer[0]);
-            outlines = outlines.Skip(index).Concat(outlines.Take(index)).ToList();
             // 奥行方向をムーバーオブジェクトと合わせる
             linearSetting.gameObject.transform.parent = moveObject.transform;
-            moverOffsetH = mid == 0 ? linearSetting.gameObject.transform.localPosition.x : mid == 1 ? linearSetting.gameObject.transform.localPosition.y : linearSetting.gameObject.transform.localPosition.z;
-            var points = outlines.Select(d =>
+            // ムーバーの位置と一番近い点取得
+            near = outlines.OrderBy(d => Vector3.Distance(linearSetting.gameObject.transform.localPosition, d.vertice)).First();
+            moverOffsetH = 
+                mid == 0 ? linearSetting.gameObject.transform.localPosition.x - near.vertice.x : 
+                mid == 1 ? linearSetting.gameObject.transform.localPosition.y - near.vertice.y : 
+                linearSetting.gameObject.transform.localPosition.z - near.vertice.z;
+            // 一番近い距離から並べる
+            index = outlines.FindIndex(d => d.id == near.id);
+            outlines = outlines.Skip(index).Concat(outlines.Take(index)).ToList();
+            // リニア距離分外側へオフセット
+            outlines = OffsetPath(outlines, moverOffsetH);
+            // 逆転判定
+            if (linearSetting.rvs)
+            {
+                outlines = outlines.AsEnumerable().Reverse().ToList();
+            }
+            // ムーバー初期オフセット取得
+            loopPathPoints = outlines.Select(d =>
             {
                 var pos = new Vector3
                 {
@@ -1023,19 +1416,66 @@ public class MotionLinear : AxisMotionBase
                     z = min == 2 ? linearSetting.gameObject.transform.localPosition.z : d.vertice.z
                 };
                 return pos;
-            }
-            ).ToList();
-            //loopPathPoints.AddRange(points);
-            loopPathPoints.AddRange(OffsetPath(points, moverOffsetH));
+            }).ToList();
+            // 一旦パスセット
             loopPathPoints.Add(loopPathPoints[0]);
-            // パスの総距離を計算
-            calcLength = 0f;
-            for (int i = 0; i < loopPathPoints.Count - 1; i++)
+            GetPositionOnPath(0, out Vector3 pos, out Vector3 dir);
+            if (dir != Vector3.zero)
             {
-                calcLength += Vector3.Distance(loopPathPoints[i], loopPathPoints[i + 1]);
+                // 円弧の中心からposへの方向を「上」として使う
+                Vector3 toPos = (pos - new Vector3(center.x, pos.y, center.z)).normalized;
+                Quaternion rot = Quaternion.LookRotation(dir, toPos);
+                // ダミームーバーで初期角度取得
+                var mover = new GameObject();
+                mover.transform.parent = moveObject.transform;
+                mover.transform.localRotation = rot * Quaternion.Euler(Vector3.zero);
+                // 初期オフセット
+                moverOffsetAng = mover.transform.localEulerAngles - linearSetting.gameObject.transform.localEulerAngles;
+                Destroy(mover);
+            }
+            // 順番入れ替え(正しくないときはそれなりに)
+            var startId = hMaxVer[0].id;
+            if ((hMaxVer.Count == 2) && (hMinVer.Count == 2))
+            {
+                startId = linearSetting.org == 0 ? hMaxVer[0].id :
+                          linearSetting.org == 1 ? hMaxVer[1].id :
+                          linearSetting.org == 2 ? hMinVer[1].id : hMinVer[0].id;
+            }
+            else if (hMaxVer.Count == 2)
+            {
+                startId = linearSetting.org == 0 ? hMaxVer[0].id :
+                          linearSetting.org == 1 ? hMaxVer[1].id :
+                          linearSetting.org == 2 ? hMinVer[0].id : hMinVer[0].id;
+            }
+            else if (hMinVer.Count == 2)
+            {
+                startId = linearSetting.org == 0 ? hMaxVer[0].id :
+                          linearSetting.org == 1 ? hMaxVer[0].id :
+                          linearSetting.org == 2 ? hMinVer[1].id : hMinVer[0].id;
+            }
+            index = outlines.FindIndex(d => d.id == startId);
+            outlines = outlines.Skip(index).Concat(outlines.Take(index)).ToList();
+            // 開始点セット
+            outlines.Add(outlines[0]);
+            // パスの総距離を計算l
+            calcLength = 0f;
+            for (int i = 0; i < outlines.Count - 1; i++)
+            {
+                calcLength += Vector3.Distance(outlines[i].vertice, outlines[i + 1].vertice);
             }
             // カーブ距離算出
             calcCurveLength = calcLength / 2 - straightLength;
+            // パスにセット
+            loopPathPoints = outlines.Select(d =>
+            {
+                var pos = new Vector3
+                {
+                    x = min == 0 ? linearSetting.gameObject.transform.localPosition.x : d.vertice.x,
+                    y = min == 1 ? linearSetting.gameObject.transform.localPosition.y : d.vertice.y,
+                    z = min == 2 ? linearSetting.gameObject.transform.localPosition.z : d.vertice.z
+                };
+                return pos;
+            }).ToList();
         }
     }
 
@@ -1091,10 +1531,9 @@ public class MotionLinear : AxisMotionBase
     /// <param name="path"></param>
     /// <param name="offsetDistance"></param>
     /// <returns></returns>
-    private List<Vector3> OffsetPath(List<Vector3> path, float offsetDistance)
+    private List<VerticeInfo> OffsetPath(List<VerticeInfo> path, float offsetDistance)
     {
-        var result = new List<Vector3>();
-
+        var result = new List<VerticeInfo>();
         for (int i = 0; i < path.Count; i++)
         {
             // 前後の点を取得（ループ対応）
@@ -1102,8 +1541,8 @@ public class MotionLinear : AxisMotionBase
             int next = (i + 1) % path.Count;
 
             // 前後の接線ベクトルを計算
-            Vector3 dirPrev = (path[i] - path[prev]).normalized;
-            Vector3 dirNext = (path[next] - path[i]).normalized;
+            Vector3 dirPrev = (path[i].vertice - path[prev].vertice).normalized;
+            Vector3 dirNext = (path[next].vertice - path[i].vertice).normalized;
 
             // 平均接線ベクトル
             Vector3 tangent = (dirPrev + dirNext).normalized;
@@ -1112,7 +1551,12 @@ public class MotionLinear : AxisMotionBase
             Vector3 normal = new Vector3(-tangent.z, 0f, tangent.x).normalized;
 
             // 外側にオフセット
-            result.Add(path[i] + normal * offsetDistance);
+            result.Add(new VerticeInfo
+            {
+                id = path[i].id,
+                normal = path[i].normal,
+                vertice = path[i].vertice + normal * offsetDistance
+            });
         }
         return result;
     }
@@ -1124,7 +1568,14 @@ public class MotionLinear : AxisMotionBase
     /// </summary>
     private void CreateMoverObject()
     {
-        // 既存の動作オブジェクトを無効化
+        // ヘッドオブジェクト取得
+        var heads = unitSetting.childrenObject.FindAll(d => d.GetComponent<AxisMotionBase>() != null);
+        // ムーバーオブジェクトにヘッドをセット
+        foreach (var head in heads)
+        {
+            head.transform.parent = linearSetting.gameObject.transform;
+        }
+        // ムーバーオブジェクトを無効化
         linearSetting.gameObject.SetActive(false);
         if (loopPathPoints.Count > 4)
         {
@@ -1133,6 +1584,7 @@ public class MotionLinear : AxisMotionBase
             moverOffsetPos = linearSetting.offset / 1000f;
             totalLength = linearSetting.length / 1000f;
             curveLength = totalLength / 2 - straightLength;
+            // 初期位置から
             for (var i = 0; i < linearSetting.count; i++)
             {
                 var mover = new MoverInfo
@@ -1140,10 +1592,14 @@ public class MotionLinear : AxisMotionBase
                     id = i,
                     obj = Instantiate(linearSetting.gameObject),
                     pointno = -1,
-                    pos = totalLength - moverPitch * i,
+                    pos = (totalLength - moverPitch * i) % totalLength,
                     size = moverPitch,
                     length = totalLength
                 };
+                if (linearSetting.stat && linearSetting.statPos.Count >= 3)
+                {
+                    mover.CreateStatus(new Vector3(linearSetting.statPos[0] / 1000f, linearSetting.statPos[1] / 1000f, linearSetting.statPos[2] / 1000f));
+                }
                 // パス上のその距離の位置を取得
                 GetPositionOnPath(mover.pos, out Vector3 pos, out Vector3 dir);
                 mover.obj.transform.parent = moveObject.transform.parent;
@@ -1154,11 +1610,6 @@ public class MotionLinear : AxisMotionBase
                     Vector3 toPos = (pos - new Vector3(center.x, pos.y, center.z)).normalized;
                     Quaternion rot = Quaternion.LookRotation(dir, toPos);
                     mover.obj.transform.localRotation = rot * Quaternion.Euler(Vector3.zero);
-                    if (i == 0)
-                    {
-                        // 初期オフセット
-                        moverOffsetAng = mover.obj.transform.localEulerAngles - linearSetting.gameObject.transform.localEulerAngles;
-                    }
                     mover.obj.transform.localEulerAngles -= moverOffsetAng;
                 }
                 mover.obj.SetActive(true);
@@ -1208,6 +1659,11 @@ public class MotionLinear : AxisMotionBase
             points.Add(init);
             points = points.OrderBy(d => d.pos).ToList();
         }
+        else
+        {
+            init.count = 0;
+            init.type = "BUFF";
+        }
         for (var i = 0; i < points.Count; i++)
         {
             var spd = linearSetting.spds.Count > points[i].spd ? linearSetting.spds[points[i].spd] : new LinearSetting.SpdInfo();
@@ -1217,8 +1673,11 @@ public class MotionLinear : AxisMotionBase
                 pos = points[i].pos / 1000f,
                 totalLength = totalLength,
                 actTag = points[i].tagAct,
+                processTag = points[i].tagProcess,
                 finTag = points[i].tagFin,
-                type = points[i].type == "PP" ? PointType.PP : points[i].type == "BUFF" ? PointType.BUFF : PointType.TP,
+                type = points[i].type == "PP" ? PointType.PP : 
+                       points[i].type == "BUFF" ? PointType.BUFF : 
+                       points[i].type == "TP" ? PointType.TP : PointType.MTP,
                 processTime = points[i].wait,
                 spdInfo = new SpeedInfo
                 {
@@ -1237,6 +1696,13 @@ public class MotionLinear : AxisMotionBase
                 if (!tags.ContainsKey(point.actTag))
                 {
                     tags.Add(point.actTag, new TagStatus());
+                }
+            }
+            if (point.processTag != "")
+            {
+                if (!tags.ContainsKey(point.processTag))
+                {
+                    tags.Add(point.processTag, new TagStatus());
                 }
             }
             if (point.finTag != "")
@@ -1259,6 +1725,11 @@ public class MotionLinear : AxisMotionBase
                 // 全ムーバー停止出来るように
                 count = linearSetting.count;
             }
+            else if (point.type == PointType.MTP)
+            {
+                // 複数通過なら1
+                count = 1;
+            }
             for (var j = 0; j < count; j++)
             {
                 var pos = point.type == PointType.TP ? point.pos : (totalLength + (point.pos - moverPitch * j)) % totalLength;
@@ -1268,27 +1739,15 @@ public class MotionLinear : AxisMotionBase
                     stopId = j,
                     isPP = point.type == PointType.PP,
                     isTP = point.type == PointType.TP,
+                    isMTP = point.type == PointType.MTP,
                     target = pos
                 });
             }
             this.points.Add(point);
-            // 通過ポイントならポイント到着後の終了ポイント作成
-            if (point.type == PointType.TP)
+            // ポイントタイプ別処理
+            if ((point.type == PointType.TP) || (point.type == PointType.MTP))
             {
-                // 通過開始点までの速度
-                point.spdInfo.ve = point.spdInfo.vm;
-                point.spdInfo.vm = point.spdInfo.vf;
-                point.tpSpdInfo = new SpeedInfo
-                {
-                    vm = spd.vm / 1000f,
-                    vf = spd.vm / 1000f,
-                    ve = spd.vm / 1000f,
-                    acl = spd.acl * 9.8f,
-                    dcl = spd.dcl * 9.8f,
-                    jerkA = spd.jerkA,
-                    jerkD = spd.jerkD
-                };
-                // 到着後通過終了ポイント作成
+                // 通過ポイントならポイント到着後の終了ポイント作成
                 point = new PointInfo
                 {
                     id = this.points.Count,
@@ -1296,17 +1755,19 @@ public class MotionLinear : AxisMotionBase
                     totalLength = totalLength,
                     actTag = points[i].tagAct,
                     finTag = points[i].tagFin,
-                    type = PointType.TPE,
+                    type = point.type == PointType.TP ? PointType.TPE : PointType.MTPE,
                     spdInfo = new SpeedInfo
                     {
                         vm = spd.ve / 1000f,
-                        vf = spd.vf / 1000f,
+                        vf = spd.ve / 1000f,
+                        ve = spd.ve / 1000f,
                         acl = spd.acl * 9.8f,
                         dcl = spd.dcl * 9.8f,
                         jerkA = spd.jerkA,
                         jerkD = spd.jerkD,
                     }
                 };
+                // 複数通過ポイントなら1固定
                 for (var j = 0; j < count; j++)
                 {
                     var pos = point.pos;
@@ -1314,13 +1775,15 @@ public class MotionLinear : AxisMotionBase
                     {
                         pointId = this.points.Count,
                         stopId = j,
-                        isTPE = true,
+                        isTPE = point.type == PointType.TPE,
+                        isMTPE = point.type == PointType.MTPE,
                         target = pos
                     });
                 }
                 this.points.Add(point);
             }
         }
+
         // ポインタセット
         StopPoint sp = null;
         StopPoint spf = null;
@@ -1355,21 +1818,32 @@ public class MotionLinear : AxisMotionBase
             {
                 this.points[i].next = this.points[i + 1];
             }
-            if (this.points[i].isTPE)
-            {
-                // 通過終了位置から次のポイントの最終速度は次の開始速度へ
-                this.points[i].spdInfo.ve = this.points[i].next.spdInfo.vf;
-            }
         }
         foreach(var point in this.points)
         {
             var p = point.next;
             for (var i = 0; i < this.points.Count; i++, p = p.next)
             {
-                if ((p.type == PointType.PP) || (p.type == PointType.TP) || (p.type == PointType.TPE))
+                if (point.isMTPE)
                 {
-                    point.nextPP = p;
-                    break;
+                    if ((p.type == PointType.PP) ||
+                        (p.type == PointType.TP))
+                    {
+                        point.nextPP = p;
+                        break;
+                    }
+                }
+                else
+                {
+                    if ((p.type == PointType.PP) ||
+                        (p.type == PointType.TP) ||
+                        (p.type == PointType.TPE) ||
+                        (p.type == PointType.MTP) ||
+                        (p.type == PointType.MTPE))
+                    {
+                        point.nextPP = p;
+                        break;
+                    }
                 }
             }
         }
@@ -1405,7 +1879,7 @@ public class MotionLinear : AxisMotionBase
                 float t = (distance - accumulated) / segLen;
                 pos = Vector3.Lerp(loopPathPoints[i], loopPathPoints[i + 1], t);
                 dir = (loopPathPoints[i + 1] - loopPathPoints[i]).normalized;
-                if (!isLinearRvs)
+                if (!linearSetting.rvs)
                 {
                     dir = -dir;
                 }
@@ -1416,7 +1890,7 @@ public class MotionLinear : AxisMotionBase
         // パスの終端
         pos = loopPathPoints[loopPathPoints.Count - 1];
         dir = (loopPathPoints[loopPathPoints.Count - 1] - loopPathPoints[loopPathPoints.Count - 2]).normalized;
-        if (!isLinearRvs)
+        if (!linearSetting.rvs)
         {
             dir = -dir;
         }
@@ -1465,8 +1939,11 @@ public class MotionLinear : AxisMotionBase
         float endVel,
         float maxVel,
         float maxAccel,
-        float maxDecel
-    ){
+        float maxDecel,
+        ref int tmAcl,
+        ref int tmEven
+    )
+    {
         var table = new List<MotionPoint>();
 
         // 加速フェーズ時間・距離
@@ -1552,6 +2029,8 @@ public class MotionLinear : AxisMotionBase
                 jerk = 0f
             };
         }
+        tmAcl = (int)(T1 * 1000);
+        tmEven = (int)(T2 * 1000);
         return table;
     }
     #endregion 速度カーブ作成

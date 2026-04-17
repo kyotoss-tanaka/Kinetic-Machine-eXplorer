@@ -742,6 +742,12 @@ namespace Parameters
                     // シェーダーセット
                     foreach (Renderer renderer in obj.transform.GetComponentsInChildren<Renderer>())
                     {
+                        if ((renderer.GetComponentInParent<SwitchScript>() != null) || 
+                            (renderer.GetComponentInParent<SignalTowerScript>() != null))
+                        {
+                            // スイッチかシグナルタワーなら光らなくなるので無視
+                            continue;
+                        }
                         foreach (Material mat in renderer.sharedMaterials)
                         {
                             if (mat != null)
@@ -1144,6 +1150,7 @@ namespace Parameters
                    children.Find(d => d.name.Contains("MPS2-4AS_")) != null ? RobotType.MPS2_4AS : 
                    children.Find(d => d.name.Contains("W0250623-")) != null ? RobotType.MPX_R7 :
                    children.Find(d => d.name.Contains("W0578936-")) != null ? RobotType.MPX_R1 :
+                   children.Find(d => d.name.Contains("W0652706-")) != null ? RobotType.MPX_R1 : // 逆勝手
                    children.Find(d => d.name.Contains("W0334624-")) != null ? RobotType.ARM :
                    children.Find(d => d.name.Contains("W0677866-")) != null ? RobotType.CEILING_ARM :
                    children.Find(d => d.name.Contains("CRX-30IA")) != null ? RobotType.CRX_30iA : 
@@ -1752,15 +1759,15 @@ namespace Parameters
             {
                 foreach(var data in ex.datas)
                 {
-                    if (data.path != null)
+                    if ((data.path != null) && (data.path != ""))
                     {
                         var obj = prefabObj.transform.Find(data.path);
                         data.gameObject = obj != null ? obj.gameObject : null;
-                    }
-                    foreach (var child in data.children)
-                    {
-                        var obj = prefabObj.transform.Find(child.path);
-                        child.gameObject = obj != null ? obj.gameObject : null;
+                        foreach (var child in data.children)
+                        {
+                            var cobj = prefabObj.transform.Find(child.path);
+                            child.gameObject = cobj != null ? cobj.gameObject : null;
+                        }
                     }
                 }
             }
