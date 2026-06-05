@@ -17,6 +17,8 @@ using Opc.Ua.Client;
 using Opc.Ua.Configuration;
 using Opc.Ua.Server;
 using TMPro;
+using System.Text.RegularExpressions;
+using System.Xml.Linq;
 
 public class ComProtocolBase : ComBaseScript
 {
@@ -55,7 +57,9 @@ public class ComProtocolBase : ComBaseScript
 
     protected class OpcUaConnection : ConnectionBase
     {
+#nullable enable
         public Opc.Ua.Client.Session? session;
+#nullable disable
     }
     #endregion クラス定義
 
@@ -335,6 +339,17 @@ public class ComProtocolBase : ComBaseScript
         }
     }
 
+    /// <summary>
+    /// MCプロトコルか
+    /// </summary>
+    protected bool isMcProtocol
+    {
+        get
+        {
+            return GetType() == typeof(ComMcProtocol);
+        }
+    }
+
     // Start is called before the first frame update
     protected override void Start()
     {
@@ -361,7 +376,7 @@ public class ComProtocolBase : ComBaseScript
         {
             if (this.enabled)
             {
-                if (GlobalScript.isLoaded)
+                if (GlobalScript.isLoaded && !GlobalScript.isSystemRecorder)
                 {
                     // データ交換処理
                     DataExchangeProcess();
@@ -412,11 +427,37 @@ public class ComProtocolBase : ComBaseScript
             // 初回データ作成
             foreach (var data in dataExchange.datas)
             {
-                DataExchange d = new DataExchange();
-                var find = false;
-                if (GlobalScript.tagDatas[Name][dataExchange.mechId].ContainsKey(data.output))
+                DataExchange d = new DataExchange
                 {
-                    d.Output = GlobalScript.tagDatas[Name][dataExchange.mechId][data.output];
+                    InputTag = data.input,
+                    OutputTag = data.output
+                };
+                GetTagValue(Name, dataExchange.mechId, d.OutputTag, ref d.Output);
+                if (d.Output != null)
+                {
+                    if (data.isInit)
+                    {
+                        // 初期化処理
+                        d.InitValue = data.initValue;
+                        initDatas.Add(d);
+                    }
+                    else
+                    {
+                        GetTagValue(Name, dataExchange.mechId, d.InputTag, ref d.Input);
+                        if (d.Input != null)
+                        {
+                            dataExchanges.Add(d);
+                        }
+                    }
+                }
+
+                /*
+                var find = false;
+                Match match = Regex.Match(data.output, @"^(.*?):(\d+)$");
+                var tag = match.Success ? match.Groups[1].Value : data.output;
+                if (GlobalScript.tagDatas[Name][dataExchange.mechId].ContainsKey(tag))
+                {
+                    d.Output = GlobalScript.tagDatas[Name][dataExchange.mechId][tag];
                     find = true;
                 }
                 if (find)
@@ -430,13 +471,16 @@ public class ComProtocolBase : ComBaseScript
                     else
                     {
                         // 通常交換
-                        if (GlobalScript.tagDatas[Name][dataExchange.mechId].ContainsKey(data.input))
+                        match = Regex.Match(data.input, @"^(.*?):(\d+)$");
+                        tag = match.Success ? match.Groups[1].Value : data.input;
+                        if (GlobalScript.tagDatas[Name][dataExchange.mechId].ContainsKey(tag))
                         {
-                            d.Input = GlobalScript.tagDatas[Name][dataExchange.mechId][data.input];
+                            d.Input = GlobalScript.tagDatas[Name][dataExchange.mechId][tag];
                             dataExchanges.Add(d);
                         }
                     }
                 }
+                */
             }
         }
         if (isFirst)
@@ -444,12 +488,13 @@ public class ComProtocolBase : ComBaseScript
             // 初回のみ
             foreach (var data in initDatas)
             {
-                data.Output.Value = data.InitValue;
+                SetTagValue(Name, dataExchange.mechId, data.OutputTag, ref data.Output, data.InitValue);
             }
         }
         foreach (var data in dataExchanges)
         {
-            data.Output.Value = data.Input.Value;
+            var input = GetTagValue(Name, dataExchange.mechId, data.InputTag, ref data.Input);
+            SetTagValue(Name, dataExchange.mechId, data.OutputTag, ref data.Output, input);
         }
         ExDataNum = dataExchanges.Count;
         // DBのデータ作成完了していないとスルーされる
@@ -521,7 +566,7 @@ public class ComProtocolBase : ComBaseScript
                             // 接続処理
                             IsConnected = Connect();
                         }
-                        catch(Exception ex)
+                        catch
                         {
                         }
                         IsProcessing = false;
@@ -601,7 +646,7 @@ public class ComProtocolBase : ComBaseScript
         {
             await ConnectAsyncOpcUa(endpointUrl);
         }
-        catch(Exception ex)
+        catch
         {
             opcua.session = null;
         }
@@ -838,7 +883,7 @@ public class ComProtocolBase : ComBaseScript
     /// <param name="data"></param>
     /// <param name="read"></param>
     /// <returns></returns>
-    protected virtual List<byte> CreateMessage(KMXDBSetting data, ref int commandId, List<ulong>? values = null)
+    protected virtual List<byte> CreateMessage(KMXDBSetting data, ref int commandId, List<ulong> values = null)
     {
         var message = new List<byte>();
         return message;
@@ -957,7 +1002,7 @@ public class ComProtocolBase : ComBaseScript
                 tcp._tcpStream.Write(buffer.ToArray(), 0, buffer.Count);
             }
         }
-        catch (Exception ex)
+        catch
         {
             return false;
         }
@@ -1010,11 +1055,25 @@ public class ComProtocolBase : ComBaseScript
             if (dbSetting.unitTag != null)
             {
                 // ユニットタグ
+                var offset = 0;
                 foreach (var unit in dbSetting.unitTag.UnitTags)
                 {
                     var j = dbSetting.unitTag.UnitTags.IndexOf(unit);
-                    var tag = $"{dbSetting.DataTag}_{unit.DataTag}";
-                    SetDbData(dbSetting, tag, j);
+                    var tag = $"{dbSetting.DataTag}.{unit.DataTag}";
+                    var size = 1;
+                    if (isMcProtocol)
+                    {
+                        if (unit.DataType == DBSetting.eDeviceSize.DW)
+                        {
+                            size = 2;
+                        }
+                        else if (unit.DataType == DBSetting.eDeviceSize.QW)
+                        {
+                            size = 4;
+                        }
+                    }
+                    SetDbData(dbSetting, tag, offset, size);
+                    offset += size;
                 }
             }
             else
@@ -1030,13 +1089,27 @@ public class ComProtocolBase : ComBaseScript
             if (dbSetting.unitTag != null)
             {
                 // ユニットタグ
+                var offset = 0;
                 for (var i = 0; i < dbSetting.DataCount; i++)
                 {
                     foreach (var unit in dbSetting.unitTag.UnitTags)
                     {
                         var j = dbSetting.unitTag.UnitTags.IndexOf(unit);
-                        var tag = $"{dbSetting.DataTag}_{unit.DataTag}[{i}]";
-                        SetDbData(dbSetting, tag, i * dbSetting.unitTag.UnitTags.Count + j);
+                        var tag = $"{dbSetting.DataTag}[{i}].{unit.DataTag}";
+                        var size = 1;
+                        if (isMcProtocol)
+                        {
+                            if (unit.DataType == DBSetting.eDeviceSize.DW)
+                            {
+                                size = 2;
+                            }
+                            else if (unit.DataType == DBSetting.eDeviceSize.QW)
+                            {
+                                size = 4;
+                            }
+                        }
+                        SetDbData(dbSetting, tag, offset, size);
+                        offset += size;
                     }
                 }
             }
@@ -1056,7 +1129,7 @@ public class ComProtocolBase : ComBaseScript
     /// DBにタグを登録する
     /// </summary>
     /// <param name="tag"></param>
-    protected void SetDbData(KMXDBSetting dbSetting, string tag, int offset = 0)
+    protected void SetDbData(KMXDBSetting dbSetting, string tag, int offset = 0, int size = 1)
     {
         var mech = dataExchange.mechId;
         if (!GlobalScript.tagDatas[Name].ContainsKey(mech))
@@ -1079,6 +1152,7 @@ public class ComProtocolBase : ComBaseScript
         dct.MechId = mech;
         dct.Tag = tag;
         dct.Device = dbSetting.RegisterType;
+        dct.Size = size;
         dct.Value = 0;
         offset *= (dbSetting.DataType == DBSetting.eDeviceSize.DW) ? 2 : 1;
         if (regTypeBit16.Contains(dbSetting.RegisterType))
@@ -1109,7 +1183,7 @@ public class ComProtocolBase : ComBaseScript
                 // ユニットタグ
                 foreach (var unit in dbSetting.unitTag.UnitTags)
                 {
-                    var tag = $"{dbSetting.DataTag}_{unit.DataTag}";
+                    var tag = $"{dbSetting.DataTag}.{unit.DataTag}";
                     dbSetting.values.Add(GlobalScript.tagDatas[Name][mech].ContainsKey(tag) ? GlobalScript.tagDatas[Name][mech][tag] : null);
                 }
             }
@@ -1130,7 +1204,7 @@ public class ComProtocolBase : ComBaseScript
                 {
                     foreach (var unit in dbSetting.unitTag.UnitTags)
                     {
-                        var tag = $"{dbSetting.DataTag}_{unit.DataTag}[{i}]";
+                        var tag = $"{dbSetting.DataTag}[{i}].{unit.DataTag}";
                         dbSetting.values.Add(GlobalScript.tagDatas[Name][mech].ContainsKey(tag) ? GlobalScript.tagDatas[Name][mech][tag] : null);
                     }
                 }
@@ -1356,7 +1430,9 @@ public class ComProtocolBase : ComBaseScript
         // 交換タグ
         foreach (var data in dataExchange.datas)
         {
-            if (lstRegTag.Contains(data.output))
+            Match match = Regex.Match(data.output, @"^(.*?):(\d+)$");
+            var tag = match.Success ? match.Groups[1].Value : data.output;
+            if (lstRegTag.Contains(tag))
             {
                 this.dataExchange.datas.Add(data);
             }

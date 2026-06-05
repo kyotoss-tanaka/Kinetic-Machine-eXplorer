@@ -127,11 +127,12 @@ public class MPX_RX : UseHeadBase3DScript
     /// ÉÇÉfÉãçƒç\íz
     /// </summary>
     /// <param name="instance"></param>
-    protected override void ModelRestructProcess()
+    protected virtual GameObject ModelRestructProcess(string name)
     {
-        mpx = new GameObject("MPX-RX");
+        mpx = new GameObject(name);
         mpx.transform.parent = unitSetting.moveObject.transform;
         mpx.transform.localPosition = Vector3.zero;
         mpx.transform.localEulerAngles = Vector3.zero;
+        return mpx;
     }
 }

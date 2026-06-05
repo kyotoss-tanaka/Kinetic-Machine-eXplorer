@@ -1,10 +1,9 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
-using Unity.VisualScripting;
 using UnityEngine;
 
-public class MPX_R1 : MPX_RX
+public class MPX_R6 : MPX_RX
 {
     #region ïœêî
     protected GameObject arm1_1;
@@ -50,7 +49,7 @@ public class MPX_R1 : MPX_RX
     /// <param name="instance"></param>
     protected override void ModelRestructProcess()
     {
-        base.ModelRestructProcess();
+        var baseObj = base.ModelRestructProcess("MPX-R6");
 
         r1 = 200;
         r2 = 200;

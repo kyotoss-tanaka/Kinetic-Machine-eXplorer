@@ -71,7 +71,6 @@ public class ParallelLink : UseHeadBase3DScript
     protected List<Transform> arm2 = new List<Transform>();
     protected List<Transform> armSpring = new List<Transform>();
     protected Transform plate;
-    bool isChgPrm = true;
     #endregion •Ï”
 
     public ParallelLink()

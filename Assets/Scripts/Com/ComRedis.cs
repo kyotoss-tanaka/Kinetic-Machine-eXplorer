@@ -140,7 +140,7 @@ public class ComRedis : ComBaseScript
             sub = redis.GetSubscriber();
             sub.Subscribe(RedisChannel.Literal("latestdata"), OnMessageReceived);
         }
-        catch(Exception ex)
+        catch
         {
         }
         IsConnecting = false;

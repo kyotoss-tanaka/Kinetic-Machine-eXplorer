@@ -31,6 +31,7 @@ public class AxisMotionBase : KinematicsBase
     public class VerticeInfo
     {
         public int id;
+        public int meshId;
         public Vector3 vertice;
         public Vector3 normal;
     }

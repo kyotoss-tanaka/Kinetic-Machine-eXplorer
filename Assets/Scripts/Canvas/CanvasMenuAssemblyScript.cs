@@ -1,4 +1,5 @@
 ﻿using Parameters;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
@@ -217,6 +218,7 @@ public class CanvasMenuAssemblyScript : CanvasMenuBaseScript
                                 if ((motionUnits.Count > 0) && (actScript != null))
                                 {
                                     // ユニット選択
+                                    menuInfoScript.btnMotion_Visible(true);
                                     actScript.SelectUnit(obj.name);
                                     menuInfoScript.SetAssemblyObject(obj, true);
                                 }

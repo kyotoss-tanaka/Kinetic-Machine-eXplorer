@@ -494,18 +494,17 @@ public class PrefabImporter
         public delegate void ImportCompletedHandler(UnityEngine.Object asset, bool success);
         public event ImportCompletedHandler ImportCompleted;
 
-        private SyncedProgress m_ImportProgress;
+        public SyncedProgress m_ImportProgress;
         public SyncedProgress ImportProgress
         {
             get
             {
-                if (m_ImportProgress == null)
+                if (m_ImportProgress == null || m_ImportProgress.IsFinished || m_ImportProgress.IsCanceling)
                 {
-                    m_ImportProgress = new SyncedProgress(this, true, "Importing " + m_FileName, true);
-                }
-                else if (m_ImportProgress.IsCanceling)
-                {
-                    m_ImportProgress.Finish();
+                    if (m_ImportProgress?.IsCanceling == true || m_ImportProgress?.IsFinished == true)
+                    {
+                        // 既に Finish/Cancel 済みなので Finish() の二重呼び出し不要
+                    }
                     m_ImportProgress = new SyncedProgress(this, true, "Importing " + m_FileName, true);
                 }
                 return m_ImportProgress;
@@ -624,6 +623,10 @@ public class PrefabImporter
         /// </summary>
         public class SyncedProgress
         {
+            // 既存フィールドに追加
+            private bool m_IsFinished = false;
+            public bool IsFinished => m_IsFinished;
+
             internal delegate void ProgressHandler(object parent, float progress, string message);
 
             internal event ProgressHandler ProgressChanged;
@@ -804,6 +807,7 @@ public class PrefabImporter
             /// <param name="message">Optional message describing the completion state.</param>
             public void Finish(string message = "")
             {
+                m_IsFinished = true;  // ← 追加
                 m_Progress.Report(new ProgressInformation(100, message, false, Status.Finished));
 
                 if (m_ProgressBarPopulated)
@@ -832,6 +836,7 @@ public class PrefabImporter
             /// <param name="message">Optional message describing the cancellation state.</param>
             public void FinishCancel(string message = "")
             {
+                m_IsFinished = true;  // ← 追加
                 if (Enabled)
                 {
                     m_Progress.Report(new ProgressInformation(-1, message, false, Status.Canceled));
@@ -851,6 +856,7 @@ public class PrefabImporter
             /// <param name="message">Optional message describing the failure state.</param>
             public void Failed(string message = "")
             {
+                m_IsFinished = true;  // ← 追加
                 m_Progress.Report(new ProgressInformation(-1, message, false, Status.Failed));
 
                 if (m_ProgressBarPopulated)

@@ -4,7 +4,7 @@ using UnityEngine;
 
 public class MPS2_4AS : ParallelLink
 {
-    private float BASE_OFFSET = 0.228f;
+//    private float BASE_OFFSET = 0.228f;
 
     public override void SetTarget(float x, float y, float z)
     {

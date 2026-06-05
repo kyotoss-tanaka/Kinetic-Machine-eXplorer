@@ -145,7 +145,6 @@ public class BuildAndRun
         }
     }
 
-    /*
     [MenuItem("Kyotoss/Build and Run from KMXTool Config(Debug)", false, 54)]
     public static void DebugAndRunFromConfig()
     {
@@ -165,14 +164,21 @@ public class BuildAndRun
 
             string json = File.ReadAllText(configPath, Encoding.UTF8);
             Parameters.BuildConfig build = JsonSerializer.Deserialize<Parameters.BuildConfig>(json);
+
             build.isRelease = false;
-            BuildAndRunProcess(build, true);
+            var folderPath = BuildAndRunProcess(build, false, true);
+            if (folderPath != "")
+            {
+                // エクスプローラーで開く
+                System.Diagnostics.Process.Start("explorer.exe", folderPath);
+                // タイトル、メッセージ、ボタン名
+                EditorUtility.DisplayDialog("情報", "ビルドが完了しました。", "OK");
+            }
         }
         catch
         {
         }
     }
-    */
 
     /// <summary>
     /// ビルド処理

@@ -84,6 +84,7 @@ namespace Parameters
         private List<LedSetting> ledSettings;
         private List<PrefabSetting> prefabSettings;
         private List<CardboardSetting> cardboardSettings;
+        private List<ChangeOverSetting> changeOverSettings;
         private List<DebugSetting> debugSettings;
         private List<ActionTableData> actionTableDatas;
         private UnitSetting innerUnit;
@@ -323,6 +324,8 @@ namespace Parameters
                             hiddenObjs.Remove(unitSetting.moveObject);
                             // ロボット紐づけ
                             unitSetting.robotSetting = robotSettings.Find(d => (d.mechId == unitSetting.mechId) && (d.name == unitSetting.name));
+                            // リニア紐づけ
+                            unitSetting.linearSetting = linearSettings.Find(d => (d.mechId == unitSetting.mechId) && (d.name == unitSetting.name));
                             // ワーク生成設定紐づけ
                             unitSetting.workSettings = wkSettings.FindAll(d => (d.mechId == unitSetting.mechId) && (d.name == unitSetting.name));
                             // ワーク削除設定紐づけ
@@ -343,6 +346,8 @@ namespace Parameters
                             unitSetting.exMechSetting = exMechSettings.Find(d => (d.mechId == unitSetting.mechId) && (d.name == unitSetting.name));
                             // バケット設定紐づけ
                             unitSetting.backetSetting = backetSettings.Find(d => (d.mechId == unitSetting.mechId) && (d.name == unitSetting.name));
+                            // 型替え設定紐づけ
+                            unitSetting.changeOverSetting = changeOverSettings.Find(d => (d.mechId == unitSetting.mechId) && (d.name == unitSetting.name));
                             // チャック設定更新
                             var chuckSetting = chuckUnitSettings.Find(d => (d.mechId == unitSetting.mechId) && (d.name == unitSetting.name));
                             if (chuckSetting != null)
@@ -432,14 +437,19 @@ namespace Parameters
                                             var rObj = unitSetting.moveObject.AddComponent<MPX_PI>();
                                             rObj.SetParameter(unitSetting, robo);
                                         }
-                                        else if (roboType == RobotType.MPX_R1)
+                                        else if (roboType == RobotType.MPX_R6)
                                         {
-                                            var rObj = unitSetting.moveObject.AddComponent<MPX_R1>();
+                                            var rObj = unitSetting.moveObject.AddComponent<MPX_R6>();
                                             rObj.SetParameter(unitSetting, robo);
                                         }
-                                        else if (roboType == RobotType.MPX_R7)
+                                        else if (roboType == RobotType.MPX_R3)
                                         {
-                                            var rObj = unitSetting.moveObject.AddComponent<MPX_R7>();
+                                            var rObj = unitSetting.moveObject.AddComponent<MPX_R3>();
+                                            rObj.SetParameter(unitSetting, robo);
+                                        }
+                                        else if (roboType == RobotType.MPX_R3S)
+                                        {
+                                            var rObj = unitSetting.moveObject.AddComponent<MPX_R3S>();
                                             rObj.SetParameter(unitSetting, robo);
                                         }
                                         else if (roboType == RobotType.YF03N4)
@@ -501,6 +511,12 @@ namespace Parameters
                                     {
                                         Debug.Log($"エラー：ユニット名(ロボット名)「{unitSetting.name}」の動作設定が存在しません。");
                                     }
+                                }
+                                else if (unitSetting.actionSetting.isChangeOver)
+                                {
+                                    // 型替え部品なら
+                                    var instance = unitSetting.unitObject.AddComponent<MotionChangeOver>();
+                                    instance.SetUnitSettings(unitSetting, chuckSetting, unitSetting.changeOverSetting);
                                 }
                             }
                             else
@@ -854,6 +870,8 @@ namespace Parameters
                 {
                     // ロボット紐づけ
                     motion.unitSetting.robotSetting = robotSettings.Find(d => (d.mechId == unitSetting.mechId) && (d.name == unitSetting.name));
+                    // リニア紐づけ
+                    unitSetting.linearSetting = linearSettings.Find(d => (d.mechId == unitSetting.mechId) && (d.name == unitSetting.name));
                     // ワーク生成設定紐づけ
                     motion.unitSetting.workSettings = wkSettings.FindAll(d => (d.mechId == unitSetting.mechId) && (d.name == unitSetting.name));
                     // ワーク削除設定紐づけ
@@ -1047,9 +1065,12 @@ namespace Parameters
             ledSettings = (List<LedSetting>)await GlobalScript.LoadListJson<List<LedSetting>>("LedInfo");
             prefabSettings = (List<PrefabSetting>)await GlobalScript.LoadListJson<List<PrefabSetting>>("PrefabInfo");
             cardboardSettings = (List<CardboardSetting>)await GlobalScript.LoadListJson<List<CardboardSetting>>("CardboardInfo");
+            changeOverSettings = (List<ChangeOverSetting>)await GlobalScript.LoadListJson<List<ChangeOverSetting>>("ChangeOverInfo");
             debugSettings = (List<DebugSetting>)await GlobalScript.LoadListJson<List<DebugSetting>>("DebugInfo");
             GlobalScript.buildConfig = (BuildConfig)await GlobalScript.LoadListJson<BuildConfig>("BuildConfig");
             actionTableDatas = (List<ActionTableData>)await GlobalScript.LoadListJson<List<ActionTableData>>("ActionTableInfo");
+            GlobalScript.useDeviceDatas = (List<UseDeviceData>)await GlobalScript.LoadListJson<List<UseDeviceData>>("UseDeviceList");
+            GlobalScript.timeChartDatas = (List<TimeChartData>)await GlobalScript.LoadListJson<List<TimeChartData>>("TimeChartDataList");
         }
 
         /// <summary>
@@ -1148,9 +1169,10 @@ namespace Parameters
                    children.Find(d => d.name.Contains("駆動部変則120度")) != null ? RobotType.MPX_PI :
                    children.Find(d => d.name.Contains("MPS2-3AS_")) != null ? RobotType.MPS2_3AS :
                    children.Find(d => d.name.Contains("MPS2-4AS_")) != null ? RobotType.MPS2_4AS : 
-                   children.Find(d => d.name.Contains("W0250623-")) != null ? RobotType.MPX_R7 :
-                   children.Find(d => d.name.Contains("W0578936-")) != null ? RobotType.MPX_R1 :
-                   children.Find(d => d.name.Contains("W0652706-")) != null ? RobotType.MPX_R1 : // 逆勝手
+                   children.Find(d => d.name.Contains("W0250623-")) != null ? RobotType.MPX_R3 :
+                   children.Find(d => d.name.Contains("W0282303-")) != null ? RobotType.MPX_R3S : // 小型
+                   children.Find(d => d.name.Contains("W0578936-")) != null ? RobotType.MPX_R6 :
+                   children.Find(d => d.name.Contains("W0652706-")) != null ? RobotType.MPX_R6 : // 逆勝手
                    children.Find(d => d.name.Contains("W0334624-")) != null ? RobotType.ARM :
                    children.Find(d => d.name.Contains("W0677866-")) != null ? RobotType.CEILING_ARM :
                    children.Find(d => d.name.Contains("CRX-30IA")) != null ? RobotType.CRX_30iA : 
@@ -1774,7 +1796,7 @@ namespace Parameters
             // バケット設定
             foreach (var backet in backetSettings)
             {
-                if (backet.path != null)
+                if ((backet.path != null) && (backet.path != ""))
                 {
                     var obj = prefabObj.transform.Find(backet.path);
                     backet.gameObject = obj != null ? obj.gameObject : null;
@@ -1783,7 +1805,7 @@ namespace Parameters
             // リニア設定
             foreach (var linear in linearSettings)
             {
-                if (linear.path != null)
+                if ((linear.path != null) && (linear.path != ""))
                 {
                     var obj = prefabObj.transform.Find(linear.path);
                     linear.gameObject = obj != null ? obj.gameObject : null;

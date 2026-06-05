@@ -23,6 +23,7 @@ using UnityEngine.Networking;
 using UnityEngine.ResourceManagement.AsyncOperations;
 using System.Collections;
 using System.Xml;
+using MongoDB.Driver.Linq;
 
 public static class GlobalScript
 {
@@ -267,6 +268,15 @@ public static class GlobalScript
     public static bool isLiens = true;
 
     /// <summary>
+    /// システムレコーダ表示中
+    /// </summary>
+    public static bool isSystemRecorder = false;
+
+    /// <summary>
+    /// システムレコーダ時間
+    /// </summary>
+    public static long sysRecMilliseconds = 0;
+    /// <summary>
     /// XR表示モード
     /// </summary>
     public static bool isXRMode
@@ -303,6 +313,21 @@ public static class GlobalScript
     /// 動作テーブル情報
     /// </summary>
     public static List<ActionTableData> actionTableDatas { get; set; } = new List<ActionTableData>();
+
+    /// <summary>
+    /// 使用デバイスリスト
+    /// </summary>
+    public static List<UseDeviceData> useDeviceDatas { get; set; } = new List<UseDeviceData>();
+
+    /// <summary>
+    /// タイムチャーチデータリスト
+    /// </summary>
+    public static List<TimeChartData> timeChartDatas { get; set; } = new List<TimeChartData>();
+
+    /// <summary>
+    /// タイムチャート操作中
+    /// </summary>
+    public static bool IsInTimeChart;
 
     /// <summary>
     /// 衝突時ロック用
@@ -345,6 +370,7 @@ public static class GlobalScript
         }
     }
 
+    /*
     /// <summary>
     /// デバッグ出力用カウンタ
     /// </summary>
@@ -354,6 +380,7 @@ public static class GlobalScript
     /// デバッグ出力用カウンタ最大値
     /// </summary>
     private static int debugCountMax = 10;
+    */
 
     /// <summary>
     /// 内部時間
@@ -454,6 +481,28 @@ public static class GlobalScript
             if (tagDatas.ContainsKey(database) && tagDatas[database].ContainsKey(mechid) && tagDatas[database][mechid].ContainsKey(tag))
             {
                 return tagDatas[database][mechid][tag];
+            }
+        }
+        catch
+        {
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// デバイス名からタグ情報を取得
+    /// </summary>
+    /// <param name="database"></param>
+    /// <param name="mechid"></param>
+    /// <param name="dev"></param>
+    /// <returns></returns>
+    public static TagInfo GetTagInfoFromDev(string database, string mechid, string dev)
+    {
+        try
+        {
+            if (tagDatas.ContainsKey(database) && tagDatas[database].ContainsKey(mechid))
+            {
+                return tagDatas[database][mechid].Values.Where(d => d.Device == dev).First();
             }
         }
         catch

@@ -46,6 +46,7 @@ public class SignalTowerScript : KssBaseScript
         GreenMaterial = green == null ? null : green.GetComponent<MeshRenderer>().material;
         BlueMaterial = blue == null ? null : blue.GetComponent<MeshRenderer>().material;
         WhiteMaterial = white == null ? null : white.GetComponent<MeshRenderer>().material;
+        InitMaterial();
     }
 
     protected override void OnDestroy()
@@ -72,9 +73,18 @@ public class SignalTowerScript : KssBaseScript
         SetEmmision(WhiteMaterial, st.white, white);
     }
 
+    private void InitMaterial()
+    {
+        SetEmmision(RedMaterial, "", 0);
+        SetEmmision(YellowMaterial, "", 0);
+        SetEmmision(GreenMaterial, "", 0);
+        SetEmmision(BlueMaterial, "", 0);
+        SetEmmision(WhiteMaterial, "", 0);
+    }
+
     private void SetEmmision(Material mat, string name, int value)
     {
-        if ((mat != null) && (name != ""))
+        if (mat != null)
         {
             if (value == 1)
             {

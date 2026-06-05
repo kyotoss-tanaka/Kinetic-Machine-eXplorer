@@ -144,7 +144,7 @@ public class ComOpcUa : ComProtocolBase
                 }
             }
         }
-        catch (Exception ex)
+        catch 
         {
             Disconnect();
             ret= false;

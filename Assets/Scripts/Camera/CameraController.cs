@@ -43,12 +43,12 @@ public class CameraController : MonoBehaviour
     /// <summary>
     /// キーボードの状態
     /// </summary>
-    private bool isControl, isShift;
+//    private bool isControl, isShift, isMouseLeft;
 
     /// <summary>
     /// 各種ボタン状態
     /// </summary>
-    private bool isMouseLeft, isMouseRight, isMouseMiddle;
+    private bool isMouseRight, isMouseMiddle;
 
     /// <summary>
     /// 開始処理
@@ -129,7 +129,7 @@ public class CameraController : MonoBehaviour
             }
             else if ((key == Key.LeftCtrl) || (key == Key.RightCtrl))
             {
-                isControl = true;
+//                isControl = true;
             }
             else if ((key == Key.LeftShift) || (key == Key.RightShift))
             {
@@ -140,7 +140,7 @@ public class CameraController : MonoBehaviour
         {
             if ((key == Key.LeftCtrl) || (key == Key.RightCtrl))
             {
-                isControl = false;
+//                isControl = false;
             }
             else if ((key == Key.LeftShift) || (key == Key.RightShift))
             {
@@ -157,7 +157,7 @@ public class CameraController : MonoBehaviour
     {
         if (button == InputManager.MouseButton.LeftButton)
         {
-            isMouseLeft = true;
+//            isMouseLeft = true;
         }
         else if (button == InputManager.MouseButton.RightButton)
         {
@@ -177,7 +177,7 @@ public class CameraController : MonoBehaviour
     {
         if (button == InputManager.MouseButton.LeftButton)
         {
-            isMouseLeft = false;
+//            isMouseLeft = false;
         }
         else if (button == InputManager.MouseButton.RightButton)
         {

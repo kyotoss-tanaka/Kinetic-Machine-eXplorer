@@ -289,17 +289,31 @@ public class ComMcProtocol : ComProtocolBase
             {
                 // ワードデータ
                 var size = data.DataType == DBSetting.eDeviceSize.DW ? sizeof(int) : (data.DataType == DBSetting.eDeviceSize.QW ? sizeof(long) : sizeof(short));
+                var isUnit = data.DataType == DBSetting.eDeviceSize.UnitTag;
                 for (var i = 2; i < buff.Length; i += size)
                 {
                     if (index < data.values.Count)
                     {
                         if (data.values[index] != null)
                         {
-                            if (data.DataType == DBSetting.eDeviceSize.DW)
+                            var dataType = data.DataType;
+                            if (isUnit)
+                            {
+                                if (data.values[index].Size == 2)
+                                {
+                                    dataType = DBSetting.eDeviceSize.DW;
+                                }
+                                else if (data.values[index].Size == 4)
+                                {
+                                    dataType = DBSetting.eDeviceSize.QW;
+                                }
+                                size = data.values[index].Size * 2;
+                            }
+                            if (dataType == DBSetting.eDeviceSize.DW)
                             {
                                 data.values[index].Value = BitConverter.ToInt32(buff, i);
                             }
-                            else if (data.DataType == DBSetting.eDeviceSize.QW)
+                            else if (dataType == DBSetting.eDeviceSize.QW)
                             {
                                 data.values[index].Value = (int)BitConverter.ToInt64(buff, i);
                             }

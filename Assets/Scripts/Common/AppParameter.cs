@@ -30,17 +30,21 @@ namespace Parameters
         /// </summary>
         MPX_PI,
         /// <summary>
-        /// MPX-R1
+        /// MPX-R2
         /// </summary>
-        MPX_R1,
+        MPX_R2,
         /// <summary>
-        /// MPX-R7
+        /// MPX-R3
         /// </summary>
-        MPX_R7,
+        MPX_R3,
         /// <summary>
-        /// MPX-R35
+        /// MPX-R3S
         /// </summary>
-        MPX_R35,
+        MPX_R3S,
+        /// <summary>
+        /// MPX-R6
+        /// </summary>
+        MPX_R6,
         /// <summary>
         /// 川重パラレル
         /// </summary>
@@ -278,6 +282,15 @@ namespace Parameters
         [SerializeReference]
         public RobotSetting robotSetting;
         /// <summary>
+        /// ロボット設定
+        /// </summary>
+        [SerializeReference]
+        public LinearSetting linearSetting;
+        /// <summary>
+        /// 型替え部品設定
+        /// </summary>
+        public ChangeOverSetting changeOverSetting;
+        /// <summary>
         /// ワーク生成設定
         /// </summary>
         public List<WorkCreateSetting> workSettings;
@@ -454,6 +467,13 @@ namespace Parameters
             get
             {
                 return mode == 7;
+            }
+        }
+        public bool isChangeOver
+        {
+            get
+            {
+                return mode == 8;
             }
         }
     }
@@ -673,6 +693,10 @@ namespace Parameters
         /// 倍率
         /// </summary>
         public List<int> rates { get; set; }
+        /// <summary>
+        /// オフセット
+        /// </summary>
+        public List<float> offset { get; set; }
         /// <summary>
         /// タイムチャート使用
         /// </summary>
@@ -1348,6 +1372,29 @@ namespace Parameters
         public string w2_Bottom { get; set; } = "";
     }
 
+    /// <summary>
+    /// 型替え設定
+    /// </summary>
+    [Serializable]
+
+    public class ChangeOverSetting
+    {
+        [Serializable]
+        public class ChangeOverPos
+        {
+            public int value { get; set; }
+            public List<float> pos { get; set; } = new();
+            public List<float> rot { get; set; } = new();
+        }
+        public string mechId { get; set; } = "";
+        public string name { get; set; } = "";
+        public string tag { get; set; } = "";
+        public List<float> pos { get; set; } = new();
+        public List<float> rot { get; set; } = new();
+        public bool isChange { get; set; }
+        public List<ChangeOverPos> datas { get; set; } = new();
+    }
+
     [Serializable]
     public class DebugSetting
     {
@@ -1407,5 +1454,73 @@ namespace Parameters
         public string mechId { get; set; } = "";
         public string name { get; set; } = "";
         public List<ActionData> datas { get; set; } = new();
+    }
+
+    [Serializable]
+    public class DeciceArea
+    {
+        public string dev { get; set; } = "";
+        public string tag { get; set; } = "";
+        public string name { get; set; } = "";
+        public int no { get; set; }
+        public int count { get; set; }
+        public int size { get; set; }
+    }
+
+    [Serializable]
+    public class UseDeviceData
+    {
+        public string mechId { get; set; } = "";
+        public List<DeciceArea> devices { get; set; } = new();
+    }
+
+    [Serializable]
+    public class TimeChartDevice
+    {
+        public enum DeviceType {
+            Internal,
+            External,
+            Sensor
+        }
+        public class Position
+        {
+            public string name { get; set; } = "";
+            public string tagIn { get; set; } = "";
+            public string tagOut { get; set; } = "";
+            public string devIn { get; set; } = "";
+            public string devOut { get; set; } = "";
+            public int sizeIn { get; set; }
+            public int sizeOut { get; set; }
+            public float pos { get; set; }
+            public float start { get; set; }
+            public float time { get; set; }
+            [JsonIgnore]
+            public TagInfo tagInInfo { get; set; }
+            [JsonIgnore]
+            public TagInfo tagOutInfo { get; set; }
+        };
+        /// <summary>
+        /// 名前
+        /// </summary>
+        public string name { get; set; } = "";
+        /// <summary>
+        /// グループ
+        /// </summary>
+        public string group { get; set; } = "";
+        /// <summary>
+        /// デバイスタイプ
+        /// </summary>
+        public DeviceType devType { get; set; } = DeviceType.Internal;
+        /// <summary>
+        /// 位置情報
+        /// </summary>
+        public List<Position> positions { get; set; } = new();
+    }
+    [Serializable]
+    public class TimeChartData
+    {
+        public string mechId { get; set; } = "";
+        public int cycle { get; set; }
+        public List<TimeChartDevice> datas { get; set; } = new();
     }
 }

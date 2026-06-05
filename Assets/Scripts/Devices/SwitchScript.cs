@@ -220,15 +220,18 @@ public class SwitchScript : KssBaseScript
     {
         if (switchType == SwitchType.TagOutput)
         {
-            if (isB)
+            if (!GlobalScript.isSystemRecorder)
             {
-                // B接点
-                SetTagValue(tagName, ref Tag, isOn ? 0 : 1);
-            }
-            else
-            {
-                // A接点
-                SetTagValue(tagName, ref Tag, isOn ? 1 : 0);
+                if (isB)
+                {
+                    // B接点
+                    SetTagValue(tagName, ref Tag, isOn ? 0 : 1);
+                }
+                else
+                {
+                    // A接点
+                    SetTagValue(tagName, ref Tag, isOn ? 1 : 0);
+                }
             }
         }
         else if (switchType == SwitchType.ObjectClear)
@@ -281,16 +284,13 @@ public class SwitchScript : KssBaseScript
     {
         base.SetParameter(unitSetting, obj);
 
+        sw = (SwitchSetting)obj;
+        isAlternate = sw.alternate;
+
         if (material != null)
         {
             Destroy(material);
         }
-        material = Instantiate((Material)Resources.Load("Materials/Color/" + switchColor.ToString()), switchTransform);
-        matColor = material.color;
-
-        sw = (SwitchSetting)obj;
-        isAlternate = sw.alternate;
-
         if (sw.color == "Green")
         {
             switchColor = SwitchColor.Green;
@@ -307,6 +307,10 @@ public class SwitchScript : KssBaseScript
         {
             switchColor = SwitchColor.White;
         }
+        material = Instantiate((Material)Resources.Load("Materials/Color/" + switchColor.ToString()), switchTransform);
+        material.DisableKeyword("_EMISSION");
+        matColor = material.color;
+
         if (sw.mode == 0)
         {
             switchType = SwitchType.TagOutput;

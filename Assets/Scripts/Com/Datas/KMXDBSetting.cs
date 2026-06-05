@@ -49,6 +49,16 @@ namespace Parameters
         /// </summary>
         public UnitTagSetting unitTag { get; set; }
 
+
+        [System.Xml.Serialization.XmlIgnore]
+        public bool IsMcProtocol
+        {
+            get
+            {
+                return (protocol == eProtocolType.McProtocol) || (protocol == eProtocolType.McProtocol_UDP) || (protocol == eProtocolType.McProtocol_KEYENCE);
+            }
+        }
+
         /// <summary>
         /// 全データ数
         /// </summary>
@@ -57,13 +67,45 @@ namespace Parameters
         {
             get
             {
-                return DataCount * ((unitTag != null) ? unitTag.UnitTags.Count : 1);
+                if (unitTag != null)
+                {
+                    if (IsMcProtocol)
+                    {
+                        var size = 0;
+                        foreach (var unit in unitTag.UnitTags)
+                        {
+                            if (unit.DataType == eDeviceSize.DW)
+                            {
+                                size += 2;
+                            }
+                            else if (unit.DataType == eDeviceSize.QW)
+                            {
+                                size += 4;
+                            }
+                            else
+                            {
+                                size += 1;
+                            }
+                        }
+                        return DataCount * size;
+                    }
+                    else
+                    {
+                        return DataCount * unitTag.UnitTags.Count;
+                    }
+                }
+                else
+                {
+                    return DataCount;
+                }
             }
         }
+#nullable enable
         /// <summary>
         /// DBデータ
         /// </summary>
         public List<TagInfo?> values = new();
+#nullable disable
 
         /// <summary>
         /// ソート用データ
@@ -71,4 +113,3 @@ namespace Parameters
         public List<KMXDBSetting> sortedDatas = new();
     }
 }
-

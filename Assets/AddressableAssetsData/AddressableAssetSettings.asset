@@ -76,11 +76,11 @@ MonoBehaviour:
       - m_Id: 33831ebff37b1d6499527b790161df15
         m_Value: '{UnityEngine.AddressableAssets.Addressables.RuntimePath}/[BuildTarget]'
       - m_Id: 7214f3d1ef1648d458402b79d354f722
-        m_Value: ServerData/7602/StandaloneWindows64
+        m_Value: ServerData/G824/StandaloneWindows64
       - m_Id: 94fd012dedc1a58448e86443c2fe631a
         m_Value: '[UnityEngine.AddressableAssets.Addressables.BuildPath]/[BuildTarget]'
       - m_Id: ff6cc25a4707b2a47aa1a360578ae7ec
-        m_Value: ServerData/7602/StandaloneWindows64
+        m_Value: ServerData/G824/StandaloneWindows64
     m_ProfileEntryNames:
     - m_Id: 084b90f06230d4845bd17232c53382c3
       m_Name: BuildTarget

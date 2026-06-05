@@ -60,10 +60,12 @@ public class PlanarMotor : UseHeadBaseScript
 
     #endregion プロパティ
 
+    /*
     /// <summary>
     /// 初回処理判定
     /// </summary>
     private bool IsFirst = true;
+    */
 
     /// <summary>
     /// シャトル

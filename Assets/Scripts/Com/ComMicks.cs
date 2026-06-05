@@ -573,6 +573,8 @@ public class ComMicks : ComProtocolBase
     /// Lレジスタ最大数
     /// </summary>
     public static int LRegMax = 2000;
+
+    /*
     /// <summary>
     /// データ件数オフセット
     /// </summary>
@@ -585,6 +587,7 @@ public class ComMicks : ComProtocolBase
     /// データオフセット
     /// </summary>
     private static int DataOffset = 9;
+    */
 
     /// <summary>
     /// STX
@@ -601,10 +604,12 @@ public class ComMicks : ComProtocolBase
     /// </summary>
     private byte ACK = 0x06;
 
+    /*
     /// <summary>
     /// NAK
     /// </summary>
     private byte NAK = 0x15;
+    */
 
     /// <summary>
     /// SYN
@@ -616,6 +621,7 @@ public class ComMicks : ComProtocolBase
     /// </summary>
     private byte CR = 0x0D;
 
+    /*
     /// <summary>
     /// タイムチャートデータ最大
     /// </summary>
@@ -635,6 +641,7 @@ public class ComMicks : ComProtocolBase
     /// I/Oの1データサイズ
     /// </summary>
     private int IoDataSize = 34;
+    */
 
     /// <summary>
     /// 受信コマンド
@@ -814,9 +821,9 @@ public class ComMicks : ComProtocolBase
         // サブコマンド
         var subCommand = regTypeData64.Contains(data.RegisterType) ? eReadSubCommand.Device64 : eReadSubCommand.Device32;
         // アドレス
-        var address = regTypeBit.Contains(data.RegisterType) ? (int)Math.Floor(data.RegisterNo / 32.0) : data.RegisterNo;
+        var address = regTypeBit.Contains(data.RegisterType) && (values == null) ? (int)Math.Floor(data.RegisterNo / 32.0) : data.RegisterNo;
         // データ数
-        var count = regTypeBit.Contains(data.RegisterType) ? (int)Math.Ceiling(data.AllDataCount / 32.0) : data.AllDataCount;
+        var count = regTypeBit.Contains(data.RegisterType) && (values == null) ? (int)Math.Ceiling((data.AllDataCount + (data.RegisterNo - address * 32)) / 32.0) : data.AllDataCount;
         // データバイト
         var dataByteMax = (values != null) ?  4 : ((address > 0xFFFF) || regTypeData64.Contains(data.RegisterType) ? 4 : 2);
         // 送信データ

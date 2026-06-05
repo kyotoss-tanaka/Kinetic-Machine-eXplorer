@@ -2,6 +2,8 @@ using Parameters;
 using System;
 using System.Collections.Generic;
 using System.Text.Json;
+using System.Text.RegularExpressions;
+using System.Xml.Linq;
 using Unity.VisualScripting;
 using UnityEngine;
 
@@ -382,6 +384,15 @@ public class KssBaseScript : BaseBehaviour
     /// <returns></returns>
     protected int GetTagValue(string tag, ref TagInfo tagInfo, int index = -1)
     {
+        return GetTagValue(unitSetting.Database, unitSetting.mechId, tag, ref tagInfo, index);
+    }
+    protected int GetTagValue(string dbName, string mechId, string tag, ref TagInfo tagInfo, int index = -1)
+    {
+        Match match = Regex.Match(tag, @"^(.*?):(\d+)$");
+        if (match.Success)
+        {
+            tag = match.Groups[1].Value;
+        }
         if (tagInfo != null)
         {
             if (tagInfo.IsDestroyed())
@@ -390,11 +401,19 @@ public class KssBaseScript : BaseBehaviour
             }
             else
             {
-                return tagInfo.isFloat ? (int)(tagInfo.fValue * 1000000f) : tagInfo.Value;
+                if (match.Success)
+                {
+                    var bitNo = int.Parse(match.Groups[2].Value);
+                    return (tagInfo.Value >> bitNo) & 1;
+                }
+                else
+                {
+                    return tagInfo.isFloat ? (int)(tagInfo.fValue * 1000000f) : tagInfo.Value;
+                }
             }
         }
         int value = 0;
-        if ((unitSetting.Database == null) || (tag == ""))
+        if ((dbName == null) || (tag == ""))
         {
             return 0;
         }
@@ -407,8 +426,23 @@ public class KssBaseScript : BaseBehaviour
         {
             tag += $"[{index}]";
         }
-        tagInfo = GlobalScript.GetTagInfo(unitSetting.Database, unitSetting.mechId, tag);
-        return tagInfo == null ? 0 : (tagInfo.isFloat ? (int)(tagInfo.fValue * 1000000f) : tagInfo.Value);
+        tagInfo = GlobalScript.GetTagInfo(dbName, mechId, tag);
+        if (tagInfo == null)
+        {
+            return 0;
+        }
+        else
+        {
+            if (match.Success)
+            {
+                var bitNo = int.Parse(match.Groups[2].Value);
+                return (tagInfo.Value >> bitNo) & 1;
+            }
+            else
+            {
+                return tagInfo.isFloat ? (int)(tagInfo.fValue * 1000000f) : tagInfo.Value;
+            }
+        }
     }
 
     /// <summary>
@@ -418,6 +452,10 @@ public class KssBaseScript : BaseBehaviour
     /// <param name="tagInfo"></param>
     /// <returns></returns>
     protected float GetTagValueF(string tag, ref TagInfo tagInfo, int index = -1)
+    {
+        return GetTagValueF(unitSetting.Database, unitSetting.mechId, tag, ref tagInfo, index);
+    }
+    protected float GetTagValueF(string dbName, string mechId, string tag, ref TagInfo tagInfo, int index = -1)
     {
         if (tagInfo != null)
         {
@@ -431,7 +469,7 @@ public class KssBaseScript : BaseBehaviour
             }
         }
         int value = 0;
-        if ((unitSetting.Database == null) || (tag == ""))
+        if ((dbName == null) || (tag == ""))
         {
             return 0;
         }
@@ -444,7 +482,7 @@ public class KssBaseScript : BaseBehaviour
         {
             tag += $"[{index}]";
         }
-        tagInfo = GlobalScript.GetTagInfo(unitSetting.Database, unitSetting.mechId, tag);
+        tagInfo = GlobalScript.GetTagInfo(dbName, mechId, tag);
         return tagInfo == null ? 0 : (tagInfo.isFloat ? tagInfo.fValue : tagInfo.Value);
     }
 
@@ -456,9 +494,34 @@ public class KssBaseScript : BaseBehaviour
     /// <returns></returns>
     protected void SetTagValue(string tag, ref TagInfo tagInfo, int value, int index = -1)
     {
+        SetTagValue(unitSetting.Database, unitSetting.mechId, tag, ref tagInfo, value, index);
+    }
+    protected void SetTagValue(string dbName, string mechId, string tag, ref TagInfo tagInfo, int value, int index = -1)
+    {
+        Match match = Regex.Match(tag, @"^(.*?):(\d+)$");
+        if (match.Success)
+        {
+            tag = match.Groups[1].Value;
+        }
         if (tagInfo != null)
         {
-            tagInfo.Value = value;
+            if (match.Success)
+            {
+                var bitNo = int.Parse(match.Groups[2].Value);
+                if (value == 1)
+                {
+                    tagInfo.Value |= (1 << bitNo);
+                }
+                else
+                {
+                    tagInfo.Value &= ~(1 << bitNo);
+                }
+            }
+            else
+            {
+                tagInfo.Value = value;
+            }
+            return;
         }
         if (tag == "")
         {
@@ -468,11 +531,25 @@ public class KssBaseScript : BaseBehaviour
         {
             tag += $"[{index}]";
         }
-        tagInfo = GlobalScript.GetTagInfo(unitSetting.Database, unitSetting.mechId, tag);
+        tagInfo = GlobalScript.GetTagInfo(dbName, mechId, tag);
         if (tagInfo != null)
         {
-            tagInfo.Value = value;
+            if (match.Success)
+            {
+                var bitNo = int.Parse(match.Groups[2].Value);
+                if (value == 1)
+                {
+                    tagInfo.Value |= (1 << bitNo);
+                }
+                else
+                {
+                    tagInfo.Value &= ~(1 << bitNo);
+                }
+            }
+            else
+            {
+                tagInfo.Value = value;
+            }
         }
     }
-
 }

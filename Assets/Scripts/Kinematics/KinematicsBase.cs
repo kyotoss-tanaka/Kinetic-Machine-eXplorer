@@ -164,5 +164,13 @@ public class KinematicsBase : UseTagBaseScript
         parent.transform.localEulerAngles = child.localEulerAngles;
         child.parent = parent.transform;
     }
+
+    /// <summary>
+    /// 親オブジェクト挿入
+    /// </summary>
+    protected void InsertParent(GameObject parent, GameObject child)
+    {
+        InsertParent(parent.transform, child.transform);
+    }
     #endregion 関数
 }

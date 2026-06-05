@@ -121,7 +121,6 @@ public class LedScript : KssBaseScript
                     values[i] = GetTagValue(leds[i].name, ref leds[i]._tag);
                 }
             }
-
             // LEDƒZƒbƒg
             if (type == 0)
             {
@@ -138,7 +137,16 @@ public class LedScript : KssBaseScript
                     var index = leds.IndexOf(led);
                     c += values[index] == 1 ? led.material.color : Color.black;
                 }
-                c.a = 1;
+                var max = c.r;
+                if (max < c.b)
+                {
+                    max = c.b;
+                }
+                if (max < c.g)
+                {
+                    max = c.g;
+                }
+                c = max == 0 ? Color.black : new Color(c.r / max, c.g / max, c.b / max, 1);
                 bool emission = c != Color.black;
                 foreach (var renderer in meshRenderers)
                 {
@@ -187,7 +195,7 @@ public class LedScript : KssBaseScript
                     mat.DisableKeyword("_EMISSION");
                 }
                 mat.SetColor("_EmissionColor", color * Mathf.LinearToGammaSpace(CommonDefine.EmissionIntensity));
-                mat.SetColor("_BaseColor", color * (emission ? Mathf.LinearToGammaSpace(CommonDefine.EmissionIntensity) : 0.5f));
+                mat.SetColor("_BaseColor", color * (emission ? 1f : 0.5f));
             }
         }
     }

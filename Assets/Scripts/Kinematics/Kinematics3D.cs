@@ -26,6 +26,10 @@ public class Kinematics3D : KinematicsBase
     protected Vector3 target;
 
     protected List<MotionInternal> tmActs { get; set; } = new();
+
+    protected float offsetX;
+    protected float offsetY;
+    protected float offsetZ;
     #endregion プロパティ
 
     #region 変数
@@ -105,7 +109,7 @@ public class Kinematics3D : KinematicsBase
     /// <param name="target"></param>
     public virtual void setTarget(Vector3 target)
     {
-        SetTarget(target.x, target.y, target.z);
+        SetTarget(target.x - offsetX, target.y - offsetY, target.z - offsetZ);
     }
 
     /// <summary>
@@ -206,6 +210,16 @@ public class Kinematics3D : KinematicsBase
             {
                 tmActs.Add(null);
             }
+        }
+        // ツールオフセット
+        offsetX = 0;
+        offsetY = 0;
+        offsetZ = 0;
+        if (robo.offset != null)
+        {
+            offsetX = robo.offset.Count < 1 ? 0:  robo.offset[0];
+            offsetY = robo.offset.Count < 2 ? 0 : robo.offset[1];
+            offsetZ = robo.offset.Count < 3 ? 0 : robo.offset[2];
         }
     }
     #endregion 関数

@@ -181,16 +181,19 @@ public class InputManager : BaseBehaviour
         // キーアップデート
         KeyUpdate();
 
-        // マウスアップデート
-        MouseUpdate();
-
-        if (GlobalScript.isXRMode)
+        if (!GlobalScript.IsInTimeChart)
         {
-            // ボタンアップデート
-            ButtonUpdate();
+            // マウスアップデート
+            MouseUpdate();
 
-            // タッチアップデート
-            TouchUpdate();
+            if (GlobalScript.isXRMode)
+            {
+                // ボタンアップデート
+                ButtonUpdate();
+
+                // タッチアップデート
+                TouchUpdate();
+            }
         }
     }
 

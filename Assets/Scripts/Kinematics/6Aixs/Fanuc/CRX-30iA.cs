@@ -20,13 +20,13 @@ public class CRX_30iA: Kinematics6D
     protected Transform arm6;
 
     private Vector3 ang1;
+    /*
     private Vector3 ang2;
     private Vector3 ang3;
     private Vector3 ang4;
     private Vector3 ang5;
     private Vector3 ang6;
-
-    protected bool isChgPrm = true;
+    */
 
     protected int axisType = 0;
 
@@ -102,11 +102,13 @@ public class CRX_30iA: Kinematics6D
 
         // 初期角度セット
         ang1 = arm1.localEulerAngles;
+        /*
         ang2 = arm2.localEulerAngles;
         ang3 = arm3.localEulerAngles;
         ang4 = arm4.localEulerAngles;
         ang5 = arm5.localEulerAngles;
         ang6 = arm6.localEulerAngles;
+        */
 
         // ヘッドセット
         if (HeadObject != null)

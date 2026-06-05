@@ -16,8 +16,10 @@ public class CanvasMenuInfoScript : KssBaseScript
     // グローバル設定
     private GameObject globalSetting;
 
+#nullable enable
     // カメラ
-    private Camera cameraController = null;
+    private Camera? cameraController = null;
+#nullable disable
 
     // 設定
     private List<UnitSetting> unitSettings = new();
@@ -36,6 +38,8 @@ public class CanvasMenuInfoScript : KssBaseScript
     public Button btnMotion;
     public Button btnAsm;
     public Button btnSlice;
+    public Button btnSysRec;
+    public Button btnTimeChart;
 
     /// <summary>
     /// 設定
@@ -43,10 +47,12 @@ public class CanvasMenuInfoScript : KssBaseScript
     private GameObject uiSetting;
     private CanvasMenuSettingScript settingScript;
 
+#nullable enable
     /// <summary>
     /// 内部タイマー
     /// </summary>
     private GameObject? uiInner;
+#nullable disable
     private CanvasMenuTimeScript timeScript;
 
     /// <summary>
@@ -74,6 +80,18 @@ public class CanvasMenuInfoScript : KssBaseScript
     private CanvasMenuSliceScript sliceScript;
 
     /// <summary>
+    /// システムレコーダ表示選択
+    /// </summary>
+    private GameObject uiSysRec;
+    private CanvasMenuSysRecScript sysRecScript;
+
+    /// <summary>
+    /// タイムチャート表示選択
+    /// </summary>
+    private GameObject uiTimeChart;
+    private CanvasMenuTimeChartScript timeChartScript;
+
+    /// <summary>
     /// 各種表示
     /// </summary>
     private bool visibleSetting = false;
@@ -82,6 +100,8 @@ public class CanvasMenuInfoScript : KssBaseScript
     private bool visibleMotion = false;
     private bool visibleAsm = false;
     private bool visibleSlice = false;
+    private bool visibleSysRec = false;
+    private bool visibleTimeChart = false;
 
     /// <summary>
     /// 軸表示用
@@ -101,20 +121,23 @@ public class CanvasMenuInfoScript : KssBaseScript
         globalSetting = GameObject.FindObjectsByType<GameObject>(FindObjectsSortMode.None).Where(d => d.name == "GlobalSetting").ToList()[0];
 
         //　各種ボタン
-        btnSetting = GetComponentsInChildren<Button>().ToList().Find(d => d.name == "BntSetting");
+        btnSetting = GetComponentsInChildren<Button>().ToList().Find(d => d.name == "BtnSetting");
         btnInner = GetComponentsInChildren<Button>().ToList().Find(d => d.name == "BtnTime");
-        btnDirect = GetComponentsInChildren<Button>().ToList().Find(d => d.name == "BntCom");
-        btnMotion = GetComponentsInChildren<Button>().ToList().Find(d => d.name == "BntMotion");
-        btnAsm = GetComponentsInChildren<Button>().ToList().Find(d => d.name == "BntAsm");
-        btnSlice = GetComponentsInChildren<Button>().ToList().Find(d => d.name == "BntSlice");
-
-        // キャンバス作成
-        CreateCanvas();
+        btnDirect = GetComponentsInChildren<Button>().ToList().Find(d => d.name == "BtnCom");
+        btnMotion = GetComponentsInChildren<Button>().ToList().Find(d => d.name == "BtnMotion");
+        btnAsm = GetComponentsInChildren<Button>().ToList().Find(d => d.name == "BtnAsm");
+        btnSlice = GetComponentsInChildren<Button>().ToList().Find(d => d.name == "BtnSlice");
+        btnSysRec = GetComponentsInChildren<Button>().ToList().Find(d => d.name == "BtnSysRec");
+        btnTimeChart = GetComponentsInChildren<Button>().ToList().Find(d => d.name == "BtnTimeChart");
     }
 
     protected override void OnEnable()
     {
         base.OnEnable();
+
+        // キャンバス作成
+        CreateCanvas();
+
         InputManager.Instance.RegisterKey(Key.A, HandleKey);
         EventManager.Instance.RegisterObjectSelect(OnObjectSelect);
         btnSetting.onClick.AddListener(btnSetting_onClick);
@@ -123,6 +146,8 @@ public class CanvasMenuInfoScript : KssBaseScript
         btnMotion.onClick.AddListener(btnMotion_onClick);
         btnAsm.onClick.AddListener(btnAsm_onClick);
         btnSlice.onClick.AddListener(btnSlice_onClick);
+        btnSysRec.onClick.AddListener(btnSysRec_onClick);
+        btnTimeChart.onClick.AddListener(btnTimeChart_onClick);
     }
 
     protected override void OnDisable()
@@ -136,6 +161,8 @@ public class CanvasMenuInfoScript : KssBaseScript
         btnMotion.onClick.RemoveAllListeners();
         btnAsm.onClick.RemoveAllListeners();
         btnSlice.onClick.RemoveAllListeners();
+        btnSysRec.onClick.RemoveAllListeners();
+        btnTimeChart.onClick.RemoveAllListeners();
     }
 
     /// <summary>
@@ -157,13 +184,17 @@ public class CanvasMenuInfoScript : KssBaseScript
         actUnitScript.SetEvents(unitSettings);
         assemblyScript.SetEvents(uiActUnitInfo);
         sliceScript.SetEvents();
+        sysRecScript.SetEvents();
+        timeChartScript.SetEvents();
 
         // 有効/無効切り替え
         btnInner.interactable = timeScript.IsEnabled;
         btnDirect.interactable = globalSetting.GetComponents<ComProtocolBase>().Where(d => d.IsDirect).Count() > 0;
 
-        uiInner.SetActive(visibleInner && btnInner.interactable);
+        uiInner!.SetActive(visibleInner && btnInner.interactable);
         uiDirectCom.SetActive(visibleDirect && btnDirect.interactable);
+
+        btnSysRec.interactable = sysRecScript.IsEnabled;
     }
 
     /// <summary>
@@ -202,7 +233,7 @@ public class CanvasMenuInfoScript : KssBaseScript
     private void btnInner_onClick()
     {
         visibleInner = !visibleInner && btnInner.interactable;
-        uiInner.SetActive(visibleInner);
+        uiInner!.SetActive(visibleInner);
 
         SetButtonColor(btnInner, visibleInner);
     }
@@ -230,6 +261,16 @@ public class CanvasMenuInfoScript : KssBaseScript
     }
 
     /// <summary>
+    /// ユニット動作表示切り替え
+    /// </summary>
+    public void btnMotion_Visible(bool visible)
+    {
+        if (visibleMotion != visible)
+        {
+            btnMotion_onClick();
+        }
+    }
+    /// <summary>
     /// アセンブリ表示表示切り替え
     /// </summary>
     private void btnAsm_onClick()
@@ -252,7 +293,7 @@ public class CanvasMenuInfoScript : KssBaseScript
     }
 
     /// <summary>
-    /// アセンブリ表示表示切り替え
+    /// アセンブリ表示切り替え
     /// </summary>
     private void btnSlice_onClick()
     {
@@ -260,6 +301,29 @@ public class CanvasMenuInfoScript : KssBaseScript
         uiSlice.SetActive(visibleSlice);
 
         SetButtonColor(btnSlice, visibleSlice);
+    }
+
+    /// <summary>
+    /// システムレコーダ表示切り替え
+    /// </summary>
+    private void btnSysRec_onClick()
+    {
+        visibleSysRec = !visibleSysRec && btnSysRec.interactable;
+        GlobalScript.isSystemRecorder = visibleSysRec;
+        uiSysRec.SetActive(visibleSysRec);
+
+        SetButtonColor(btnSysRec, visibleSysRec);
+    }
+
+    /// <summary>
+    /// タイムチャート表示切り替え
+    /// </summary>
+    private void btnTimeChart_onClick()
+    {
+        visibleTimeChart = !visibleTimeChart && btnTimeChart.interactable;
+        uiTimeChart.SetActive(visibleTimeChart);
+
+        SetButtonColor(btnTimeChart, visibleTimeChart);
     }
 
     /// <summary>
@@ -332,11 +396,14 @@ public class CanvasMenuInfoScript : KssBaseScript
         var canvasObjs = GameObject.FindObjectsByType<GameObject>(FindObjectsSortMode.None).Where(d => d.name == "Canvas").ToList();
         canvaObj = canvasObjs.Count == 0 ? new GameObject("Canvas", typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster)) : canvasObjs[0];
 
-
         // 設定表示
         var setting = GlobalScript.LoadPrefabObject("Prefabs/Canvas", "SettingInfo");
         if (setting.Count > 0)
         {
+            if (uiSetting != null)
+            {
+                Destroy(uiSetting);
+            }
             uiSetting = Instantiate(setting[0]);
             uiSetting.transform.SetParent(canvaObj.transform, false);
             settingScript = uiSetting.AddComponent<CanvasMenuSettingScript>();
@@ -346,6 +413,10 @@ public class CanvasMenuInfoScript : KssBaseScript
         var inner = GlobalScript.LoadPrefabObject("Prefabs/Canvas", "ComInner");
         if (inner.Count > 0)
         {
+            if (uiInner != null)
+            {
+                Destroy(uiInner);
+            }
             uiInner = Instantiate(inner[0]);
             uiInner.transform.SetParent(canvaObj.transform, false);
             timeScript = uiInner.AddComponent<CanvasMenuTimeScript>();
@@ -355,6 +426,10 @@ public class CanvasMenuInfoScript : KssBaseScript
         var direct = GlobalScript.LoadPrefabObject("Prefabs/Canvas", "DirectComInfo");
         if (direct.Count > 0)
         {
+            if (uiDirectCom != null)
+            {
+                Destroy(uiDirectCom);
+            }
             uiDirectCom = Instantiate(direct[0]);
             uiDirectCom.transform.SetParent(canvaObj.transform, false);
             directComScript = uiDirectCom.AddComponent<CanvasMenuDirectComScript>();
@@ -364,6 +439,10 @@ public class CanvasMenuInfoScript : KssBaseScript
         var actUnit = GlobalScript.LoadPrefabObject("Prefabs/Canvas", "ActUnitInfo");
         if (actUnit.Count > 0)
         {
+            if (uiActUnitInfo != null)
+            {
+                Destroy(uiActUnitInfo);
+            }
             uiActUnitInfo = Instantiate(actUnit[0]);
             uiActUnitInfo.transform.SetParent(canvaObj.transform, false);
             actUnitScript = uiActUnitInfo.AddComponent<CanvasMenuActUnitScript>();
@@ -373,6 +452,10 @@ public class CanvasMenuInfoScript : KssBaseScript
         var asm = GlobalScript.LoadPrefabObject("Prefabs/Canvas", "AssemblySetting");
         if (asm.Count > 0)
         {
+            if (uiAssembly != null)
+            {
+                Destroy(uiAssembly);
+            }
             uiAssembly = Instantiate(asm[0]);
             uiAssembly.transform.SetParent(canvaObj.transform, false);
             assemblyScript = uiAssembly.AddComponent<CanvasMenuAssemblyScript>();
@@ -382,18 +465,50 @@ public class CanvasMenuInfoScript : KssBaseScript
         var slice = GlobalScript.LoadPrefabObject("Prefabs/Canvas", "SliceSetting");
         if (slice.Count > 0)
         {
+            if (uiSlice != null)
+            {
+                Destroy(uiSlice);
+            }
             uiSlice = Instantiate(slice[0]);
             uiSlice.transform.SetParent(canvaObj.transform, false);
             sliceScript = uiSlice.AddComponent<CanvasMenuSliceScript>();
         }
 
+        // システムレコーダ表示
+        var sysRec = GlobalScript.LoadPrefabObject("Prefabs/Canvas", "SysRecSetting");
+        if (sysRec.Count > 0)
+        {
+            if (uiSysRec != null)
+            {
+                Destroy(uiSysRec);
+            }
+            uiSysRec = Instantiate(sysRec[0]);
+            uiSysRec.transform.SetParent(canvaObj.transform, false);
+            sysRecScript = uiSysRec.AddComponent<CanvasMenuSysRecScript>();
+        }
+
+        // システムレコーダ表示
+        var timeChart = GlobalScript.LoadPrefabObject("Prefabs/Canvas", "TimeChartSetting");
+        if (timeChart.Count > 0)
+        {
+            if (uiTimeChart != null)
+            {
+                Destroy(uiTimeChart);
+            }
+            uiTimeChart = Instantiate(timeChart[0]);
+            uiTimeChart.transform.SetParent(canvaObj.transform, false);
+            timeChartScript = uiTimeChart.AddComponent<CanvasMenuTimeChartScript>();
+        }
+        
         // 各種表示
         uiSetting.SetActive(visibleSetting);
-        uiInner.SetActive(visibleInner);
+        uiInner!.SetActive(visibleInner);
         uiDirectCom.SetActive(visibleDirect);
         uiActUnitInfo.SetActive(visibleMotion);
         uiAssembly.SetActive(visibleAsm);
         uiSlice.SetActive(visibleSlice);
+        uiSysRec.SetActive(visibleSysRec);
+        uiTimeChart.SetActive(visibleTimeChart);
     }
 
     /// <summary>

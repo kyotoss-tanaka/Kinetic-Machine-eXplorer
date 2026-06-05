@@ -479,10 +479,13 @@ public class MotionInternal : AxisMotionBase
             }
         }
 
-        // 起動時OFF
-        foreach (var campos in camPosInfos)
+        if (!GlobalScript.isSystemRecorder)
         {
-            SetTagValue(campos.end, ref campos._EndOutput, 0);
+            // 起動時OFF
+            foreach (var campos in camPosInfos)
+            {
+                SetTagValue(campos.end, ref campos._EndOutput, 0);
+            }
         }
     }
 
@@ -532,12 +535,12 @@ public class MotionInternal : AxisMotionBase
                     break;
                 }
             }
-            timeOffset = cycleTag == null ? 0 : GlobalScript.GetTagData(cycleTag);
+            timeOffset = GlobalScript.isSystemRecorder ? GlobalScript.sysRecMilliseconds : (cycleTag == null ? 0 : GlobalScript.GetTagData(cycleTag));
         }
         else
         {
             // 経過測定
-            nowTime = (cycleTag == null ? sw.ElapsedMilliseconds : GlobalScript.GetTagData(cycleTag)) - timeOffset;
+            nowTime = (GlobalScript.isSystemRecorder ? GlobalScript.sysRecMilliseconds : (cycleTag == null ? sw.ElapsedMilliseconds : GlobalScript.GetTagData(cycleTag))) - timeOffset;
             // 通信遅れ時間込みで終了IOをON
             if (nowTime >= actionCurve.actCurve.Count - delayTime)
             {
@@ -684,19 +687,22 @@ public class MotionInternal : AxisMotionBase
         }
 
         // 出力処理
-        foreach (var campos in camPosInfos)
+        if (!GlobalScript.isSystemRecorder)
         {
-            float dist = 0;
-            if (isRotate)
+            foreach (var campos in camPosInfos)
             {
-                dist = Vector3.Distance(campos.Position * Thousand, innerPosition) % 360;
+                float dist = 0;
+                if (isRotate)
+                {
+                    dist = Vector3.Distance(campos.Position * Thousand, innerPosition) % 360;
+                }
+                else
+                {
+                    dist = Vector3.Distance(campos.Position, innerPosition) * Thousand;
+                }
+                SetTagValue(campos.end, ref campos._EndOutput, campos.AdvanceAngle ? 1 : (dist <= 1 ? 1 : 0));
+                campos.AdvanceAngle = false;
             }
-            else
-            {
-                dist = Vector3.Distance(campos.Position, innerPosition) * Thousand;
-            }
-            SetTagValue(campos.end, ref campos._EndOutput, campos.AdvanceAngle ? 1 : (dist <= 1 ? 1 : 0));
-            campos.AdvanceAngle = false;
         }
 
         // 前回データ保持

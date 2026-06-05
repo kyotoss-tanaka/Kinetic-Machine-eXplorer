@@ -33,6 +33,11 @@ public class TagInfo : KssPartsBase
     public string Device;
 
     /// <summary>
+    /// サイズ
+    /// </summary>
+    public int Size;
+
+    /// <summary>
     /// 値
     /// </summary>
     public int Value;
