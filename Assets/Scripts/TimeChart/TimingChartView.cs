@@ -2008,11 +2008,11 @@ namespace KyotoSS.TimingChart
 
                     if (absMode)
                     {
-                        // 矢印非表示・ラベルを変化点の真上（行中央）に配置
-                        if (xC < 0f || xC > plotW) { arrow.BGRT.gameObject.SetActive(false); continue; }
+                        // 絶対モードは矢印不要：先に Line/Heads を非表示にしてから範囲チェック
                         arrow.LineRT.gameObject.SetActive(false);
                         arrow.HeadLRT.gameObject.SetActive(false);
                         arrow.HeadRRT.gameObject.SetActive(false);
+                        if (xC < 0f || xC > plotW) { arrow.BGRT.gameObject.SetActive(false); continue; }
                         arrow.BGRT.anchoredPosition = new Vector2(xCC, centerY);
                     }
                     else
