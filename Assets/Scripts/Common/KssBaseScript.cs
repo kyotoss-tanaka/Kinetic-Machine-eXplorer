@@ -386,13 +386,36 @@ public class KssBaseScript : BaseBehaviour
     {
         return GetTagValue(unitSetting.Database, unitSetting.mechId, tag, ref tagInfo, index);
     }
+    /// <summary>
+    /// "name:bit" 形式のタグを正規表現なしで解析する。bit指定があれば tag を基底名に書き換え true を返す。
+    /// （毎フレーム多数呼ばれるため Regex を排除し、通常ケースのアロケーションをゼロにする）
+    /// </summary>
+    private static bool TryParseBitTag(ref string tag, out int bitNo)
+    {
+        bitNo = 0;
+        int colon = tag.LastIndexOf(':');
+        if (colon < 0 || colon >= tag.Length - 1)
+        {
+            return false;
+        }
+        int n = 0;
+        for (int i = colon + 1; i < tag.Length; i++)
+        {
+            char c = tag[i];
+            if (c < '0' || c > '9')
+            {
+                return false;
+            }
+            n = n * 10 + (c - '0');
+        }
+        bitNo = n;
+        tag = tag.Substring(0, colon);
+        return true;
+    }
+
     protected int GetTagValue(string dbName, string mechId, string tag, ref TagInfo tagInfo, int index = -1)
     {
-        Match match = Regex.Match(tag, @"^(.*?):(\d+)$");
-        if (match.Success)
-        {
-            tag = match.Groups[1].Value;
-        }
+        bool hasBit = TryParseBitTag(ref tag, out int bitNo);
         if (tagInfo != null)
         {
             if (tagInfo.IsDestroyed())
@@ -401,9 +424,8 @@ public class KssBaseScript : BaseBehaviour
             }
             else
             {
-                if (match.Success)
+                if (hasBit)
                 {
-                    var bitNo = int.Parse(match.Groups[2].Value);
                     return (tagInfo.Value >> bitNo) & 1;
                 }
                 else
@@ -433,9 +455,8 @@ public class KssBaseScript : BaseBehaviour
         }
         else
         {
-            if (match.Success)
+            if (hasBit)
             {
-                var bitNo = int.Parse(match.Groups[2].Value);
                 return (tagInfo.Value >> bitNo) & 1;
             }
             else
@@ -498,16 +519,11 @@ public class KssBaseScript : BaseBehaviour
     }
     protected void SetTagValue(string dbName, string mechId, string tag, ref TagInfo tagInfo, int value, int index = -1)
     {
-        Match match = Regex.Match(tag, @"^(.*?):(\d+)$");
-        if (match.Success)
-        {
-            tag = match.Groups[1].Value;
-        }
+        bool hasBit = TryParseBitTag(ref tag, out int bitNo);
         if (tagInfo != null)
         {
-            if (match.Success)
+            if (hasBit)
             {
-                var bitNo = int.Parse(match.Groups[2].Value);
                 if (value == 1)
                 {
                     tagInfo.Value |= (1 << bitNo);
@@ -534,9 +550,8 @@ public class KssBaseScript : BaseBehaviour
         tagInfo = GlobalScript.GetTagInfo(dbName, mechId, tag);
         if (tagInfo != null)
         {
-            if (match.Success)
+            if (hasBit)
             {
-                var bitNo = int.Parse(match.Groups[2].Value);
                 if (value == 1)
                 {
                     tagInfo.Value |= (1 << bitNo);

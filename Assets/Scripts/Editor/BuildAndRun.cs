@@ -80,6 +80,47 @@ public class BuildAndRun
         {
         }
     }
+
+    [MenuItem("Kyotoss/WebGL Build and Run (Master)", false, 55)]
+    public static void ReleaseBuildAndRunMasterWebGL()
+    {
+        try
+        {
+            if (EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo())
+            {
+                Debug.Log("シーンを保存しました。");
+            }
+
+            string configPath = Path.Combine("Assets/StreamingAssets/Datas", "BuildConfig.json");
+            if (!File.Exists(configPath))
+            {
+                Debug.LogError("設定ファイルが見つかりません: " + configPath);
+                return;
+            }
+
+            string json = File.ReadAllText(configPath, Encoding.UTF8);
+            Parameters.BuildConfig build = JsonSerializer.Deserialize<Parameters.BuildConfig>(json);
+            build.isMaster = true;
+            build.name = "Master";
+            build.isVR = false;
+            build.isMR = false;
+
+            build.isRelease = true;
+            var folderPath = BuildAndRunProcess(build, true, false, true);   // isWeb = true
+
+            if (folderPath != "")
+            {
+                // エクスプローラーで開く
+                System.Diagnostics.Process.Start("explorer.exe", folderPath);
+                EditorUtility.DisplayDialog("情報", "WebGLビルドが完了しました。", "OK");
+            }
+        }
+        catch (Exception e)
+        {
+            // WebGLは詰まりやすいので失敗内容をログに出す
+            Debug.LogError($"WebGLビルド失敗: {e}");
+        }
+    }
     /*
     [MenuItem("Kyotoss/Master Build and Run(Debug)", false, 52)]
     public static void DebugBuildAndRunMaster()
@@ -145,6 +186,44 @@ public class BuildAndRun
         }
     }
 
+    [MenuItem("Kyotoss/WebGL Build and Run from KMXTool Config", false, 56)]
+    public static void ReleaseBuildAndRunFromConfigWebGL()
+    {
+        try
+        {
+            if (EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo())
+            {
+                Debug.Log("シーンを保存しました。");
+            }
+
+            string configPath = Path.Combine("Assets/StreamingAssets/Datas", "BuildConfig.json");
+            if (!File.Exists(configPath))
+            {
+                Debug.LogError("設定ファイルが見つかりません: " + configPath);
+                return;
+            }
+
+            string json = File.ReadAllText(configPath, Encoding.UTF8);
+            Parameters.BuildConfig build = JsonSerializer.Deserialize<Parameters.BuildConfig>(json);
+            build.isVR = false;
+            build.isMR = false;
+
+            build.isRelease = true;
+            var folderPath = BuildAndRunProcess(build, true, true, true);   // isProd = true, isWeb = true
+            if (folderPath != "")
+            {
+                // エクスプローラーで開く
+                System.Diagnostics.Process.Start("explorer.exe", folderPath);
+                EditorUtility.DisplayDialog("情報", "WebGLビルドが完了しました。", "OK");
+            }
+        }
+        catch (Exception e)
+        {
+            // WebGLは詰まりやすいので失敗内容をログに出す
+            Debug.LogError($"WebGLビルド失敗: {e}");
+        }
+    }
+
     [MenuItem("Kyotoss/Build and Run from KMXTool Config(Debug)", false, 54)]
     public static void DebugAndRunFromConfig()
     {
@@ -183,16 +262,19 @@ public class BuildAndRun
     /// <summary>
     /// ビルド処理
     /// </summary>
-    private static string BuildAndRunProcess(Parameters.BuildConfig build, bool isRun, bool isProd = false)
+    private static string BuildAndRunProcess(Parameters.BuildConfig build, bool isRun, bool isProd = false, bool isWeb = false)
     {
+        var isAndroid = build.isVR || build.isMR;
+        var platformDir = isWeb ? "Web" : (isAndroid ? "Android" : "Windows");
         var productName = build.isMaster ? "KMXMaster" : (build.isMR ? $"{build.mechId}_{build.name}(MR)" : build.isVR ? $"{build.mechId}_{build.name}(VR)" : $"{build.mechId}_{build.name}");
         productName = productName.Replace("/", " ");
-        var productDir = Path.Combine(Path.Combine(Path.Combine("Builds", build.isVR || build.isMR ? "Android" : "Windows"), build.isRelease ? "Release" : "Debug"), productName);
+        var productDir = Path.Combine(Path.Combine(Path.Combine("Builds", platformDir), build.isRelease ? "Release" : "Debug"), productName);
 
         BuildConfig config = new BuildConfig
         {
-            target = build.isVR || build.isMR ? "Android" : "Windows",
-            outputPath = build.isMR || build.isVR ? $"{productDir}.apk" : $"{productDir}/KMX.exe",
+            target = isWeb ? "webgl" : (isAndroid ? "Android" : "Windows"),
+            // WebGLは単一ファイルではなくフォルダ出力（index.html 一式）
+            outputPath = isWeb ? productDir : (isAndroid ? $"{productDir}.apk" : $"{productDir}/KMX.exe"),
             scenes = new List<string> { scenePath },
             buildOptions = build.isRelease ? BuildOptions.None : BuildOptions.Development | BuildOptions.ConnectWithProfiler | BuildOptions.AllowDebugging// | BuildOptions.EnableDeepProfilingSupport
         };
@@ -231,8 +313,16 @@ public class BuildAndRun
             scenes = config.scenes.ToArray(),
             locationPathName = config.outputPath,
             target = target,
-            options = (isRun ? BuildOptions.AutoRunPlayer : BuildOptions.None) | config.buildOptions | BuildOptions.CompressWithLz4HC
+            // WebGL は LZ4HC 圧縮オプション非対応のため除外
+            options = (isRun ? BuildOptions.AutoRunPlayer : BuildOptions.None) | config.buildOptions | (isWeb ? BuildOptions.None : BuildOptions.CompressWithLz4HC)
         };
+
+        if (isWeb)
+        {
+            // WebGL: ローカル/ヘッダ未設定の環境でも読み込めるよう Gzip + 解凍フォールバック
+            PlayerSettings.WebGL.compressionFormat = WebGLCompressionFormat.Gzip;
+            PlayerSettings.WebGL.decompressionFallback = true;
+        }
 
         EditorUserBuildSettings.androidBuildSystem = AndroidBuildSystem.Gradle;
         EditorUserBuildSettings.exportAsGoogleAndroidProject = false;
@@ -245,8 +335,9 @@ public class BuildAndRun
         AddressableAssetGroupSchema sc = settings.DefaultGroup.Schemas.Find(d => d.GetType() == typeof(BundledAssetGroupSchema));
         var buildName = ((BundledAssetGroupSchema)sc).BuildPath.GetName(settings);
         var loadName = ((BundledAssetGroupSchema)sc).LoadPath.GetName(settings);
-        var savePath = $"{serverPath}/{bundlePath}";
-        var loadPath = $"{serverPath}/{bundlePath}";
+        // WebGL はサーバ配信不可のため、ローカル同梱（StreamingAssets）パスにする
+        var savePath = isWeb ? "[UnityEngine.AddressableAssets.Addressables.BuildPath]/[BuildTarget]" : $"{serverPath}/{bundlePath}";
+        var loadPath = isWeb ? "{UnityEngine.AddressableAssets.Addressables.RuntimePath}/[BuildTarget]" : $"{serverPath}/{bundlePath}";
         settings.profileSettings.SetValue(settings.activeProfileId, buildName, savePath);
         settings.profileSettings.SetValue(settings.activeProfileId, loadName, loadPath);
 

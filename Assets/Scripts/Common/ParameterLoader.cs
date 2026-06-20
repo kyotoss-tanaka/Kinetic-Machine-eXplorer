@@ -1515,9 +1515,18 @@ namespace Parameters
         private void SetDatabaseSetting()
         {
 #if UNITY_WEBGL && !UNITY_EDITOR
-            // WebGL: 外部通信を一切行わない（一旦すべて接続なし）。
-            // socket / スレッド / OPC UA SDK は WebGL 非対応のため、通信クラスを生成しない＝実行経路に入らない。
-            // TODO(HMI): 将来 HMIバックエンドとの通信(WebSocket/HTTP)へ切替時は、ここで ComHmi 等を生成する。
+            // WebGL: 外部通信(PLC/DB)は socket/スレッド非対応のため生成不可。
+            // 内部処理 ComInner のみ生成して、機械を内部シミュレーションで動作させる。
+            // TODO(HMI): 将来 HMIバックエンド通信(WebSocket/HTTP)へ切替時は、ここで ComHmi 等を生成する。
+            foreach (var p in postgresSettings)
+            {
+                if (p.isInner)
+                {
+                    var ex = dataExSettings.Find(d => d.dbNo == p.No);
+                    var db = (ComInner)globalSetting.AddComponent<ComInner>();
+                    db.SetParameter(p.No, p.Cycle, p.Server, p.Port, p.Database, p.User, p.Password, p.isClientMode, ex, innerSettings, actionSettings);
+                }
+            }
 #else
             foreach (var p in postgresSettings)
             {

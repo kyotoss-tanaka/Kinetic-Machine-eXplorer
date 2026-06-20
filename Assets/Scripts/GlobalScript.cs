@@ -779,7 +779,8 @@ public static class GlobalScript
     {
         string path = Path.Combine(Application.streamingAssetsPath, fileName); ;
         string datastr = "";
-        if ((Application.platform == RuntimePlatform.Android) || (Application.platform == RuntimePlatform.IPhonePlayer))
+        // WebGL も StreamingAssets はHTTP配信のため UnityWebRequest が必須（ファイルAPI不可）
+        if ((Application.platform == RuntimePlatform.Android) || (Application.platform == RuntimePlatform.IPhonePlayer) || (Application.platform == RuntimePlatform.WebGLPlayer))
         {
             using (UnityWebRequest request = UnityWebRequest.Get(path))
             {

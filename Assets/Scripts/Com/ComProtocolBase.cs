@@ -1024,6 +1024,7 @@ public class ComProtocolBase : ComBaseScript
 
     private IEnumerator SendPing()
     {
+#if !UNITY_WEBGL || UNITY_EDITOR
         Ping ping = new Ping(Server);
         float startTime = Time.time;
         // 完了かタイムアウトまで待機
@@ -1041,6 +1042,11 @@ public class ComProtocolBase : ComBaseScript
             IsPing = false;
             //            Debug.LogWarning($"[{System.DateTime.Now}] Ping NG: {Server}");
         }
+#else
+        // WebGL: UnityEngine.Ping は非対応。通信クラス自体をWebGLでは生成しないためスタブ。
+        IsPing = false;
+        yield return null;
+#endif
     }
 
     /// <summary>
