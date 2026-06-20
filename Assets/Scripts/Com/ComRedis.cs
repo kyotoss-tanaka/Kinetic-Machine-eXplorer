@@ -19,7 +19,7 @@ using System.Text;
 using System.Collections.Concurrent;
 using System.Diagnostics;
 
-public class ComRedis : ComBaseScript
+public class ComRedis : ComBaseScript, ITagCom
 {
     /// <summary>
     /// MQTT受信データ
@@ -140,8 +140,9 @@ public class ComRedis : ComBaseScript
             sub = redis.GetSubscriber();
             sub.Subscribe(RedisChannel.Literal("latestdata"), OnMessageReceived);
         }
-        catch
+        catch (System.Exception e)
         {
+            CommonFunction.DebugLog($"Redis接続エラー: {e.Message}");
         }
         IsConnecting = false;
     }
@@ -158,8 +159,9 @@ public class ComRedis : ComBaseScript
                 Connect();
             }
         }
-        catch
+        catch (System.Exception e)
         {
+            CommonFunction.DebugLog($"Redis再接続エラー: {e.Message}");
         }
     }
 

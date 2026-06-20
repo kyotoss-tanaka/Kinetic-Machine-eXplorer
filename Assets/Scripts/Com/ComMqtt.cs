@@ -21,7 +21,7 @@ using System.Text;
 using System.Collections.Concurrent;
 using System.Diagnostics;
 
-public class ComMqtt : ComBaseScript
+public class ComMqtt : ComBaseScript, ITagCom
 {
     /// <summary>
     /// MQTT受信データ
@@ -149,8 +149,9 @@ public class ComMqtt : ComBaseScript
         {
             await mqttClient.ReconnectAsync();
         }
-        catch
+        catch (System.Exception e)
         {
+            CommonFunction.DebugLog($"MQTT再接続エラー: {e.Message}");
         }
     }
 

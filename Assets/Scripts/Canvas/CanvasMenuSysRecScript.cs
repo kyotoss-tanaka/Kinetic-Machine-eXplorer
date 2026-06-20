@@ -207,8 +207,9 @@ public class CanvasMenuSysRecScript : CanvasMenuBaseScript
                     }
                 }
             }
-            catch
+            catch (System.Exception e)
             {
+                CommonFunction.DebugLog($"システムレコーダ処理エラー: {e.Message}");
             }
         }
     }

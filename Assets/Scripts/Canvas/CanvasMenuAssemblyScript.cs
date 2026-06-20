@@ -351,8 +351,9 @@ public class CanvasMenuAssemblyScript : CanvasMenuBaseScript
             {
                 Destroy(text.gameObject);
             }
-            catch
+            catch (System.Exception e)
             {
+                CommonFunction.DebugLog($"viewText破棄エラー: {e.Message}");
             }
         }
         viewTexts.Clear();

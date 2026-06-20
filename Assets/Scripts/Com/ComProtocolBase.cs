@@ -20,7 +20,7 @@ using TMPro;
 using System.Text.RegularExpressions;
 using System.Xml.Linq;
 
-public class ComProtocolBase : ComBaseScript
+public class ComProtocolBase : ComBaseScript, ITagCom
 {
     #region クラス定義
     protected class ConnectionBase
@@ -529,8 +529,9 @@ public class ComProtocolBase : ComBaseScript
                                 isRcvDb = true;
                             }
                         }
-                        catch
+                        catch (System.Exception e)
                         {
+                            CommonFunction.DebugLog($"通信エラー(受信): {e.Message}");
                         }
                         IsProcessing = false;
                     });
@@ -549,8 +550,9 @@ public class ComProtocolBase : ComBaseScript
                                     swSend.laps = swSend.sw.ElapsedMilliseconds;
                                 }
                             }
-                            catch
+                            catch (System.Exception e)
                             {
+                                CommonFunction.DebugLog($"通信エラー(送信): {e.Message}");
                             }
                             IsWriteProcessing = false;
                         });
@@ -566,8 +568,9 @@ public class ComProtocolBase : ComBaseScript
                             // 接続処理
                             IsConnected = Connect();
                         }
-                        catch
+                        catch (System.Exception e)
                         {
+                            CommonFunction.DebugLog($"通信エラー(接続): {e.Message}");
                         }
                         IsProcessing = false;
                     });

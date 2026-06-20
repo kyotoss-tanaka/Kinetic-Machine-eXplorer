@@ -76,8 +76,9 @@ public class BuildAndRun
                 EditorUtility.DisplayDialog("情報", "ビルドが完了しました。", "OK");
             }
         }
-        catch
+        catch (Exception e)
         {
+            Debug.LogError($"ビルド失敗: {e}");
         }
     }
 
@@ -181,8 +182,9 @@ public class BuildAndRun
                 EditorUtility.DisplayDialog("情報", "ビルドが完了しました。", "OK");
             }
         }
-        catch
+        catch (Exception e)
         {
+            Debug.LogError($"ビルド失敗: {e}");
         }
     }
 
@@ -254,8 +256,9 @@ public class BuildAndRun
                 EditorUtility.DisplayDialog("情報", "ビルドが完了しました。", "OK");
             }
         }
-        catch
+        catch (Exception e)
         {
+            Debug.LogError($"ビルド失敗: {e}");
         }
     }
 

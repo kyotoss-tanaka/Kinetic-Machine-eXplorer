@@ -11,7 +11,7 @@ using UnityEngine;
 using UnityEngine.Networking;
 using static OpcUaTagInfo;
 
-public class ComOpcUaApi : ComBaseScript
+public class ComOpcUaApi : ComBaseScript, ITagCom
 {
     /// <summary>
     /// IPアドレス

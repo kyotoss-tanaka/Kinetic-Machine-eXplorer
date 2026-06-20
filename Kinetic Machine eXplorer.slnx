@@ -4,6 +4,7 @@
   <Project Path="Unity.ScriptableBuildPipeline.Editor.Tests.csproj" />
   <Project Path="Assembly-CSharp-Editor.csproj" />
   <Project Path="Unity.ScriptableBuildPipelineTests.Runtime.Tests.csproj" />
+  <Project Path="Kss.Parts.csproj" />
   <Project Path="Unity.Pixyz.Plugin4Unity.Actions.csproj" />
   <Project Path="Unity.ScriptableBuildPipeline.Tests.csproj" />
   <Project Path="Unity.ScriptableBuildPipeline.csproj" />

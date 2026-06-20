@@ -14,7 +14,7 @@ using UnityEngine;
 using UnityEngine.Networking;
 using static ComOpcUaApi;
 
-public class ComPostgres : ComBaseScript
+public class ComPostgres : ComBaseScript, ITagCom
 {
     /// <summary>
     /// サーバー名

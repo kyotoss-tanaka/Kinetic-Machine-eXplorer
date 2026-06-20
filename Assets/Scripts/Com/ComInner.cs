@@ -9,7 +9,7 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
-public class ComInner : ComBaseScript
+public class ComInner : ComBaseScript, ITagCom
 {
 
     [Serializable]

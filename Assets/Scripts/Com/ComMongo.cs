@@ -17,7 +17,7 @@ using UnityEngine.PlayerLoop;
 using Parameters;
 using static KssBaseScript;
 
-public class ComMongo : ComBaseScript
+public class ComMongo : ComBaseScript, ITagCom
 {
     [SerializeField]
     private string collectionName = "UnityData";

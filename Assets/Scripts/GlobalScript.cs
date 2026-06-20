@@ -175,47 +175,49 @@ public static class GlobalScript
     /// <summary>
     /// Postgres
     /// </summary>
-    public static Dictionary<string, ComPostgres> postgreses = new Dictionary<string, ComPostgres>();
+    // ↓ 各通信コンポーネントの登録先。Com 具象型ではなく ITagCom で保持し、
+    //   GlobalScript(Common) → Com の依存（循環）を切っている。
+    public static Dictionary<string, ITagCom> postgreses = new Dictionary<string, ITagCom>();
 
     /// <summary>
     /// MongoDB
     /// </summary>
-    public static Dictionary<string, ComMongo> mongos = new Dictionary<string, ComMongo>();
+    public static Dictionary<string, ITagCom> mongos = new Dictionary<string, ITagCom>();
 
     /// <summary>
     /// OPC UA
     /// </summary>
-    public static Dictionary<string, ComOpcUaApi> opcuaapis = new Dictionary<string, ComOpcUaApi>();
+    public static Dictionary<string, ITagCom> opcuaapis = new Dictionary<string, ITagCom>();
 
     /// <summary>
     /// MQTT
     /// </summary>
-    public static Dictionary<string, ComMqtt> mqtts = new Dictionary<string, ComMqtt>();
+    public static Dictionary<string, ITagCom> mqtts = new Dictionary<string, ITagCom>();
 
     /// <summary>
     /// Redis
     /// </summary>
-    public static Dictionary<string, ComRedis> redises = new Dictionary<string, ComRedis>();
+    public static Dictionary<string, ITagCom> redises = new Dictionary<string, ITagCom>();
 
     /// <summary>
     /// 内部通信
     /// </summary>
-    public static Dictionary<string, ComInner> inners = new Dictionary<string, ComInner>();
+    public static Dictionary<string, ITagCom> inners = new Dictionary<string, ITagCom>();
 
     /// <summary>
     /// MCプロトコル
     /// </summary>
-    public static Dictionary<string, ComMcProtocol> mcprotocols = new Dictionary<string, ComMcProtocol>();
+    public static Dictionary<string, ITagCom> mcprotocols = new Dictionary<string, ITagCom>();
 
     /// <summary>
     /// MICKS通信
     /// </summary>
-    public static Dictionary<string, ComMicks> mickses = new Dictionary<string, ComMicks>();
+    public static Dictionary<string, ITagCom> mickses = new Dictionary<string, ITagCom>();
 
     /// <summary>
     /// OPC UA通信
     /// </summary>
-    public static Dictionary<string, ComOpcUa> opcuas = new Dictionary<string, ComOpcUa>();
+    public static Dictionary<string, ITagCom> opcuas = new Dictionary<string, ITagCom>();
 
     /// <summary>
     /// ワーク
@@ -414,15 +416,15 @@ public static class GlobalScript
     {
         micksMechs = new Dictionary<string, List<MechInfo>>();
         tagDatas = new Dictionary<string, Dictionary<string, Dictionary<string, TagInfo>>>();
-        postgreses = new Dictionary<string, ComPostgres>();
-        mongos = new Dictionary<string, ComMongo>();
-        opcuaapis = new Dictionary<string, ComOpcUaApi>();
-        mqtts = new Dictionary<string, ComMqtt>();
-        redises = new Dictionary<string, ComRedis>();
-        inners = new Dictionary<string, ComInner>();
-        mcprotocols = new Dictionary<string, ComMcProtocol>();
-        mickses = new Dictionary<string, ComMicks>();
-        opcuas = new Dictionary<string, ComOpcUa>();
+        postgreses = new Dictionary<string, ITagCom>();
+        mongos = new Dictionary<string, ITagCom>();
+        opcuaapis = new Dictionary<string, ITagCom>();
+        mqtts = new Dictionary<string, ITagCom>();
+        redises = new Dictionary<string, ITagCom>();
+        inners = new Dictionary<string, ITagCom>();
+        mcprotocols = new Dictionary<string, ITagCom>();
+        mickses = new Dictionary<string, ITagCom>();
+        opcuas = new Dictionary<string, ITagCom>();
         works = new Dictionary<string, GameObject>();
         regObjects = new Dictionary<string, List<GameObject>>();
         regScripts = new Dictionary<string, List<GameObject>>();
@@ -657,81 +659,26 @@ public static class GlobalScript
     }
 
     /// <summary>
-    /// DB情報更新
+    /// DB情報更新（Com 具象型に依存しないよう ITagCom で受ける）
     /// </summary>
-    /// <param name="dbs"></param>
-    public static void RenewDatabase(List<ComPostgres> dbs)
+    /// <param name="dbs">対象の通信コンポーネント</param>
+    /// <param name="isOpcUa">OPC UA(タグキーに "OpcUA" を含むもの) を対象にするか</param>
+    public static void RenewDatabase(IEnumerable<ITagCom> dbs, bool isOpcUa = false)
     {
         lock (objLock)
         {
             var keys = new List<string>();
             foreach (var key in tagDatas.Keys)
             {
-                if (!tagDatas[key].ContainsKey("OpcUA"))
+                if (tagDatas[key].ContainsKey("OpcUA") == isOpcUa)
                 {
                     keys.Add(key);
                 }
             }
-            foreach (var postgres in dbs)
+            foreach (var db in dbs)
             {
-                postgres.RenewData();
-                keys.Remove(postgres.Name);
-            }
-            foreach (var key in keys)
-            {
-//                tagDatas.Remove(key);
-            }
-        }
-    }
-
-    /// <summary>
-    /// DB情報更新
-    /// </summary>
-    /// <param name="dbs"></param>
-    public static void RenewDatabase(List<ComMongo> dbs)
-    {
-        lock (objLock)
-        {
-            var keys = new List<string>();
-            foreach (var key in tagDatas.Keys)
-            {
-                if (!tagDatas[key].ContainsKey("OpcUA"))
-                {
-                    keys.Add(key);
-                }
-            }
-            foreach (var mongo in dbs)
-            {
-                mongo.RenewData();
-                keys.Remove(mongo.Name);
-            }
-            foreach (var key in keys)
-            {
-//                tagDatas.Remove(key);
-            }
-        }
-    }
-
-    /// <summary>
-    /// DB情報更新
-    /// </summary>
-    /// <param name="dbs"></param>
-    public static void RenewDatabase(List<ComOpcUaApi> dbs)
-    {
-        lock (objLock)
-        {
-            var keys = new List<string>();
-            foreach (var key in tagDatas.Keys)
-            {
-                if (tagDatas[key].ContainsKey("OpcUA"))
-                {
-                    keys.Add(key);
-                }
-            }
-            foreach (var opcua in dbs)
-            {
-                opcua.RenewData();
-                keys.Remove(opcua.Name);
+                db.RenewData();
+                keys.Remove(db.Name);
             }
             foreach (var key in keys)
             {
