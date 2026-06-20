@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+Ôªøusing System.Collections.Generic;
 using System.Linq;
 using Unity.VisualScripting;
 using UnityEngine;
@@ -17,7 +17,7 @@ public class Br6DScript : PlanarMotor
     }
 
     /// <summary>
-    /// ç¿ïWÉZÉbÉg
+    /// Â∫ßÊ®ô„Çª„ÉÉ„Éà
     /// </summary>
     /// <param name="index"></param>
     /// <param name="x"></param>

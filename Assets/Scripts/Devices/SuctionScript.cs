@@ -1,4 +1,4 @@
-using Parameters;
+ï»¿using Parameters;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
@@ -36,22 +36,22 @@ public class SuctionScript : UseTagBaseScript
     public bool IsSuck;
 
     /// <summary>
-    /// ‹zˆø’†ƒIƒuƒWƒFƒNƒg
+    /// å¸å¼•ä¸­ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆ
     /// </summary>
     private List<GameObject> SuckObjects = new List<GameObject>();
 
     /// <summary>
-    /// ‹zˆø’†’iƒ{[ƒ‹
+    /// å¸å¼•ä¸­æ®µãƒœãƒ¼ãƒ«
     /// </summary>
     private List<CardboardScript> SuckCardboards = new List<CardboardScript>();
 
     /// <summary>
-    /// Õ“ËŒŸ’m—p
+    /// è¡çªæ¤œçŸ¥ç”¨
     /// </summary>
     private Rigidbody rigi;
 
     /// <summary>
-    /// ‹N“®ˆ—
+    /// èµ·å‹•æ™‚å‡¦ç†
     /// </summary>
     protected override void Start()
     {
@@ -59,7 +59,7 @@ public class SuctionScript : UseTagBaseScript
     }
 
     /// <summary>
-    /// ƒTƒCƒNƒ‹ˆ—
+    /// ã‚µã‚¤ã‚¯ãƒ«å‡¦ç†
     /// </summary>
     protected override void MyFixedUpdate()
     {
@@ -69,13 +69,13 @@ public class SuctionScript : UseTagBaseScript
             rigi.WakeUp();
         }
 
-        // ‹zˆø‚Ì‚İÕ“Ë—L
+        // å¸å¼•æ™‚ã®ã¿è¡çªæœ‰
         //        this.rigi.detectCollisions = IsSuck;
-        // ƒ[ƒNˆ—
+        // ãƒ¯ãƒ¼ã‚¯å‡¦ç†
         SuckObjects.RemoveAll(d => d == null);
         if ((SuckObjects.Count > 0) && !IsSuck)
         {
-            // ‹zˆøOFF
+            // å¸å¼•OFF
             foreach (var suck in SuckObjects)
             {
                 suck.transform.parent = null;
@@ -85,11 +85,11 @@ public class SuctionScript : UseTagBaseScript
             }
             SuckObjects.Clear();
         }
-        // ’iƒ{[ƒ‹ˆ—
+        // æ®µãƒœãƒ¼ãƒ«å‡¦ç†
         SuckCardboards.RemoveAll(d => d == null);
         if ((SuckCardboards.Count > 0) && !IsSuck)
         {
-            // ‹zˆøOFF
+            // å¸å¼•OFF
             foreach (var suck in SuckCardboards)
             {
                 suck.ResetSuction(this);
@@ -101,7 +101,7 @@ public class SuctionScript : UseTagBaseScript
     }
 
     /// <summary>
-    /// Õ“Ëˆ—
+    /// è¡çªæ™‚å‡¦ç†
     /// </summary>
     /// <param name="collision"></param>
     protected override void OnCollisionEnter(Collision collision)
@@ -112,7 +112,7 @@ public class SuctionScript : UseTagBaseScript
     {
         if (IsSuck)
         {
-            // ’Êíƒ[ƒN
+            // é€šå¸¸ãƒ¯ãƒ¼ã‚¯
             var objScript = collision.gameObject.GetComponentInParent<ObjectScript>();
             var cbScript = collision.gameObject.GetComponentInParent<CardboardScript>();
             if ((objScript != null) && !SuckObjects.Contains(objScript.gameObject))
@@ -141,7 +141,7 @@ public class SuctionScript : UseTagBaseScript
                 SuckObjects.Add(objScript.gameObject);
                 if (cbScript != null)
                 {
-                    // ’iƒ{[ƒ‹‚È‚ç
+                    // æ®µãƒœãƒ¼ãƒ«ãªã‚‰
                     foreach (ContactPoint contact in collision.contacts)
                     {
                         var parts = contact.otherCollider.transform.parent.gameObject;
@@ -160,7 +160,7 @@ public class SuctionScript : UseTagBaseScript
     }
 
     /// <summary>
-    /// ƒpƒ‰ƒ[ƒ^ƒZƒbƒg
+    /// ãƒ‘ãƒ©ãƒ¡ãƒ¼ã‚¿ã‚»ãƒƒãƒˆ
     /// </summary>
     /// <param name="unitSetting"></param>
     /// <param name="robo"></param>
@@ -207,11 +207,11 @@ public class SuctionScript : UseTagBaseScript
         var meshs = transform.GetComponentsInChildren<MeshCollider>();
         if (meshs.Length == 0)
         {
-            // Õ“Ë‰Â”\
+            // è¡çªå¯èƒ½
             var shapes = transform.GetComponentsInChildren<ShapeScript>();
             if (shapes.Length == 0)
             {
-                // •¨‘ÌŒ`ó‚ª‚È‚¯‚ê‚Î
+                // ç‰©ä½“å½¢çŠ¶ãŒãªã‘ã‚Œã°
                 foreach (var mesh in this.GetComponentsInChildren<MeshFilter>())
                 {
                     if (mesh.GetComponentInChildren<Collider>() == null)
@@ -225,7 +225,7 @@ public class SuctionScript : UseTagBaseScript
         }
         else
         {
-            // Õ“Ë‰Â”\‚É•ÏX
+            // è¡çªå¯èƒ½ã«å¤‰æ›´
             foreach (var col in meshs)
             {
                 col.isTrigger = false;

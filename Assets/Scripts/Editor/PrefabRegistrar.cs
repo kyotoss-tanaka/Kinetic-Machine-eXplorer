@@ -1,4 +1,4 @@
-#if UNITY_EDITOR
+ï»¿#if UNITY_EDITOR
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -27,9 +27,9 @@ public class AddressablePrefabRegistrar
     public static void RegisterPrefabToAddressables()
     {
         isProcessing = true;
-        // ƒ_ƒCƒAƒƒO‚ğŠJ‚¢‚ÄAOK‚ÉƒR[ƒ‹ƒoƒbƒN‚Åˆ—‚ğs‚¤
+        // ãƒ€ã‚¤ã‚¢ãƒ­ã‚°ã‚’é–‹ã„ã¦ã€OKæ™‚ã«ã‚³ãƒ¼ãƒ«ãƒãƒƒã‚¯ã§å‡¦ç†ã‚’è¡Œã†
         /*
-        InputDialogWindow.Show("Register Prefab to Addressables", "Addressables‚É“o˜^‚·‚éƒtƒHƒ‹ƒ_‚ğ“ü—Í‚µ‚Ä‚­‚¾‚³‚¢F", Path.GetFullPath(Path.Combine(Application.dataPath, "3DModels")), (string input) =>
+        InputDialogWindow.Show("Register Prefab to Addressables", "Addressablesã«ç™»éŒ²ã™ã‚‹ãƒ•ã‚©ãƒ«ãƒ€ã‚’å…¥åŠ›ã—ã¦ãã ã•ã„ï¼š", Path.GetFullPath(Path.Combine(Application.dataPath, "3DModels")), (string input) =>
         {
             if (string.IsNullOrEmpty(input))
             {
@@ -40,7 +40,7 @@ public class AddressablePrefabRegistrar
             RegisterProcess(input);
         });
         */
-        string path = EditorUtility.OpenFolderPanel("Addressables‚É“o˜^‚·‚éƒtƒHƒ‹ƒ_‚ğ‘I‘ğ", Path.GetFullPath(Path.Combine(Application.dataPath, "3DModels")), "");
+        string path = EditorUtility.OpenFolderPanel("Addressablesã«ç™»éŒ²ã™ã‚‹ãƒ•ã‚©ãƒ«ãƒ€ã‚’é¸æŠ", Path.GetFullPath(Path.Combine(Application.dataPath, "3DModels")), "");
         if (path != "")
         {
             isVR = false;
@@ -49,11 +49,11 @@ public class AddressablePrefabRegistrar
         isProcessing = false;
     }
 
-    // validateŠÖ”itrue‚È‚ç—LŒøAfalse‚È‚ç–³Œøj
+    // validateé–¢æ•°ï¼ˆtrueãªã‚‰æœ‰åŠ¹ã€falseãªã‚‰ç„¡åŠ¹ï¼‰
     [MenuItem("Kyotoss/Register Prefab to Addressables", true)]
     private static bool ValidateRegisterPrefabToAddressables()
     {
-        return !isProcessing; // ˆ—’†‚È‚ç–³Œø‰»
+        return !isProcessing; // å‡¦ç†ä¸­ãªã‚‰ç„¡åŠ¹åŒ–
     }
 
 #if false
@@ -62,8 +62,8 @@ public class AddressablePrefabRegistrar
     {
         isProcessing = true;
         /*
-        // ƒ_ƒCƒAƒƒO‚ğŠJ‚¢‚ÄAOK‚ÉƒR[ƒ‹ƒoƒbƒN‚Åˆ—‚ğs‚¤
-        InputDialogWindow.Show("Register Prefab to Addressables(VR)", "Addressables‚É“o˜^‚·‚éƒtƒHƒ‹ƒ_‚ğ“ü—Í‚µ‚Ä‚­‚¾‚³‚¢F", Path.GetFullPath(Path.Combine(Application.dataPath, "3DModels")), (string input) =>
+        // ãƒ€ã‚¤ã‚¢ãƒ­ã‚°ã‚’é–‹ã„ã¦ã€OKæ™‚ã«ã‚³ãƒ¼ãƒ«ãƒãƒƒã‚¯ã§å‡¦ç†ã‚’è¡Œã†
+        InputDialogWindow.Show("Register Prefab to Addressables(VR)", "Addressablesã«ç™»éŒ²ã™ã‚‹ãƒ•ã‚©ãƒ«ãƒ€ã‚’å…¥åŠ›ã—ã¦ãã ã•ã„ï¼š", Path.GetFullPath(Path.Combine(Application.dataPath, "3DModels")), (string input) =>
         {
             if (string.IsNullOrEmpty(input))
             {
@@ -75,7 +75,7 @@ public class AddressablePrefabRegistrar
         });
         */
 
-        string path = EditorUtility.OpenFolderPanel("Addressables‚É“o˜^‚·‚éƒtƒHƒ‹ƒ_‚ğ‘I‘ğ(VR)", Path.GetFullPath(Path.Combine(Application.dataPath, "3DModels")), "");
+        string path = EditorUtility.OpenFolderPanel("Addressablesã«ç™»éŒ²ã™ã‚‹ãƒ•ã‚©ãƒ«ãƒ€ã‚’é¸æŠ(VR)", Path.GetFullPath(Path.Combine(Application.dataPath, "3DModels")), "");
         if (path != "")
         {
             isVR = true;
@@ -84,16 +84,16 @@ public class AddressablePrefabRegistrar
         isProcessing = false;
     }
 
-    // validateŠÖ”itrue‚È‚ç—LŒøAfalse‚È‚ç–³Œøj
+    // validateé–¢æ•°ï¼ˆtrueãªã‚‰æœ‰åŠ¹ã€falseãªã‚‰ç„¡åŠ¹ï¼‰
     [MenuItem("Kyotoss/Register Prefab to Addressables(VR)", true)]
     private static bool ValidateRegisterPrefabToAddressablesVR()
     {
-        return !isProcessing; // ˆ—’†‚È‚ç–³Œø‰»
+        return !isProcessing; // å‡¦ç†ä¸­ãªã‚‰ç„¡åŠ¹åŒ–
     }
 #endif
 
     /// <summary>
-    /// “o˜^ˆ—
+    /// ç™»éŒ²å‡¦ç†
     /// </summary>
     /// <param name="folder"></param>
     private static void RegisterProcess(string folder)
@@ -103,17 +103,17 @@ public class AddressablePrefabRegistrar
             folder = Path.GetFullPath(folder);
             if (Directory.Exists(folder))
             {
-                // Addressables İ’è‚ğæ“¾
+                // Addressables è¨­å®šã‚’å–å¾—
                 AddressableAssetSettings settings = AddressableAssetSettingsDefaultObject.Settings;
 
-                // »”Ôæ“¾
+                // è£½ç•ªå–å¾—
                 var prodNo = Path.GetFileName(Path.GetFullPath(folder));
 
-                // ƒvƒŒƒnƒuƒtƒ@ƒCƒ‹æ“¾
+                // ãƒ—ãƒ¬ãƒãƒ–ãƒ•ã‚¡ã‚¤ãƒ«å–å¾—
                 var files = Directory.GetFiles(isVR ? Path.Combine(folder, "VR") : folder).ToList().FindAll(d => Path.GetExtension(d) == ".prefab");
                 if (files.Count > 0)
                 {
-                    // İ’èì¬
+                    // è¨­å®šä½œæˆ
                     settings.DefaultGroup.Settings.ActivePlayModeDataBuilderIndex = 1;
                     AddressableAssetGroupSchema sc = settings.DefaultGroup.Schemas.Find(d => d.GetType() == typeof(BundledAssetGroupSchema));
                     var buildName = ((BundledAssetGroupSchema)sc).BuildPath.GetName(settings);
@@ -125,7 +125,7 @@ public class AddressablePrefabRegistrar
                     settings.profileSettings.SetValue(settings.activeProfileId, buildName, savePath);
                     settings.profileSettings.SetValue(settings.activeProfileId, loadName, loadPath);
 
-                    // Prefabíœ
+                    // Prefabå‰Šé™¤
                     var entriesToRemove = settings.DefaultGroup.entries.ToList().FindAll(entry =>
                     {
                         string path = AssetDatabase.GUIDToAssetPath(entry.guid);
@@ -136,32 +136,32 @@ public class AddressablePrefabRegistrar
                         settings.DefaultGroup.RemoveAssetEntry(entry);
                     }
 
-                    // Prefab‚ğ‡”Ô‚É“o˜^
+                    // Prefabã‚’é †ç•ªã«ç™»éŒ²
                     files.Sort((a, b) => a.CompareTo(b));
                     int total = files.Count;
                     for (int i = 0; i < total; i++)
                     {
                         string file = files[i];
-                        // Prefab ‚Ì GUID ‚ğæ“¾// â‘ÎƒpƒX‚©‚ç Assets ‘Š‘ÎƒpƒX‚É•ÏŠ·
+                        // Prefab ã® GUID ã‚’å–å¾—// çµ¶å¯¾ãƒ‘ã‚¹ã‹ã‚‰ Assets ç›¸å¯¾ãƒ‘ã‚¹ã«å¤‰æ›
                         string assetPath = file.Replace("\\", "/").Replace(Application.dataPath, "Assets");
                         string assetGUID = AssetDatabase.AssetPathToGUID(assetPath);
                         if (string.IsNullOrEmpty(assetGUID))
                         {
                             continue;
                         }
-                        // Šù‚É“o˜^Ï‚İ‚©Šm”F
+                        // æ—¢ã«ç™»éŒ²æ¸ˆã¿ã‹ç¢ºèª
                         AddressableAssetEntry entry = settings.CreateOrMoveEntry(assetGUID, settings.DefaultGroup);
                         entry.SetAddress(Path.GetFileNameWithoutExtension(file));
                         entry.SetLabel("Prefab", true, true);
 
-                        // i’»•\¦
+                        // é€²æ—è¡¨ç¤º
                         float progress = (float)(i + 1) / total;
                         EditorApplication.delayCall += () =>
                         {
-                            EditorUtility.DisplayProgressBar("Addressables“o˜^’†", $"{i + 1}/{total} Prefab“o˜^’†...", progress);
+                            EditorUtility.DisplayProgressBar("Addressablesç™»éŒ²ä¸­", $"{i + 1}/{total} Prefabç™»éŒ²ä¸­...", progress);
                         };
                     }
-                    // •Û‘¶
+                    // ä¿å­˜
                     AssetDatabase.SaveAssets();
                     settings.SetDirty(AddressableAssetSettings.ModificationEvent.EntryRemoved, null, true);
 
@@ -170,7 +170,7 @@ public class AddressablePrefabRegistrar
                         EditorUtility.ClearProgressBar();
                         AddressableAssetSettings.BuildPlayerContent();
 
-                        // ƒtƒHƒ‹ƒ_\¬\’z
+                        // ãƒ•ã‚©ãƒ«ãƒ€æ§‹æˆæ§‹ç¯‰
                         string projectPath = Directory.GetParent(Application.dataPath).FullName;
                         string basePath = Path.Combine(Path.Combine(Path.Combine(projectPath, "Library"), "com.unity.addressables"), "aa");
                         string dataPath = Path.Combine(projectPath, savePath);
@@ -180,13 +180,13 @@ public class AddressablePrefabRegistrar
                         {
                             if (Directory.Exists(folderPath))
                             {
-                                //@‘¶İ‚µ‚½‚çˆê“xíœ
+                                //ã€€å­˜åœ¨ã—ãŸã‚‰ä¸€åº¦å‰Šé™¤
                                 Directory.Delete(folderPath, true);
                             }
                             Directory.CreateDirectory(folderPath);
                             foreach (var file in files)
                             {
-                                // ƒvƒŒƒnƒuƒtƒ@ƒCƒ‹‚ğƒRƒs[
+                                // ãƒ—ãƒ¬ãƒãƒ–ãƒ•ã‚¡ã‚¤ãƒ«ã‚’ã‚³ãƒ”ãƒ¼
                                 var name = Path.GetFileName(file);
                                 File.Copy(file, Path.Combine(folderPath, name));
                             }
@@ -200,16 +200,16 @@ public class AddressablePrefabRegistrar
                             {
                                 File.Copy(file, Path.Combine(targetPath, Path.GetFileName(file)), true);
                             }
-                            // ƒ^ƒCƒgƒ‹AƒƒbƒZ[ƒWAƒ{ƒ^ƒ“–¼
-                            EditorUtility.DisplayDialog("Š®—¹", "Prefab‚ÌAddressables“o˜^‚ªŠ®—¹‚µ‚Ü‚µ‚½B", "OK");
+                            // ã‚¿ã‚¤ãƒˆãƒ«ã€ãƒ¡ãƒƒã‚»ãƒ¼ã‚¸ã€ãƒœã‚¿ãƒ³å
+                            EditorUtility.DisplayDialog("å®Œäº†", "Prefabã®Addressablesç™»éŒ²ãŒå®Œäº†ã—ã¾ã—ãŸã€‚", "OK");
 
-                            // ƒrƒ‹ƒhƒtƒHƒ‹ƒ_‚ğŠJ‚­
+                            // ãƒ“ãƒ«ãƒ‰ãƒ•ã‚©ãƒ«ãƒ€ã‚’é–‹ã
                             Process.Start("explorer.exe", folderPath);
                         }
-                        // İ’è‚ğ–ß‚·
+                        // è¨­å®šã‚’æˆ»ã™
                         settings.DefaultGroup.Settings.ActivePlayModeDataBuilderIndex = 0;
 
-                        // Prefabíœ
+                        // Prefabå‰Šé™¤
                         var entriesToRemove = settings.DefaultGroup.entries.ToList().FindAll(entry =>
                         {
                             string path = AssetDatabase.GUIDToAssetPath(entry.guid);
@@ -219,7 +219,7 @@ public class AddressablePrefabRegistrar
                         {
                             settings.DefaultGroup.RemoveAssetEntry(entry);
                         }
-                        // •Û‘¶
+                        // ä¿å­˜
                         AssetDatabase.SaveAssets();
 
                         isProcessing = false;
@@ -240,7 +240,7 @@ public class AddressablePrefabRegistrar
             EditorApplication.delayCall += () =>
             {
                 EditorUtility.ClearProgressBar();
-                EditorUtility.DisplayDialog("ƒGƒ‰[", ex.Message, "OK");
+                EditorUtility.DisplayDialog("ã‚¨ãƒ©ãƒ¼", ex.Message, "OK");
                 isProcessing = false;
             };
         }

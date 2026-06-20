@@ -1,4 +1,4 @@
-using KyotoSS.TimingChart.Example;
+ï»¿using KyotoSS.TimingChart.Example;
 using SFB;
 using System.Collections.Generic;
 using System.IO;
@@ -14,7 +14,7 @@ public class CanvasMenuTimeChartScript : CanvasMenuBaseScript
     private MachineTimeChart machineTimeChart;
 
     /// <summary>
-    /// ŠJnˆ—
+    /// é–‹å§‹å‡¦ç†
     /// </summary>
     protected override void Awake()
     {
@@ -25,10 +25,10 @@ public class CanvasMenuTimeChartScript : CanvasMenuBaseScript
         var text = machineTimeChart.transform.parent.GetComponentInChildren<TextMeshProUGUI>();
         machineTimeChart.SetParameter(text.font, TimeChartController.ChartMode.History);
 
-        // TimeChartSetting‚ÌRectTransform‚ğæ“¾
-        var settingRT = GetComponent<RectTransform>();  // ‚Ü‚½‚Í“KØ‚Èæ“¾•û–@
+        // TimeChartSettingã®RectTransformã‚’å–å¾—
+        var settingRT = GetComponent<RectTransform>();  // ã¾ãŸã¯é©åˆ‡ãªå–å¾—æ–¹æ³•
 
-        // ƒTƒCƒY•Ï‰»‚ğw“Ç‚µ‚ÄTimeChartSetting‚Ì•‚ğ“¯Šú
+        // ã‚µã‚¤ã‚ºå¤‰åŒ–ã‚’è³¼èª­ã—ã¦TimeChartSettingã®å¹…ã‚’åŒæœŸ
         machineTimeChart.View.OnSizeChanged += (w, h) =>
         {
             if (settingRT != null)
@@ -37,7 +37,7 @@ public class CanvasMenuTimeChartScript : CanvasMenuBaseScript
     }
 
     /// <summary>
-    /// XVˆ—
+    /// æ›´æ–°å‡¦ç†
     /// </summary>
     protected override void Update()
     {
@@ -45,23 +45,23 @@ public class CanvasMenuTimeChartScript : CanvasMenuBaseScript
     }
 
     /// <summary>
-    /// ƒCƒxƒ“ƒg“o˜^
+    /// ã‚¤ãƒ™ãƒ³ãƒˆç™»éŒ²
     /// </summary>
     public override void SetEvents()
     {
         base.SetEvents();
-        // ƒ^ƒCƒ€ƒ`ƒƒ[ƒgƒf[ƒ^•\¦
+        // ã‚¿ã‚¤ãƒ ãƒãƒ£ãƒ¼ãƒˆãƒ‡ãƒ¼ã‚¿è¡¨ç¤º
         machineTimeChart.SwitchHistoryData(true);
     }
 
     /// <summary>
-    /// ƒCƒxƒ“ƒg‰ğœ
+    /// ã‚¤ãƒ™ãƒ³ãƒˆè§£é™¤
     /// </summary>
     public override void ResetEvents()
     {
         base.ResetEvents();
     }
 
-    #region ƒCƒxƒ“ƒgˆ—
-    #endregion ƒCƒxƒ“ƒgˆ—
+    #region ã‚¤ãƒ™ãƒ³ãƒˆå‡¦ç†
+    #endregion ã‚¤ãƒ™ãƒ³ãƒˆå‡¦ç†
 }

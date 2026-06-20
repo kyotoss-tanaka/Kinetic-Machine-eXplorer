@@ -1,11 +1,11 @@
-using System.Collections.Generic;
+ï»¿using System.Collections.Generic;
 using System.Text.Json;
 using UnityEngine;
 
 public class UseHeadBaseScript : KinematicsBase
 {
     /// <summary>
-    /// ƒLƒƒƒ“ƒoƒX•\¦
+    /// ã‚­ãƒ£ãƒ³ãƒã‚¹è¡¨ç¤º
     /// </summary>
     protected override bool isCanvas { get { return true; } }
 
@@ -13,7 +13,7 @@ public class UseHeadBaseScript : KinematicsBase
     protected GameObject HeadObject;
 
     /// <summary>
-    /// g—p‚µ‚Ä‚¢‚éƒ^ƒO‚ğæ“¾‚·‚é
+    /// ä½¿ç”¨ã—ã¦ã„ã‚‹ã‚¿ã‚°ã‚’å–å¾—ã™ã‚‹
     /// </summary>
     /// <returns></returns>
     public virtual GameObject GetHeadObject()

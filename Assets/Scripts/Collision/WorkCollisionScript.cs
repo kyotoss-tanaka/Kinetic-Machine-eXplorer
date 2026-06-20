@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+ï»¿using System.Collections.Generic;
 using System.Linq;
 using Unity.VisualScripting;
 using UnityEngine;
@@ -30,7 +30,7 @@ public class WorkCollisionScript : KssBaseScript
             if (!GlobalScript.isCollision)
             {
                 var changes = GlobalScript.dctMaterial.Where(d => d.Value.isChange).ToList();
-                //@Õ“ËŒŸ’m–³Œø
+                //ã€€è¡çªæ¤œçŸ¥ç„¡åŠ¹
                 foreach (var m in changes)
                 {
                     if (m.Key.IsDestroyed())
@@ -59,7 +59,7 @@ public class WorkCollisionScript : KssBaseScript
             var unit = other.transform.parent.GetComponent<AxisMotionBase>();
             if (unit != null)
             {
-                // ƒ†ƒjƒbƒgæ“¾
+                // ãƒ¦ãƒ‹ãƒƒãƒˆå–å¾—
                 var mesh = other.gameObject.GetComponentInChildren<MeshRenderer>();
                 if (mesh != null)
                 {
@@ -77,7 +77,7 @@ public class WorkCollisionScript : KssBaseScript
             var unit = other.transform.parent.GetComponent<AxisMotionBase>();
             if (unit != null)
             {
-                // ƒ†ƒjƒbƒgæ“¾
+                // ãƒ¦ãƒ‹ãƒƒãƒˆå–å¾—
                 var mesh = other.gameObject.GetComponentInChildren<MeshRenderer>();
                 if (mesh != null)
                 {

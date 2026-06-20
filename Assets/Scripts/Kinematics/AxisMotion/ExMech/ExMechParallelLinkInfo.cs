@@ -1,4 +1,4 @@
-using KssColliderHullReducer;
+ï»¿using KssColliderHullReducer;
 using NUnit.Framework;
 using Parameters;
 using System;
@@ -7,27 +7,27 @@ using System.Linq;
 using UnityEngine;
 
 /// <summary>
-/// ƒŒƒo[‹@\
+/// ãƒ¬ãƒãƒ¼æ©Ÿæ§‹
 /// </summary>
 public class ExMechParallelLinkInfo : ExMechInfo
 {
     /// <summary>
-    /// ƒ_ƒuƒ‹•ÀsƒŠƒ“ƒN
+    /// ãƒ€ãƒ–ãƒ«ä¸¦è¡Œãƒªãƒ³ã‚¯
     /// </summary>
     public bool isDouble;
 
     /// <summary>
-    /// ƒIƒtƒZƒbƒg
+    /// ã‚ªãƒ•ã‚»ãƒƒãƒˆ
     /// </summary>
     public List<Vector3> offsets = new();
 
     /// <summary>
-    /// ‰ñ“]•ûŒü
+    /// å›è»¢æ–¹å‘
     /// </summary>
     public List<Vector3> dirs = new();
 
     /// <summary>
-    /// §Œä‘ÎÛƒIƒuƒWƒFƒNƒg
+    /// åˆ¶å¾¡å¯¾è±¡ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆ
     /// </summary>
     public GameObject pntObj0;
     public GameObject pntObj2_0;
@@ -38,13 +38,13 @@ public class ExMechParallelLinkInfo : ExMechInfo
     public GameObject pntObj5_4;
 
     /// <summary>
-    /// ‰Šú‰»
+    /// åˆæœŸåŒ–
     /// </summary>
     public override void Initialize()
     {
         base.Initialize();
 
-        // §Œä‘ÎÛƒIƒuƒWƒFƒNƒg‚ğì¬
+        // åˆ¶å¾¡å¯¾è±¡ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆã‚’ä½œæˆ
         pntObj0 = new GameObject("Point0");
         pntObj0.transform.parent = mainAxis.model.transform;
         pntObj0.transform.position = axisInfos[0].model.transform.position;
@@ -69,7 +69,7 @@ public class ExMechParallelLinkInfo : ExMechInfo
             pntObj5_4.transform.parent = axisInfos[4].model.transform;
             pntObj5_4.transform.position = axisInfos[5].model.transform.position;
         }
-        // ‰ñ“]•ûŒüæ“¾‚Æ‰ŠúŠp“xƒIƒtƒZƒbƒg
+        // å›è»¢æ–¹å‘å–å¾—ã¨åˆæœŸè§’åº¦ã‚ªãƒ•ã‚»ãƒƒãƒˆ
         for (var i = 0; i < axisInfos.Count; i++)
         {
             offsets.Add(new());
@@ -83,7 +83,7 @@ public class ExMechParallelLinkInfo : ExMechInfo
     }
 
     /// <summary>
-    /// “®ì²æ“¾
+    /// å‹•ä½œè»¸å–å¾—
     /// </summary>
     /// <param name="obj"></param>
     /// <returns></returns>
@@ -96,7 +96,7 @@ public class ExMechParallelLinkInfo : ExMechInfo
     }
 
     /// <summary>
-    /// —LŒøŠp“xæ“¾
+    /// æœ‰åŠ¹è§’åº¦å–å¾—
     /// </summary>
     /// <param name="point"></param>
     /// <param name="dir"></param>
@@ -108,7 +108,7 @@ public class ExMechParallelLinkInfo : ExMechInfo
     }
 
     /// <summary>
-    /// ˆÊ’uXV
+    /// ä½ç½®æ›´æ–°
     /// </summary>
     public override void RenewPos()
     {
@@ -116,12 +116,12 @@ public class ExMechParallelLinkInfo : ExMechInfo
 
         var ang = GetMaskAngle(mainAxis.model.transform.localEulerAngles, mainDir);
 
-        // p¨•Û‚Ì‚½‚ßˆÊ’u‚¾‚¯
+        // å§¿å‹¢ä¿æŒã®ãŸã‚ä½ç½®ã ã‘
         axisInfos[0].model.transform.position = pntObj0.transform.position;
         axisInfos[1].model.transform.localEulerAngles = GetNextAngle(offsets[1], ang, dirs[1]);
         if (Vector3.Distance(pntObj2_0.transform.position, pntObj2_1.transform.position) > 0.001f)
         {
-            // 1mmˆÈãŒë·‚ª‚ ‚ê‚ÎŠp“x”½“]
+            // 1mmä»¥ä¸Šèª¤å·®ãŒã‚ã‚Œã°è§’åº¦åè»¢
             axisInfos[1].model.transform.localEulerAngles = GetNextAngle(offsets[1], -ang, dirs[1]);
         }
         if (isDouble)
@@ -132,14 +132,14 @@ public class ExMechParallelLinkInfo : ExMechInfo
             axisInfos[4].model.transform.position = pntObj4.transform.position;
             if (Vector3.Distance(pntObj5_3.transform.position, pntObj5_4.transform.position) > 0.001f)
             {
-                // 1mmˆÈãŒë·‚ª‚ ‚ê‚ÎŠp“x”½“]
+                // 1mmä»¥ä¸Šèª¤å·®ãŒã‚ã‚Œã°è§’åº¦åè»¢
                 axisInfos[4].model.transform.localEulerAngles = GetNextAngle(offsets[4], -ang, dirs[4]);
             }
         }
     }
 
     /// <summary>
-    /// Ÿ‚ÌŠp“x‚ğæ“¾
+    /// æ¬¡ã®è§’åº¦ã‚’å–å¾—
     /// </summary>
     /// <param name="offset"></param>
     /// <param name="ang"></param>

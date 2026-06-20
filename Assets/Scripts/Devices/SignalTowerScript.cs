@@ -1,4 +1,4 @@
-using Parameters;
+ï»¿using Parameters;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
@@ -99,7 +99,7 @@ public class SignalTowerScript : KssBaseScript
     }
 
     /// <summary>
-    /// ƒpƒ‰ƒ[ƒ^ƒZƒbƒg
+    /// ãƒ‘ãƒ©ãƒ¡ãƒ¼ã‚¿ã‚»ãƒƒãƒˆ
     /// </summary>
     /// <param name="unitSetting"></param>
     /// <param name="obj"></param>

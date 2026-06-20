@@ -1,4 +1,4 @@
-#if UNITY_EDITOR
+ï»¿#if UNITY_EDITOR
 using System.Linq;
 using UnityEditor;
 using UnityEditor.IMGUI.Controls;
@@ -6,11 +6,11 @@ using UnityEngine;
 
 public class DataBaseEditor : EditorWindow
 {
-    // TreeView‚Ìó‘Ô‚ğ•Û‚Å‚«‚é‚æ‚¤‚É‚·‚é‚½‚ß‚Ìî•ñ
+    // TreeViewã®çŠ¶æ…‹ã‚’ä¿æŒã§ãã‚‹ã‚ˆã†ã«ã™ã‚‹ãŸã‚ã®æƒ…å ±
     private TreeViewState _treeViewState;
-    // TreeView‚ÌƒCƒ“ƒXƒ^ƒ“ƒX
+    // TreeViewã®ã‚¤ãƒ³ã‚¹ã‚¿ãƒ³ã‚¹
     private DataBaseTreeView _treeView;
-    // ŒŸõ‘‹‚ÌƒCƒ“ƒXƒ^ƒ“ƒX
+    // æ¤œç´¢çª“ã®ã‚¤ãƒ³ã‚¹ã‚¿ãƒ³ã‚¹
     private SearchField _searchField;
 
     [MenuItem("Kyotoss/DataBase", false, 151)]
@@ -22,14 +22,14 @@ public class DataBaseEditor : EditorWindow
 
     private void OnGUI()
     {
-        // ’l‚ªnull‚Ìê‡‚Í‰Šú‰»
+        // å€¤ãŒnullã®å ´åˆã¯åˆæœŸåŒ–
         _treeViewState ??= new TreeViewState();
         _treeView ??= new DataBaseTreeView(_treeViewState);
         _searchField ??= new SearchField();
 
         if (GUILayout.Button(EditorGUIUtility.TrIconContent("Refresh", "Reload"), GUILayout.Width(30)))
         {
-            // DBXV
+            // DBæ›´æ–°
             GlobalScript.RenewDatabase(FindObjectsByType<ComPostgres>(FindObjectsSortMode.None).ToList());
             GlobalScript.RenewDatabase(FindObjectsByType<ComMongo>(FindObjectsSortMode.None).ToList());
             GlobalScript.RenewDatabase(FindObjectsByType<ComOpcUaApi>(FindObjectsSortMode.None).ToList());
@@ -38,15 +38,15 @@ public class DataBaseEditor : EditorWindow
             _treeView.ExpandAll();
         }
 
-        // ŒŸõ‘‹‚Ì—Ìˆæ‚ğæ“¾
+        // æ¤œç´¢çª“ã®é ˜åŸŸã‚’å–å¾—
         var searchRect = EditorGUILayout.GetControlRect(false, GUILayout.ExpandWidth(true), GUILayout.Height(EditorGUIUtility.singleLineHeight));
-        // ŒŸõ‘‹‚ğ•`‰æ
+        // æ¤œç´¢çª“ã‚’æç”»
         _treeView.searchString = _searchField.OnGUI(searchRect, _treeView.searchString);
 
-        // ƒEƒBƒ“ƒhƒE‘S‘Ì‚Ì—Ìˆæ‚ğæ“¾
+        // ã‚¦ã‚£ãƒ³ãƒ‰ã‚¦å…¨ä½“ã®é ˜åŸŸã‚’å–å¾—
         var treeViewRect = EditorGUILayout.GetControlRect(false, GUILayout.ExpandWidth(true), GUILayout.ExpandHeight(true));
 
-        // TreeView‚ğ•`‰æ
+        // TreeViewã‚’æç”»
         _treeView.OnGUI(treeViewRect);
     }
 }

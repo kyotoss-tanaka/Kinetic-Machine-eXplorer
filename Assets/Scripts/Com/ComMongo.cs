@@ -1,4 +1,4 @@
-using Npgsql;
+ï»¿using Npgsql;
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -23,107 +23,107 @@ public class ComMongo : ComBaseScript
     private string collectionName = "UnityData";
 
     /// <summary>
-    /// MongoDBƒAƒNƒZƒX—pƒNƒ‰ƒCƒAƒ“ƒg
+    /// MongoDBã‚¢ã‚¯ã‚»ã‚¹ç”¨ã‚¯ãƒ©ã‚¤ã‚¢ãƒ³ãƒˆ
     /// </summary>
     private MongoClient m_mongoClient;
 
     /// <summary>
-    /// ƒAƒNƒZƒX‚·‚éDB
+    /// ã‚¢ã‚¯ã‚»ã‚¹ã™ã‚‹DB
     /// </summary>
     private IMongoDatabase m_database;
 
     /// <summary>
-    /// ƒf[ƒ^ƒx[ƒX‚ÌƒAƒhƒŒƒX
+    /// ãƒ‡ãƒ¼ã‚¿ãƒ™ãƒ¼ã‚¹ã®ã‚¢ãƒ‰ãƒ¬ã‚¹
     /// </summary>
     private string m_connectAddress = "mongodb://localhost";
 
     /// <summary>
-    /// ƒRƒŒƒNƒVƒ‡ƒ“
+    /// ã‚³ãƒ¬ã‚¯ã‚·ãƒ§ãƒ³
     /// </summary>
     private IMongoCollection<UnitUniversalRwData> collection;
 
     /// <summary>
-    /// ƒT[ƒo[–¼
+    /// ã‚µãƒ¼ãƒãƒ¼å
     /// </summary>
     public string Name { get { return Server + ":" + Port.ToString(); } }
 
     /// <summary>
-    /// WebAPIƒAƒNƒZƒX
+    /// WebAPIã‚¢ã‚¯ã‚»ã‚¹
     /// </summary>
     private bool IsWebApi = false;
 
     /// <summary>
-    /// WebAPIƒAƒNƒZƒX—pURL
+    /// WebAPIã‚¢ã‚¯ã‚»ã‚¹ç”¨URL
     /// </summary>
     private string url { get { return "http://" + Server + ":1880/api/db/"; } }
 
     /// <summary>
-    /// DB‚Ìƒf[ƒ^
+    /// DBã®ãƒ‡ãƒ¼ã‚¿
     /// </summary>
     [Serializable]
     [BsonIgnoreExtraElements]
     public class UnitUniversalRwData
     {
         /// <summary>
-        /// ‹@”Ô
+        /// æ©Ÿç•ª
         /// </summary>
         public string MechID { get; set; }
 
         /// <summary>
-        /// •ií”Ô†
+        /// å“ç¨®ç•ªå·
         /// </summary>
         public int KindNo { get; set; }
 
         /// <summary>
-        /// •ií–¼
+        /// å“ç¨®å
         /// </summary>
         public string KindName { get; set; }
 
         /// <summary>
-        /// ƒ†ƒjƒbƒgƒ^ƒCƒv
+        /// ãƒ¦ãƒ‹ãƒƒãƒˆã‚¿ã‚¤ãƒ—
         /// </summary>
         public string UnitType { get; set; }
 
         /// <summary>
-        /// •Û‘¶“ú
+        /// ä¿å­˜æ—¥æ™‚
         /// </summary>
         public DateTime DateTime { get; set; }
 
         /// <summary>
-        /// —š—ğƒf[ƒ^
+        /// å±¥æ­´ãƒ‡ãƒ¼ã‚¿
         /// </summary>
         public List<ClsUniversalRegData> Datas { get; set; }
 
         /// <summary>
-        /// ÅVƒf[ƒ^ƒtƒ‰ƒO
+        /// æœ€æ–°ãƒ‡ãƒ¼ã‚¿ãƒ•ãƒ©ã‚°
         /// </summary>
         public bool IsLatest { get; set; }
 
         /// <summary>
-        /// ‘‚«‚İƒtƒ‰ƒO
+        /// æ›¸ãè¾¼ã¿ãƒ•ãƒ©ã‚°
         /// </summary>
         public bool IsWrite { get; set; }
     }
 
     /// <summary>
-    /// ƒfƒoƒCƒX“o˜^ƒf[ƒ^ƒNƒ‰ƒX
+    /// ãƒ‡ãƒã‚¤ã‚¹ç™»éŒ²ãƒ‡ãƒ¼ã‚¿ã‚¯ãƒ©ã‚¹
     /// </summary>
     [Serializable]
     [BsonIgnoreExtraElements]
     public class ClsUniversalRegData
     {
         /// <summary>
-        /// –¼‘O
+        /// åå‰
         /// </summary>
         public string Name { set; get; }
 
         /// <summary>
-        /// ƒ^ƒO–¼
+        /// ã‚¿ã‚°å
         /// </summary>
         public string Tag { set; get; }
 
         /// <summary>
-        /// ’l
+        /// å€¤
         /// </summary>
         public long Value { set; get; }
     }
@@ -133,7 +133,7 @@ public class ComMongo : ComBaseScript
     {
         if ((Application.platform == RuntimePlatform.Android) || (Application.platform == RuntimePlatform.IPhonePlayer))
         {
-            //’[––‚ªAndroid‚©iOS‚¾‚Á‚½ê‡‚Ìˆ—
+            //ç«¯æœ«ãŒAndroidã‹iOSã ã£ãŸå ´åˆã®å‡¦ç†
             IsWebApi = true;
         }
         if (!GlobalScript.tagDatas.ContainsKey(Name))
@@ -155,7 +155,7 @@ public class ComMongo : ComBaseScript
     }
 
     /// <summary>
-    /// API’ÊM
+    /// APIé€šä¿¡
     /// </summary>
     /// <returns></returns>
     private IEnumerator DataUpdate()
@@ -171,7 +171,7 @@ public class ComMongo : ComBaseScript
     }
 
     /// <summary>
-    /// ƒ^ƒO‚É’l‚ğƒZƒbƒg‚·‚é
+    /// ã‚¿ã‚°ã«å€¤ã‚’ã‚»ãƒƒãƒˆã™ã‚‹
     /// </summary>
     /// <param name="tag"></param>
     /// <param name=""></param>
@@ -199,7 +199,7 @@ public class ComMongo : ComBaseScript
                     if (IsWebApi)
                     {
                         /*
-                        // WebAPIƒAƒNƒZƒX
+                        // WebAPIã‚¢ã‚¯ã‚»ã‚¹
                         UnityWebRequest req = UnityWebRequest.Post(url + $"latestdata/write/multiple", JsonSerializer.Serialize(datas), "application/json");
                         req.SendWebRequest();
                         try
@@ -220,12 +220,12 @@ public class ComMongo : ComBaseScript
                     }
                     else
                     {
-                        // MongoDB‚Æ‚ÌÚ‘±ì¬
+                        // MongoDBã¨ã®æ¥ç¶šä½œæˆ
                         if (m_database == null)
                         {
                             m_connectAddress = "mongodb://" + Server;
                             m_mongoClient = new MongoClient(m_connectAddress);
-                            // DB–¼‚ÅDBæ“¾i‚È‚©‚Á‚½‚ç‚»‚Ì–¼‘O‚ÌDBì¬j
+                            // DBåã§DBå–å¾—ï¼ˆãªã‹ã£ãŸã‚‰ãã®åå‰ã®DBä½œæˆï¼‰
                             m_database = m_mongoClient.GetDatabase(Database);
                             collection = getCollection<UnitUniversalRwData>(collectionName);
                         }
@@ -273,7 +273,7 @@ public class ComMongo : ComBaseScript
     }
 
     /// <summary>
-    /// ƒf[ƒ^XV
+    /// ãƒ‡ãƒ¼ã‚¿æ›´æ–°
     /// </summary>
     public override void RenewData()
     {
@@ -281,7 +281,7 @@ public class ComMongo : ComBaseScript
 
         if (!GlobalScript.tagDatas.ContainsKey(Name))
         {
-            // DBì¬
+            // DBä½œæˆ
             GlobalScript.tagDatas.Add(Name, new Dictionary<string, Dictionary<string, TagInfo>>());
         }
         if (IsWebApi)
@@ -289,19 +289,19 @@ public class ComMongo : ComBaseScript
 #if UNITY_EDITOR
             if (!EditorApplication.isPlaying)
             {
-                // WebAPIƒAƒNƒZƒX
+                // WebAPIã‚¢ã‚¯ã‚»ã‚¹
                 StartCoroutine(RenewDataApi());
             }
 #endif
         }
         else
         {
-            // MongoDB‚Æ‚ÌÚ‘±ì¬
+            // MongoDBã¨ã®æ¥ç¶šä½œæˆ
             if (m_database == null)
             {
                 m_connectAddress = "mongodb://" + Server;
                 m_mongoClient = new MongoClient(m_connectAddress);
-                // DB–¼‚ÅDBæ“¾i‚È‚©‚Á‚½‚ç‚»‚Ì–¼‘O‚ÌDBì¬j
+                // DBåã§DBå–å¾—ï¼ˆãªã‹ã£ãŸã‚‰ãã®åå‰ã®DBä½œæˆï¼‰
                 m_database = m_mongoClient.GetDatabase(Database);
                 collection = getCollection<UnitUniversalRwData>(collectionName);
             }
@@ -317,7 +317,7 @@ public class ComMongo : ComBaseScript
                         var mech = latest.MechID;
                         if (!GlobalScript.tagDatas[Name].ContainsKey(mech))
                         {
-                            // ‹@”Ôì¬
+                            // æ©Ÿç•ªä½œæˆ
                             GlobalScript.tagDatas[Name].Add(mech, new Dictionary<string, TagInfo>());
                         }
                         var tag = data.Tag;
@@ -349,7 +349,7 @@ public class ComMongo : ComBaseScript
     }
 
     /// <summary>
-    /// API‚Å‚Ìƒf[ƒ^XV
+    /// APIã§ã®ãƒ‡ãƒ¼ã‚¿æ›´æ–°
     /// </summary>
     /// <returns></returns>
     public IEnumerator RenewDataApi()
@@ -367,14 +367,14 @@ public class ComMongo : ComBaseScript
                 }
                 else if (req.responseCode == 200)
                 {
-                    // óMˆ—
+                    // å—ä¿¡å‡¦ç†
                     var rcvDatas = JsonSerializer.Deserialize<List<LatestData>>(req.downloadHandler.text);
                     foreach (var data in rcvDatas)
                     {
                         var mech = data.mech_id;
                         if (!GlobalScript.tagDatas[Name].ContainsKey(mech))
                         {
-                            // ‹@”Ôì¬
+                            // æ©Ÿç•ªä½œæˆ
                             GlobalScript.tagDatas[Name].Add(mech, new Dictionary<string, TagInfo>());
                         }
                         var dev = data.event_id;
@@ -412,19 +412,19 @@ public class ComMongo : ComBaseScript
     }
 
     /// <summary>
-    /// ƒRƒŒƒNƒVƒ‡ƒ“‚Ìæ“¾
+    /// ã‚³ãƒ¬ã‚¯ã‚·ãƒ§ãƒ³ã®å–å¾—
     /// </summary>
-    /// <typeparam name="T">Œ^</typeparam>
-    /// <param name="collectionName">ƒRƒŒƒNƒVƒ‡ƒ“–¼</param>
-    /// <param name="maxSize">Å‘åƒTƒCƒY[MB]</param>
-    /// <returns>ƒRƒŒƒNƒVƒ‡ƒ“</returns>
+    /// <typeparam name="T">å‹</typeparam>
+    /// <param name="collectionName">ã‚³ãƒ¬ã‚¯ã‚·ãƒ§ãƒ³å</param>
+    /// <param name="maxSize">æœ€å¤§ã‚µã‚¤ã‚º[MB]</param>
+    /// <returns>ã‚³ãƒ¬ã‚¯ã‚·ãƒ§ãƒ³</returns>
     private IMongoCollection<T> getCollection<T>(string collectionName)
     {
         return m_database.GetCollection<T>(collectionName);
     }
     
     /// <summary>
-    /// ƒpƒ‰ƒ[ƒ^‚ğƒZƒbƒg‚·‚é
+    /// ãƒ‘ãƒ©ãƒ¡ãƒ¼ã‚¿ã‚’ã‚»ãƒƒãƒˆã™ã‚‹
     /// </summary>
     /// <param name="components"></param>
     /// <param name="scriptables"></param>

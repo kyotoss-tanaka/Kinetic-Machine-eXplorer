@@ -1,21 +1,21 @@
-using System.Collections.Generic;
+ï»¿using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
 
 public class EventPropagation : KssBaseScript
 {
     /// <summary>
-    /// eƒXƒNƒŠƒvƒg
+    /// è¦ªã‚¹ã‚¯ãƒªãƒ—ãƒˆ
     /// </summary>
     private List<KssBaseScript> parentScripts = new List<KssBaseScript>();
 
     /// <summary>
-    /// ƒ[ƒhŠ®—¹
+    /// ãƒ­ãƒ¼ãƒ‰å®Œäº†
     /// </summary>
     private bool isLoaded = false;
 
     /// <summary>
-    /// XVˆ—
+    /// æ›´æ–°å‡¦ç†
     /// </summary>
     protected override void MyFixedUpdate()
     {
@@ -29,7 +29,7 @@ public class EventPropagation : KssBaseScript
         else if (!isLoaded)
         {
             isLoaded = true;
-            // eƒXƒNƒŠƒvƒg
+            // è¦ªã‚¹ã‚¯ãƒªãƒ—ãƒˆ
             parentScripts = transform.parent.GetComponentsInChildren<KssBaseScript>().Where(d => d.transform == transform.parent).ToList();
         }
     }

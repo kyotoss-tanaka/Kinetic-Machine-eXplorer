@@ -1,4 +1,4 @@
-using Parameters;
+ï»¿using Parameters;
 using System.Collections;
 using System.Collections.Generic;
 using System.Net.Sockets;
@@ -22,11 +22,11 @@ using System.Xml.Linq;
 
 public class ComProtocolBase : ComBaseScript
 {
-    #region ƒNƒ‰ƒX’è‹`
+    #region ã‚¯ãƒ©ã‚¹å®šç¾©
     protected class ConnectionBase
     {
         /// <summary>
-        /// ƒƒbƒN—pƒIƒuƒWƒFƒNƒg
+        /// ãƒ­ãƒƒã‚¯ç”¨ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆ
         /// </summary>
         public object lockObj = new object();
     }
@@ -34,11 +34,11 @@ public class ComProtocolBase : ComBaseScript
     protected class TcpConnection : ConnectionBase
     {
         /// <summary>
-        /// TCPƒNƒ‰ƒCƒAƒ“ƒg
+        /// TCPã‚¯ãƒ©ã‚¤ã‚¢ãƒ³ãƒˆ
         /// </summary>
         public TcpClient _tcpClient;
         /// <summary>
-        /// TCP‘—óM—pƒXƒgƒŠ[ƒ€
+        /// TCPé€å—ä¿¡ç”¨ã‚¹ãƒˆãƒªãƒ¼ãƒ 
         /// </summary>
         public NetworkStream _tcpStream;
     }
@@ -46,11 +46,11 @@ public class ComProtocolBase : ComBaseScript
     protected class UdpConnection : ConnectionBase
     {
         /// <summary>
-        /// UDPƒ\ƒPƒbƒg
+        /// UDPã‚½ã‚±ãƒƒãƒˆ
         /// </summary>
         public Socket _udpSocket;
         /// <summary>
-        /// ˆ¶æ
+        /// å®›å…ˆ
         /// </summary>
         public IPEndPoint RemoteEndPoint;
     }
@@ -61,155 +61,155 @@ public class ComProtocolBase : ComBaseScript
         public Opc.Ua.Client.Session? session;
 #nullable disable
     }
-    #endregion ƒNƒ‰ƒX’è‹`
+    #endregion ã‚¯ãƒ©ã‚¹å®šç¾©
 
     /// <summary>
-    /// ƒT[ƒo[–¼
+    /// ã‚µãƒ¼ãƒãƒ¼å
     /// </summary>
     public string Name { get { return dbIpAddress + ":" + dbPort.ToString(); } }
 
     /// <summary>
-    /// IPƒAƒhƒŒƒX
+    /// IPã‚¢ãƒ‰ãƒ¬ã‚¹
     /// </summary>
     protected string dbIpAddress;
 
     /// <summary>
-    /// ƒ|[ƒg”Ô†
+    /// ãƒãƒ¼ãƒˆç•ªå·
     /// </summary>
     protected int dbPort;
 
     /// <summary>
-    /// ƒGƒ“ƒhƒ|ƒCƒ“ƒgURL
+    /// ã‚¨ãƒ³ãƒ‰ãƒã‚¤ãƒ³ãƒˆURL
     /// </summary>
     protected string endpointUrl { get; set; }
 
     /// <summary>
-    /// ƒl[ƒ€ƒXƒy[ƒXƒCƒ“ƒfƒbƒNƒX
+    /// ãƒãƒ¼ãƒ ã‚¹ãƒšãƒ¼ã‚¹ã‚¤ãƒ³ãƒ‡ãƒƒã‚¯ã‚¹
     /// </summary>
     protected ushort namespaceIndex;
 
     /// <summary>
-    /// ƒf[ƒ^
+    /// ãƒ‡ãƒ¼ã‚¿
     /// </summary>
     protected KmxDirectData directData;
 
     /// <summary>
-    /// Ping‰“š
+    /// Pingå¿œç­”
     /// </summary>
     [SerializeField]
     protected bool IsPing;
 
     /// <summary>
-    /// Ú‘±Ï‚İ
+    /// æ¥ç¶šæ¸ˆã¿
     /// </summary>
     [SerializeField]
     protected bool IsConnected;
 
     /// <summary>
-    /// ‘—MƒJƒEƒ“ƒ^
+    /// é€ä¿¡ã‚«ã‚¦ãƒ³ã‚¿
     /// </summary>
     [SerializeField]
     protected ProcessStopWatch swRecieve;
 
     /// <summary>
-    /// ‘—MƒJƒEƒ“ƒ^
+    /// é€ä¿¡ã‚«ã‚¦ãƒ³ã‚¿
     /// </summary>
     [SerializeField]
     protected ProcessStopWatch swSend;
 
     /// <summary>
-    /// ŒğŠ·ƒJƒEƒ“ƒ^
+    /// äº¤æ›ã‚«ã‚¦ãƒ³ã‚¿
     /// </summary>
     [SerializeField]
     protected int ExDataNum;
 
     /// <summary>
-    /// ˆ—’†
+    /// å‡¦ç†ä¸­
     /// </summary>
     protected bool IsProcessing;
 
     /// <summary>
-    /// ‘‚«‚İˆ—’†
+    /// æ›¸ãè¾¼ã¿å‡¦ç†ä¸­
     /// </summary>
     protected bool IsWriteProcessing;
 
     /// <summary>
-    /// OPC UAÚ‘±ˆ—’†
+    /// OPC UAæ¥ç¶šå‡¦ç†ä¸­
     /// </summary>
     protected bool IsOpcUaConnecting;
 
     /// <summary>
-    /// TCPƒRƒlƒNƒVƒ‡ƒ“
+    /// TCPã‚³ãƒã‚¯ã‚·ãƒ§ãƒ³
     /// </summary>
     protected TcpConnection tcp = new();
 
     /// <summary>
-    /// UDPƒRƒlƒNƒVƒ‡ƒ“
+    /// UDPã‚³ãƒã‚¯ã‚·ãƒ§ãƒ³
     /// </summary>
     protected UdpConnection udp = new();
 
     /// <summary>
-    /// UDPƒRƒlƒNƒVƒ‡ƒ“
+    /// UDPã‚³ãƒã‚¯ã‚·ãƒ§ãƒ³
     /// </summary>
     protected OpcUaConnection opcua = new();
 
     /// <summary>
-    /// PingŠÔŠu
+    /// Pingé–“éš”
     /// </summary>
     private float pingInterval = 5f;
 
     /// <summary>
-    /// ƒƒbƒN—pƒIƒuƒWƒFƒNƒg
+    /// ãƒ­ãƒƒã‚¯ç”¨ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆ
     /// </summary>
     private object m_PingLock = new();
 
     /// <summary>
-    /// ƒƒbƒN—pƒIƒuƒWƒFƒNƒg
+    /// ãƒ­ãƒƒã‚¯ç”¨ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆ
     /// </summary>
     protected object m_ComLock = new();
 
     /// <summary>
-    /// óMƒ^ƒCƒvƒAƒEƒg(msec)
+    /// å—ä¿¡ã‚¿ã‚¤ãƒ—ã‚¢ã‚¦ãƒˆ(msec)
     /// </summary>
     protected const int _RCVTIMEOUT = 3000;
 
     /// <summary>
-    /// óMƒf[ƒ^
+    /// å—ä¿¡ãƒ‡ãƒ¼ã‚¿
     /// </summary>
     protected List<DBSetting> rcvDatas = new();
 
     /// <summary>
-    /// ‘—Mƒf[ƒ^
+    /// é€ä¿¡ãƒ‡ãƒ¼ã‚¿
     /// </summary>
     protected List<DBSetting> sndDatas = new();
 
     /// <summary>
-    /// óM—pƒ^ƒO
+    /// å—ä¿¡ç”¨ã‚¿ã‚°
     /// </summary>
     protected Dictionary<string, List<KMXDBSetting>> dctReadSortedTags1 = new();
 
     /// <summary>
-    /// óM—pƒ^ƒO(‘—M—p)
+    /// å—ä¿¡ç”¨ã‚¿ã‚°(é€ä¿¡ç”¨)
     /// </summary>
     protected Dictionary<string, List<KMXDBSetting>> dctReadSortedTags2 = new();
 
     /// <summary>
-    /// ‘—M—pƒ^ƒO
+    /// é€ä¿¡ç”¨ã‚¿ã‚°
     /// </summary>
     protected Dictionary<string, List<KMXDBSetting>> dctWriteSortedTags = new();
 
     /// <summary>
-    /// “o˜^‚µ‚½ƒ^ƒOƒŠƒXƒg
+    /// ç™»éŒ²ã—ãŸã‚¿ã‚°ãƒªã‚¹ãƒˆ
     /// </summary>
     private List<string> lstRegTag = new();
 
     /// <summary>
-    /// óMƒoƒbƒtƒ@
+    /// å—ä¿¡ãƒãƒƒãƒ•ã‚¡
     /// </summary>
     protected byte[] readBuff;
 
     /// <summary>
-    /// ’¼Ú’ÊMƒLƒƒƒ“ƒoƒX
+    /// ç›´æ¥é€šä¿¡ã‚­ãƒ£ãƒ³ãƒã‚¹
     /// </summary>
     protected GameObject directCanvas;
 
@@ -219,17 +219,17 @@ public class ComProtocolBase : ComBaseScript
     protected TextMeshProUGUI txtPing;
 
     /// <summary>
-    /// Ú‘±ó‘Ô
+    /// æ¥ç¶šçŠ¶æ…‹
     /// </summary>
     protected TextMeshProUGUI txtConnected;
 
     /// <summary>
-    /// ’ÊMƒTƒCƒNƒ‹
+    /// é€šä¿¡ã‚µã‚¤ã‚¯ãƒ«
     /// </summary>
     protected TextMeshProUGUI txtCycle;
 
     /// <summary>
-    /// ’¼Ú’ÊM
+    /// ç›´æ¥é€šä¿¡
     /// </summary>
     public bool IsDirect
     {
@@ -240,7 +240,7 @@ public class ComProtocolBase : ComBaseScript
     }
 
     /// <summary>
-    /// ƒrƒbƒgƒŒƒWƒXƒ^’è‹`
+    /// ãƒ“ãƒƒãƒˆãƒ¬ã‚¸ã‚¹ã‚¿å®šç¾©
     /// </summary>
     protected virtual List<string> regTypeBit
     {
@@ -251,7 +251,7 @@ public class ComProtocolBase : ComBaseScript
     }
 
     /// <summary>
-    /// 16iƒrƒbƒgƒŒƒWƒXƒ^’è‹`
+    /// 16é€²ãƒ“ãƒƒãƒˆãƒ¬ã‚¸ã‚¹ã‚¿å®šç¾©
     /// </summary>
     protected virtual List<string> regTypeBit16
     {
@@ -263,7 +263,7 @@ public class ComProtocolBase : ComBaseScript
 
 
     /// <summary>
-    /// 16bitƒŒƒWƒXƒ^’è‹`
+    /// 16bitãƒ¬ã‚¸ã‚¹ã‚¿å®šç¾©
     /// </summary>
     protected virtual List<string> regTypeData16
     {
@@ -274,7 +274,7 @@ public class ComProtocolBase : ComBaseScript
     }
 
     /// <summary>
-    /// 32bitƒŒƒWƒXƒ^’è‹`
+    /// 32bitãƒ¬ã‚¸ã‚¹ã‚¿å®šç¾©
     /// </summary>
     protected virtual List<string> regTypeData32
     {
@@ -285,7 +285,7 @@ public class ComProtocolBase : ComBaseScript
     }
 
     /// <summary>
-    /// 64bitƒŒƒWƒXƒ^’è‹`
+    /// 64bitãƒ¬ã‚¸ã‚¹ã‚¿å®šç¾©
     /// </summary>
     protected virtual List<string> regTypeData64
     {
@@ -296,7 +296,7 @@ public class ComProtocolBase : ComBaseScript
     }
 
     /// <summary>
-    /// ƒvƒƒOƒ‰ƒ€”Ô†‚ª‘¶İ‚·‚éƒŒƒWƒXƒ^’è‹`
+    /// ãƒ—ãƒ­ã‚°ãƒ©ãƒ ç•ªå·ãŒå­˜åœ¨ã™ã‚‹ãƒ¬ã‚¸ã‚¹ã‚¿å®šç¾©
     /// </summary>
     protected virtual List<string> regTypeExistPrg
     {
@@ -307,7 +307,7 @@ public class ComProtocolBase : ComBaseScript
     }
 
     /// <summary>
-    /// ˆêŠ‡óMƒJƒEƒ“ƒg
+    /// ä¸€æ‹¬å—ä¿¡ã‚«ã‚¦ãƒ³ãƒˆ
     /// </summary>
     public virtual int BULK_RCV_COUNT
     {
@@ -318,7 +318,7 @@ public class ComProtocolBase : ComBaseScript
     }
 
     /// <summary>
-    /// ˆêŠ‡óMƒJƒEƒ“ƒg
+    /// ä¸€æ‹¬å—ä¿¡ã‚«ã‚¦ãƒ³ãƒˆ
     /// </summary>
     public virtual int BIT_COUNT
     {
@@ -329,7 +329,7 @@ public class ComProtocolBase : ComBaseScript
     }
 
     /// <summary>
-    /// ƒoƒbƒtƒ@Å‘åƒTƒCƒY
+    /// ãƒãƒƒãƒ•ã‚¡æœ€å¤§ã‚µã‚¤ã‚º
     /// </summary>
     protected virtual int LAN_BUFF_MAX
     {
@@ -340,7 +340,7 @@ public class ComProtocolBase : ComBaseScript
     }
 
     /// <summary>
-    /// MCƒvƒƒgƒRƒ‹‚©
+    /// MCãƒ—ãƒ­ãƒˆã‚³ãƒ«ã‹
     /// </summary>
     protected bool isMcProtocol
     {
@@ -360,7 +360,7 @@ public class ComProtocolBase : ComBaseScript
     }
 
     /// <summary>
-    /// Ø’f
+    /// åˆ‡æ–­
     /// </summary>
     protected override void OnDestroy()
     {
@@ -368,7 +368,7 @@ public class ComProtocolBase : ComBaseScript
     }
 
     /// <summary>
-    /// ƒf[ƒ^XV
+    /// ãƒ‡ãƒ¼ã‚¿æ›´æ–°
     /// </summary>
     protected IEnumerator DataUpdate()
     {
@@ -378,10 +378,10 @@ public class ComProtocolBase : ComBaseScript
             {
                 if (GlobalScript.isLoaded && !GlobalScript.isSystemRecorder)
                 {
-                    // ƒf[ƒ^ŒğŠ·ˆ—
+                    // ãƒ‡ãƒ¼ã‚¿äº¤æ›å‡¦ç†
                     DataExchangeProcess();
 
-                    // ƒf[ƒ^XVˆ—
+                    // ãƒ‡ãƒ¼ã‚¿æ›´æ–°å‡¦ç†
                     RenewData();
                 }
                 var sw = new System.Diagnostics.Stopwatch();
@@ -401,7 +401,7 @@ public class ComProtocolBase : ComBaseScript
             {
                 yield return new WaitForSecondsRealtime(Cycle / 1000f);
             }
-            // ƒLƒƒƒ“ƒoƒXXV
+            // ã‚­ãƒ£ãƒ³ãƒã‚¹æ›´æ–°
             if (txtPing != null)
             {
                 txtPing.text = IsPing.ToString();
@@ -418,13 +418,13 @@ public class ComProtocolBase : ComBaseScript
     }
 
     /// <summary>
-    /// ƒf[ƒ^ŒğŠ·ˆ—
+    /// ãƒ‡ãƒ¼ã‚¿äº¤æ›å‡¦ç†
     /// </summary>
     protected override void DataExchangeProcess()
     {
         if ((dataExchange.datas.Count > 0) && dataExchanges.Count == 0)
         {
-            // ‰‰ñƒf[ƒ^ì¬
+            // åˆå›ãƒ‡ãƒ¼ã‚¿ä½œæˆ
             foreach (var data in dataExchange.datas)
             {
                 DataExchange d = new DataExchange
@@ -437,7 +437,7 @@ public class ComProtocolBase : ComBaseScript
                 {
                     if (data.isInit)
                     {
-                        // ‰Šú‰»ˆ—
+                        // åˆæœŸåŒ–å‡¦ç†
                         d.InitValue = data.initValue;
                         initDatas.Add(d);
                     }
@@ -464,13 +464,13 @@ public class ComProtocolBase : ComBaseScript
                 {
                     if (data.isInit)
                     {
-                        // ‰Šú‰»ˆ—
+                        // åˆæœŸåŒ–å‡¦ç†
                         d.InitValue = data.initValue;
                         initDatas.Add(d);
                     }
                     else
                     {
-                        // ’ÊíŒğŠ·
+                        // é€šå¸¸äº¤æ›
                         match = Regex.Match(data.input, @"^(.*?):(\d+)$");
                         tag = match.Success ? match.Groups[1].Value : data.input;
                         if (GlobalScript.tagDatas[Name][dataExchange.mechId].ContainsKey(tag))
@@ -485,7 +485,7 @@ public class ComProtocolBase : ComBaseScript
         }
         if (isFirst)
         {
-            // ‰‰ñ‚Ì‚İ
+            // åˆå›ã®ã¿
             foreach (var data in initDatas)
             {
                 SetTagValue(Name, dataExchange.mechId, data.OutputTag, ref data.Output, data.InitValue);
@@ -497,12 +497,12 @@ public class ComProtocolBase : ComBaseScript
             SetTagValue(Name, dataExchange.mechId, data.OutputTag, ref data.Output, input);
         }
         ExDataNum = dataExchanges.Count;
-        // DB‚Ìƒf[ƒ^ì¬Š®—¹‚µ‚Ä‚¢‚È‚¢‚ÆƒXƒ‹[‚³‚ê‚é
+        // DBã®ãƒ‡ãƒ¼ã‚¿ä½œæˆå®Œäº†ã—ã¦ã„ãªã„ã¨ã‚¹ãƒ«ãƒ¼ã•ã‚Œã‚‹
         isFirst = !isRcvDb;
     }
 
     /// <summary>
-    /// ƒf[ƒ^XVˆ—–{‘Ì
+    /// ãƒ‡ãƒ¼ã‚¿æ›´æ–°å‡¦ç†æœ¬ä½“
     /// </summary>
     public override void RenewData()
     {
@@ -514,18 +514,18 @@ public class ComProtocolBase : ComBaseScript
                 IsProcessing = true;
                 if (IsConnected)
                 {
-                    // Ú‘±Ï‚İ
+                    // æ¥ç¶šæ¸ˆã¿
                     _ = Task.Run(() =>
                     {
                         try
                         {
-                            // óMˆ—
+                            // å—ä¿¡å‡¦ç†
                             swRecieve.cycle = swRecieve.sw.ElapsedMilliseconds;
                             swRecieve.sw.Restart();
                             if (Recieve())
                             {
                                 swRecieve.laps = swRecieve.sw.ElapsedMilliseconds;
-                                // DB“o˜^Ï
+                                // DBç™»éŒ²æ¸ˆ
                                 isRcvDb = true;
                             }
                         }
@@ -536,7 +536,7 @@ public class ComProtocolBase : ComBaseScript
                     });
                     if (!isFirst)
                     {
-                        // ‘‚«‚İˆ—
+                        // æ›¸ãè¾¼ã¿å‡¦ç†
                         IsWriteProcessing = true;
                         _ = Task.Run(() =>
                         {
@@ -558,12 +558,12 @@ public class ComProtocolBase : ComBaseScript
                 }
                 else
                 {
-                    // –¢Ú‘±
+                    // æœªæ¥ç¶š
                     _ = Task.Run(() =>
                     {
                         try
                         {
-                            // Ú‘±ˆ—
+                            // æ¥ç¶šå‡¦ç†
                             IsConnected = Connect();
                         }
                         catch
@@ -577,7 +577,7 @@ public class ComProtocolBase : ComBaseScript
     }
 
     /// <summary>
-    /// Ú‘±
+    /// æ¥ç¶š
     /// </summary>
     /// <returns></returns>
     protected virtual bool Connect()
@@ -637,7 +637,7 @@ public class ComProtocolBase : ComBaseScript
     }
 
     /// <summary>
-    /// OPC UA‚Æ‚ÌÚ‘±
+    /// OPC UAã¨ã®æ¥ç¶š
     /// </summary>
     /// <param name="endpointUrl"></param>
     public async void ConnectOpcUA()
@@ -653,7 +653,7 @@ public class ComProtocolBase : ComBaseScript
     }
 
     /// <summary>
-    /// OPC UA‚Æ‚ÌÚ‘±
+    /// OPC UAã¨ã®æ¥ç¶š
     /// </summary>
     /// <param name="endpointUrl"></param>
     /// <returns></returns>
@@ -674,7 +674,7 @@ public class ComProtocolBase : ComBaseScript
                     SubjectName = "CN=MyTestOPCUAClient"
                 },
 
-                // šƒeƒXƒg—p‚È‚Ì‚Å StorePath ‚Í“K“–‚ÅOK
+                // â˜…ãƒ†ã‚¹ãƒˆç”¨ãªã®ã§ StorePath ã¯é©å½“ã§OK
                 TrustedIssuerCertificates = new CertificateTrustList
                 {
                     StoreType = "Directory",
@@ -708,7 +708,7 @@ public class ComProtocolBase : ComBaseScript
             ApplicationConfiguration = config
         };
 
-        // V‚µ‚¢Œ`®‚Ì SelectEndpoint
+        // æ–°ã—ã„å½¢å¼ã® SelectEndpoint
         var endpoint = CoreClientUtils.SelectEndpoint(endpointUrl, false, 1500);
         var endpointConfig = EndpointConfiguration.Create(config);
         var endpointDescription = new ConfiguredEndpoint(null, endpoint, endpointConfig);
@@ -725,7 +725,7 @@ public class ComProtocolBase : ComBaseScript
     }
 
     /// <summary>
-    /// Ø’f
+    /// åˆ‡æ–­
     /// </summary>
     protected virtual void Disconnect()
     {
@@ -766,7 +766,7 @@ public class ComProtocolBase : ComBaseScript
     }
 
     /// <summary>
-    /// óMˆ—
+    /// å—ä¿¡å‡¦ç†
     /// </summary>
     protected virtual bool Recieve()
     {
@@ -785,7 +785,7 @@ public class ComProtocolBase : ComBaseScript
         }
         if (isFirst)
         {
-            // ‰‰ñ‚Ì‚İ‘‚«‚İƒf[ƒ^óM
+            // åˆå›ã®ã¿æ›¸ãè¾¼ã¿ãƒ‡ãƒ¼ã‚¿å—ä¿¡
             foreach (var tags in dctReadSortedTags2)
             {
                 foreach (var tag in tags.Value)
@@ -803,7 +803,7 @@ public class ComProtocolBase : ComBaseScript
     }
 
     /// <summary>
-    /// ‘—Mˆ—
+    /// é€ä¿¡å‡¦ç†
     /// </summary>
     /// <returns></returns>
     protected virtual bool Send()
@@ -825,20 +825,20 @@ public class ComProtocolBase : ComBaseScript
     }
 
     /// <summary>
-    /// ƒf[ƒ^“Ç‚İ
+    /// ãƒ‡ãƒ¼ã‚¿èª­è¾¼ã¿
     /// </summary>
     /// <param name="data"></param>
     protected virtual bool Read(KMXDBSetting data, ref int commandId)
     {
-        // ƒRƒ}ƒ“ƒhì¬ˆ—
+        // ã‚³ãƒãƒ³ãƒ‰ä½œæˆå‡¦ç†
         var message = CreateMessage(data, ref commandId);
         if (message.Count > 0)
         {
-            // ƒf[ƒ^‘—Mˆ—
+            // ãƒ‡ãƒ¼ã‚¿é€ä¿¡å‡¦ç†
             var buff = SendCommand(message);
             if (buff.Count > 2)
             {
-                // óMƒf[ƒ^•ªÍˆ—
+                // å—ä¿¡ãƒ‡ãƒ¼ã‚¿åˆ†æå‡¦ç†
                 return AnalysysMessage(data, buff);
             }
         }
@@ -846,7 +846,7 @@ public class ComProtocolBase : ComBaseScript
     }
 
     /// <summary>
-    /// ƒf[ƒ^“Ç‚İ
+    /// ãƒ‡ãƒ¼ã‚¿èª­è¾¼ã¿
     /// </summary>
     /// <param name="data"></param>
     protected virtual bool Write(KMXDBSetting data, ref int commandId)
@@ -866,11 +866,11 @@ public class ComProtocolBase : ComBaseScript
         var message = CreateMessage(data, ref commandId, values);
         if (message.Count > 0)
         {
-            // ƒf[ƒ^‘—Mˆ—
+            // ãƒ‡ãƒ¼ã‚¿é€ä¿¡å‡¦ç†
             var buff = SendCommand(message);
             if (buff.Count >= 2)
             {
-                // óMƒf[ƒ^•ªÍˆ—
+                // å—ä¿¡ãƒ‡ãƒ¼ã‚¿åˆ†æå‡¦ç†
                 return AnalysysMessage(data, buff);
             }
         }
@@ -878,7 +878,7 @@ public class ComProtocolBase : ComBaseScript
     }
 
     /// <summary>
-    /// “d•¶ì¬
+    /// é›»æ–‡ä½œæˆ
     /// </summary>
     /// <param name="data"></param>
     /// <param name="read"></param>
@@ -890,7 +890,7 @@ public class ComProtocolBase : ComBaseScript
     }
 
     /// <summary>
-    /// •ªÍˆ—
+    /// åˆ†æå‡¦ç†
     /// </summary>
     /// <param name="datas"></param>
     /// <returns></returns>
@@ -900,33 +900,33 @@ public class ComProtocolBase : ComBaseScript
     }
 
     /// <summary>
-    /// ƒRƒ}ƒ“ƒh‘—M
+    /// ã‚³ãƒãƒ³ãƒ‰é€ä¿¡
     /// </summary>
-    /// <param name="command">ƒRƒ}ƒ“ƒh</param>
-    /// <returns>óMƒRƒ}ƒ“ƒh</returns>
+    /// <param name="command">ã‚³ãƒãƒ³ãƒ‰</param>
+    /// <returns>å—ä¿¡ã‚³ãƒãƒ³ãƒ‰</returns>
     protected List<byte> SendCommand(List<byte> command)
     {
-        // óMƒoƒbƒtƒ@
+        // å—ä¿¡ãƒãƒƒãƒ•ã‚¡
         var buff = new List<byte> { 0xFF, 0xFF };
         lock (m_ComLock)
         {
-            // ‘—M
+            // é€ä¿¡
             if (StreamWrite(command))
             {
                 int size = 0;
                 if (StreamRead(readBuff, ref size))
                 {
                     List<byte> lstTmp = new List<byte>();
-                    // ƒvƒƒgƒRƒ‹ƒ`ƒFƒbƒN
+                    // ãƒ—ãƒ­ãƒˆã‚³ãƒ«ãƒã‚§ãƒƒã‚¯
                     if (this is ComMcProtocol)
                     {
                         if (BitConverter.ToUInt16(readBuff, 0) != 0x00D0)
                         {
                             return readBuff.ToList();
                         }
-                        // ƒf[ƒ^ƒTƒCƒYæ“¾
+                        // ãƒ‡ãƒ¼ã‚¿ã‚µã‚¤ã‚ºå–å¾—
                         ushort readSize = BitConverter.ToUInt16(readBuff, 7);
-                        // I—¹ƒR[ƒhˆÈ~‚ğæ“¾
+                        // çµ‚äº†ã‚³ãƒ¼ãƒ‰ä»¥é™ã‚’å–å¾—
                         for (int i = 0; i < readSize; i++)
                         {
                             lstTmp.Add(readBuff[9 + i]);
@@ -955,7 +955,7 @@ public class ComProtocolBase : ComBaseScript
     }
 
     /// <summary>
-    /// ƒNƒ‰ƒCƒAƒ“ƒgƒf[ƒ^óMˆ—
+    /// ã‚¯ãƒ©ã‚¤ã‚¢ãƒ³ãƒˆãƒ‡ãƒ¼ã‚¿å—ä¿¡å‡¦ç†
     /// </summary>
     protected bool StreamRead(byte[] buffer, ref int size)
     {
@@ -984,7 +984,7 @@ public class ComProtocolBase : ComBaseScript
     }
 
     /// <summary>
-    /// ƒNƒ‰ƒCƒAƒ“ƒgƒf[ƒ^‘—Mˆ—
+    /// ã‚¯ãƒ©ã‚¤ã‚¢ãƒ³ãƒˆãƒ‡ãƒ¼ã‚¿é€ä¿¡å‡¦ç†
     /// </summary>
     protected bool StreamWrite(List<byte> buffer)
     {
@@ -1010,7 +1010,7 @@ public class ComProtocolBase : ComBaseScript
     }
 
     /// <summary>
-    /// PINGˆ—
+    /// PINGå‡¦ç†
     /// </summary>
     /// <returns></returns>
     private IEnumerator CheckPingLoop()
@@ -1026,7 +1026,7 @@ public class ComProtocolBase : ComBaseScript
     {
         Ping ping = new Ping(Server);
         float startTime = Time.time;
-        // Š®—¹‚©ƒ^ƒCƒ€ƒAƒEƒg‚Ü‚Å‘Ò‹@
+        // å®Œäº†ã‹ã‚¿ã‚¤ãƒ ã‚¢ã‚¦ãƒˆã¾ã§å¾…æ©Ÿ
         while (!ping.isDone && Time.time - startTime < 5f)
         {
             yield return null;
@@ -1044,17 +1044,17 @@ public class ComProtocolBase : ComBaseScript
     }
 
     /// <summary>
-    /// DB‚É“o˜^
+    /// DBã«ç™»éŒ²
     /// </summary>
     /// <param name="tag"></param>
     protected void SetDbData(KMXDBSetting dbSetting)
     {
         if (dbSetting.AllDataCount == 1)
         {
-            // ƒf[ƒ^‚ªˆê‚Â
+            // ãƒ‡ãƒ¼ã‚¿ãŒä¸€ã¤
             if (dbSetting.unitTag != null)
             {
-                // ƒ†ƒjƒbƒgƒ^ƒO
+                // ãƒ¦ãƒ‹ãƒƒãƒˆã‚¿ã‚°
                 var offset = 0;
                 foreach (var unit in dbSetting.unitTag.UnitTags)
                 {
@@ -1078,17 +1078,17 @@ public class ComProtocolBase : ComBaseScript
             }
             else
             {
-                // ’Êíƒ^ƒO
+                // é€šå¸¸ã‚¿ã‚°
                 var tag = dbSetting.DataTag;
                 SetDbData(dbSetting, tag);
             }
         }
         else
         {
-            // •¡”ƒf[ƒ^
+            // è¤‡æ•°ãƒ‡ãƒ¼ã‚¿
             if (dbSetting.unitTag != null)
             {
-                // ƒ†ƒjƒbƒgƒ^ƒO
+                // ãƒ¦ãƒ‹ãƒƒãƒˆã‚¿ã‚°
                 var offset = 0;
                 for (var i = 0; i < dbSetting.DataCount; i++)
                 {
@@ -1115,7 +1115,7 @@ public class ComProtocolBase : ComBaseScript
             }
             else
             {
-                // ’Êíƒ^ƒO
+                // é€šå¸¸ã‚¿ã‚°
                 for (var i = 0; i < dbSetting.DataCount; i++)
                 {
                     var tag = $"{dbSetting.DataTag}[{i}]";
@@ -1126,7 +1126,7 @@ public class ComProtocolBase : ComBaseScript
     }
 
     /// <summary>
-    /// DB‚Éƒ^ƒO‚ğ“o˜^‚·‚é
+    /// DBã«ã‚¿ã‚°ã‚’ç™»éŒ²ã™ã‚‹
     /// </summary>
     /// <param name="tag"></param>
     protected void SetDbData(KMXDBSetting dbSetting, string tag, int offset = 0, int size = 1)
@@ -1134,7 +1134,7 @@ public class ComProtocolBase : ComBaseScript
         var mech = dataExchange.mechId;
         if (!GlobalScript.tagDatas[Name].ContainsKey(mech))
         {
-            // ‹@”Ôì¬
+            // æ©Ÿç•ªä½œæˆ
             GlobalScript.tagDatas[Name].Add(mech, new Dictionary<string, TagInfo>());
         }
         if (!GlobalScript.tagDatas[Name][mech].ContainsKey(tag))
@@ -1157,19 +1157,19 @@ public class ComProtocolBase : ComBaseScript
         offset *= (dbSetting.DataType == DBSetting.eDeviceSize.DW) ? 2 : 1;
         if (regTypeBit16.Contains(dbSetting.RegisterType))
         {
-            // 16i”
+            // 16é€²æ•°
             dct.Device += (dbSetting.RegisterNo + offset).ToString("X");
         }
         else
         {
             dct.Device += (dbSetting.RegisterNo + offset).ToString();
         }
-        // ƒ^ƒO–¼“o˜^
+        // ã‚¿ã‚°åç™»éŒ²
         lstRegTag.Add(tag);
     }
 
     /// <summary>
-    /// DB‚É“o˜^
+    /// DBã«ç™»éŒ²
     /// </summary>
     /// <param name="tag"></param>
     protected void SetDbPointer(KMXDBSetting dbSetting)
@@ -1177,10 +1177,10 @@ public class ComProtocolBase : ComBaseScript
         var mech = dataExchange.mechId;
         if (dbSetting.AllDataCount == 1)
         {
-            // ƒf[ƒ^‚ªˆê‚Â
+            // ãƒ‡ãƒ¼ã‚¿ãŒä¸€ã¤
             if (dbSetting.unitTag != null)
             {
-                // ƒ†ƒjƒbƒgƒ^ƒO
+                // ãƒ¦ãƒ‹ãƒƒãƒˆã‚¿ã‚°
                 foreach (var unit in dbSetting.unitTag.UnitTags)
                 {
                     var tag = $"{dbSetting.DataTag}.{unit.DataTag}";
@@ -1189,17 +1189,17 @@ public class ComProtocolBase : ComBaseScript
             }
             else
             {
-                // ’Êíƒ^ƒO
+                // é€šå¸¸ã‚¿ã‚°
                 var tag = dbSetting.DataTag;
                 dbSetting.values.Add(GlobalScript.tagDatas[Name][mech].ContainsKey(tag) ? GlobalScript.tagDatas[Name][mech][tag] : null);
             }
         }
         else
         {
-            // •¡”ƒf[ƒ^
+            // è¤‡æ•°ãƒ‡ãƒ¼ã‚¿
             if (dbSetting.unitTag != null)
             {
-                // ƒ†ƒjƒbƒgƒ^ƒO
+                // ãƒ¦ãƒ‹ãƒƒãƒˆã‚¿ã‚°
                 for (var i = 0; i < dbSetting.DataCount; i++)
                 {
                     foreach (var unit in dbSetting.unitTag.UnitTags)
@@ -1211,7 +1211,7 @@ public class ComProtocolBase : ComBaseScript
             }
             else
             {
-                // ’Êíƒ^ƒO
+                // é€šå¸¸ã‚¿ã‚°
                 for (var i = 0; i < dbSetting.DataCount; i++)
                 {
                     var tag = $"{dbSetting.DataTag}[{i}]";
@@ -1233,7 +1233,7 @@ public class ComProtocolBase : ComBaseScript
     }
 
     /// <summary>
-    /// ƒ\[ƒgƒf[ƒ^ì¬
+    /// ã‚½ãƒ¼ãƒˆãƒ‡ãƒ¼ã‚¿ä½œæˆ
     /// </summary>
     protected virtual void CreateSortedData()
     {
@@ -1266,12 +1266,12 @@ public class ComProtocolBase : ComBaseScript
                 }
                 dctReadTags1[tag.RegisterType].Add((KMXDBSetting)tag.Clone());
             }
-            // DB“o˜^
+            // DBç™»éŒ²
             SetDbData(tag);
         }
         CreateSorted(dctReadTags1, ref dctReadSortedTags1);
         CreateSorted(dctReadTags2, ref dctReadSortedTags2);
-        // ƒ\[ƒg‚³‚ê‚½ƒ^ƒO‚ÉDBƒf[ƒ^‚ğƒZƒbƒg
+        // ã‚½ãƒ¼ãƒˆã•ã‚ŒãŸã‚¿ã‚°ã«DBãƒ‡ãƒ¼ã‚¿ã‚’ã‚»ãƒƒãƒˆ
         foreach (var tags in dctWriteSortedTags)
         {
             foreach (var tag in tags.Value)
@@ -1282,7 +1282,7 @@ public class ComProtocolBase : ComBaseScript
     }
 
     /// <summary>
-    /// ƒ\[ƒgƒf[ƒ^ì¬
+    /// ã‚½ãƒ¼ãƒˆãƒ‡ãƒ¼ã‚¿ä½œæˆ
     /// </summary>
     /// <param name="dctTags"></param>
     /// <param name="dctSortedTags"></param>
@@ -1298,21 +1298,21 @@ public class ComProtocolBase : ComBaseScript
                 if (dctSortedTags[tags.Key].Count == 0)
                 {
                     /*
-                     * ‘å‚«‚¢ƒf[ƒ^‚ğ‘z’è‚µ‚Ä‚È‚¢‚Ì‚Å•ªŠ„‚Í–¢‘Î‰
+                     * å¤§ãã„ãƒ‡ãƒ¼ã‚¿ã‚’æƒ³å®šã—ã¦ãªã„ã®ã§åˆ†å‰²ã¯æœªå¯¾å¿œ
                     if (regTypeBit.Contains(tags.Key))
                     {
-                        // ƒrƒbƒgƒf[ƒ^
+                        // ãƒ“ãƒƒãƒˆãƒ‡ãƒ¼ã‚¿
                         if (tag.AllDataCount > BULK_RCV_COUNT * BIT_COUNT)
                         {
-                            // •ªŠ„
+                            // åˆ†å‰²
                         }
                     }
                     else
                     {
-                        // ƒ[ƒhƒf[ƒ^
+                        // ãƒ¯ãƒ¼ãƒ‰ãƒ‡ãƒ¼ã‚¿
                         if (tag.AllDataCount > BULK_RCV_COUNT)
                         {
-                            // •ªŠ„
+                            // åˆ†å‰²
                         }
                     }
                     */
@@ -1331,7 +1331,7 @@ public class ComProtocolBase : ComBaseScript
                     var count = end - start;
                     if (count > rcvMax)
                     {
-                        // ˆêŠ‡óM‚Å‚«‚È‚¢
+                        // ä¸€æ‹¬å—ä¿¡ã§ããªã„
                         var clone = (KMXDBSetting)tag.Clone();
                         dctSortedTags[tags.Key].Add(clone);
                         var sort = (KMXDBSetting)tag.Clone();
@@ -1340,7 +1340,7 @@ public class ComProtocolBase : ComBaseScript
                     }
                     else
                     {
-                        // ˆêŠ‡óM‰Â”\
+                        // ä¸€æ‹¬å—ä¿¡å¯èƒ½
                         prv.DataCount = count;
                         var clone = (KMXDBSetting)tag.Clone();
                         clone.RegisterNo -= prv.RegisterNo;
@@ -1349,7 +1349,7 @@ public class ComProtocolBase : ComBaseScript
                 }
             }
         }
-        // ƒ\[ƒg‚³‚ê‚½ƒ^ƒO‚ÉDBƒf[ƒ^‚ğƒZƒbƒg
+        // ã‚½ãƒ¼ãƒˆã•ã‚ŒãŸã‚¿ã‚°ã«DBãƒ‡ãƒ¼ã‚¿ã‚’ã‚»ãƒƒãƒˆ
         foreach (var tags in dctSortedTags)
         {
             foreach (var tag in tags.Value)
@@ -1360,7 +1360,7 @@ public class ComProtocolBase : ComBaseScript
     }
 
     /// <summary>
-    /// ƒ^ƒO‚É’l‚ğƒZƒbƒg‚·‚é
+    /// ã‚¿ã‚°ã«å€¤ã‚’ã‚»ãƒƒãƒˆã™ã‚‹
     /// </summary>
     /// <param name="tag"></param>
     /// <param name=""></param>
@@ -1368,7 +1368,7 @@ public class ComProtocolBase : ComBaseScript
     {
         if ((Application.platform != RuntimePlatform.Android) && (Application.platform != RuntimePlatform.IPhonePlayer))
         {
-            // ‘—Mƒf[ƒ^ì¬
+            // é€ä¿¡ãƒ‡ãƒ¼ã‚¿ä½œæˆ
             lock (objLock)
             {
                 foreach (var tag in tags)
@@ -1386,7 +1386,7 @@ public class ComProtocolBase : ComBaseScript
     }
 
     /// <summary>
-    /// ’¼Ú’ÊMİ’è
+    /// ç›´æ¥é€šä¿¡è¨­å®š
     /// </summary>
     /// <param name="directCanvas"></param>
     public void SetDirectCanvas(GameObject directCanvas)
@@ -1405,7 +1405,7 @@ public class ComProtocolBase : ComBaseScript
     }
 
     /// <summary>
-    /// ƒpƒ‰ƒ[ƒ^ƒZƒbƒg
+    /// ãƒ‘ãƒ©ãƒ¡ãƒ¼ã‚¿ã‚»ãƒƒãƒˆ
     /// </summary>
     /// <param name="No"></param>
     /// <param name="Cycle"></param>
@@ -1424,10 +1424,10 @@ public class ComProtocolBase : ComBaseScript
         dataExchanges.Clear();
         lstRegTag.Clear();
 
-        // óMƒ^ƒOƒ\[ƒgˆ—
+        // å—ä¿¡ã‚¿ã‚°ã‚½ãƒ¼ãƒˆå‡¦ç†
         CreateSortedData();
 
-        // ŒğŠ·ƒ^ƒO
+        // äº¤æ›ã‚¿ã‚°
         foreach (var data in dataExchange.datas)
         {
             Match match = Regex.Match(data.output, @"^(.*?):(\d+)$");
@@ -1438,7 +1438,7 @@ public class ComProtocolBase : ComBaseScript
             }
         }
 
-        // LAN‚ÌóMƒoƒbƒtƒ@ì¬
+        // LANã®å—ä¿¡ãƒãƒƒãƒ•ã‚¡ä½œæˆ
         if (readBuff == null)
         {
             readBuff = new byte[LAN_BUFF_MAX];

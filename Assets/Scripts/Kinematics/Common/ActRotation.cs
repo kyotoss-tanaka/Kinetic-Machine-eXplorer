@@ -1,4 +1,4 @@
-using System.Collections;
+ï»¿using System.Collections;
 using System.Collections.Generic;
 using System.Text.Json;
 using UnityEngine;
@@ -10,7 +10,7 @@ public class ActRotation : Kinematics1D
 
     float tx = 0;
 
-    #region ŠÖ”
+    #region é–¢æ•°
     // Start is called before the first frame update
     protected override void Start()
     {
@@ -26,25 +26,25 @@ public class ActRotation : Kinematics1D
     }
 
     /// <summary>
-    /// –Ú•W“_ƒZƒbƒg
+    /// ç›®æ¨™ç‚¹ã‚»ãƒƒãƒˆ
     /// </summary>
     /// <param name="x"></param>
     public override void setTarget(float x)
     {
         if (RotateObject == null)
         {
-            // ©•ª‚ğ‰ñ‚·
+            // è‡ªåˆ†ã‚’å›ã™
             this.transform.localEulerAngles = new Vector3 (0, x, 0);
         }
         else
         {
-            // q‹Ÿ‚ğ‰ñ‚·
+            // å­ä¾›ã‚’å›ã™
             RotateObject.transform.localEulerAngles = new Vector3(0, x, 0);
         }
     }
 
     /// <summary>
-    /// ƒpƒ‰ƒ[ƒ^‚ğƒZƒbƒg‚·‚é
+    /// ãƒ‘ãƒ©ãƒ¡ãƒ¼ã‚¿ã‚’ã‚»ãƒƒãƒˆã™ã‚‹
     /// </summary>
     /// <param name="components"></param>
     /// <param name="scriptables"></param>
@@ -55,5 +55,5 @@ public class ActRotation : Kinematics1D
         base.SetParameter(components, scriptables, kssInstanceIds, root);
         RotateObject = GetGameObjectFromPrm(components, kssInstanceIds, root, "RotateObject");
     }
-    #endregion ŠÖ”
+    #endregion é–¢æ•°
 }

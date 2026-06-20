@@ -1,4 +1,4 @@
-using Npgsql;
+ï»¿using Npgsql;
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -14,42 +14,42 @@ using static OpcUaTagInfo;
 public class ComOpcUaApi : ComBaseScript
 {
     /// <summary>
-    /// IPƒAƒhƒŒƒX
+    /// IPã‚¢ãƒ‰ãƒ¬ã‚¹
     /// </summary>
     [SerializeField]
     private string IpAddress = "127.0.0.1";
 
     /*
     /// <summary>
-    /// ƒ|[ƒgİ’è
+    /// ãƒãƒ¼ãƒˆè¨­å®š
     /// </summary>
     [SerializeField]
     private int Port = 1880;
     */
 
     /// <summary>
-    /// ƒ`ƒƒƒ“ƒlƒ‹İ’è
+    /// ãƒãƒ£ãƒ³ãƒãƒ«è¨­å®š
     /// </summary>
     [SerializeField]
     public int Ch = 0;
 
     /// <summary>
-    /// API‚ÌURL
+    /// APIã®URL
     /// </summary>
     private string url = "";
 
     /// <summary>
-    /// ƒ^ƒOî•ñ
+    /// ã‚¿ã‚°æƒ…å ±
     /// </summary>
     private OpcUaTagInfo tagInfo;
 
     /// <summary>
-    /// ƒL[
+    /// ã‚­ãƒ¼
     /// </summary>
     public string Name { get { return IpAddress + ":" + Port.ToString() + "(" + Ch.ToString() + ")"; } }
 
     /// <summary>
-    /// ‹@”Ô
+    /// æ©Ÿç•ª
     /// </summary>
     private string MechId = "OpcUA";
 
@@ -83,12 +83,12 @@ public class ComOpcUaApi : ComBaseScript
     }
 
     /// <summary>
-    /// óMƒf[ƒ^
+    /// å—ä¿¡ãƒ‡ãƒ¼ã‚¿
     /// </summary>
     Dictionary<string, OpcUaUrl> rcvData = new Dictionary<string, OpcUaUrl>();
 
     /// <summary>
-    /// óMURLƒŠƒXƒg
+    /// å—ä¿¡URLãƒªã‚¹ãƒˆ
     /// </summary>
     List<OpcUaUrls> urls = new List<OpcUaUrls>();
 
@@ -105,7 +105,7 @@ public class ComOpcUaApi : ComBaseScript
     }
 
     /// <summary>
-    /// API’ÊM
+    /// APIé€šä¿¡
     /// </summary>
     /// <returns></returns>
     private IEnumerator RenewDataApi()
@@ -139,7 +139,7 @@ public class ComOpcUaApi : ComBaseScript
                 }
                 else if (req.responseCode == 200)
                 {
-                    // óMˆ—
+                    // å—ä¿¡å‡¦ç†
                     var rcvDatas = JsonSerializer.Deserialize<OpcUaResData[]>(req.downloadHandler.text);
                     foreach (var data in rcvDatas)
                     {
@@ -191,7 +191,7 @@ public class ComOpcUaApi : ComBaseScript
     }
 
     /// <summary>
-    /// ƒ^ƒO‚Éƒf[ƒ^‚ğƒZƒbƒg‚·‚é
+    /// ã‚¿ã‚°ã«ãƒ‡ãƒ¼ã‚¿ã‚’ã‚»ãƒƒãƒˆã™ã‚‹
     /// </summary>
     /// <param name="url"></param>
     /// <param name="tag"></param>
@@ -225,7 +225,7 @@ public class ComOpcUaApi : ComBaseScript
     }
 
     /// <summary>
-    /// ƒ^ƒO‚É’l‚ğƒZƒbƒg‚·‚é
+    /// ã‚¿ã‚°ã«å€¤ã‚’ã‚»ãƒƒãƒˆã™ã‚‹
     /// </summary>
     /// <param name="tag"></param>
     /// <param name=""></param>
@@ -236,7 +236,7 @@ public class ComOpcUaApi : ComBaseScript
     }
 
     /// <summary>
-    /// ƒ^ƒO‚É’l‚ğƒZƒbƒg‚·‚é
+    /// ã‚¿ã‚°ã«å€¤ã‚’ã‚»ãƒƒãƒˆã™ã‚‹
     /// </summary>
     /// <param name="tag"></param>
     /// <param name=""></param>
@@ -271,7 +271,7 @@ public class ComOpcUaApi : ComBaseScript
                         }
                         if (url != "")
                         {
-                            // ‘‚«‚İˆ—
+                            // æ›¸ãè¾¼ã¿å‡¦ç†
                             UnityWebRequest req = UnityWebRequest.Get(url);
                             req.SendWebRequest();
                         }
@@ -282,7 +282,7 @@ public class ComOpcUaApi : ComBaseScript
     }
 
     /// <summary>
-    /// ƒ^ƒO‚É’l‚ğƒZƒbƒg‚·‚é
+    /// ã‚¿ã‚°ã«å€¤ã‚’ã‚»ãƒƒãƒˆã™ã‚‹
     /// </summary>
     /// <param name="tag"></param>
     /// <param name=""></param>
@@ -295,7 +295,7 @@ public class ComOpcUaApi : ComBaseScript
     }
 
     /// <summary>
-    /// ƒf[ƒ^XV
+    /// ãƒ‡ãƒ¼ã‚¿æ›´æ–°
     /// </summary>
     public override void RenewData()
     {
@@ -310,7 +310,7 @@ public class ComOpcUaApi : ComBaseScript
     }
 
     /// <summary>
-    /// ƒ^ƒOî•ñ‚ğƒZƒbƒg‚·‚é
+    /// ã‚¿ã‚°æƒ…å ±ã‚’ã‚»ãƒƒãƒˆã™ã‚‹
     /// </summary>
     private void SetTagInfo()
     {
@@ -321,7 +321,7 @@ public class ComOpcUaApi : ComBaseScript
         }
         if ((Application.platform == RuntimePlatform.Android) || (Application.platform == RuntimePlatform.IPhonePlayer))
         {
-            // Android‚ÆiOS‚È‚çƒR[ƒh’¼‘‚«
+            // Androidã¨iOSãªã‚‰ã‚³ãƒ¼ãƒ‰ç›´æ›¸ã
             tagInfo = JsonUtility.FromJson<OpcUaTagInfo>("{\r\n\t\"tags\": [\r\n\t\t{\r\n\t\t\t\"ns\": 6,\r\n\t\t\t\"booleanTag\": [\r\n\t\t\t\t{\r\n\t\t\t\t\t\"isWrite\": true,\r\n\t\t\t\t\t\"isArray\": true,\r\n\t\t\t\t\t\"count\": 1,\r\n\t\t\t\t\t\"name\": \"::AsGlobalPV:iActivateController\",\r\n\t\t\t\t\t\"children\": []\r\n\t\t\t\t},\r\n\t\t\t\t{\r\n\t\t\t\t\t\"isWrite\": true,\r\n\t\t\t\t\t\"isArray\": true,\r\n\t\t\t\t\t\"count\": 2,\r\n\t\t\t\t\t\"name\": \"::AsGlobalPV:iSecgRun\",\r\n\t\t\t\t\t\"children\": []\r\n\t\t\t\t},\r\n\t\t\t\t{\r\n\t\t\t\t\t\"isWrite\": true,\r\n\t\t\t\t\t\"isArray\": true,\r\n\t\t\t\t\t\"count\": 64,\r\n\t\t\t\t\t\"name\": \"::AsGlobalPV:iPpDone\",\r\n\t\t\t\t\t\"children\": []\r\n\t\t\t\t},\r\n\t\t\t\t{\r\n\t\t\t\t\t\"isWrite\": false,\r\n\t\t\t\t\t\"isArray\": true,\r\n\t\t\t\t\t\"count\": 64,\r\n\t\t\t\t\t\"name\": \"::AsGlobalPV:oPpMoveDone\",\r\n\t\t\t\t\t\"children\": []\r\n\t\t\t\t}\r\n\t\t\t],\r\n\t\t\t\"int32Tag\": [],\r\n\t\t\t\"floatTag\": [\r\n\t\t\t\t{\r\n\t\t\t\t\t\"isWrite\": false,\r\n\t\t\t\t\t\"isArray\": true,\r\n\t\t\t\t\t\"count\": 20,\r\n\t\t\t\t\t\"name\": \"::Vis6D:Vis6DComData.Cyclic.Sh.PosX\",\r\n\t\t\t\t\t\"children\": []\r\n\t\t\t\t},\r\n\t\t\t\t{\r\n\t\t\t\t\t\"isWrite\": false,\r\n\t\t\t\t\t\"isArray\": true,\r\n\t\t\t\t\t\"count\": 20,\r\n\t\t\t\t\t\"name\": \"::Vis6D:Vis6DComData.Cyclic.Sh.PosY\",\r\n\t\t\t\t\t\"children\": []\r\n\t\t\t\t},\r\n\t\t\t\t{\r\n\t\t\t\t\t\"isWrite\": false,\r\n\t\t\t\t\t\"isArray\": true,\r\n\t\t\t\t\t\"count\": 20,\r\n\t\t\t\t\t\"name\": \"::Vis6D:Vis6DComData.Cyclic.Sh.RotZ\",\r\n\t\t\t\t\t\"children\": []\r\n\t\t\t\t}\r\n\t\t\t]\r\n\t\t}\r\n\t]\r\n}");
         }
         else
@@ -334,7 +334,7 @@ public class ComOpcUaApi : ComBaseScript
     }
 
     /// <summary>
-    /// API‚ÌURL‚ğæ“¾‚·‚é
+    /// APIã®URLã‚’å–å¾—ã™ã‚‹
     /// </summary>
     /// <returns></returns>
     private List<OpcUaUrls> GetUrls()
@@ -374,7 +374,7 @@ public class ComOpcUaApi : ComBaseScript
     }
 
     /// <summary>
-    /// API‚ÌURL‚ğæ“¾‚·‚é
+    /// APIã®URLã‚’å–å¾—ã™ã‚‹
     /// </summary>
     /// <param name="tag"></param>
     /// <returns></returns>
@@ -385,7 +385,7 @@ public class ComOpcUaApi : ComBaseScript
         {
             if (tag.children.Count > 0)
             {
-                // q‹Ÿ‚¿
+                // å­ä¾›æŒã¡
                 for (var i = 0; i < tag.count; i++)
                 {
                     for (var j = 0; j < tag.children.Count; j++)
@@ -397,7 +397,7 @@ public class ComOpcUaApi : ComBaseScript
             }
             else
             {
-                // ”z—ñ
+                // é…åˆ—
                 if (tag.isArray)
                 {
                     var url = new OpcUaUrl
@@ -484,7 +484,7 @@ public class ComOpcUaApi : ComBaseScript
     }
 
     /// <summary>
-    /// ƒpƒ‰ƒ[ƒ^‚ğƒZƒbƒg‚·‚é
+    /// ãƒ‘ãƒ©ãƒ¡ãƒ¼ã‚¿ã‚’ã‚»ãƒƒãƒˆã™ã‚‹
     /// </summary>
     /// <param name="components"></param>
     /// <param name="scriptables"></param>

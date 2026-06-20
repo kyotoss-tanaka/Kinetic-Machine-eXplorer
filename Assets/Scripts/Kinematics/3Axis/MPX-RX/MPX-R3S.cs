@@ -1,11 +1,11 @@
-using System.Collections.Generic;
+ï»¿using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
 using UnityEngine;
 
 public class MPX_R3S : MPX_RX
 {
-    #region •Ï”
+    #region å¤‰æ•°
     protected GameObject arm1;
     protected GameObject arm2_1;
     protected GameObject arm2_2;
@@ -31,23 +31,23 @@ public class MPX_R3S : MPX_RX
     private Vector3 angP;
 
     /// <summary>
-    /// ƒvƒŒ[ƒg‚ª‹t
+    /// ãƒ—ãƒ¬ãƒ¼ãƒˆãŒé€†
     /// </summary>
     private bool isPlateRvs = false;
 
     /// <summary>
-    /// ©ŒÈ•Û—pƒtƒBƒ“
+    /// è‡ªå·±ä¿æŒç”¨ãƒ•ã‚£ãƒ³
     /// </summary>
     private bool isFin = false;
 
     /// <summary>
-    /// ’n–Êİ’u
+    /// åœ°é¢è¨­ç½®
     /// </summary>
     private bool isGround = false;
-    #endregion •Ï”
+    #endregion å¤‰æ•°
 
     /// <summary>
-    /// –Ú•WˆÊ’uƒZƒbƒg
+    /// ç›®æ¨™ä½ç½®ã‚»ãƒƒãƒˆ
     /// </summary>
     /// <param name="x"></param>
     /// <param name="y"></param>
@@ -86,7 +86,7 @@ public class MPX_R3S : MPX_RX
     }
 
     /// <summary>
-    /// ƒ‚ƒfƒ‹Ä\’z
+    /// ãƒ¢ãƒ‡ãƒ«å†æ§‹ç¯‰
     /// </summary>
     /// <param name="instance"></param>
     protected override void ModelRestructProcess()
@@ -115,28 +115,28 @@ public class MPX_R3S : MPX_RX
         var arm45Name = "W0282604-";
         var plateName = isFin ? "W0282631-" : "";
 
-        // ƒA[ƒ€1 W0250623-
+        // ã‚¢ãƒ¼ãƒ 1 W0250623-
         var arm1Tmp = children.Find(d => d.name.Contains(arm1Name));
         if (arm1Tmp != null)
         {
             arm1 = arm1Tmp.parent.gameObject;
         }
 
-        // ƒA[ƒ€2-1 W0250562-
+        // ã‚¢ãƒ¼ãƒ 2-1 W0250562-
         var arm2_1Tmp = children.Find(d => d.name.Contains(arm2_1Name));
         if (arm2_1Tmp != null)
         {
             arm2_1 = arm2_1Tmp.parent.gameObject;
         }
 
-        // ƒA[ƒ€2-2 W0250599-
+        // ã‚¢ãƒ¼ãƒ 2-2 W0250599-
         var arm2_2Tmp = children.Find(d => d.name.Contains(arm2_2Name));
         if (arm2_2Tmp != null)
         {
             arm2_2 = arm2_2Tmp.parent.gameObject;
         }
 
-        // ©ŒÈ•Û—pƒtƒBƒ“ W0459419-, W0282640-
+        // è‡ªå·±ä¿æŒç”¨ãƒ•ã‚£ãƒ³ W0459419-, W0282640-
         var armFinTmp1 = children.Find(d => d.name.Contains(finName1));
         if (armFinTmp1 != null)
         {
@@ -149,8 +149,8 @@ public class MPX_R3S : MPX_RX
         }
         if (isFin)
         {
-            // ƒÆŒÅ’è
-            // ƒA[ƒ€4 W0263919-
+            // Î¸å›ºå®š
+            // ã‚¢ãƒ¼ãƒ 4 W0263919-
             var arm45Tmp = children.FindAll(d => d.name.Contains(arm45Name));
             if (arm45Tmp.Count == 4)
             {
@@ -160,14 +160,14 @@ public class MPX_R3S : MPX_RX
                 arm5_2 = arm45Tmp[3].parent.gameObject;
             }
         }
-        // ƒA[ƒ€3 W0250614-
+        // ã‚¢ãƒ¼ãƒ 3 W0250614-
         var arm3Tmp = children.Find(d => d.name.Contains(arm3Name));
         if (arm3Tmp != null)
         {
             arm3 = arm3Tmp.parent.gameObject;
         }
 
-        // ƒvƒŒ[ƒg W0250632- W0668220- W0655776-
+        // ãƒ—ãƒ¬ãƒ¼ãƒˆ W0250632- W0668220- W0655776-
         var plateTmp = children.Find(d => d.name.Contains(plateName));
         if (plateTmp == null)
         {
@@ -184,19 +184,19 @@ public class MPX_R3S : MPX_RX
             plate.transform.parent = arm3.transform;
             angP = plate.transform.localEulerAngles;
             isPlateRvs = Mathf.Abs(plate.transform.localEulerAngles.y) > 90;
-            // ƒwƒbƒhƒZƒbƒg
+            // ãƒ˜ãƒƒãƒ‰ã‚»ãƒƒãƒˆ
             if (HeadObject != null)
             {
                 HeadObject.transform.parent = plate.transform;
             }
         }
-        // eqŠÖŒW\’z
+        // è¦ªå­é–¢ä¿‚æ§‹ç¯‰
         arm1.transform.parent = mpx.transform;
         arm2_1.transform.parent = mpx.transform;
         arm2_2.transform.parent = arm1.transform;
         arm3.transform.parent = arm2_1.transform;
 
-        // ‰ŠúŠp“xƒZƒbƒg
+        // åˆæœŸè§’åº¦ã‚»ãƒƒãƒˆ
         ang1 = arm1.transform.localEulerAngles;
         ang2_1 = arm2_1.transform.localEulerAngles;
         ang2_2 = arm2_2.transform.localEulerAngles;

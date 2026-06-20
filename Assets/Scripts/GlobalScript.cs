@@ -1,4 +1,4 @@
-using MQTTnet.Server;
+ï»¿using MQTTnet.Server;
 using Parameters;
 using StackExchange.Redis;
 using System;
@@ -28,7 +28,7 @@ using MongoDB.Driver.Linq;
 public static class GlobalScript
 {
     /// <summary>
-    /// ‹@\ˆÊ’u
+    /// æ©Ÿæ§‹ä½ç½®
     /// </summary>
     public class MechPos
     {
@@ -38,7 +38,7 @@ public static class GlobalScript
     }
 
     /// <summary>
-    /// ‹@\î•ñ
+    /// æ©Ÿæ§‹æƒ…å ±
     /// </summary>
     public class MechInfo
     {
@@ -48,16 +48,16 @@ public static class GlobalScript
     }
 
     /// <summary>
-    /// •ÏX’†ƒ}ƒeƒŠƒAƒ‹
+    /// å¤‰æ›´ä¸­ãƒãƒ†ãƒªã‚¢ãƒ«
     /// </summary>
     public class ChangeMaterial
     {
         /// <summary>
-        /// •ÏX’†
+        /// å¤‰æ›´ä¸­
         /// </summary>
         public bool isChange;
         /// <summary>
-        /// Œ³‚Ìƒ}ƒeƒŠƒAƒ‹
+        /// å…ƒã®ãƒãƒ†ãƒªã‚¢ãƒ«
         /// </summary>
         public Material material;
     }
@@ -66,11 +66,11 @@ public static class GlobalScript
     public class CbTagInfo : TagInfo
     {
         /// <summary>
-        /// ƒXƒgƒbƒvƒEƒHƒbƒ`
+        /// ã‚¹ãƒˆãƒƒãƒ—ã‚¦ã‚©ãƒƒãƒ
         /// </summary>
         public System.Diagnostics.Stopwatch stopwatch = new();
         /// <summary>
-        /// ŠÔ
+        /// æ™‚é–“
         /// </summary>
         public List<long> laps;
         public void SetLaps(long laps)
@@ -88,35 +88,35 @@ public static class GlobalScript
     }
 
     /// <summary>
-    /// ƒR[ƒ‹ƒoƒbƒNƒ^ƒOƒf[ƒ^
+    /// ã‚³ãƒ¼ãƒ«ãƒãƒƒã‚¯ã‚¿ã‚°ãƒ‡ãƒ¼ã‚¿
     /// </summary>
     public class CallbackTag
     {
         public string database { get; set; }
         /// <summary>
-        /// Ü‚è•Ô‚µ—p“ü—Í
+        /// æŠ˜ã‚Šè¿”ã—ç”¨å…¥åŠ›
         /// </summary>
         public CbTagInfo input;
         /// <summary>
-        /// Ü‚è•Ô‚µ—po—Í
+        /// æŠ˜ã‚Šè¿”ã—ç”¨å‡ºåŠ›
         /// </summary>
         public CbTagInfo output;
         /// <summary>
-        /// ƒJƒEƒ“ƒ^—p“ü—Í
+        /// ã‚«ã‚¦ãƒ³ã‚¿ç”¨å…¥åŠ›
         /// </summary>
         public CbTagInfo cntIn;
         /// <summary>
-        /// ƒJƒEƒ“ƒ^—po—Í
+        /// ã‚«ã‚¦ãƒ³ã‚¿ç”¨å‡ºåŠ›
         /// </summary>
         public CbTagInfo cntOut;
         /// <summary>
-        /// ƒTƒCƒNƒ‹ƒ^ƒO
+        /// ã‚µã‚¤ã‚¯ãƒ«ã‚¿ã‚°
         /// </summary>
         public TagInfo cycle;
     }
     
     /// <summary>
-    /// ’f–Ê•\¦î•ñ
+    /// æ–­é¢è¡¨ç¤ºæƒ…å ±
     /// </summary>
     public class ClipInfo
     {
@@ -129,46 +129,46 @@ public static class GlobalScript
         }
 
         /// <summary>
-        /// ’f–Ê•\¦‹@”\
+        /// æ–­é¢è¡¨ç¤ºæ©Ÿèƒ½
         /// </summary>
         public bool isOn;
         /// <summary>
-        /// •`‰æƒGƒŠƒA
+        /// æç”»ã‚¨ãƒªã‚¢
         /// </summary>
         public Bounds bounds;
         /// <summary>
-        /// ƒ‚[ƒh 0:‚È‚µ 1:X, 2:Y, 3:Z
+        /// ãƒ¢ãƒ¼ãƒ‰ 0:ãªã— 1:X, 2:Y, 3:Z
         /// </summary>
         public SlideMode mode;
         /// <summary>
-        /// ”½“]
+        /// åè»¢
         /// </summary>
         public bool isRvs;
         /// <summary>
-        /// X’l
+        /// Xå€¤
         /// </summary>
         public float x;
         /// <summary>
-        /// Y’l
+        /// Yå€¤
         /// </summary>
         public float y;
         /// <summary>
-        /// Z’l
+        /// Zå€¤
         /// </summary>
         public float z;
         /// <summary>
-        /// ’l
+        /// å€¤
         /// </summary>
         public float value;
     }
 
     /// <summary>
-    /// MICKS“à‹@\‚ÌˆÊ’uî•ñ
+    /// MICKSå†…æ©Ÿæ§‹ã®ä½ç½®æƒ…å ±
     /// </summary>
     public static Dictionary<string, List<MechInfo>> micksMechs = new Dictionary<string, List<MechInfo>>();
 
     /// <summary>
-    /// ƒ^ƒOƒf[ƒ^
+    /// ã‚¿ã‚°ãƒ‡ãƒ¼ã‚¿
     /// </summary>
     public static Dictionary<string, Dictionary<string, Dictionary<string, TagInfo>>> tagDatas = new Dictionary<string, Dictionary<string, Dictionary<string, TagInfo>>>();
 
@@ -198,86 +198,86 @@ public static class GlobalScript
     public static Dictionary<string, ComRedis> redises = new Dictionary<string, ComRedis>();
 
     /// <summary>
-    /// “à•”’ÊM
+    /// å†…éƒ¨é€šä¿¡
     /// </summary>
     public static Dictionary<string, ComInner> inners = new Dictionary<string, ComInner>();
 
     /// <summary>
-    /// MCƒvƒƒgƒRƒ‹
+    /// MCãƒ—ãƒ­ãƒˆã‚³ãƒ«
     /// </summary>
     public static Dictionary<string, ComMcProtocol> mcprotocols = new Dictionary<string, ComMcProtocol>();
 
     /// <summary>
-    /// MICKS’ÊM
+    /// MICKSé€šä¿¡
     /// </summary>
     public static Dictionary<string, ComMicks> mickses = new Dictionary<string, ComMicks>();
 
     /// <summary>
-    /// OPC UA’ÊM
+    /// OPC UAé€šä¿¡
     /// </summary>
     public static Dictionary<string, ComOpcUa> opcuas = new Dictionary<string, ComOpcUa>();
 
     /// <summary>
-    /// ƒ[ƒN
+    /// ãƒ¯ãƒ¼ã‚¯
     /// </summary>
     public static Dictionary<string, GameObject> works = new Dictionary<string, GameObject>();
 
     /// <summary>
-    /// ‹@\“o˜^î•ñ
+    /// æ©Ÿæ§‹ç™»éŒ²æƒ…å ±
     /// </summary>
     public static Dictionary<string, List<GameObject>> regObjects = new Dictionary<string, List<GameObject>>();
 
     /// <summary>
-    /// ƒXƒNƒŠƒvƒg“o˜^î•ñ
+    /// ã‚¹ã‚¯ãƒªãƒ—ãƒˆç™»éŒ²æƒ…å ±
     /// </summary>
     public static Dictionary<string, List<GameObject>> regScripts = new Dictionary<string, List<GameObject>>();
 
     /// <summary>
-    /// ƒƒbƒN—pƒIƒuƒWƒFƒNƒg
+    /// ãƒ­ãƒƒã‚¯ç”¨ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆ
     /// </summary>
     public static object objLock = new object();
 
     /// <summary>
-    /// ƒrƒ‹ƒhİ’è
+    /// ãƒ“ãƒ«ãƒ‰è¨­å®š
     /// </summary>
     public static BuildConfig buildConfig = new();
 
     /// <summary>
-    /// ƒ[ƒh’†ƒtƒ‰ƒO
+    /// ãƒ­ãƒ¼ãƒ‰ä¸­ãƒ•ãƒ©ã‚°
     /// </summary>
     public static bool isLoading = false;
 
     /// <summary>
-    /// ƒ[ƒhŠ®—¹
+    /// ãƒ­ãƒ¼ãƒ‰å®Œäº†
     /// </summary>
     public static bool isLoaded = false;
 
     /// <summary>
-    /// ƒCƒxƒ“ƒgƒ[ƒh—v‹
+    /// ã‚¤ãƒ™ãƒ³ãƒˆãƒ­ãƒ¼ãƒ‰è¦æ±‚
     /// </summary>
     public static bool isReqLoadEvent = false;
 
     /// <summary>
-    /// Õ“Ë•\¦ƒ‚[ƒh
+    /// è¡çªè¡¨ç¤ºãƒ¢ãƒ¼ãƒ‰
     /// </summary>
     public static bool isCollision = false;
 
     /// <summary>
-    /// ƒ‰ƒCƒ“•\¦
+    /// ãƒ©ã‚¤ãƒ³è¡¨ç¤º
     /// </summary>
     public static bool isLiens = true;
 
     /// <summary>
-    /// ƒVƒXƒeƒ€ƒŒƒR[ƒ_•\¦’†
+    /// ã‚·ã‚¹ãƒ†ãƒ ãƒ¬ã‚³ãƒ¼ãƒ€è¡¨ç¤ºä¸­
     /// </summary>
     public static bool isSystemRecorder = false;
 
     /// <summary>
-    /// ƒVƒXƒeƒ€ƒŒƒR[ƒ_ŠÔ
+    /// ã‚·ã‚¹ãƒ†ãƒ ãƒ¬ã‚³ãƒ¼ãƒ€æ™‚é–“
     /// </summary>
     public static long sysRecMilliseconds = 0;
     /// <summary>
-    /// XR•\¦ƒ‚[ƒh
+    /// XRè¡¨ç¤ºãƒ¢ãƒ¼ãƒ‰
     /// </summary>
     public static bool isXRMode
     {
@@ -286,7 +286,7 @@ public static class GlobalScript
     }
 
     /// <summary>
-    /// VR—pƒvƒŒƒnƒuƒ‚[ƒh
+    /// VRç”¨ãƒ—ãƒ¬ãƒãƒ–ãƒ¢ãƒ¼ãƒ‰
     /// </summary>
     public static bool isXRPrefab
     {
@@ -295,72 +295,72 @@ public static class GlobalScript
     }
 
     /// <summary>
-    /// ’f–Ê•\¦î•ñ
+    /// æ–­é¢è¡¨ç¤ºæƒ…å ±
     /// </summary>
     public static ClipInfo clipInfo = new();
 
     /// <summary>
-    /// ƒfƒoƒbƒOo—Í—pƒ‚[ƒh
+    /// ãƒ‡ãƒãƒƒã‚°å‡ºåŠ›ç”¨ãƒ¢ãƒ¼ãƒ‰
     /// </summary>
     public static bool isDebug = false;
 
     /// <summary>
-    /// ƒR[ƒ‹ƒoƒbƒN—pƒ^ƒOƒf[ƒ^
+    /// ã‚³ãƒ¼ãƒ«ãƒãƒƒã‚¯ç”¨ã‚¿ã‚°ãƒ‡ãƒ¼ã‚¿
     /// </summary>
     public static List<CallbackTag> callbackTags { get; set; } = new List<CallbackTag>();
 
     /// <summary>
-    /// “®ìƒe[ƒuƒ‹î•ñ
+    /// å‹•ä½œãƒ†ãƒ¼ãƒ–ãƒ«æƒ…å ±
     /// </summary>
     public static List<ActionTableData> actionTableDatas { get; set; } = new List<ActionTableData>();
 
     /// <summary>
-    /// g—pƒfƒoƒCƒXƒŠƒXƒg
+    /// ä½¿ç”¨ãƒ‡ãƒã‚¤ã‚¹ãƒªã‚¹ãƒˆ
     /// </summary>
     public static List<UseDeviceData> useDeviceDatas { get; set; } = new List<UseDeviceData>();
 
     /// <summary>
-    /// ƒ^ƒCƒ€ƒ`ƒƒ[ƒ`ƒf[ƒ^ƒŠƒXƒg
+    /// ã‚¿ã‚¤ãƒ ãƒãƒ£ãƒ¼ãƒãƒ‡ãƒ¼ã‚¿ãƒªã‚¹ãƒˆ
     /// </summary>
     public static List<TimeChartData> timeChartDatas { get; set; } = new List<TimeChartData>();
 
     /// <summary>
-    /// ƒ^ƒCƒ€ƒ`ƒƒ[ƒg‘€ì’†
+    /// ã‚¿ã‚¤ãƒ ãƒãƒ£ãƒ¼ãƒˆæ“ä½œä¸­
     /// </summary>
     public static bool IsInTimeChart;
 
     /// <summary>
-    /// Õ“ËƒƒbƒN—p
+    /// è¡çªæ™‚ãƒ­ãƒƒã‚¯ç”¨
     /// </summary>
     public static object objColLock = new object();
 
     /// <summary>
-    /// Õ“ËƒIƒuƒWƒFƒNƒg
+    /// è¡çªã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆ
     /// </summary>
     public static Dictionary<MeshRenderer, ChangeMaterial> dctMaterial = new Dictionary<MeshRenderer, ChangeMaterial>();
 
     /// <summary>
-    /// ƒ[ƒNID
+    /// ãƒ¯ãƒ¼ã‚¯ID
     /// </summary>
     public static int _workId = 0;
 
     /// <summary>
-    /// ‘I‘ğƒIƒuƒWƒFƒNƒg
+    /// é¸æŠã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆ
     /// </summary>
     public static GameObject selectedObject;
 
     /// <summary>
-    /// ¶ƒIƒuƒWƒFƒNƒg
+    /// å·¦ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆ
     /// </summary>
     public static GameObject rayLObject;
 
     /// <summary>
-    /// ‰EƒIƒuƒWƒFƒNƒg
+    /// å³ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆ
     /// </summary>
     public static GameObject rayRObject;
 
     /// <summary>
-    /// ƒ[ƒNID
+    /// ãƒ¯ãƒ¼ã‚¯ID
     /// </summary>
     public static int workId
     {
@@ -372,22 +372,22 @@ public static class GlobalScript
 
     /*
     /// <summary>
-    /// ƒfƒoƒbƒOo—Í—pƒJƒEƒ“ƒ^
+    /// ãƒ‡ãƒãƒƒã‚°å‡ºåŠ›ç”¨ã‚«ã‚¦ãƒ³ã‚¿
     /// </summary>
     private static int debugCount = 0;
 
     /// <summary>
-    /// ƒfƒoƒbƒOo—Í—pƒJƒEƒ“ƒ^Å‘å’l
+    /// ãƒ‡ãƒãƒƒã‚°å‡ºåŠ›ç”¨ã‚«ã‚¦ãƒ³ã‚¿æœ€å¤§å€¤
     /// </summary>
     private static int debugCountMax = 10;
     */
 
     /// <summary>
-    /// “à•”ŠÔ
+    /// å†…éƒ¨æ™‚é–“
     /// </summary>
     public static long innerCycle = 0;
 
-    // static•Ï”‚ğ‰Šú‰»‚·‚éˆ—  
+    // staticå¤‰æ•°ã‚’åˆæœŸåŒ–ã™ã‚‹å‡¦ç†  
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
     private static void Clear()
     {
@@ -408,7 +408,7 @@ public static class GlobalScript
     }
 
     /// <summary>
-    /// «‘‚ğ‚·‚×‚Äíœ
+    /// è¾æ›¸ã‚’ã™ã¹ã¦å‰Šé™¤
     /// </summary>
     public static void ClearDictionary()
     {
@@ -430,7 +430,7 @@ public static class GlobalScript
     }
 
     /// <summary>
-    /// API‰“š‚ğ32ƒrƒbƒgƒf[ƒ^‚É•ÏŠ·
+    /// APIå¿œç­”ã‚’32ãƒ“ãƒƒãƒˆãƒ‡ãƒ¼ã‚¿ã«å¤‰æ›
     /// </summary>
     /// <param name="response"></param>
     /// <returns></returns>
@@ -448,7 +448,7 @@ public static class GlobalScript
     }
 
     /// <summary>
-    /// Œ»İÀ•Wæ“¾
+    /// ç¾åœ¨åº§æ¨™å–å¾—
     /// </summary>
     /// <param name="no"></param>
     /// <returns></returns>
@@ -468,7 +468,7 @@ public static class GlobalScript
     }
 
     /// <summary>
-    /// ƒ^ƒOî•ñæ“¾
+    /// ã‚¿ã‚°æƒ…å ±å–å¾—
     /// </summary>
     /// <param name="database"></param>
     /// <param name="mechid"></param>
@@ -490,7 +490,7 @@ public static class GlobalScript
     }
 
     /// <summary>
-    /// ƒfƒoƒCƒX–¼‚©‚çƒ^ƒOî•ñ‚ğæ“¾
+    /// ãƒ‡ãƒã‚¤ã‚¹åã‹ã‚‰ã‚¿ã‚°æƒ…å ±ã‚’å–å¾—
     /// </summary>
     /// <param name="database"></param>
     /// <param name="mechid"></param>
@@ -512,7 +512,7 @@ public static class GlobalScript
     }
 
     /// <summary>
-    /// ƒ^ƒOî•ñæ“¾
+    /// ã‚¿ã‚°æƒ…å ±å–å¾—
     /// </summary>
     /// <param name="tag"></param>
     /// <returns></returns>
@@ -526,7 +526,7 @@ public static class GlobalScript
     }
 
     /// <summary>
-    /// ƒ^ƒOî•ñæ“¾
+    /// ã‚¿ã‚°æƒ…å ±å–å¾—
     /// </summary>
     /// <param name="name"></param>
     /// <param name="tag"></param>
@@ -544,7 +544,7 @@ public static class GlobalScript
     }
 
     /// <summary>
-    /// ƒ^ƒOî•ñæ“¾
+    /// ã‚¿ã‚°æƒ…å ±å–å¾—
     /// </summary>
     /// <param name="name"></param>
     /// <param name="tag"></param>
@@ -562,7 +562,7 @@ public static class GlobalScript
     }
 
     /// <summary>
-    /// ƒ^ƒO‚É’l‚ğƒZƒbƒg
+    /// ã‚¿ã‚°ã«å€¤ã‚’ã‚»ãƒƒãƒˆ
     /// </summary>
     /// <param name="tag"></param>
     /// <param name="value"></param>
@@ -576,7 +576,7 @@ public static class GlobalScript
     }
 
     /// <summary>
-    /// ƒ^ƒO‚É’l‚ğƒZƒbƒg
+    /// ã‚¿ã‚°ã«å€¤ã‚’ã‚»ãƒƒãƒˆ
     /// </summary>
     /// <param name="tag"></param>
     /// <param name="value"></param>
@@ -632,7 +632,7 @@ public static class GlobalScript
     }
 
     /// <summary>
-    /// ƒ^ƒO‚ğg—p‚µ‚Ä‚¢‚éƒIƒuƒWƒFƒNƒgæ“¾
+    /// ã‚¿ã‚°ã‚’ä½¿ç”¨ã—ã¦ã„ã‚‹ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆå–å¾—
     /// </summary>
     /// <param name="tag"></param>
     /// <returns></returns>
@@ -657,7 +657,7 @@ public static class GlobalScript
     }
 
     /// <summary>
-    /// DBî•ñXV
+    /// DBæƒ…å ±æ›´æ–°
     /// </summary>
     /// <param name="dbs"></param>
     public static void RenewDatabase(List<ComPostgres> dbs)
@@ -685,7 +685,7 @@ public static class GlobalScript
     }
 
     /// <summary>
-    /// DBî•ñXV
+    /// DBæƒ…å ±æ›´æ–°
     /// </summary>
     /// <param name="dbs"></param>
     public static void RenewDatabase(List<ComMongo> dbs)
@@ -713,7 +713,7 @@ public static class GlobalScript
     }
 
     /// <summary>
-    /// DBî•ñXV
+    /// DBæƒ…å ±æ›´æ–°
     /// </summary>
     /// <param name="dbs"></param>
     public static void RenewDatabase(List<ComOpcUaApi> dbs)
@@ -741,7 +741,7 @@ public static class GlobalScript
     }
 
     /// <summary>
-    /// JSON‚ğ“Ç‚İ‚İ
+    /// JSONã‚’èª­ã¿è¾¼ã¿
     /// </summary>
     /// <typeparam name="T"></typeparam>
     /// <param name="name"></param>
@@ -759,7 +759,7 @@ public static class GlobalScript
     }
 
     /// <summary>
-    /// JSON‚ğ“Ç‚İ‚İ
+    /// JSONã‚’èª­ã¿è¾¼ã¿
     /// </summary>
     /// <typeparam name="T"></typeparam>
     /// <param name="name"></param>
@@ -771,7 +771,7 @@ public static class GlobalScript
     }
 
     /// <summary>
-    /// JSON‚ğ“Ç‚İ‚Ş
+    /// JSONã‚’èª­ã¿è¾¼ã‚€
     /// </summary>
     /// <param name="fileName"></param>
     /// <returns></returns>
@@ -808,7 +808,7 @@ public static class GlobalScript
     }
 
     /// <summary>
-    /// ƒCƒ“ƒXƒ^ƒ“ƒXID‚©‚çƒIƒuƒWƒFƒNƒg‚ğæ“¾‚·‚é
+    /// ã‚¤ãƒ³ã‚¹ã‚¿ãƒ³ã‚¹IDã‹ã‚‰ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆã‚’å–å¾—ã™ã‚‹
     /// </summary>
     /// <param name="instanceId"></param>
     /// <returns></returns>
@@ -829,7 +829,7 @@ public static class GlobalScript
     }
 
     /// <summary>
-    /// ƒpƒX•¶š—ñ‚ğæ“¾‚·‚é
+    /// ãƒ‘ã‚¹æ–‡å­—åˆ—ã‚’å–å¾—ã™ã‚‹
     /// </summary>
     /// <param name="transform"></param>
     /// <returns></returns>
@@ -846,7 +846,7 @@ public static class GlobalScript
     }
 
     /// <summary>
-    /// ƒ‚ƒfƒ‹ì¬
+    /// ãƒ¢ãƒ‡ãƒ«ä½œæˆ
     /// </summary>
     /// <returns></returns>
     public static List<GameObject> CreateInitialModel()
@@ -855,7 +855,7 @@ public static class GlobalScript
     }
 
     /// <summary>
-    /// ƒXƒCƒbƒ`ƒ‚ƒfƒ‹¶¬
+    /// ã‚¹ã‚¤ãƒƒãƒãƒ¢ãƒ‡ãƒ«ç”Ÿæˆ
     /// </summary>
     /// <returns></returns>
     public static List<GameObject> LoadSwitchModel()
@@ -864,7 +864,7 @@ public static class GlobalScript
     }
 
     /// <summary>
-    /// ƒVƒOƒiƒ‹ƒ^ƒ[ƒ‚ƒfƒ‹¶¬
+    /// ã‚·ã‚°ãƒŠãƒ«ã‚¿ãƒ¯ãƒ¼ãƒ¢ãƒ‡ãƒ«ç”Ÿæˆ
     /// </summary>
     /// <returns></returns>
     public static List<GameObject> LoadSignalTowerModel()
@@ -873,7 +873,7 @@ public static class GlobalScript
     }
 
     /// <summary>
-    /// ƒvƒŒƒnƒu‚ğƒ[ƒh‚·‚é
+    /// ãƒ—ãƒ¬ãƒãƒ–ã‚’ãƒ­ãƒ¼ãƒ‰ã™ã‚‹
     /// </summary>
     /// <param name="path"></param>
     /// <param name="name"></param>
@@ -884,7 +884,7 @@ public static class GlobalScript
     }
 
     /// <summary>
-    /// ƒ[ƒNì¬
+    /// ãƒ¯ãƒ¼ã‚¯ä½œæˆ
     /// </summary>
     /// <param name="game"></param>
     /// <param name="name"></param>
@@ -919,7 +919,7 @@ public static class GlobalScript
     }
 
     /// <summary>
-    /// ƒZƒ“ƒT[ì¬
+    /// ã‚»ãƒ³ã‚µãƒ¼ä½œæˆ
     /// </summary>
     /// <param name="sensor"></param>
     /// <returns></returns>
@@ -948,7 +948,7 @@ public static class GlobalScript
     }
 
     /// <summary>
-    /// Õ“ËŒŸ’m—pƒRƒ‰ƒCƒ_[ì¬
+    /// è¡çªæ¤œçŸ¥ç”¨ã‚³ãƒ©ã‚¤ãƒ€ãƒ¼ä½œæˆ
     /// </summary>
     /// <returns></returns>
     public static bool CreateCollider(GameObject model)
@@ -971,7 +971,7 @@ public static class GlobalScript
             {
                 if ((col == null) || (col.sharedMesh == null) || (suctions.Find(d => col.transform.IsChildOf(d.transform)) != null))
                 {
-                    // ‹zˆø‚Í–³‹
+                    // å¸å¼•ã¯ç„¡è¦–
                     continue;
                 }
                 AddFakeThickness(col.sharedMesh);
@@ -990,7 +990,7 @@ public static class GlobalScript
                     }
                     catch (System.Exception ex)
                     {
-                        Debug.LogWarning($"Convexİ’è‚É¸”s: {col.name}, ——R: {ex.Message}");
+                        Debug.LogWarning($"Convexè¨­å®šã«å¤±æ•—: {col.name}, ç†ç”±: {ex.Message}");
                         col.convex = false;
                         col.isTrigger = false;
                     }
@@ -998,12 +998,12 @@ public static class GlobalScript
                 else
                 {
                     GameObject.Destroy(col);
-                    //                                Debug.Log($"convexƒXƒLƒbƒv: {col.name}, triangle: {triangleCount}, thickness: {thickness}");
+                    //                                Debug.Log($"convexã‚¹ã‚­ãƒƒãƒ—: {col.name}, triangle: {triangleCount}, thickness: {thickness}");
                 }
             }
             catch (System.Exception ex)
             {
-                Debug.LogWarning($"Convexİ’è‚É¸”s: {col.name}, ——R: {ex.Message}");
+                Debug.LogWarning($"Convexè¨­å®šã«å¤±æ•—: {col.name}, ç†ç”±: {ex.Message}");
                 col.convex = false;
                 col.isTrigger = false;
             }
@@ -1012,7 +1012,7 @@ public static class GlobalScript
     }
 
     /// <summary>
-    /// ƒƒbƒVƒ…‚ª3D‚©ƒ`ƒFƒbƒN
+    /// ãƒ¡ãƒƒã‚·ãƒ¥ãŒ3Dã‹ãƒã‚§ãƒƒã‚¯
     /// </summary>
     /// <param name="mesh"></param>
     /// <returns></returns>
@@ -1036,12 +1036,12 @@ public static class GlobalScript
 
         message = (thicknessX * thicknessX * 1000000 + thicknessY * thicknessY * 1000000 + thicknessZ * thicknessZ * 1000000).ToString();
 
-        // Å¬‚Å‚à3•ûŒü‚É‚ ‚é’ö“x‚ÌL‚ª‚è‚ª‚È‚¢‚Æ“Ê•ï‚Í¸”s‚·‚é‰Â”\«
+        // æœ€å°ã§ã‚‚3æ–¹å‘ã«ã‚ã‚‹ç¨‹åº¦ã®åºƒãŒã‚ŠãŒãªã„ã¨å‡¸åŒ…ã¯å¤±æ•—ã™ã‚‹å¯èƒ½æ€§
         return (thicknessX > 1e-4f && thicknessY > 1e-4f && thicknessZ > 1e-4f);
     }
 
     /// <summary>
-    /// Œú‚İ‚ğ‰Á‚¦‚é
+    /// åšã¿ã‚’åŠ ãˆã‚‹
     /// </summary>
     /// <param name="offset"></param>
     /// <param name="mesh"></param>
@@ -1050,7 +1050,7 @@ public static class GlobalScript
         Vector3[] verts = mesh.vertices;
         for (int i = 0; i < verts.Length; i++)
         {
-            verts[i].z += UnityEngine.Random.Range(-offset, offset); // Z•ûŒü‚ÉŒú‚İ
+            verts[i].z += UnityEngine.Random.Range(-offset, offset); // Zæ–¹å‘ã«åšã¿
         }
         mesh.vertices = verts;
         mesh.RecalculateBounds();

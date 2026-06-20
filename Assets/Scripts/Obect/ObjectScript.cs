@@ -1,4 +1,4 @@
-using System.Collections;
+ï»¿using System.Collections;
 using System.Collections.Generic;
 using Unity.Mathematics;
 using Unity.VisualScripting;
@@ -12,42 +12,42 @@ public class ObjectScript : BaseBehaviour
     private Rigidbody rigi;
 
     /// <summary>
-    /// ¶‘¶‰Â”\‚È‹——£
+    /// ç”Ÿå­˜å¯èƒ½ãªè·é›¢
     /// </summary>
     public float AliveDistance;
     // Start is called before the first frame update
 
     /// <summary>
-    /// ’Í‚ß‚é
+    /// æ´ã‚ã‚‹
     /// </summary>
     public bool IsGrabbable;
 
     /// <summary>
-    /// d—Íg—p
+    /// é‡åŠ›ä½¿ç”¨
     /// </summary>
     public bool IsGravity;
 
     /// <summary>
-    /// ÚG‰Â”\
+    /// æ¥è§¦å¯èƒ½
     /// </summary>
     public bool IsTouch;
 
     /// <summary>
-    /// ƒIƒuƒWƒFƒNƒgID
+    /// ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆID
     /// </summary>
     public int id;
 
     /// <summary>
-    /// ‰ñ“]ŒÅ’è
+    /// å›è»¢å›ºå®š
     /// </summary>
     public Vector3 fixedAngles;
 
     /// <summary>
-    /// ŠJnˆ—
+    /// é–‹å§‹å‡¦ç†
     /// </summary>
     protected override void Start()
     {
-        // ƒ[ƒNIDæ“¾
+        // ãƒ¯ãƒ¼ã‚¯IDå–å¾—
         id = GlobalScript.workId;
 
         var collider = GetComponentInChildren<Collider>();
@@ -69,7 +69,7 @@ public class ObjectScript : BaseBehaviour
     }
 
     /// <summary>
-    /// XVˆ—
+    /// æ›´æ–°å‡¦ç†
     /// </summary>
     protected override void MyFixedUpdate()
     {
@@ -86,7 +86,7 @@ public class ObjectScript : BaseBehaviour
     }
 
     /// <summary>
-    /// Õ“Ë”­¶
+    /// è¡çªç™ºç”Ÿ
     /// </summary>
     /// <param name="other"></param>
     protected override void OnCollisionEnter(Collision other)

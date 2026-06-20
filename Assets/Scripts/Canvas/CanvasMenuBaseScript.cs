@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+ï»¿using System.Collections.Generic;
 using System.Linq;
 using TMPro;
 using UnityEngine;
@@ -9,67 +9,67 @@ using UnityEngine.UI;
 public class CanvasMenuBaseScript : KssBaseScript, IDragHandler
 {
     /// <summary>
-    /// ‰E
+    /// å³
     /// </summary>
     protected bool isRight;
     /// <summary>
-    /// ƒNƒŠƒbƒNŒŸ’m—p
+    /// ã‚¯ãƒªãƒƒã‚¯æ¤œçŸ¥ç”¨
     /// </summary>
     protected GraphicRaycaster raycaster;
     /// <summary>
-    /// ƒ|ƒCƒ“ƒ^ƒCƒxƒ“ƒgƒf[ƒ^
+    /// ãƒã‚¤ãƒ³ã‚¿ã‚¤ãƒ™ãƒ³ãƒˆãƒ‡ãƒ¼ã‚¿
     /// </summary>
     private PointerEventData pointerEventData;
     /// <summary>
-    /// ƒCƒxƒ“ƒgƒVƒXƒeƒ€
+    /// ã‚¤ãƒ™ãƒ³ãƒˆã‚·ã‚¹ãƒ†ãƒ 
     /// </summary>
     private EventSystem eventSystem;
     /// <summary>
-    /// ƒLƒƒƒ“ƒoƒX
+    /// ã‚­ãƒ£ãƒ³ãƒã‚¹
     /// </summary>
     private Canvas canvas;
     /// <summary>
-    /// ‰Šú•\¦ƒGƒŠƒA
+    /// åˆæœŸè¡¨ç¤ºã‚¨ãƒªã‚¢
     /// </summary>
     private Rect initRect;
     /// <summary>
-    /// —LŒø–³ŒøØ‚è‘Ö‚¦ƒ{ƒ^ƒ“
+    /// æœ‰åŠ¹ç„¡åŠ¹åˆ‡ã‚Šæ›¿ãˆãƒœã‚¿ãƒ³
     /// </summary>
     private Button btnEnable;
     /// <summary>
-    /// ƒRƒ“ƒeƒ“ƒc
+    /// ã‚³ãƒ³ãƒ†ãƒ³ãƒ„
     /// </summary>
     private List<Transform> objContents = new();
     /// <summary>
-    /// ŠJ‚­‰æ‘œ
+    /// é–‹ãç”»åƒ
     /// </summary>
     Sprite imgExpand;
     /// <summary>
-    /// •Â‚¶‚é‰æ‘œ
+    /// é–‰ã˜ã‚‹ç”»åƒ
     /// </summary>
     Sprite imgShrink;
     /// <summary>
-    /// ’Êí‚Ì•
+    /// é€šå¸¸ã®å¹…
     /// </summary>
     private float normalWidth;
     /// <summary>
-    /// Å¬‚Ì•
+    /// æœ€å°ã®å¹…
     /// </summary>
     private float minWidth;
     /// <summary>
-    /// •
+    /// å¹…
     /// </summary>
     private int lastWidth;
     /// <summary>
-    /// ‚‚³
+    /// é«˜ã•
     /// </summary>
     protected int lastHeight;
     /// <summary>
-    /// ƒ_ƒuƒ‹ƒNƒŠƒbƒN—p
+    /// ãƒ€ãƒ–ãƒ«ã‚¯ãƒªãƒƒã‚¯ç”¨
     /// </summary>
     private float lastClickTime = 0f;
     /// <summary>
-    /// ŠJnˆ—
+    /// é–‹å§‹å‡¦ç†
     /// </summary>
     protected override void Awake()
     {
@@ -80,24 +80,24 @@ public class CanvasMenuBaseScript : KssBaseScript, IDragHandler
         btnEnable = GetComponentsInChildren<Button>().ToList().Find(d => d.name.Contains("Expand"));
         var title = btnEnable.gameObject.GetComponentInChildren<TextMeshProUGUI>().gameObject;
 
-        // ‰æ‘œæ“¾
+        // ç”»åƒå–å¾—
         Sprite[] sprites = Resources.LoadAll<Sprite>("Icons/sprits");
         imgExpand = sprites.FirstOrDefault(d => d.name == "icon_full-screen_24_Filled");
         imgShrink = sprites.FirstOrDefault(d => d.name == "icon_full-screen-exit_24_Filled");
         btnEnable.image.sprite = imgShrink;
 
-        // ‰ŠúˆÊ’uƒZƒbƒg
+        // åˆæœŸä½ç½®ã‚»ãƒƒãƒˆ
         isRight = ((RectTransform)transform).anchorMax.x != 0;
         ((RectTransform)transform).anchoredPosition = new Vector2(0, 0);
 
-        // ‰Šú’lƒZƒbƒg
+        // åˆæœŸå€¤ã‚»ãƒƒãƒˆ
         lastWidth = (int)canvas.pixelRect.width;
         lastHeight = (int)canvas.pixelRect.height;
         minWidth = ((RectTransform)title.transform).sizeDelta.x + 40;
     }
 
     /// <summary>
-    /// XV
+    /// æ›´æ–°
     /// </summary>
     protected override void Update()
     {
@@ -117,7 +117,7 @@ public class CanvasMenuBaseScript : KssBaseScript, IDragHandler
     }
 
     /// <summary>
-    /// ƒCƒxƒ“ƒgƒZƒbƒg
+    /// ã‚¤ãƒ™ãƒ³ãƒˆã‚»ãƒƒãƒˆ
     /// </summary>
     public virtual void SetEvents()
     {
@@ -127,7 +127,7 @@ public class CanvasMenuBaseScript : KssBaseScript, IDragHandler
     }
 
     /// <summary>
-    /// ƒCƒxƒ“ƒgƒZƒbƒg
+    /// ã‚¤ãƒ™ãƒ³ãƒˆã‚»ãƒƒãƒˆ
     /// </summary>
     public virtual void ResetEvents()
     {
@@ -135,7 +135,7 @@ public class CanvasMenuBaseScript : KssBaseScript, IDragHandler
     }
 
     /// <summary>
-    /// •\¦/”ñ•\¦
+    /// è¡¨ç¤º/éè¡¨ç¤º
     /// </summary>
     private void expand_onClick()
     {
@@ -164,7 +164,7 @@ public class CanvasMenuBaseScript : KssBaseScript, IDragHandler
     }
 
     /// <summary>
-    /// ˆÚ“®
+    /// ç§»å‹•
     /// </summary>
     /// <param name="eventData"></param>
     public void OnDrag(PointerEventData eventData)
@@ -176,7 +176,7 @@ public class CanvasMenuBaseScript : KssBaseScript, IDragHandler
     }
 
     /// <summary>
-    /// ˆÊ’u‚ğXV
+    /// ä½ç½®ã‚’æ›´æ–°
     /// </summary>
     private void RenewPosition()
     {
@@ -185,7 +185,7 @@ public class CanvasMenuBaseScript : KssBaseScript, IDragHandler
     }
 
     /// <summary>
-    /// ˆÊ’u‚ğXV
+    /// ä½ç½®ã‚’æ›´æ–°
     /// </summary>
     private void RenewPosition(float x, float y)
     {
@@ -224,7 +224,7 @@ public class CanvasMenuBaseScript : KssBaseScript, IDragHandler
     }
 
     /// <summary>
-    /// ƒNƒŠƒbƒNƒCƒxƒ“ƒg
+    /// ã‚¯ãƒªãƒƒã‚¯ã‚¤ãƒ™ãƒ³ãƒˆ
     /// </summary>
     private void DetectClickedText(bool isRight, bool isDoubleClick)
     {
@@ -242,7 +242,7 @@ public class CanvasMenuBaseScript : KssBaseScript, IDragHandler
     }
 
     /// <summary>
-    /// ƒIƒuƒWƒFƒNƒgƒNƒŠƒbƒN
+    /// ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆã‚¯ãƒªãƒƒã‚¯
     /// </summary>
     /// <param name="name"></param>
     protected virtual void ClickObject(GameObject clickedObject, bool isRight, bool isDoubleClick)

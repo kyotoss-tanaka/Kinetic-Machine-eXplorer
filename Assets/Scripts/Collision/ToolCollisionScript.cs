@@ -1,11 +1,11 @@
-using Unity.VisualScripting;
+ï»¿using Unity.VisualScripting;
 using UnityEngine;
 
 public class ToolCollisionScript : MonoBehaviour
 {
     public OVRInput.Controller controller;
-    public float amplitude = 0.5f;   // U“®‹­“x (0`1)
-    public float duration = 0.2f;    // U“®ŠÔ
+    public float amplitude = 0.5f;   // æŒ¯å‹•å¼·åº¦ (0ï½1)
+    public float duration = 0.2f;    // æŒ¯å‹•æ™‚é–“
     public Collider colliderObject;
 
     // Start is called once before the first execution of Update after the MonoBehaviour is created
@@ -51,19 +51,19 @@ public class ToolCollisionScript : MonoBehaviour
     }
 
     /// <summary>
-    /// U“®ŠJn
+    /// æŒ¯å‹•é–‹å§‹
     /// </summary>
     private void TriggerHaptic()
     {
-        // U“®ŠJn
+        // æŒ¯å‹•é–‹å§‹
         OVRInput.SetControllerVibration(1f, amplitude, controller);
 
-        // duration Œã‚É’â~
+        // duration å¾Œã«åœæ­¢
         Invoke(nameof(StopHaptic), duration);
     }
 
     /// <summary>
-    /// U“®’â~
+    /// æŒ¯å‹•åœæ­¢
     /// </summary>
     private void StopHaptic()
     {

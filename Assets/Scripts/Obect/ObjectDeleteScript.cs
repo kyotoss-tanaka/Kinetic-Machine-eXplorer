@@ -1,4 +1,4 @@
-using Parameters;
+ï»¿using Parameters;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
@@ -19,22 +19,22 @@ public class ObjectDeleteScript : KinematicsBase
     private int BacketNo = -1;
 
     /// <summary>
-    /// İ’è
+    /// è¨­å®š
     /// </summary>
     protected WorkDeleteSetting wkDeleteSetting;
 
     /// <summary>
-    /// ‘O‰ñ‚ÌƒNƒŠƒAƒtƒ‰ƒO
+    /// å‰å›ã®ã‚¯ãƒªã‚¢ãƒ•ãƒ©ã‚°
     /// </summary>
     private bool isClear = false;
 
     /// <summary>
-    /// ƒoƒPƒbƒgî•ñ
+    /// ãƒã‚±ãƒƒãƒˆæƒ…å ±
     /// </summary>
     private AxisMotionBase.BacketInfo backetInfo;
 
     /// <summary>
-    /// ƒoƒPƒbƒg‚©
+    /// ãƒã‚±ãƒƒãƒˆã‹
     /// </summary>
 
     private bool isBacket
@@ -46,7 +46,7 @@ public class ObjectDeleteScript : KinematicsBase
     }
 
     /// <summary>
-    /// XVˆ—
+    /// æ›´æ–°å‡¦ç†
     /// </summary>
     protected override void MyFixedUpdate()
     {
@@ -62,7 +62,7 @@ public class ObjectDeleteScript : KinematicsBase
                     return;
                 }
             }
-            // ƒNƒŠƒAƒtƒ‰ƒOON
+            // ã‚¯ãƒªã‚¢ãƒ•ãƒ©ã‚°ON
             float dis = Vector3.Distance(transform.localPosition, deletePos);
             if (dis < deleteDistance)
             {
@@ -77,7 +77,7 @@ public class ObjectDeleteScript : KinematicsBase
     }
 
     /// <summary>
-    /// ƒpƒ‰ƒ[ƒ^ƒZƒbƒg
+    /// ãƒ‘ãƒ©ãƒ¡ãƒ¼ã‚¿ã‚»ãƒƒãƒˆ
     /// </summary>
     /// <param name="unitSetting"></param>
     /// <param name="obj"></param>
@@ -101,7 +101,7 @@ public class ObjectDeleteScript : KinematicsBase
     }
 
     /// <summary>
-    /// ƒoƒPƒbƒgî•ñƒZƒbƒg
+    /// ãƒã‚±ãƒƒãƒˆæƒ…å ±ã‚»ãƒƒãƒˆ
     /// </summary>
     /// <param name="backetInfo"></param>
     public void SetBacketInfo(AxisMotionBase.BacketInfo backetInfo)

@@ -1,10 +1,10 @@
-using UnityEngine;
+ï»¿using UnityEngine;
 
 [RequireComponent(typeof(CharacterController))]
 public class StickLocomotion: MonoBehaviour
 {
     public Transform cameraTransform;
-    public Transform playerRoot; // Snap Turn —p‚Éƒ‹[ƒg‚ğ‰ñ“]‚³‚¹‚é
+    public Transform playerRoot; // Snap Turn ç”¨ã«ãƒ«ãƒ¼ãƒˆã‚’å›è»¢ã•ã›ã‚‹
     public float moveSpeed = 2.0f;
     public float jumpForce = 5.0f;
     public float gravity = -9.81f;
@@ -20,12 +20,12 @@ public class StickLocomotion: MonoBehaviour
     void Start()
     {
         controller = GetComponent<CharacterController>();
-        lastSnapTime = -snapTurnCooldown; // ‹N“®‚©‚ç‚·‚®‰ñ“]‰Â”\
+        lastSnapTime = -snapTurnCooldown; // èµ·å‹•æ™‚ã‹ã‚‰ã™ãå›è»¢å¯èƒ½
     }
 
     void Update()
     {
-        // ===== ¶ƒXƒeƒBƒbƒN‚ÅˆÚ“® =====
+        // ===== å·¦ã‚¹ãƒ†ã‚£ãƒƒã‚¯ã§ç§»å‹• =====
         Vector2 input = OVRInput.Get(OVRInput.Axis2D.PrimaryThumbstick);
 
         Vector3 forward = cameraTransform.forward;
@@ -37,7 +37,7 @@ public class StickLocomotion: MonoBehaviour
 
         Vector3 move = (forward * input.y + right * input.x) * moveSpeed;
 
-        // ===== d—Í‚ÆƒWƒƒƒ“ƒv =====
+        // ===== é‡åŠ›ã¨ã‚¸ãƒ£ãƒ³ãƒ— =====
         if (controller.isGrounded)
         {
             verticalVelocity = -1f;
@@ -54,7 +54,7 @@ public class StickLocomotion: MonoBehaviour
         move.y = verticalVelocity;
         controller.Move(move * Time.deltaTime);
 
-        // ===== ‰EƒXƒeƒBƒbƒN‚Å Snap Turn =====
+        // ===== å³ã‚¹ãƒ†ã‚£ãƒƒã‚¯ã§ Snap Turn =====
         Vector2 rightStick = OVRInput.Get(OVRInput.Axis2D.SecondaryThumbstick);
 
         if (Time.time - lastSnapTime >= snapTurnCooldown)

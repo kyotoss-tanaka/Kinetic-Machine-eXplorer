@@ -1,4 +1,4 @@
-using NUnit;
+ï»¿using NUnit;
 using Parameters;
 using System;
 using System.Collections;
@@ -15,42 +15,42 @@ using UnityEngine.Networking;
 public class ComMicks : ComProtocolBase
 {
 
-    #region ƒNƒ‰ƒX
-    /// <summary>ƒRƒ}ƒ“ƒhƒtƒH[ƒ}ƒbƒg</summary>
+    #region ã‚¯ãƒ©ã‚¹
+    /// <summary>ã‚³ãƒãƒ³ãƒ‰ãƒ•ã‚©ãƒ¼ãƒãƒƒãƒˆ</summary>
     public class ClsComFormat
     {
-        /// <summary>ƒRƒ}ƒ“ƒhƒR[ƒh</summary>
+        /// <summary>ã‚³ãƒãƒ³ãƒ‰ã‚³ãƒ¼ãƒ‰</summary>
         public string strCmdCode;
         public int intCmdCode;
-        /// <summary>ƒTƒuƒRƒ}ƒ“ƒh</summary
+        /// <summary>ã‚µãƒ–ã‚³ãƒãƒ³ãƒ‰</summary
         public string strSubCmd;
         public byte bytSubCmd;
-        /// <summary>ƒRƒ}ƒ“ƒhID</summary>
+        /// <summary>ã‚³ãƒãƒ³ãƒ‰ID</summary>
         public string strCmdId;
         public byte bytCmdId;
-        /// <summary>ƒf[ƒ^”</summary>
+        /// <summary>ãƒ‡ãƒ¼ã‚¿æ•°</summary>
         public string strDataNum;
         public int intDataNum;
-        /// <summary>ƒf[ƒ^’·</summary>
+        /// <summary>ãƒ‡ãƒ¼ã‚¿é•·</summary>
         public string strDataSize;
         public byte bytDataSize;
-        /// <summary>ƒf[ƒ^</summary>
+        /// <summary>ãƒ‡ãƒ¼ã‚¿</summary>
         public List<uniLongAllData> lstData = new List<uniLongAllData>();
-        /// <summary>•¶š—ñƒf[ƒ^ 8000”ÔˆÈ~‚Ì“ÁêƒRƒ}ƒ“ƒh—p</summary>
+        /// <summary>æ–‡å­—åˆ—ãƒ‡ãƒ¼ã‚¿ 8000ç•ªä»¥é™ã®ç‰¹æ®Šã‚³ãƒãƒ³ãƒ‰ç”¨</summary>
         public string strData;
-        /// <summary>CFƒAƒNƒZƒXƒRƒ}ƒ“ƒh</summary>
+        /// <summary>CFã‚¢ã‚¯ã‚»ã‚¹ã‚³ãƒãƒ³ãƒ‰</summary>
         public bool blnCFCommand;
-        /// <summary>ƒ^ƒCƒ€ƒAƒEƒgŠÔ</summary>
+        /// <summary>ã‚¿ã‚¤ãƒ ã‚¢ã‚¦ãƒˆæ™‚é–“</summary>
         public int intTimeOut = 0;
-        /// <summary>ƒGƒ‰[ó‘Ô</summary>
+        /// <summary>ã‚¨ãƒ©ãƒ¼çŠ¶æ…‹</summary>
         public bool isError = false;
-        /// <summary>‘å—e—Ê’ÊM</summary>
+        /// <summary>å¤§å®¹é‡é€šä¿¡</summary>
         public bool IsLargeCapacity = false;
     }
-    #endregion ƒNƒ‰ƒX
+    #endregion ã‚¯ãƒ©ã‚¹
 
-    #region —ñ‹“
-    /// <summary>MICKSƒo[ƒWƒ‡ƒ“</summary>
+    #region åˆ—æŒ™
+    /// <summary>MICKSãƒãƒ¼ã‚¸ãƒ§ãƒ³</summary>
     public enum EnmMicksVer
     {
         /// <summary>MICKS1</summary>
@@ -62,276 +62,276 @@ public class ComMicks : ComProtocolBase
     }
 
     /// <summary>
-    /// ƒTƒuƒRƒ}ƒ“ƒh
+    /// ã‚µãƒ–ã‚³ãƒãƒ³ãƒ‰
     /// </summary>
     private enum eReadSubCommand
     {
         /// <summary>
-        /// 32bitƒfƒoƒCƒXA“ÁêƒŒƒWƒXƒ^
+        /// 32bitãƒ‡ãƒã‚¤ã‚¹ã€ç‰¹æ®Šãƒ¬ã‚¸ã‚¹ã‚¿
         /// </summary>
         Device32,
         /// <summary>
-        /// 64bitGALAGFALFƒŒƒWƒXƒ^
+        /// 64bitGã€Lã€GFã€LFãƒ¬ã‚¸ã‚¹ã‚¿
         /// </summary>
         Device64,
         /// <summary>
-        /// 64bitGALƒŒƒWƒXƒ^ƒfƒoƒCƒXƒR[ƒhæ“¾
+        /// 64bitGã€Lãƒ¬ã‚¸ã‚¹ã‚¿ãƒ‡ãƒã‚¤ã‚¹ã‚³ãƒ¼ãƒ‰å–å¾—
         /// </summary>
         DeviceCode
     }
 
     /// <summary>
-    /// ƒRƒ}ƒ“ƒhí•Ê
+    /// ã‚³ãƒãƒ³ãƒ‰ç¨®åˆ¥
     /// </summary>
     public enum EnmCommCommand
     {
         //*********************
-        // ’ÊíƒRƒ}ƒ“ƒh
+        // é€šå¸¸ã‚³ãƒãƒ³ãƒ‰
         //*********************
-        /// <summary>ƒŒƒWƒXƒ^İ’è</summary>
+        /// <summary>ãƒ¬ã‚¸ã‚¹ã‚¿è¨­å®š</summary>
         SetRegister = 0x100,
-        /// <summary>ƒŒƒWƒXƒ^æ“¾</summary>
+        /// <summary>ãƒ¬ã‚¸ã‚¹ã‚¿å–å¾—</summary>
         GetRegister = 0x101,
-        /// <summary>I/OƒfƒoƒCƒX‚Pƒrƒbƒgo—Í</summary>
+        /// <summary>I/Oãƒ‡ãƒã‚¤ã‚¹ï¼‘ãƒ“ãƒƒãƒˆå‡ºåŠ›</summary>
         SetIODeviceBit = 0x102,
-        /// <summary>I/OƒfƒoƒCƒXƒ}ƒ‹ƒ`ƒrƒbƒgo—Í</summary>
+        /// <summary>I/Oãƒ‡ãƒã‚¤ã‚¹ãƒãƒ«ãƒãƒ“ãƒƒãƒˆå‡ºåŠ›</summary>
         SetIODeviceMultiBit = 0x103,
 
-        /// <summary>ÀPOSƒpƒ‰ƒ[ƒ^‚ğæ“¾</summary>
+        /// <summary>å®ŸPOSãƒ‘ãƒ©ãƒ¡ãƒ¼ã‚¿ã‚’å–å¾—</summary>
         GetActivatedPosParam = 0x160,
 
-        /// <summary>‹@\‚Ì“o˜^</summary>
+        /// <summary>æ©Ÿæ§‹ã®ç™»éŒ²</summary>
         SetMecha = 0x200,
-        /// <summary>‹@\‚Ìæ“¾</summary>
+        /// <summary>æ©Ÿæ§‹ã®å–å¾—</summary>
         GetMecha = 0x201,
-        /// <summary>‹@\“o˜^ƒGƒŠƒA‚Ìæ“¾</summary>
+        /// <summary>æ©Ÿæ§‹ç™»éŒ²ã‚¨ãƒªã‚¢ã®å–å¾—</summary>
         GetMechArea = 0x202,
 
-        /// <summary>‘S‹@\ˆÊ’uî•ñˆêŠ‡æ“¾</summary>
+        /// <summary>å…¨æ©Ÿæ§‹ä½ç½®æƒ…å ±ä¸€æ‹¬å–å¾—</summary>
         GetAllMechPos = 0x250,
 
-        /// <summary>ƒAƒ“ƒvƒpƒ‰ƒ[ƒ^İ’è SSC-NET‡V</summary>
+        /// <summary>ã‚¢ãƒ³ãƒ—ãƒ‘ãƒ©ãƒ¡ãƒ¼ã‚¿è¨­å®š SSC-NETâ…¢</summary>
         SetAmpParameterNet3 = 0x300,
-        /// <summary>ƒAƒ“ƒvƒpƒ‰ƒ[ƒ^æ“¾ SSC-NET‡V</summary>
+        /// <summary>ã‚¢ãƒ³ãƒ—ãƒ‘ãƒ©ãƒ¡ãƒ¼ã‚¿å–å¾— SSC-NETâ…¢</summary>
         GetAmpParameterNet3 = 0x301,
-        /// <summary>ƒAƒ“ƒvƒpƒ‰ƒ[ƒ^İ’è MECHATOROLINK‡V</summary>
+        /// <summary>ã‚¢ãƒ³ãƒ—ãƒ‘ãƒ©ãƒ¡ãƒ¼ã‚¿è¨­å®š MECHATOROLINKâ…¢</summary>
         SetAmpParameterMech3 = 0x310,
-        /// <summary>ƒAƒ“ƒvƒpƒ‰ƒ[ƒ^æ“¾ MECHATOROLINK‡V</summary>
+        /// <summary>ã‚¢ãƒ³ãƒ—ãƒ‘ãƒ©ãƒ¡ãƒ¼ã‚¿å–å¾— MECHATOROLINKâ…¢</summary>
         GetAmpParameterMech3 = 0x311,
-        /// <summary>ƒAƒ“ƒvƒpƒ‰ƒ[ƒ^İ’è SSC-NET‡V</summary>
+        /// <summary>ã‚¢ãƒ³ãƒ—ãƒ‘ãƒ©ãƒ¡ãƒ¼ã‚¿è¨­å®š SSC-NETâ…¢</summary>
         SetAmpParameterMC120 = 0x320,
-        /// <summary>ƒAƒ“ƒvƒpƒ‰ƒ[ƒ^æ“¾ SSC-NET‡V</summary>
+        /// <summary>ã‚¢ãƒ³ãƒ—ãƒ‘ãƒ©ãƒ¡ãƒ¼ã‚¿å–å¾— SSC-NETâ…¢</summary>
         GetAmpParameterMC120 = 0x321,
-        /// <summary>ƒAƒ“ƒvƒpƒ‰ƒ[ƒ^İ’è SSC-NET‡V</summary>
+        /// <summary>ã‚¢ãƒ³ãƒ—ãƒ‘ãƒ©ãƒ¡ãƒ¼ã‚¿è¨­å®š SSC-NETâ…¢</summary>
         SetAmpParameterMC210 = 0x322,
-        /// <summary>ƒAƒ“ƒvƒpƒ‰ƒ[ƒ^æ“¾ SSC-NET‡V</summary>
+        /// <summary>ã‚¢ãƒ³ãƒ—ãƒ‘ãƒ©ãƒ¡ãƒ¼ã‚¿å–å¾— SSC-NETâ…¢</summary>
         GetAmpParameterMC210 = 0x323,
-        /// <summary>ƒAƒ“ƒvƒpƒ‰ƒ[ƒ^İ’è SSC-NET‡V</summary>
+        /// <summary>ã‚¢ãƒ³ãƒ—ãƒ‘ãƒ©ãƒ¡ãƒ¼ã‚¿è¨­å®š SSC-NETâ…¢</summary>
         SetAmpParameterMga023 = 0x324,
-        /// <summary>ƒAƒ“ƒvƒpƒ‰ƒ[ƒ^æ“¾ SSC-NET‡V</summary>
+        /// <summary>ã‚¢ãƒ³ãƒ—ãƒ‘ãƒ©ãƒ¡ãƒ¼ã‚¿å–å¾— SSC-NETâ…¢</summary>
         GetAmpParameterMga023 = 0x325,
-        /// <summary>ƒAƒ“ƒvƒpƒ‰ƒ[ƒ^İ’è EtherCAT</summary>
+        /// <summary>ã‚¢ãƒ³ãƒ—ãƒ‘ãƒ©ãƒ¡ãƒ¼ã‚¿è¨­å®š EtherCAT</summary>
         SetAmpParameterEcat = 0x326,
-        /// <summary>ƒAƒ“ƒvƒpƒ‰ƒ[ƒ^æ“¾ EtherCAT</summary>
+        /// <summary>ã‚¢ãƒ³ãƒ—ãƒ‘ãƒ©ãƒ¡ãƒ¼ã‚¿å–å¾— EtherCAT</summary>
         GetAmpParameterEcat = 0x327,
 
-        /// <summary>ƒvƒƒOƒ‰ƒ€‘€ì</summary>
+        /// <summary>ãƒ—ãƒ­ã‚°ãƒ©ãƒ æ“ä½œ</summary>
         OperateProgram = 0x400,
-        /// <summary>ƒuƒŒ[ƒNƒ|ƒCƒ“ƒgİ’è</summary>
+        /// <summary>ãƒ–ãƒ¬ãƒ¼ã‚¯ãƒã‚¤ãƒ³ãƒˆè¨­å®š</summary>
         SetBreakPoint = 0x401,
-        /// <summary>ƒvƒƒOƒ‰ƒ€ƒAƒ‰[ƒ€óM</summary>
+        /// <summary>ãƒ—ãƒ­ã‚°ãƒ©ãƒ ã‚¢ãƒ©ãƒ¼ãƒ å—ä¿¡</summary>
         GetProgramAlm = 0x402,
-        /// <summary>ƒvƒƒOƒ‰ƒ€ƒAƒ‰[ƒ€ƒR[ƒhóM</summary>
+        /// <summary>ãƒ—ãƒ­ã‚°ãƒ©ãƒ ã‚¢ãƒ©ãƒ¼ãƒ ã‚³ãƒ¼ãƒ‰å—ä¿¡</summary>
         GetProgramAlmCode = 0x403,
-        /// <summary>ƒvƒƒOƒ‰ƒ€‘Ò‚¿I/OóM</summary>
+        /// <summary>ãƒ—ãƒ­ã‚°ãƒ©ãƒ å¾…ã¡I/Oå—ä¿¡</summary>
         GetProgramWaitIo = 0x404,
-        /// <summary>ƒvƒƒOƒ‰ƒ€s”æ“¾</summary>
+        /// <summary>ãƒ—ãƒ­ã‚°ãƒ©ãƒ è¡Œæ•°å–å¾—</summary>
         SetProgramLineNum = 0x405,
-        /// <summary>ƒvƒƒOƒ‰ƒ€ƒgƒŒ[ƒXI/OƒZƒbƒg</summary>
+        /// <summary>ãƒ—ãƒ­ã‚°ãƒ©ãƒ ãƒˆãƒ¬ãƒ¼ã‚¹I/Oã‚»ãƒƒãƒˆ</summary>
         SetProgramTraceTrg = 0x406,
 
-        /// <summary>ƒIƒuƒWƒFƒNƒgƒOƒ‹[ƒvî•ñæ“¾</summary>
+        /// <summary>ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆã‚°ãƒ«ãƒ¼ãƒ—æƒ…å ±å–å¾—</summary>
         GetObjectGroupInfo = 0x500,
-        /// <summary>ƒIƒuƒWƒFƒNƒgî•ñæ“¾</summary>
+        /// <summary>ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆæƒ…å ±å–å¾—</summary>
         GetObjectInfo = 0x501,
-        /// <summary>ƒIƒuƒWƒFƒNƒg”ÍˆÍî•ñæ“¾</summary>
+        /// <summary>ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆç¯„å›²æƒ…å ±å–å¾—</summary>
         GetObjectRangeInfo = 0x502,
-        /// <summary>ƒIƒuƒWƒFƒNƒg“o˜^î•ñæ“¾</summary>
+        /// <summary>ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆç™»éŒ²æƒ…å ±å–å¾—</summary>
         GetObjectRegInfo = 0x503,
-        /// <summary>ƒIƒuƒWƒFƒNƒgƒTƒu”ÍˆÍî•ñæ“¾</summary>
+        /// <summary>ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆã‚µãƒ–ç¯„å›²æƒ…å ±å–å¾—</summary>
         GetObjectSubRangeInfo = 0x504,
-        /// <summary>ƒIƒuƒWƒFƒNƒgƒTƒuI/O”ÍˆÍî•ñæ“¾</summary>
+        /// <summary>ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆã‚µãƒ–I/Oç¯„å›²æƒ…å ±å–å¾—</summary>
         GetObjectSubIoRangeInfo = 0x505,
-        /// <summary>ƒIƒuƒWƒFƒNƒg“o˜^î•ñæ“¾(RAM10ŒÂVer)</summary>
+        /// <summary>ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆç™»éŒ²æƒ…å ±å–å¾—(RAM10å€‹Ver)</summary>
         GetObjectRegInfoEx = 0x506,
 
-        /// <summary>·“®î•ñæ“¾</summary>
+        /// <summary>å·®å‹•æƒ…å ±å–å¾—</summary>
         GetDiffRegInfo = 0x540,
 
-        /// <summary>ƒJƒ€ƒ|ƒWî•ñæ“¾</summary>
+        /// <summary>ã‚«ãƒ ãƒã‚¸æƒ…å ±å–å¾—</summary>
         GetCamPosInfo = 0x550,
-        /// <summary>ƒJƒ€ƒ|ƒWî•ñæ“¾(Šg’£”Å)</summary>
+        /// <summary>ã‚«ãƒ ãƒã‚¸æƒ…å ±å–å¾—(æ‹¡å¼µç‰ˆ)</summary>
         GetCamPosInfoEx = 0x551,
 
-        /// <summary>ƒGƒ“ƒR[ƒ_“¯Šúî•ñæ“¾</summary>
+        /// <summary>ã‚¨ãƒ³ã‚³ãƒ¼ãƒ€åŒæœŸæƒ…å ±å–å¾—</summary>
         GetEncSyncInfo = 0x560,
-        /// <summary>ƒGƒ“ƒR[ƒ_“¯Šúì‹Æƒe[ƒuƒ‹î•ñæ“¾</summary>
+        /// <summary>ã‚¨ãƒ³ã‚³ãƒ¼ãƒ€åŒæœŸä½œæ¥­ãƒ†ãƒ¼ãƒ–ãƒ«æƒ…å ±å–å¾—</summary>
         GetEncSyncWorkTable = 0x561,
-        /// <summary>ƒGƒ“ƒR[ƒ_“¯Šúƒe[ƒuƒ‹î•ñæ“¾</summary>
+        /// <summary>ã‚¨ãƒ³ã‚³ãƒ¼ãƒ€åŒæœŸãƒ†ãƒ¼ãƒ–ãƒ«æƒ…å ±å–å¾—</summary>
         GetEncSyncEncSyncTable = 0x562,
-        /// <summary>ƒGƒ“ƒR[ƒ_“¯Šúƒe[ƒuƒ‹ƒf[ƒ^æ“¾</summary>
+        /// <summary>ã‚¨ãƒ³ã‚³ãƒ¼ãƒ€åŒæœŸãƒ†ãƒ¼ãƒ–ãƒ«ãƒ‡ãƒ¼ã‚¿å–å¾—</summary>
         GetEncSyncEncSyncData = 0x563,
-        /// <summary>ƒGƒ“ƒR[ƒ_“¯Šú“o˜^ó‘Ôæ“¾</summary>
+        /// <summary>ã‚¨ãƒ³ã‚³ãƒ¼ãƒ€åŒæœŸç™»éŒ²çŠ¶æ…‹å–å¾—</summary>
         GetEncSyncRegInfo = 0x564,
 
-        /// <summary>ƒJƒƒ‰î•ñæ“¾</summary>
+        /// <summary>ã‚«ãƒ¡ãƒ©æƒ…å ±å–å¾—</summary>
         GetCameraInfo = 0x570,
-        /// <summary>ƒJƒƒ‰ƒf[ƒ^æ“¾</summary>
+        /// <summary>ã‚«ãƒ¡ãƒ©ãƒ‡ãƒ¼ã‚¿å–å¾—</summary>
         GetCameraData,
-        /// <summary>ƒJƒƒ‰ƒgƒŠƒKƒZƒbƒg</summary>
+        /// <summary>ã‚«ãƒ¡ãƒ©ãƒˆãƒªã‚¬ã‚»ãƒƒãƒˆ</summary>
         SetCameraTrg,
-        /// <summary>ƒJƒƒ‰ƒf[ƒ^ƒNƒŠƒA</summary>
+        /// <summary>ã‚«ãƒ¡ãƒ©ãƒ‡ãƒ¼ã‚¿ã‚¯ãƒªã‚¢</summary>
         ClrCameraData,
-        /// <summary>ƒJƒƒ‰‘Sƒf[ƒ^ƒNƒŠƒA</summary>
+        /// <summary>ã‚«ãƒ¡ãƒ©å…¨ãƒ‡ãƒ¼ã‚¿ã‚¯ãƒªã‚¢</summary>
         ClrCameraAllData,
 
-        /// <summary>ƒLƒƒƒŠƒuƒŒ[ƒVƒ‡ƒ“î•ñæ“¾</summary>
+        /// <summary>ã‚­ãƒ£ãƒªãƒ–ãƒ¬ãƒ¼ã‚·ãƒ§ãƒ³æƒ…å ±å–å¾—</summary>
         GetGlblGetCalibInfo = 0x580,
-        /// <summary>ƒOƒ[ƒoƒ‹À•Wƒf[ƒ^æ“¾</summary>
+        /// <summary>ã‚°ãƒ­ãƒ¼ãƒãƒ«åº§æ¨™ãƒ‡ãƒ¼ã‚¿å–å¾—</summary>
         GetGlblGetCdntData,
-        /// <summary>ƒOƒ[ƒoƒ‹À•Wî•ñİ’è</summary>
+        /// <summary>ã‚°ãƒ­ãƒ¼ãƒãƒ«åº§æ¨™æƒ…å ±è¨­å®š</summary>
         SetGlblGetCdntData,
-        /// <summary>ƒLƒƒƒŠƒuƒŒ[ƒVƒ‡ƒ“‘€ì</summary>
+        /// <summary>ã‚­ãƒ£ãƒªãƒ–ãƒ¬ãƒ¼ã‚·ãƒ§ãƒ³æ“ä½œ</summary>
         SetGlblCalibOpt,
 
-        /// <summary>I/OƒtƒBƒ‹ƒ^[î•ñæ“¾</summary>
+        /// <summary>I/Oãƒ•ã‚£ãƒ«ã‚¿ãƒ¼æƒ…å ±å–å¾—</summary>
         GetIoFilterInfo = 0x590,
 
-        /// <summary>ƒAƒ‰[ƒ€—š—ğæ“¾</summary>
+        /// <summary>ã‚¢ãƒ©ãƒ¼ãƒ å±¥æ­´å–å¾—</summary>
         GetAlarmLog = 0x600,
-        /// <summary>ƒƒO—š—ğæ“¾</summary>
+        /// <summary>ãƒ­ã‚°å±¥æ­´å–å¾—</summary>
         GetMicksLog,
-        /// <summary>ABSî•ñæ“¾</summary>
+        /// <summary>ABSæƒ…å ±å–å¾—</summary>
         GetAbsInfo,
-        /// <summary>SRAMABSî•ñæ“¾</summary>
+        /// <summary>SRAMABSæƒ…å ±å–å¾—</summary>
         GetSramAbsInfo,
-        /// <summary>SRAMƒf[ƒ^æ“¾</summary>
+        /// <summary>SRAMãƒ‡ãƒ¼ã‚¿å–å¾—</summary>
         GetSramData,
 
-        /// <summary>ƒƒ‚ƒŠæ“¾</summary>
+        /// <summary>ãƒ¡ãƒ¢ãƒªå–å¾—</summary>
         GetMemory = 0x650,
-        /// <summary>PCIƒƒ‚ƒŠæ“¾</summary>
+        /// <summary>PCIãƒ¡ãƒ¢ãƒªå–å¾—</summary>
         GetPciMemory,
-        /// <summary>CC-Linkƒƒ‚ƒŠæ“¾</summary>
+        /// <summary>CC-Linkãƒ¡ãƒ¢ãƒªå–å¾—</summary>
         GetCCLinkMemory,
-        /// <summary>SSCNETƒƒ‚ƒŠæ“¾</summary>
+        /// <summary>SSCNETãƒ¡ãƒ¢ãƒªå–å¾—</summary>
         GetSscnetMemory,
-        /// <summary>ƒT[ƒ{ƒ†ƒjƒbƒgƒƒ‚ƒŠæ“¾</summary>
+        /// <summary>ã‚µãƒ¼ãƒœãƒ¦ãƒ‹ãƒƒãƒˆãƒ¡ãƒ¢ãƒªå–å¾—</summary>
         GetServoUnitMemory,
-        /// <summary>ƒT[ƒ{ƒGƒ‰[î•ñæ“¾</summary>
+        /// <summary>ã‚µãƒ¼ãƒœã‚¨ãƒ©ãƒ¼æƒ…å ±å–å¾—</summary>
         GetServoErrInfo,
-        /// <summary>ƒƒ‚ƒŠİ’è</summary>
+        /// <summary>ãƒ¡ãƒ¢ãƒªè¨­å®š</summary>
         SetMemory = 0x660,
 
-        /// <summary>‘ª’èƒf[ƒ^ƒZƒbƒg‘Oˆ—</summary>
+        /// <summary>æ¸¬å®šãƒ‡ãƒ¼ã‚¿ã‚»ãƒƒãƒˆå‰å‡¦ç†</summary>
         SetMeasureDataPre = 0x700,
-        /// <summary>‘ª’èƒf[ƒ^ƒZƒbƒgŒãˆ—</summary>
+        /// <summary>æ¸¬å®šãƒ‡ãƒ¼ã‚¿ã‚»ãƒƒãƒˆå¾Œå‡¦ç†</summary>
         SetMeasureDataAfter = 0x701,
-        /// <summary>‘ª’è‘ÎÛİ’è</summary>
+        /// <summary>æ¸¬å®šå¯¾è±¡è¨­å®š</summary>
         SetMeasureObject = 0x702,
-        /// <summary>‘ª’è‘ÎÛæ“¾</summary>
+        /// <summary>æ¸¬å®šå¯¾è±¡å–å¾—</summary>
         GetMeasureObject = 0x703,
-        /// <summary>‘ª’èƒf[ƒ^ƒgƒŠƒKİ’è</summary>
+        /// <summary>æ¸¬å®šãƒ‡ãƒ¼ã‚¿ãƒˆãƒªã‚¬è¨­å®š</summary>
         SetMeasureTrigger = 0x704,
-        /// <summary>‘ª’èƒf[ƒ^ƒgƒŠƒKæ“¾</summary>
+        /// <summary>æ¸¬å®šãƒ‡ãƒ¼ã‚¿ãƒˆãƒªã‚¬å–å¾—</summary>
         GetMeasureTrigger = 0x705,
-        /// <summary>‘ª’èƒf[ƒ^æ“¾</summary>
+        /// <summary>æ¸¬å®šãƒ‡ãƒ¼ã‚¿å–å¾—</summary>
         GetMeasureData = 0x706,
-        /// <summary>‘ª’èó‘Ô‚Ìæ“¾</summary>
+        /// <summary>æ¸¬å®šçŠ¶æ…‹ã®å–å¾—</summary>
         GetMeasureCondition = 0x707,
-        /// <summary>‘ª’è‚Ì’†~</summary>
+        /// <summary>æ¸¬å®šã®ä¸­æ­¢</summary>
         StopMeasure = 0x708,
 
-        /// <summary>ƒ^ƒCƒ€ƒ`ƒƒ[ƒgİ’èæ“¾</summary>
+        /// <summary>ã‚¿ã‚¤ãƒ ãƒãƒ£ãƒ¼ãƒˆè¨­å®šå–å¾—</summary>
         GetTimeChartSetting = 0x720,
-        /// <summary>ƒ^ƒCƒ€ƒ`ƒƒ[ƒgƒf[ƒ^æ“¾</summary>
+        /// <summary>ã‚¿ã‚¤ãƒ ãƒãƒ£ãƒ¼ãƒˆãƒ‡ãƒ¼ã‚¿å–å¾—</summary>
         GetTimeChartData = 0x721,
 
-        // ƒŠƒAƒ‹ƒ^ƒCƒ€ƒƒOƒf[ƒ^æ“¾
+        // ãƒªã‚¢ãƒ«ã‚¿ã‚¤ãƒ ãƒ­ã‚°ãƒ‡ãƒ¼ã‚¿å–å¾—
         GetRtLogData = 0x725,
-        /// <summary>ƒŠƒAƒ‹ƒ^ƒCƒ€ƒƒOÅVƒf[ƒ^æ“¾</summary>
+        /// <summary>ãƒªã‚¢ãƒ«ã‚¿ã‚¤ãƒ ãƒ­ã‚°æœ€æ–°ãƒ‡ãƒ¼ã‚¿å–å¾—</summary>
         GetRtLogLatestData,
 
-        /// <summary>1ƒÊsec“–‚½‚è‚ÌCPUƒJƒEƒ“ƒgæ“¾</summary>
+        /// <summary>1Î¼secå½“ãŸã‚Šã®CPUã‚«ã‚¦ãƒ³ãƒˆå–å¾—</summary>
         GetCpu1usecCount = 0x730,
-        /// <summary>I/O—š—ğƒf[ƒ^æ“¾</summary>
+        /// <summary>I/Oå±¥æ­´ãƒ‡ãƒ¼ã‚¿å–å¾—</summary>
         GetIoHistoryData = 0x731,
 
-        /// <summary>ƒ^ƒCƒ€ƒXƒ^ƒ“ƒvŠJn</summary>
+        /// <summary>ã‚¿ã‚¤ãƒ ã‚¹ã‚¿ãƒ³ãƒ—é–‹å§‹</summary>
         StartTimeStamp = 0x750,
-        /// <summary>ƒ^ƒCƒ€ƒXƒ^ƒ“ƒv’†~</summary>
+        /// <summary>ã‚¿ã‚¤ãƒ ã‚¹ã‚¿ãƒ³ãƒ—ä¸­æ­¢</summary>
         StopTimeStamp,
-        /// <summary>ƒ^ƒCƒ€ƒXƒ^ƒ“ƒvó‘Ôæ“¾</summary>
+        /// <summary>ã‚¿ã‚¤ãƒ ã‚¹ã‚¿ãƒ³ãƒ—çŠ¶æ…‹å–å¾—</summary>
         GetTimeStampInfo,
-        /// <summary>ƒ^ƒCƒ€ƒXƒ^ƒ“ƒvƒf[ƒ^æ“¾</summary>
+        /// <summary>ã‚¿ã‚¤ãƒ ã‚¹ã‚¿ãƒ³ãƒ—ãƒ‡ãƒ¼ã‚¿å–å¾—</summary>
         GetTimeStampData,
 
-        /// <summary>ƒhƒ‰ƒCƒuƒŒƒR[ƒ_î•ñæ“¾</summary>
+        /// <summary>ãƒ‰ãƒ©ã‚¤ãƒ–ãƒ¬ã‚³ãƒ¼ãƒ€æƒ…å ±å–å¾—</summary>
         GetDrvrecInfo = 0x760,
-        /// <summary>ƒhƒ‰ƒCƒuƒŒƒR[ƒ_ƒf[ƒ^æ“¾</summary>
+        /// <summary>ãƒ‰ãƒ©ã‚¤ãƒ–ãƒ¬ã‚³ãƒ¼ãƒ€ãƒ‡ãƒ¼ã‚¿å–å¾—</summary>
         GetDrvrecData,
-        /// <summary>ƒhƒ‰ƒCƒuƒŒƒR[ƒ_ƒpƒ‰ƒ[ƒ^æ“¾</summary>
+        /// <summary>ãƒ‰ãƒ©ã‚¤ãƒ–ãƒ¬ã‚³ãƒ¼ãƒ€ãƒ‘ãƒ©ãƒ¡ãƒ¼ã‚¿å–å¾—</summary>
         GetDrvrecPrmData,
 
-        /// <summary>ƒVƒXƒeƒ€ŠÔ‚Ìİ’è</summary>
+        /// <summary>ã‚·ã‚¹ãƒ†ãƒ æ™‚é–“ã®è¨­å®š</summary>
         SetSystemTime = 0x800,
-        /// <summary>ÏZŠÔ‚ÌƒNƒŠƒA</summary>
+        /// <summary>ç©ç®—æ™‚é–“ã®ã‚¯ãƒªã‚¢</summary>
         ClearAddTime,
 
-        /// <summary>ƒpƒ‰ƒ[ƒ^CF‘</summary>
+        /// <summary>ãƒ‘ãƒ©ãƒ¡ãƒ¼ã‚¿CFæ›¸è¾¼</summary>
         WriteCFParameter = 0x900,
-        /// <summary>ƒvƒƒOƒ‰ƒ€CF‘</summary>
+        /// <summary>ãƒ—ãƒ­ã‚°ãƒ©ãƒ CFæ›¸è¾¼</summary>
         WriteCFProgram = 0x901,
 
-        /// <summary>OSƒtƒ@ƒCƒ‹ƒAƒbƒvƒ[ƒh</summary>
+        /// <summary>OSãƒ•ã‚¡ã‚¤ãƒ«ã‚¢ãƒƒãƒ—ãƒ­ãƒ¼ãƒ‰</summary>
         OSFileUpLoad = 0xA00,
-        /// <summary>ƒVƒXƒeƒ€ƒeƒXƒg</summary>
+        /// <summary>ã‚·ã‚¹ãƒ†ãƒ ãƒ†ã‚¹ãƒˆ</summary>
         SystemTest = 0xA01,
 
-        /// <summary>ƒf[ƒ^—š—ğ‚ğæ“¾</summary>
+        /// <summary>ãƒ‡ãƒ¼ã‚¿å±¥æ­´ã‚’å–å¾—</summary>
         GetDataHistoryData = 0xB00,
-        /// <summary>ƒf[ƒ^—š—ğƒ|ƒCƒ“ƒg‚ğæ“¾</summary>
+        /// <summary>ãƒ‡ãƒ¼ã‚¿å±¥æ­´ãƒã‚¤ãƒ³ãƒˆã‚’å–å¾—</summary>
         GetDataHistoryPoint = 0xB01,
 
         //*****************************************
-        // ƒfƒoƒbƒOƒRƒ}ƒ“ƒh 0x7000`
+        // ãƒ‡ãƒãƒƒã‚°ã‚³ãƒãƒ³ãƒ‰ 0x7000ï½
         //*****************************************
-        /// <summary>‹@\‰Šú‰»</summary>
+        /// <summary>æ©Ÿæ§‹åˆæœŸåŒ–</summary>
         MechInit = 0x7000,
-        /// <summary>Œ´“_ƒZƒbƒg</summary>
+        /// <summary>åŸç‚¹ã‚»ãƒƒãƒˆ</summary>
         SetOrg = 0x7001,
-        /// <summary>ƒT[ƒ{OFF</summary>
+        /// <summary>ã‚µãƒ¼ãƒœOFF</summary>
         ServoOff = 0x7002,
-        /// <summary>‹@\’â~</summary>
+        /// <summary>æ©Ÿæ§‹åœæ­¢</summary>
         MechStop = 0x7003,
-        /// <summary>‹@\Œ¸‘¬’â~</summary>
+        /// <summary>æ©Ÿæ§‹æ¸›é€Ÿåœæ­¢</summary>
         MechSlowDown = 0x7004,
         //*****************************************
-        // ‹@”\İ’èƒRƒ}ƒ“ƒh 0x7800`
+        // æ©Ÿèƒ½è¨­å®šã‚³ãƒãƒ³ãƒ‰ 0x7800ï½
         //*****************************************
-        /// <summary>ƒoƒCƒiƒŠ’ÊM</summary>
+        /// <summary>ãƒã‚¤ãƒŠãƒªé€šä¿¡</summary>
         FuncBinCom = 0x7800,
         //*****************************************
-        // “ÁêƒRƒ}ƒ“ƒh 0x8000`
+        // ç‰¹æ®Šã‚³ãƒãƒ³ãƒ‰ 0x8000ï½
         //*****************************************
-        /// <summary>ƒvƒƒOƒ‰ƒ€‘—M</summary>
+        /// <summary>ãƒ—ãƒ­ã‚°ãƒ©ãƒ é€ä¿¡</summary>
         SetProgram = 0x8000,
-        /// <summary>ƒvƒƒOƒ‰ƒ€óM</summary>
+        /// <summary>ãƒ—ãƒ­ã‚°ãƒ©ãƒ å—ä¿¡</summary>
         GetProgram = 0x8001,
     }
 
 
-    /// <summary>ƒŒƒWƒXƒ^ƒR[ƒh</summary>
+    /// <summary>ãƒ¬ã‚¸ã‚¹ã‚¿ã‚³ãƒ¼ãƒ‰</summary>
     public enum EnmRegCode : int
     {
         /// <summary></summary>
@@ -372,7 +372,7 @@ public class ComMicks : ComProtocolBase
         RWrB,
         /// <summary></summary>
         RWwB,
-        /// <summary>60 ` 99:—\–ñ</summary>
+        /// <summary>60 ï½ 99:äºˆç´„</summary>
         Pointer = 60,
         GP,
         LP,
@@ -403,7 +403,7 @@ public class ComMicks : ComProtocolBase
         PBit,
     }
     /// <summary>
-    /// RƒŒƒWƒXƒ^’è‹`
+    /// Rãƒ¬ã‚¸ã‚¹ã‚¿å®šç¾©
     /// </summary>
     public enum EnmRRegDefine
     {
@@ -450,7 +450,7 @@ public class ComMicks : ComProtocolBase
         MECH_DIFF_OBJ_Z,
     }
     /// <summary>
-    /// AƒŒƒWƒXƒ^’è‹`
+    /// Aãƒ¬ã‚¸ã‚¹ã‚¿å®šç¾©
     /// </summary>
     public enum EnmARegDefine
     {
@@ -486,105 +486,105 @@ public class ComMicks : ComProtocolBase
     }
     #endregion
 
-    #region ’è”
-    // ƒpƒPƒbƒg“àî•ñ
+    #region å®šæ•°
+    // ãƒ‘ã‚±ãƒƒãƒˆå†…æƒ…å ±
     /*
-    /// <summary>ƒRƒ}ƒ“ƒhƒCƒ“ƒfƒbƒNƒX</summary>
+    /// <summary>ã‚³ãƒãƒ³ãƒ‰ã‚¤ãƒ³ãƒ‡ãƒƒã‚¯ã‚¹</summary>
     private int COM_CMD_IDX = 1;
-    /// <summary>ƒRƒ}ƒ“ƒh’·</summary>
+    /// <summary>ã‚³ãƒãƒ³ãƒ‰é•·</summary>
     private int COM_CMD_LEN = 4;
-    /// <summary>ƒTƒuƒRƒ}ƒ“ƒhƒCƒ“ƒfƒbƒNƒX</summary>
+    /// <summary>ã‚µãƒ–ã‚³ãƒãƒ³ãƒ‰ã‚¤ãƒ³ãƒ‡ãƒƒã‚¯ã‚¹</summary>
     private int COM_SUBCMD_IDX = 5;
-    /// <summary>ƒTƒuƒRƒ}ƒ“ƒh’·</summary>
+    /// <summary>ã‚µãƒ–ã‚³ãƒãƒ³ãƒ‰é•·</summary>
     private int COM_SUBCMD_LEN = 1;
-    /// <summary>ƒRƒ}ƒ“ƒhIDƒCƒ“ƒfƒbƒNƒX</summary>
+    /// <summary>ã‚³ãƒãƒ³ãƒ‰IDã‚¤ãƒ³ãƒ‡ãƒƒã‚¯ã‚¹</summary>
     private int COM_CMDID_IDX = 6;
-    /// <summary>ƒRƒ}ƒ“ƒhID’·</summary>
+    /// <summary>ã‚³ãƒãƒ³ãƒ‰IDé•·</summary>
     private int COM_CMDID_LEN = 1;
-    /// <summary>ƒf[ƒ^”ƒCƒ“ƒfƒbƒNƒX</summary>
+    /// <summary>ãƒ‡ãƒ¼ã‚¿æ•°ã‚¤ãƒ³ãƒ‡ãƒƒã‚¯ã‚¹</summary>
     private int COM_DATANUM_IDX = 7;
-    /// <summary>ƒf[ƒ^”’·</summary>
+    /// <summary>ãƒ‡ãƒ¼ã‚¿æ•°é•·</summary>
     private int COM_DATANUM_LEN = 2;
-    /// <summary>ƒf[ƒ^ƒTƒCƒYƒCƒ“ƒfƒbƒNƒX</summary>
+    /// <summary>ãƒ‡ãƒ¼ã‚¿ã‚µã‚¤ã‚ºã‚¤ãƒ³ãƒ‡ãƒƒã‚¯ã‚¹</summary>
     private int COM_DATASIZE_IDX = 9;
-    /// <summary>ƒf[ƒ^ƒTƒCƒY’·</summary>
+    /// <summary>ãƒ‡ãƒ¼ã‚¿ã‚µã‚¤ã‚ºé•·</summary>
     private int COM_DATASIZE_LEN = 1;
-    /// <summary>ƒf[ƒ^ƒCƒ“ƒfƒbƒNƒX</summary>
+    /// <summary>ãƒ‡ãƒ¼ã‚¿ã‚¤ãƒ³ãƒ‡ãƒƒã‚¯ã‚¹</summary>
     private int COM_DATA_IDX = 10;
     */
-    /// <summary>ƒRƒ}ƒ“ƒhƒCƒ“ƒfƒbƒNƒX</summary>
+    /// <summary>ã‚³ãƒãƒ³ãƒ‰ã‚¤ãƒ³ãƒ‡ãƒƒã‚¯ã‚¹</summary>
     private const int COM_CMD_IDX = 1;
-    /// <summary>ƒRƒ}ƒ“ƒh’·</summary>
+    /// <summary>ã‚³ãƒãƒ³ãƒ‰é•·</summary>
     private const int COM_CMD_LEN = 4;
-    /// <summary>ƒTƒuƒRƒ}ƒ“ƒhƒCƒ“ƒfƒbƒNƒX</summary>
+    /// <summary>ã‚µãƒ–ã‚³ãƒãƒ³ãƒ‰ã‚¤ãƒ³ãƒ‡ãƒƒã‚¯ã‚¹</summary>
     private int COM_SUBCMD_IDX { get { return COM_CMD_IDX + COM_CMD_LEN; } }
-    /// <summary>ƒTƒuƒRƒ}ƒ“ƒh’·</summary>
+    /// <summary>ã‚µãƒ–ã‚³ãƒãƒ³ãƒ‰é•·</summary>
     private const int COM_SUBCMD_LEN = 1;
-    /// <summary>ƒRƒ}ƒ“ƒhIDƒCƒ“ƒfƒbƒNƒX</summary>
+    /// <summary>ã‚³ãƒãƒ³ãƒ‰IDã‚¤ãƒ³ãƒ‡ãƒƒã‚¯ã‚¹</summary>
     private int COM_CMDID_IDX { get { return COM_SUBCMD_IDX + COM_SUBCMD_LEN; } }
-    /// <summary>ƒRƒ}ƒ“ƒhID’·</summary>
+    /// <summary>ã‚³ãƒãƒ³ãƒ‰IDé•·</summary>
     private const int COM_CMDID_LEN = 1;
-    /// <summary>ƒf[ƒ^”ƒCƒ“ƒfƒbƒNƒX</summary>
+    /// <summary>ãƒ‡ãƒ¼ã‚¿æ•°ã‚¤ãƒ³ãƒ‡ãƒƒã‚¯ã‚¹</summary>
     private int COM_DATANUM_IDX { get { return COM_CMDID_IDX + COM_CMDID_LEN; } }
-    /// <summary>ƒf[ƒ^”’·</summary>
+    /// <summary>ãƒ‡ãƒ¼ã‚¿æ•°é•·</summary>
     private const int COM_DATANUM_LEN = 2;
-    /// <summary>ƒf[ƒ^ƒTƒCƒYƒCƒ“ƒfƒbƒNƒX</summary>
+    /// <summary>ãƒ‡ãƒ¼ã‚¿ã‚µã‚¤ã‚ºã‚¤ãƒ³ãƒ‡ãƒƒã‚¯ã‚¹</summary>
     private int COM_DATASIZE_IDX { get { return COM_DATANUM_IDX + COM_DATANUM_LEN; } }
-    /// <summary>ƒf[ƒ^ƒTƒCƒY’·</summary>
+    /// <summary>ãƒ‡ãƒ¼ã‚¿ã‚µã‚¤ã‚ºé•·</summary>
     private const int COM_DATASIZE_LEN = 1;
-    /// <summary>ƒf[ƒ^ƒCƒ“ƒfƒbƒNƒX</summary>
+    /// <summary>ãƒ‡ãƒ¼ã‚¿ã‚¤ãƒ³ãƒ‡ãƒƒã‚¯ã‚¹</summary>
     private int COM_DATA_IDX { get { return COM_DATASIZE_IDX + COM_DATASIZE_LEN; } }
 
-    /// <summary>ƒf[ƒ^”’·</summary>
+    /// <summary>ãƒ‡ãƒ¼ã‚¿æ•°é•·</summary>
     private const int COM_DATANUM_LEN_EX = 4;
-    /// <summary>ƒf[ƒ^ƒTƒCƒYƒCƒ“ƒfƒbƒNƒX</summary>
+    /// <summary>ãƒ‡ãƒ¼ã‚¿ã‚µã‚¤ã‚ºã‚¤ãƒ³ãƒ‡ãƒƒã‚¯ã‚¹</summary>
     private int COM_DATASIZE_IDX_EX { get { return COM_DATANUM_IDX + COM_DATANUM_LEN_EX; } }
-    /// <summary>ƒf[ƒ^ƒCƒ“ƒfƒbƒNƒX</summary>
+    /// <summary>ãƒ‡ãƒ¼ã‚¿ã‚¤ãƒ³ãƒ‡ãƒƒã‚¯ã‚¹</summary>
     private int COM_DATA_IDX_EX { get { return COM_DATASIZE_IDX_EX + COM_DATASIZE_LEN; } }
 
-    /// <summary>ƒRƒ}ƒ“ƒhƒCƒ“ƒfƒbƒNƒX</summary>
+    /// <summary>ã‚³ãƒãƒ³ãƒ‰ã‚¤ãƒ³ãƒ‡ãƒƒã‚¯ã‚¹</summary>
     private const int COM_CMD_IDX_BIN = 1;
-    /// <summary>ƒRƒ}ƒ“ƒh’·</summary>
+    /// <summary>ã‚³ãƒãƒ³ãƒ‰é•·</summary>
     private const int COM_CMD_LEN_BIN = 2;
-    /// <summary>ƒTƒuƒRƒ}ƒ“ƒhƒCƒ“ƒfƒbƒNƒX</summary>
+    /// <summary>ã‚µãƒ–ã‚³ãƒãƒ³ãƒ‰ã‚¤ãƒ³ãƒ‡ãƒƒã‚¯ã‚¹</summary>
     private int COM_SUBCMD_IDX_BIN { get { return COM_CMD_IDX_BIN + COM_CMD_LEN_BIN; } }
-    /// <summary>ƒTƒuƒRƒ}ƒ“ƒh’·</summary>
+    /// <summary>ã‚µãƒ–ã‚³ãƒãƒ³ãƒ‰é•·</summary>
     private const int COM_SUBCMD_LEN_BIN = 1;
-    /// <summary>ƒf[ƒ^”ƒCƒ“ƒfƒbƒNƒX</summary>
+    /// <summary>ãƒ‡ãƒ¼ã‚¿æ•°ã‚¤ãƒ³ãƒ‡ãƒƒã‚¯ã‚¹</summary>
     private int COM_DATANUM_IDX_BIN { get { return COM_SUBCMD_IDX_BIN + COM_SUBCMD_LEN_BIN; } }
-    /// <summary>ƒf[ƒ^”’·</summary>
+    /// <summary>ãƒ‡ãƒ¼ã‚¿æ•°é•·</summary>
     private const int COM_DATANUM_LEN_BIN = 2;
-    /// <summary>ƒf[ƒ^ƒTƒCƒYƒCƒ“ƒfƒbƒNƒX</summary>
+    /// <summary>ãƒ‡ãƒ¼ã‚¿ã‚µã‚¤ã‚ºã‚¤ãƒ³ãƒ‡ãƒƒã‚¯ã‚¹</summary>
     private int COM_DATASIZE_IDX_BIN { get { return COM_DATANUM_IDX_BIN + COM_DATANUM_LEN_BIN; } }
-    /// <summary>ƒf[ƒ^ƒTƒCƒY’·</summary>
+    /// <summary>ãƒ‡ãƒ¼ã‚¿ã‚µã‚¤ã‚ºé•·</summary>
     private const int COM_DATASIZE_LEN_BIN = 1;
-    /// <summary>ƒf[ƒ^ƒCƒ“ƒfƒbƒNƒX</summary>
+    /// <summary>ãƒ‡ãƒ¼ã‚¿ã‚¤ãƒ³ãƒ‡ãƒƒã‚¯ã‚¹</summary>
     private int COM_DATA_IDX_BIN { get { return COM_DATASIZE_IDX_BIN + COM_DATASIZE_LEN_BIN; } }
 
     /// <summary>
-    /// ‹@\Å‘å”
+    /// æ©Ÿæ§‹æœ€å¤§æ•°
     /// </summary>
     public static int MechMax = 64;
     /// <summary>
-    /// “ÁêƒŒƒWƒXƒ^Å‘å”
+    /// ç‰¹æ®Šãƒ¬ã‚¸ã‚¹ã‚¿æœ€å¤§æ•°
     /// </summary>
     public static int SpRegMax = 100;
     /// <summary>
-    /// LƒŒƒWƒXƒ^Å‘å”
+    /// Lãƒ¬ã‚¸ã‚¹ã‚¿æœ€å¤§æ•°
     /// </summary>
     public static int LRegMax = 2000;
 
     /*
     /// <summary>
-    /// ƒf[ƒ^Œ”ƒIƒtƒZƒbƒg
+    /// ãƒ‡ãƒ¼ã‚¿ä»¶æ•°ã‚ªãƒ•ã‚»ãƒƒãƒˆ
     /// </summary>
     private static int DataCountOffset = 6;
     /// <summary>
-    /// ƒf[ƒ^ƒoƒCƒgÅ‘å”ƒIƒtƒZƒbƒg
+    /// ãƒ‡ãƒ¼ã‚¿ãƒã‚¤ãƒˆæœ€å¤§æ•°ã‚ªãƒ•ã‚»ãƒƒãƒˆ
     /// </summary>
     private static int DataByteMaxOffset = 8;
     /// <summary>
-    /// ƒf[ƒ^ƒIƒtƒZƒbƒg
+    /// ãƒ‡ãƒ¼ã‚¿ã‚ªãƒ•ã‚»ãƒƒãƒˆ
     /// </summary>
     private static int DataOffset = 9;
     */
@@ -623,63 +623,63 @@ public class ComMicks : ComProtocolBase
 
     /*
     /// <summary>
-    /// ƒ^ƒCƒ€ƒ`ƒƒ[ƒgƒf[ƒ^Å‘å
+    /// ã‚¿ã‚¤ãƒ ãƒãƒ£ãƒ¼ãƒˆãƒ‡ãƒ¼ã‚¿æœ€å¤§
     /// </summary>
     private int TimeChartDataMax = 5000;
 
     /// <summary>
-    /// ‹@\‚Ì1ƒf[ƒ^ƒTƒCƒY
+    /// æ©Ÿæ§‹ã®1ãƒ‡ãƒ¼ã‚¿ã‚µã‚¤ã‚º
     /// </summary>
     private int MechDataSize = 4;
 
     /// <summary>
-    /// ƒ‚[ƒ^‚Ì1ƒf[ƒ^ƒTƒCƒY
+    /// ãƒ¢ãƒ¼ã‚¿ã®1ãƒ‡ãƒ¼ã‚¿ã‚µã‚¤ã‚º
     /// </summary>
     private int MotorDataSize = 4;
 
     /// <summary>
-    /// I/O‚Ì1ƒf[ƒ^ƒTƒCƒY
+    /// I/Oã®1ãƒ‡ãƒ¼ã‚¿ã‚µã‚¤ã‚º
     /// </summary>
     private int IoDataSize = 34;
     */
 
     /// <summary>
-    /// óMƒRƒ}ƒ“ƒh
+    /// å—ä¿¡ã‚³ãƒãƒ³ãƒ‰
     /// </summary>
     Dictionary<int, List<ulong>> dctRcvDatas = new Dictionary<int, List<ulong>>();
 
     /// <summary>
-    /// OSƒo[ƒWƒ‡ƒ“
+    /// OSãƒãƒ¼ã‚¸ãƒ§ãƒ³
     /// </summary>
     private Version verOsVersion = new Version();
 
     /// <summary>
-    /// OSƒrƒ‹ƒh
+    /// OSãƒ“ãƒ«ãƒ‰
     /// </summary>
     private DateTime dtOsBuild = new DateTime();
 
     /// <summary>
-    /// MICKSƒo[ƒWƒ‡ƒ“
+    /// MICKSãƒãƒ¼ã‚¸ãƒ§ãƒ³
     /// </summary>
     private EnmMicksVer micksVer = EnmMicksVer.MICKS_VER1;
 
-    /// <summary>óMƒXƒŒƒbƒh</summary>
+    /// <summary>å—ä¿¡ã‚¹ãƒ¬ãƒƒãƒ‰</summary>
     private Thread threadReceive;
 
-    /// <summary>óMÏƒtƒ‰ƒOFƒXƒŒƒbƒhŠÔ’ÊM—p</summary>
+    /// <summary>å—ä¿¡æ¸ˆãƒ•ãƒ©ã‚°ï¼šã‚¹ãƒ¬ãƒƒãƒ‰é–“é€šä¿¡ç”¨</summary>
     private object responseSignal = new object();
 
     #endregion
 
-    #region •Ï”
+    #region å¤‰æ•°
     /// <summary>
-    /// ƒRƒ}ƒ“ƒhID
+    /// ã‚³ãƒãƒ³ãƒ‰ID
     /// </summary>
     private int _commandId = 0;
-    #endregion •Ï”
+    #endregion å¤‰æ•°
 
     /// <summary>
-    /// ƒrƒbƒgƒŒƒWƒXƒ^’è‹`
+    /// ãƒ“ãƒƒãƒˆãƒ¬ã‚¸ã‚¹ã‚¿å®šç¾©
     /// </summary>
     protected override List<string> regTypeBit
     {
@@ -689,7 +689,7 @@ public class ComMicks : ComProtocolBase
         }
     }
     /// <summary>
-    /// ƒrƒbƒgƒŒƒWƒXƒ^’è‹`
+    /// ãƒ“ãƒƒãƒˆãƒ¬ã‚¸ã‚¹ã‚¿å®šç¾©
     /// </summary>
     protected override List<string> regTypeBit16
     {
@@ -700,7 +700,7 @@ public class ComMicks : ComProtocolBase
     }
 
     /// <summary>
-    /// 32bitƒŒƒWƒXƒ^’è‹`
+    /// 32bitãƒ¬ã‚¸ã‚¹ã‚¿å®šç¾©
     /// </summary>
     protected override List<string> regTypeData32
     {
@@ -711,7 +711,7 @@ public class ComMicks : ComProtocolBase
     }
 
     /// <summary>
-    /// 64bitƒŒƒWƒXƒ^’è‹`
+    /// 64bitãƒ¬ã‚¸ã‚¹ã‚¿å®šç¾©
     /// </summary>
     protected override List<string> regTypeData64
     {
@@ -722,7 +722,7 @@ public class ComMicks : ComProtocolBase
     }
 
     /// <summary>
-    /// ƒvƒƒOƒ‰ƒ€”Ô†‚ª‘¶İ‚·‚éƒŒƒWƒXƒ^’è‹`
+    /// ãƒ—ãƒ­ã‚°ãƒ©ãƒ ç•ªå·ãŒå­˜åœ¨ã™ã‚‹ãƒ¬ã‚¸ã‚¹ã‚¿å®šç¾©
     /// </summary>
     protected override List<string> regTypeExistPrg
     {
@@ -733,7 +733,7 @@ public class ComMicks : ComProtocolBase
     }
 
     /// <summary>
-    /// ˆêŠ‡óMİ’è
+    /// ä¸€æ‹¬å—ä¿¡è¨­å®š
     /// </summary>
     public override int BULK_RCV_COUNT
     {
@@ -744,7 +744,7 @@ public class ComMicks : ComProtocolBase
     }
 
     /// <summary>
-    /// ƒrƒbƒg”
+    /// ãƒ“ãƒƒãƒˆæ•°
     /// </summary>
     public override int BIT_COUNT
     {
@@ -755,7 +755,7 @@ public class ComMicks : ComProtocolBase
     }
 
     /// <summary>
-    /// ŠJnˆ—
+    /// é–‹å§‹å‡¦ç†
     /// </summary>
     protected override void Start()
     {
@@ -768,14 +768,14 @@ public class ComMicks : ComProtocolBase
     }
 
     /// <summary>
-    /// Ú‘±ˆ—
+    /// æ¥ç¶šå‡¦ç†
     /// </summary>
     /// <returns></returns>
     protected override bool Connect()
     {
         if (base.Connect())
         {
-            // ‰‰ñ’ÊMˆ—
+            // åˆå›é€šä¿¡å‡¦ç†
             int commandId = 0;
             if (Read(new KMXDBSetting { RegisterType = "S", RegisterNo = 1007, DataCount = 7, ProgramNo = 0 }, ref commandId))
             {
@@ -794,10 +794,10 @@ public class ComMicks : ComProtocolBase
                 {
                     verOsVersion = new Version("1." + tmp1.ui16Data2.ToString() + "." + tmp2.ui32Data1.ToString());
                 }
-                // ƒoƒCƒiƒŠ’ÊM‰Â”\‚È‚çƒ‚[ƒh•ÏX
+                // ãƒã‚¤ãƒŠãƒªé€šä¿¡å¯èƒ½ãªã‚‰ãƒ¢ãƒ¼ãƒ‰å¤‰æ›´
                 if (verOsVersion >= new Version(1, 6, 0))
                 {
-                    // ƒoƒCƒiƒŠ’ÊMƒ‚[ƒh
+                    // ãƒã‚¤ãƒŠãƒªé€šä¿¡ãƒ¢ãƒ¼ãƒ‰
                     return EnableBinCom();
                 }
                 return true;
@@ -807,37 +807,37 @@ public class ComMicks : ComProtocolBase
     }
 
     /// <summary>
-    /// “d•¶ì¬
+    /// é›»æ–‡ä½œæˆ
     /// </summary>
     /// <param name="data"></param>
     /// <param name="values"></param>
     /// <returns></returns>
     protected override List<byte> CreateMessage(KMXDBSetting data, ref int commandId, List<ulong> values = null)
     {
-        // ƒŒƒWƒXƒ^ƒR[ƒh
+        // ãƒ¬ã‚¸ã‚¹ã‚¿ã‚³ãƒ¼ãƒ‰
         var regCode = (EnmRegCode)Enum.Parse(typeof(EnmRegCode), data.RegisterType);
-        // ƒRƒ}ƒ“ƒh
+        // ã‚³ãƒãƒ³ãƒ‰
         var command = (values == null) ? EnmCommCommand.GetRegister : (regTypeBit.Contains(data.RegisterType) ? EnmCommCommand.SetIODeviceMultiBit : EnmCommCommand.SetRegister);
-        // ƒTƒuƒRƒ}ƒ“ƒh
+        // ã‚µãƒ–ã‚³ãƒãƒ³ãƒ‰
         var subCommand = regTypeData64.Contains(data.RegisterType) ? eReadSubCommand.Device64 : eReadSubCommand.Device32;
-        // ƒAƒhƒŒƒX
+        // ã‚¢ãƒ‰ãƒ¬ã‚¹
         var address = regTypeBit.Contains(data.RegisterType) && (values == null) ? (int)Math.Floor(data.RegisterNo / 32.0) : data.RegisterNo;
-        // ƒf[ƒ^”
+        // ãƒ‡ãƒ¼ã‚¿æ•°
         var count = regTypeBit.Contains(data.RegisterType) && (values == null) ? (int)Math.Ceiling((data.AllDataCount + (data.RegisterNo - address * 32)) / 32.0) : data.AllDataCount;
-        // ƒf[ƒ^ƒoƒCƒg
+        // ãƒ‡ãƒ¼ã‚¿ãƒã‚¤ãƒˆ
         var dataByteMax = (values != null) ?  4 : ((address > 0xFFFF) || regTypeData64.Contains(data.RegisterType) ? 4 : 2);
-        // ‘—Mƒf[ƒ^
+        // é€ä¿¡ãƒ‡ãƒ¼ã‚¿
         var datas = (values == null) ? new List<ulong> { (ulong)regCode, (ulong)data.ProgramNo, (ulong)address, (uint)count } : (regTypeBit.Contains(data.RegisterType) ? new List<ulong> { (ulong)regCode, (ulong)address, (ulong)values.Count } : new List<ulong> { (ulong)regCode, (ulong)data.ProgramNo, (ulong)address });
         if (values != null)
         {
-            // ‘‚«‚İƒf[ƒ^ƒZƒbƒg
+            // æ›¸ãè¾¼ã¿ãƒ‡ãƒ¼ã‚¿ã‚»ãƒƒãƒˆ
             if (regTypeBit.Contains(data.RegisterType))
             {
                 for (var i = 0; i < values.Count; i++)
                 {
                     if (i % 32 == 0)
                     {
-                        // Å‰‚Ìƒf[ƒ^
+                        // æœ€åˆã®ãƒ‡ãƒ¼ã‚¿
                         datas.Add(0);
                     }
                     if (values[i] == 1)
@@ -856,7 +856,7 @@ public class ComMicks : ComProtocolBase
     }
 
     /// <summary>
-    /// “d•¶ì¬
+    /// é›»æ–‡ä½œæˆ
     /// </summary>
     /// <param name="commCommand"></param>
     /// <param name="subCommand"></param>
@@ -865,29 +865,29 @@ public class ComMicks : ComProtocolBase
     private List<byte> CreateMessage(EnmCommCommand command, eReadSubCommand subCommand, int dataByteMax, List<ulong> datas, ref int commandId)
     {
         var sendData = new List<byte>();
-        // ƒRƒ}ƒ“ƒhID‰ÁZ
+        // ã‚³ãƒãƒ³ãƒ‰IDåŠ ç®—
         _commandId++;
-        // ƒRƒ}ƒ“ƒhì¬
+        // ã‚³ãƒãƒ³ãƒ‰ä½œæˆ
         string message =
             ((int)command).ToString("X4") +
             ((int)subCommand).ToString("X") +
             (_commandId & 0x0F).ToString("X") +
             datas.Count.ToString("X2") +
             dataByteMax.ToString("X");
-        //@ƒf[ƒ^ƒZƒbƒg
+        //ã€€ãƒ‡ãƒ¼ã‚¿ã‚»ãƒƒãƒˆ
         foreach (ulong dataN in datas)
         {
             var tmp = dataN.ToString($"X{dataByteMax * 2}");
             message += tmp.Substring(tmp.Length - dataByteMax * 2, dataByteMax * 2);
         }
-        // BCCì¬
+        // BCCä½œæˆ
         byte bcc = 0;
         foreach (byte tmp in message)
         {
-            // ŠeƒoƒCƒg‚Ì”r‘¼“I˜_—˜a
+            // å„ãƒã‚¤ãƒˆã®æ’ä»–çš„è«–ç†å’Œ
             bcc ^= tmp;
         }
-        // ‘—Mƒf[ƒ^ì¬
+        // é€ä¿¡ãƒ‡ãƒ¼ã‚¿ä½œæˆ
         sendData.Add(STX);
         sendData.AddRange(Encoding.ASCII.GetBytes(message));
         sendData.Add(ETX);
@@ -898,7 +898,7 @@ public class ComMicks : ComProtocolBase
     }
 
     /// <summary>
-    /// óMƒf[ƒ^•ªÍ
+    /// å—ä¿¡ãƒ‡ãƒ¼ã‚¿åˆ†æ
     /// </summary>
     /// <param name="data"></param>
     /// <param name="datas"></param>
@@ -911,29 +911,29 @@ public class ComMicks : ComProtocolBase
         }
         else
         {
-            // ETXƒ`ƒFƒbƒN
+            // ETXãƒã‚§ãƒƒã‚¯
             var intDataFst = 0;
             var intDataEnd = 0;
             var intDataETX = datas.IndexOf(ETX);
             if (intDataETX > 0)
             {
-                // CRƒ`ƒFƒbƒN
+                // CRãƒã‚§ãƒƒã‚¯
                 intDataEnd = datas.IndexOf(CR);
             }
-            // ETXƒ`ƒFƒbƒN
+            // ETXãƒã‚§ãƒƒã‚¯
             if ((intDataETX > 0) && (intDataEnd < 0))
             {
-                // ƒTƒ€ƒ`ƒFƒbƒN‚ª0‚Ì‚Æ‚«
+                // ã‚µãƒ ãƒã‚§ãƒƒã‚¯ãŒ0ã®ã¨ã
                 intDataEnd = intDataETX + 2;
             }
             else if (intDataETX + 1 == intDataEnd)
             {
-                // ƒTƒ€ƒ`ƒFƒbƒN‚ª\r‚Ì‚Æ‚«
+                // ã‚µãƒ ãƒã‚§ãƒƒã‚¯ãŒ\rã®ã¨ã
                 intDataEnd++;
             }
             if (intDataEnd > intDataFst)
             {
-                // ƒf[ƒ^³í
+                // ãƒ‡ãƒ¼ã‚¿æ­£å¸¸
                 datas.RemoveRange(intDataEnd, datas.Count - intDataEnd);
                 var strRcvData = Encoding.UTF8.GetString(datas.ToArray());
                 var rcvData = new ClsComFormat();
@@ -944,7 +944,7 @@ public class ComMicks : ComProtocolBase
                     dctRcvDatas[(int)rcvData.bytCmdId] = new List<ulong>();
                     if (regTypeBit.Contains(data.RegisterType))
                     {
-                        //ƒrƒbƒg‚²‚Æ‚Éƒf[ƒ^‚ğæ“¾
+                        //ãƒ“ãƒƒãƒˆã”ã¨ã«ãƒ‡ãƒ¼ã‚¿ã‚’å–å¾—
                         for (var i = 0; i < (int)rcvData.intDataNum * BIT_COUNT; i++)
                         {
                             int shift = i % 32;
@@ -976,66 +976,66 @@ public class ComMicks : ComProtocolBase
     }
 
     /// <summary>
-    /// óMƒf[ƒ^‚©‚çƒwƒbƒ_‚ğì¬
+    /// å—ä¿¡ãƒ‡ãƒ¼ã‚¿ã‹ã‚‰ãƒ˜ãƒƒãƒ€ã‚’ä½œæˆ
     /// </summary>
     /// <param name="clsRcvData"></param>
     /// <param name="strRcvData"></param>
     private void ReceiveHead(ref ClsComFormat clsRcv, string strRcvData)
     {
-        // ƒRƒ}ƒ“ƒh
+        // ã‚³ãƒãƒ³ãƒ‰
         clsRcv.strCmdCode = strRcvData.Substring(COM_CMD_IDX, COM_CMD_LEN);
         int.TryParse(clsRcv.strCmdCode, NumberStyles.HexNumber, null, out clsRcv.intCmdCode);
-        // ƒTƒuƒRƒ}ƒ“ƒh
+        // ã‚µãƒ–ã‚³ãƒãƒ³ãƒ‰
         clsRcv.strSubCmd = strRcvData.Substring(COM_SUBCMD_IDX, COM_SUBCMD_LEN);
         byte.TryParse(clsRcv.strSubCmd, NumberStyles.HexNumber, null, out clsRcv.bytSubCmd);
-        // ƒRƒ}ƒ“ƒhID
+        // ã‚³ãƒãƒ³ãƒ‰ID
         clsRcv.strCmdId = strRcvData.Substring(COM_CMDID_IDX, COM_CMDID_LEN);
         byte.TryParse(clsRcv.strCmdId, NumberStyles.HexNumber, null, out clsRcv.bytCmdId);
-        // ƒf[ƒ^Œ”
+        // ãƒ‡ãƒ¼ã‚¿ä»¶æ•°
         clsRcv.strDataNum = strRcvData.Substring(COM_DATANUM_IDX, COM_DATANUM_LEN);
         int.TryParse(clsRcv.strDataNum, NumberStyles.HexNumber, null, out clsRcv.intDataNum);
-        // ƒf[ƒ^ƒoƒCƒgƒTƒCƒY
+        // ãƒ‡ãƒ¼ã‚¿ãƒã‚¤ãƒˆã‚µã‚¤ã‚º
         clsRcv.strDataSize = strRcvData.Substring(COM_DATASIZE_IDX, COM_DATASIZE_LEN);
         byte.TryParse(clsRcv.strDataSize, NumberStyles.HexNumber, null, out clsRcv.bytDataSize);
         clsRcv.isError = ((byte)strRcvData[0] != ACK);
     }
 
-    #region ‹@”\İ’èƒRƒ}ƒ“ƒh
-    /// <summary>‹@\‰Šú‰»</summary>
-    /// <param name="intMechNo">‹@\No</param>
-    /// <returns>¬Œ÷ or ¸”s</returns>
+    #region æ©Ÿèƒ½è¨­å®šã‚³ãƒãƒ³ãƒ‰
+    /// <summary>æ©Ÿæ§‹åˆæœŸåŒ–</summary>
+    /// <param name="intMechNo">æ©Ÿæ§‹No</param>
+    /// <returns>æˆåŠŸ or å¤±æ•—</returns>
     public bool EnableBinCom()
     {
-        // ‘—MƒtƒH[ƒ}ƒbƒgì¬
+        // é€ä¿¡ãƒ•ã‚©ãƒ¼ãƒãƒƒãƒˆä½œæˆ
         List<ulong> lstPrm = new List<ulong>();
         lstPrm.Add(1);
         int commandId = 0;
         var message = CreateMessage(EnmCommCommand.FuncBinCom, 0, 4, lstPrm, ref commandId);
         if (message.Count > 0)
         {
-            // ƒf[ƒ^‘—Mˆ—
+            // ãƒ‡ãƒ¼ã‚¿é€ä¿¡å‡¦ç†
             var buff = SendCommand(message);
             if (buff.Count > 2)
             {
-                // óMƒf[ƒ^•ªÍˆ—
+                // å—ä¿¡ãƒ‡ãƒ¼ã‚¿åˆ†æå‡¦ç†
                 return true;
             }
         }
         return false;
     }
-    #endregion ‹@”\İ’èƒRƒ}ƒ“ƒh
+    #endregion æ©Ÿèƒ½è¨­å®šã‚³ãƒãƒ³ãƒ‰
 
 
-    #region ƒvƒƒgƒRƒ‹‰ğÍ
+    #region ãƒ—ãƒ­ãƒˆã‚³ãƒ«è§£æ
     /// <summary>
-    /// óMƒf[ƒ^‚©‚çƒf[ƒ^‚ğì¬
+    /// å—ä¿¡ãƒ‡ãƒ¼ã‚¿ã‹ã‚‰ãƒ‡ãƒ¼ã‚¿ã‚’ä½œæˆ
     /// </summary>
     /// <param name="clsRcvData"></param>
     /// <param name="strRcvData"></param>
     private void ReceiveData(ref ClsComFormat clsRcv, string strRcvData)
     {
         int offset = clsRcv.IsLargeCapacity ? COM_DATA_IDX_EX : COM_DATA_IDX;
-        // ƒf[ƒ^ƒNƒŠƒA
+        // ãƒ‡ãƒ¼ã‚¿ã‚¯ãƒªã‚¢
         clsRcv.lstData.Clear();
         int i;
         for (i = 0; i < clsRcv.intDataNum; i++)
@@ -1048,37 +1048,37 @@ public class ComMicks : ComProtocolBase
     }
 
     /// <summary>
-    /// óMƒf[ƒ^‚©‚çƒwƒbƒ_‚ğì¬
+    /// å—ä¿¡ãƒ‡ãƒ¼ã‚¿ã‹ã‚‰ãƒ˜ãƒƒãƒ€ã‚’ä½œæˆ
     /// </summary>
     /// <param name="clsRcvData"></param>
     /// <param name="strRcvData"></param>
     private void ReceiveHead(ref ClsComFormat clsRcv, byte[] data)
     {
-        // ƒRƒ}ƒ“ƒh
+        // ã‚³ãƒãƒ³ãƒ‰
         clsRcv.intCmdCode = (int)data[COM_CMD_IDX_BIN] + ((int)data[COM_CMD_IDX_BIN + 1] << 8);
         clsRcv.strCmdCode = clsRcv.intCmdCode.ToString("X4");
-        // ƒTƒuƒRƒ}ƒ“ƒh
+        // ã‚µãƒ–ã‚³ãƒãƒ³ãƒ‰
         clsRcv.bytSubCmd = (byte)(data[COM_SUBCMD_IDX_BIN] & 0x0F);
         clsRcv.strSubCmd = clsRcv.bytSubCmd.ToString("X1");
-        // ƒRƒ}ƒ“ƒhID
+        // ã‚³ãƒãƒ³ãƒ‰ID
         clsRcv.bytCmdId = (byte)((data[COM_SUBCMD_IDX_BIN] >> 4) & 0x0F);
         clsRcv.strCmdId = clsRcv.bytCmdId.ToString("X1");
-        // ƒf[ƒ^Œ”
+        // ãƒ‡ãƒ¼ã‚¿ä»¶æ•°
         clsRcv.intDataNum = (int)data[COM_DATANUM_IDX_BIN] + ((int)data[COM_DATANUM_IDX_BIN + 1] << 8);
         clsRcv.strDataNum = clsRcv.intDataNum.ToString("X4");
-        // ƒf[ƒ^ƒTƒCƒY
+        // ãƒ‡ãƒ¼ã‚¿ã‚µã‚¤ã‚º
         clsRcv.bytDataSize = (byte)data[COM_DATASIZE_IDX_BIN];
         clsRcv.strDataSize = clsRcv.bytDataSize.ToString("X1");
     }
 
     /// <summary>
-    /// óMƒf[ƒ^‚©‚çƒf[ƒ^‚ğì¬
+    /// å—ä¿¡ãƒ‡ãƒ¼ã‚¿ã‹ã‚‰ãƒ‡ãƒ¼ã‚¿ã‚’ä½œæˆ
     /// </summary>
     /// <param name="clsRcvData"></param>
     /// <param name="strRcvData"></param>
     private void ReceiveData(ref ClsComFormat clsRcv, byte[] data)
     {
-        // ƒf[ƒ^ƒNƒŠƒA
+        // ãƒ‡ãƒ¼ã‚¿ã‚¯ãƒªã‚¢
         clsRcv.lstData.Clear();
         for (int i = 0; i < clsRcv.intDataNum; i++)
         {
@@ -1100,5 +1100,5 @@ public class ComMicks : ComProtocolBase
             clsRcv.lstData.Add(uniAllData);
         }
     }
-    #endregion ƒvƒƒgƒRƒ‹‰ğÍ
+    #endregion ãƒ—ãƒ­ãƒˆã‚³ãƒ«è§£æ
 }

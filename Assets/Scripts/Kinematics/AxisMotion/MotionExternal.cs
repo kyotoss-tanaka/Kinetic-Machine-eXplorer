@@ -1,4 +1,4 @@
-using Parameters;
+ï»¿using Parameters;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
@@ -6,24 +6,24 @@ using UnityEngine;
 public class MotionExternal : AxisMotionBase
 {
     /// <summary>
-    /// ƒLƒƒƒ“ƒoƒX•\¦
+    /// ã‚­ãƒ£ãƒ³ãƒã‚¹è¡¨ç¤º
     /// </summary>
     protected override bool isCanvas { get { return true; } }
 
     /// <summary>
-    /// “®ìƒ^ƒO
+    /// å‹•ä½œã‚¿ã‚°
     /// </summary>
     [SerializeField]
     protected TagInfo actTag;
 
     /// <summary>
-    /// Œ»İ‚Ì’l
+    /// ç¾åœ¨ã®å€¤
     /// </summary>
     [SerializeField]
     private int value;
 
     /// <summary>
-    /// ”ä—¦
+    /// æ¯”ç‡
     /// </summary>
     protected float rate;
 
@@ -32,12 +32,12 @@ public class MotionExternal : AxisMotionBase
     {
         base.Start();
 
-        // ƒ†ƒjƒbƒgİ’èXV
+        // ãƒ¦ãƒ‹ãƒƒãƒˆè¨­å®šæ›´æ–°
         RenewMoveDir();
     }
 
     /// <summary>
-    /// ƒ†ƒjƒbƒgİ’è‚©‚ç“®ìİ’èXV
+    /// ãƒ¦ãƒ‹ãƒƒãƒˆè¨­å®šã‹ã‚‰å‹•ä½œè¨­å®šæ›´æ–°
     /// </summary>
     public override void RenewMoveDir()
     {
@@ -46,7 +46,7 @@ public class MotionExternal : AxisMotionBase
     }
 
     /// <summary>
-    /// XVˆ—
+    /// æ›´æ–°å‡¦ç†
     /// </summary>
     protected override void MyFixedUpdate()
     {

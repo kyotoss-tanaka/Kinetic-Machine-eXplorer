@@ -1,4 +1,4 @@
-using KyotoSS.TimingChart.Example;
+ï»¿using KyotoSS.TimingChart.Example;
 using SFB;
 using System.Collections.Generic;
 using System.IO;
@@ -45,13 +45,13 @@ public class CanvasMenuSysRecScript : CanvasMenuBaseScript
     }
 
     /// <summary>
-    /// ŠJnˆ—
+    /// é–‹å§‹å‡¦ç†
     /// </summary>
     protected override void Awake()
     {
         base.Awake();
 
-        // ƒRƒ“ƒ|ƒlƒ“ƒgæ“¾
+        // ã‚³ãƒ³ãƒãƒãƒ³ãƒˆå–å¾—
         SysRecSlider = GetComponentsInChildren<Slider>().Where(d => d.name == "SysRecSlider").ToList()[0];
         SysRecSpdSlider = GetComponentsInChildren<Slider>().Where(d => d.name == "SysRecSpdSlider").ToList()[0];
         SysRecFileText = GetComponentsInChildren<TextMeshProUGUI>().Where(d => d.name == "SysRecFileText").ToList()[0];
@@ -68,7 +68,7 @@ public class CanvasMenuSysRecScript : CanvasMenuBaseScript
     }
 
     /// <summary>
-    /// XVˆ—
+    /// æ›´æ–°å‡¦ç†
     /// </summary>
     protected override void Update()
     {
@@ -91,7 +91,7 @@ public class CanvasMenuSysRecScript : CanvasMenuBaseScript
     }
 
     /// <summary>
-    /// ƒCƒxƒ“ƒg“o˜^
+    /// ã‚¤ãƒ™ãƒ³ãƒˆç™»éŒ²
     /// </summary>
     public override void SetEvents()
     {
@@ -110,7 +110,7 @@ public class CanvasMenuSysRecScript : CanvasMenuBaseScript
             SysRecSpdBtn.onClick.AddListener(buttonSpd_onClick);
             inputStep.onValueChanged.AddListener(inputStep_onValueChanged);
 
-            // ‰Šú’lƒZƒbƒg
+            // åˆæœŸå€¤ã‚»ãƒƒãƒˆ
             SysRecSlider.maxValue = 10000;
             SysRecSlider.minValue = 0;
             SysRecSlider.value = 0;
@@ -125,7 +125,7 @@ public class CanvasMenuSysRecScript : CanvasMenuBaseScript
     }
 
     /// <summary>
-    /// ƒCƒxƒ“ƒg‰ğœ
+    /// ã‚¤ãƒ™ãƒ³ãƒˆè§£é™¤
     /// </summary>
     public override void ResetEvents()
     {
@@ -143,16 +143,16 @@ public class CanvasMenuSysRecScript : CanvasMenuBaseScript
     }
 
     /// <summary>
-    /// ’l‚ğXV
+    /// å€¤ã‚’æ›´æ–°
     /// </summary>
     public void Reflesh()
     {
         slider_onValueChanged(spd);
     }
-    #region ƒCƒxƒ“ƒgˆ—
+    #region ã‚¤ãƒ™ãƒ³ãƒˆå‡¦ç†
 
     /// <summary>
-    /// ƒXƒ‰ƒCƒ_[’l•ÏXƒCƒxƒ“ƒg
+    /// ã‚¹ãƒ©ã‚¤ãƒ€ãƒ¼å€¤å¤‰æ›´ã‚¤ãƒ™ãƒ³ãƒˆ
     /// </summary>
     /// <param name="value"></param>
     private void slider_onValueChanged(float value)
@@ -174,7 +174,7 @@ public class CanvasMenuSysRecScript : CanvasMenuBaseScript
             {
                 laps = 0;
             }
-            // Œ»İ‚ÌŠÔ
+            // ç¾åœ¨ã®æ™‚é–“
             GlobalScript.sysRecMilliseconds = laps;
             var now = SysRecReader.dtStart.Timestamp.AddMilliseconds(laps);
             var ts = now - SysRecReader.dtStart.Timestamp;
@@ -182,14 +182,14 @@ public class CanvasMenuSysRecScript : CanvasMenuBaseScript
             SysRecDateTimeText.text = now.ToString("yyyy-MM-dd HH:mm:ss.fff");
             try
             {
-                // ƒf[ƒ^ƒZƒbƒg
+                // ãƒ‡ãƒ¼ã‚¿ã‚»ãƒƒãƒˆ
                 foreach (var mechData in GlobalScript.useDeviceDatas)
                 {
                     foreach (var area in mechData.devices)
                     {
                         if (SysRecReader.recordDatas.ContainsKey(area.dev) && (SysRecReader.recordDatas[area.dev].tagInfo != null))
                         {
-                            // Œ»İ‚ÌŠÔ‚Ì’læ“¾
+                            // ç¾åœ¨ã®æ™‚é–“ã®å€¤å–å¾—
                             var recordData = SysRecReader.recordDatas[area.dev];
                             uint values = 0;
                             for (var i = 0; i < area.size; i++)
@@ -214,7 +214,7 @@ public class CanvasMenuSysRecScript : CanvasMenuBaseScript
     }
 
     /// <summary>
-    /// ‘¬“xƒXƒ‰ƒCƒ_[’l•ÏXƒCƒxƒ“ƒg
+    /// é€Ÿåº¦ã‚¹ãƒ©ã‚¤ãƒ€ãƒ¼å€¤å¤‰æ›´ã‚¤ãƒ™ãƒ³ãƒˆ
     /// </summary>
     /// <param name="value"></param>
     private void spdSlider_onValueChanged(float value)
@@ -224,7 +224,7 @@ public class CanvasMenuSysRecScript : CanvasMenuBaseScript
     }
 
     /// <summary>
-    /// ‰^“]ƒ{ƒ^ƒ“
+    /// é‹è»¢ãƒœã‚¿ãƒ³
     /// </summary>
     private void buttonPlay_onClick()
     {
@@ -246,7 +246,7 @@ public class CanvasMenuSysRecScript : CanvasMenuBaseScript
     }
 
     /// <summary>
-    /// QÆƒ{ƒ^ƒ“ƒNƒŠƒbƒN
+    /// å‚ç…§ãƒœã‚¿ãƒ³ã‚¯ãƒªãƒƒã‚¯
     /// </summary>
     private void buttonSelect_onClick()
     {
@@ -266,7 +266,7 @@ public class CanvasMenuSysRecScript : CanvasMenuBaseScript
                     SysRecPlayMaxNext.text = $"{(int)ts.TotalMinutes:D2}:{ts.Seconds:D2}.{ts.Milliseconds:D3}";
                     SysRecDateTimeText.text = SysRecReader.dtStart.Timestamp.ToString("yyyy-MM-dd HH:mm:ss.fff");
 
-                    // ƒfƒoƒCƒX–¼‚©‚çƒ^ƒOæ“¾
+                    // ãƒ‡ãƒã‚¤ã‚¹åã‹ã‚‰ã‚¿ã‚°å–å¾—
                     foreach (var mechData in GlobalScript.useDeviceDatas)
                     {
                         foreach (var area in mechData.devices)
@@ -278,14 +278,14 @@ public class CanvasMenuSysRecScript : CanvasMenuBaseScript
                         }
                     }
 
-                    // ƒ^ƒCƒ}[‰Šú‰»
+                    // ã‚¿ã‚¤ãƒãƒ¼åˆæœŸåŒ–
                     sw.Stop();
                     sw.Reset();
                     laps = 0;
                     lapsMax = (long)ts.TotalMilliseconds;
                     isRead = true;
 
-                    // ƒ^ƒCƒ€ƒ`ƒƒ[ƒgƒf[ƒ^•\¦
+                    // ã‚¿ã‚¤ãƒ ãƒãƒ£ãƒ¼ãƒˆãƒ‡ãƒ¼ã‚¿è¡¨ç¤º
                     machineTimeChart.SwitchHistoryData(true);
                 }
             }
@@ -293,7 +293,7 @@ public class CanvasMenuSysRecScript : CanvasMenuBaseScript
     }
 
     /// <summary>
-    /// ƒ{ƒ^ƒ“ƒNƒŠƒbƒNƒCƒxƒ“ƒg
+    /// ãƒœã‚¿ãƒ³ã‚¯ãƒªãƒƒã‚¯ã‚¤ãƒ™ãƒ³ãƒˆ
     /// </summary>
     private void buttonPrev_onClick()
     {
@@ -309,7 +309,7 @@ public class CanvasMenuSysRecScript : CanvasMenuBaseScript
     }
 
     /// <summary>
-    /// ƒ{ƒ^ƒ“ƒNƒŠƒbƒNƒCƒxƒ“ƒg
+    /// ãƒœã‚¿ãƒ³ã‚¯ãƒªãƒƒã‚¯ã‚¤ãƒ™ãƒ³ãƒˆ
     /// </summary>
     private void buttonNext_onClick()
     {
@@ -325,7 +325,7 @@ public class CanvasMenuSysRecScript : CanvasMenuBaseScript
     }
 
     /// <summary>
-    /// ‘¬“xƒŠƒZƒbƒgƒ{ƒ^ƒ“
+    /// é€Ÿåº¦ãƒªã‚»ãƒƒãƒˆãƒœã‚¿ãƒ³
     /// </summary>
     private void buttonSpd_onClick()
     {
@@ -333,7 +333,7 @@ public class CanvasMenuSysRecScript : CanvasMenuBaseScript
     }
 
     /// <summary>
-    /// ’læ“¾
+    /// å€¤å–å¾—
     /// </summary>
     /// <param name="text"></param>
     private void inputStep_onValueChanged(string text)
@@ -347,5 +347,5 @@ public class CanvasMenuSysRecScript : CanvasMenuBaseScript
             }
         }
     }
-    #endregion ƒCƒxƒ“ƒgˆ—
+    #endregion ã‚¤ãƒ™ãƒ³ãƒˆå‡¦ç†
 }

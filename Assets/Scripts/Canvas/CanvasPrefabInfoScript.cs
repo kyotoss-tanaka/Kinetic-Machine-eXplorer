@@ -1,4 +1,4 @@
-using Parameters;
+ï»¿using Parameters;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -22,55 +22,55 @@ public class CanvasPrefabInfoScript : KssBaseScript
         public bool all;
     }
 
-    // ƒOƒ[ƒoƒ‹İ’è
+    // ã‚°ãƒ­ãƒ¼ãƒãƒ«è¨­å®š
     private GameObject globalSetting;
 
-    // ƒvƒŒƒnƒu
+    // ãƒ—ãƒ¬ãƒãƒ–
     private GameObject allPrefab;
 
     /// <summary>
-    /// ƒvƒŒƒnƒu
+    /// ãƒ—ãƒ¬ãƒãƒ–
     /// </summary>
     private Button btnPrefab;
 
     /// <summary>
-    /// ƒvƒŒƒnƒu
+    /// ãƒ—ãƒ¬ãƒãƒ–
     /// </summary>
     private List<GameObject> prefabs = new();
 
     /// <summary>
-    /// Šeíƒ{ƒ^ƒ“
+    /// å„ç¨®ãƒœã‚¿ãƒ³
     /// </summary>
     private List<PrefabButtonInfo> btnPrefabs = new();
 
     /// <summary>
-    /// Šeí•\¦
+    /// å„ç¨®è¡¨ç¤º
     /// </summary>
     private List<bool> visibles = new();
 
-    #region ‰Šú‰»ˆ—
+    #region åˆæœŸåŒ–å‡¦ç†
     /// <summary>
-    /// ŠJnˆ—
+    /// é–‹å§‹å‡¦ç†
     /// </summary>
     protected override void Awake()
     {
         base.Awake();
 
-        // ƒLƒƒƒ“ƒoƒXì¬
+        // ã‚­ãƒ£ãƒ³ãƒã‚¹ä½œæˆ
         CreateCanvas();
     }
 
     /// <summary>
-    /// ‰Šú‰»ˆ—
+    /// åˆæœŸåŒ–å‡¦ç†
     /// </summary>
     private void Initialize()
     {
-        // İ’è
+        // è¨­å®š
         globalSetting = GameObject.FindObjectsByType<GameObject>(FindObjectsSortMode.None).Where(d => d.name == "GlobalSetting").ToList()[0];
         allPrefab = GameObject.FindObjectsByType<GameObject>(FindObjectsSortMode.None).Where(d => d.name == "PrefabObjects").ToList()[0];
         btnPrefab = GetComponentsInChildren<Button>(true).ToList().Find(d => d.name == "BtnPrefab");
 
-        // ƒCƒxƒ“ƒgíœ
+        // ã‚¤ãƒ™ãƒ³ãƒˆå‰Šé™¤
         foreach (var btn in GetComponentsInChildren<Button>())
         {
             btn.onClick.RemoveAllListeners();
@@ -80,14 +80,14 @@ public class CanvasPrefabInfoScript : KssBaseScript
         prvPrefabs.AddRange(btnPrefabs);
         btnPrefabs.Clear();
 
-        // ƒvƒŒƒnƒuæ“¾
+        // ãƒ—ãƒ¬ãƒãƒ–å–å¾—
         prefabs.Clear();
         for (var i = 0; i < allPrefab.transform.childCount; i++)
         {
             prefabs.Add(allPrefab.transform.GetChild(i).gameObject);
         }
 
-        //@Šeíƒ{ƒ^ƒ“ì¬
+        //ã€€å„ç¨®ãƒœã‚¿ãƒ³ä½œæˆ
         CreateButton(null);
         var dctName = new Dictionary<string, List<PrefabButtonInfo>>();
         foreach (var prefab in prefabs)
@@ -99,7 +99,7 @@ public class CanvasPrefabInfoScript : KssBaseScript
             }
             dctName[info.name].Add(info);
         }
-        // “¯ˆê–¼Ìƒ`ƒFƒbƒN
+        // åŒä¸€åç§°ãƒã‚§ãƒƒã‚¯
         foreach (var info in dctName.Where(d => d.Value.Count > 1).ToList())
         {
             for (var i = 0; i < info.Value.Count; i++)
@@ -111,13 +111,13 @@ public class CanvasPrefabInfoScript : KssBaseScript
         }
         dctName.Clear();
 
-        // ‘O‰ñ‚Ìó‘Ô•œ‹A
+        // å‰å›ã®çŠ¶æ…‹å¾©å¸°
         foreach (var prv in prvPrefabs.Where(d => !d.visible))
         {
             var info = btnPrefabs.Find(d => d.name == prv.name);
             if (info != null)
             {
-                // ‘O‰ñ”ñ•\¦
+                // å‰å›éè¡¨ç¤º
                 btnPrefab_onClick(info);
             }
         }
@@ -125,7 +125,7 @@ public class CanvasPrefabInfoScript : KssBaseScript
     }
 
     /// <summary>
-    /// ƒCƒxƒ“ƒgƒZƒbƒg
+    /// ã‚¤ãƒ™ãƒ³ãƒˆã‚»ãƒƒãƒˆ
     /// </summary>
     public void SetEvents()
     {
@@ -139,7 +139,7 @@ public class CanvasPrefabInfoScript : KssBaseScript
     }
 
     /// <summary>
-    /// ƒCƒxƒ“ƒgƒŠƒZƒbƒg
+    /// ã‚¤ãƒ™ãƒ³ãƒˆãƒªã‚»ãƒƒãƒˆ
     /// </summary>
     public void ResetEvents()
     {
@@ -148,11 +148,11 @@ public class CanvasPrefabInfoScript : KssBaseScript
             btn.button.onClick.RemoveAllListeners();
         }
     }
-    #endregion ‰Šú‰»ˆ—
+    #endregion åˆæœŸåŒ–å‡¦ç†
 
-    #region ƒCƒxƒ“ƒg
+    #region ã‚¤ãƒ™ãƒ³ãƒˆ
     /// <summary>
-    /// ƒ{ƒ^ƒ“ƒNƒŠƒbƒNƒCƒxƒ“ƒg
+    /// ãƒœã‚¿ãƒ³ã‚¯ãƒªãƒƒã‚¯ã‚¤ãƒ™ãƒ³ãƒˆ
     /// </summary>
     private void btnPrefab_onClick(PrefabButtonInfo info)
     {
@@ -160,11 +160,11 @@ public class CanvasPrefabInfoScript : KssBaseScript
         SetButtonColor(info.button, info.visible);
         info.prefab.SetActive(info.visible);
     }
-    #endregion ƒCƒxƒ“ƒg
+    #endregion ã‚¤ãƒ™ãƒ³ãƒˆ
 
-    #region ƒƒ\ƒbƒh
+    #region ãƒ¡ã‚½ãƒƒãƒ‰
     /// <summary>
-    /// ƒ{ƒ^ƒ“‚ÌFƒZƒbƒg
+    /// ãƒœã‚¿ãƒ³ã®è‰²ã‚»ãƒƒãƒˆ
     /// </summary>
     /// <param name="button"></param>
     /// <param name="value"></param>
@@ -174,7 +174,7 @@ public class CanvasPrefabInfoScript : KssBaseScript
     }
 
     /// <summary>
-    /// ƒ{ƒ^ƒ“‚ÌFƒZƒbƒg
+    /// ãƒœã‚¿ãƒ³ã®è‰²ã‚»ãƒƒãƒˆ
     /// </summary>
     /// <param name="button"></param>
     /// <param name="color"></param>
@@ -188,7 +188,7 @@ public class CanvasPrefabInfoScript : KssBaseScript
     }
 
     /// <summary>
-    /// ƒ{ƒ^ƒ“ì¬
+    /// ãƒœã‚¿ãƒ³ä½œæˆ
     /// </summary>
     /// <param name=""></param>
     private PrefabButtonInfo CreateButton(GameObject prefab)
@@ -237,10 +237,10 @@ public class CanvasPrefabInfoScript : KssBaseScript
     }
 
     /// <summary>
-    /// ƒLƒƒƒ“ƒoƒXì¬
+    /// ã‚­ãƒ£ãƒ³ãƒã‚¹ä½œæˆ
     /// </summary>
     private void CreateCanvas()
     {
     }
-    #endregion ƒƒ\ƒbƒh
+    #endregion ãƒ¡ã‚½ãƒƒãƒ‰
 }

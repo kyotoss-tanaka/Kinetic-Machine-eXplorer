@@ -1,4 +1,4 @@
-using Parameters;
+ï»¿using Parameters;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -9,110 +9,110 @@ using UnityEngine;
 public class ObjectFactoryScript : UseTagBaseScript
 {
     /// <summary>
-    /// ’Í‚Ş‚±‚Æ‚ª‰Â”\‚©
+    /// æ´ã‚€ã“ã¨ãŒå¯èƒ½ã‹
     /// </summary>
     [SerializeField]
     private bool IsGrabbable = true;
 
     /// <summary>
-    /// d—Í‚ğg—p‚·‚é‚©
+    /// é‡åŠ›ã‚’ä½¿ç”¨ã™ã‚‹ã‹
     /// </summary>
     [SerializeField]
     private bool IsGravity = true;
 
     /// <summary>
-    /// ÚG‰Â”\‚©
+    /// æ¥è§¦å¯èƒ½ã‹
     /// </summary>
     [SerializeField]
     private bool IsTouch = true;
 
     /// <summary>
-    ///  ƒ^ƒCƒ}[
+    ///  ã‚¿ã‚¤ãƒãƒ¼
     /// </summary>
     [SerializeField]
     private bool IsTimer = true;
 
     /// <summary>
-    /// ¶¬üŠú
+    /// ç”Ÿæˆå‘¨æœŸ
     /// </summary>
     [SerializeField]
     private int Interval = 1000;
 
     /// <summary>
-    /// ¶¬ƒ^ƒCƒ~ƒ“ƒO
+    /// ç”Ÿæˆã‚¿ã‚¤ãƒŸãƒ³ã‚°
     /// </summary>
     [SerializeField]
     private TagInfo CreateTag;
 
     /// <summary>
-    /// ƒIƒuƒWƒFƒNƒg¶¬ƒ|ƒCƒ“ƒg
+    /// ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆç”Ÿæˆãƒã‚¤ãƒ³ãƒˆ
     /// </summary>
     [SerializeField]
     private Vector3 CreatePoint;
 
     /// <summary>
-    /// ƒIƒuƒWƒFƒNƒg¶¬Šp“x
+    /// ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆç”Ÿæˆè§’åº¦
     /// </summary>
     [SerializeField]
     private Vector3 CreateRotate;
 
     /// <summary>
-    /// ƒ[ƒNƒIƒuƒWƒFƒNƒg
+    /// ãƒ¯ãƒ¼ã‚¯ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆ
     /// </summary>
     [SerializeField]
     private GameObject WorkObject;
 
     /// <summary>
-    /// ƒ[ƒN–¼
+    /// ãƒ¯ãƒ¼ã‚¯å
     /// </summary>
     [SerializeField]
     private string WorkName;
 
     /// <summary>
-    /// ƒ[ƒN‚ª¶‘¶‚µ‚Ä‚¢‚é‹——£
+    /// ãƒ¯ãƒ¼ã‚¯ãŒç”Ÿå­˜ã—ã¦ã„ã‚‹è·é›¢
     /// </summary>
     [SerializeField]
     private float AliveDistance = 10f;
 
     /// <summary>
-    /// ƒoƒPƒbƒg”Ô†
+    /// ãƒã‚±ãƒƒãƒˆç•ªå·
     /// </summary>
     [SerializeField]
     private int BacketNo = -1;
 
     /// <summary>
-    /// ƒ[ƒN•ÏX
+    /// ãƒ¯ãƒ¼ã‚¯å¤‰æ›´
     /// </summary>
     [SerializeField]
     private bool IsChange = false;
 
     /// <summary>
-    /// ƒIƒuƒWƒFƒNƒg¶¬—p
+    /// ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆç”Ÿæˆç”¨
     /// </summary>
     private GameObject objBase;
 
     /// <summary>
-    /// ƒ^ƒO‚Ìó‘Ô
+    /// ã‚¿ã‚°ã®çŠ¶æ…‹
     /// </summary>
     private bool tagStat = false;
 
     /// <summary>
-    /// ƒ^ƒO–¼
+    /// ã‚¿ã‚°å
     /// </summary>
     private string tagName = "";
 
     /// <summary>
-    /// ƒ[ƒN[ƒIƒuƒWƒFƒNƒg
+    /// ãƒ¯ãƒ¼ã‚¯ãƒ¼ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆ
     /// </summary>
     private GameObject work;
 
     /// <summary>
-    /// ƒoƒPƒbƒgî•ñ
+    /// ãƒã‚±ãƒƒãƒˆæƒ…å ±
     /// </summary>
     private AxisMotionBase.BacketInfo backetInfo;
 
     /// <summary>
-    /// ƒoƒPƒbƒg‚©
+    /// ãƒã‚±ãƒƒãƒˆã‹
     /// </summary>
 
     private bool isBacket
@@ -183,7 +183,7 @@ public class ObjectFactoryScript : UseTagBaseScript
             obj.transform.parent = objBase.transform;
             obj.transform.localPosition = CreatePoint;
             obj.transform.localEulerAngles = CreateRotate;
-            // Šù‚É¶¬Ï‚İ‚©ƒ`ƒFƒbƒN(•½–Ê‹——£‚ª1mmˆÈ‰º‚È‚ç“¯ˆêƒIƒuƒWƒFƒNƒg‚Æ‚İ‚È‚·)
+            // æ—¢ã«ç”Ÿæˆæ¸ˆã¿ã‹ãƒã‚§ãƒƒã‚¯(å¹³é¢è·é›¢ãŒ1mmä»¥ä¸‹ãªã‚‰åŒä¸€ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆã¨ã¿ãªã™)
             var near = objBase.transform.GetComponentsInChildren<ObjectScript>().ToList().Find(d => Vector2.Distance(new Vector2(d.transform.localPosition.x, d.transform.localPosition.z), new Vector2(obj.transform.localPosition.x, obj.transform.localPosition.z)) < 0.001f);
             if (near != null)
             {
@@ -208,7 +208,7 @@ public class ObjectFactoryScript : UseTagBaseScript
                 var cbs = obj.GetComponent<CardboardScript>();
                 if (cbs != null)
                 {
-                    // İ’è‚ğƒRƒs[
+                    // è¨­å®šã‚’ã‚³ãƒ”ãƒ¼
                     var org = work.GetComponent<CardboardScript>();
                     cbs.SetParameter(org);
                 }
@@ -217,7 +217,7 @@ public class ObjectFactoryScript : UseTagBaseScript
     }
 
     /// <summary>
-    /// g—p‚µ‚Ä‚¢‚éƒ^ƒO‚ğæ“¾‚·‚é
+    /// ä½¿ç”¨ã—ã¦ã„ã‚‹ã‚¿ã‚°ã‚’å–å¾—ã™ã‚‹
     /// </summary>
     /// <returns></returns>
     public override List<TagInfo> GetUseTags()
@@ -226,7 +226,7 @@ public class ObjectFactoryScript : UseTagBaseScript
     }
 
     /// <summary>
-    /// ƒpƒ‰ƒ[ƒ^‚ğƒZƒbƒg‚·‚é
+    /// ãƒ‘ãƒ©ãƒ¡ãƒ¼ã‚¿ã‚’ã‚»ãƒƒãƒˆã™ã‚‹
     /// </summary>
     /// <param name="unitSetting"></param>
     /// <param name="obj"></param>
@@ -259,7 +259,7 @@ public class ObjectFactoryScript : UseTagBaseScript
     }
 
     /// <summary>
-    /// ƒoƒPƒbƒgî•ñƒZƒbƒg
+    /// ãƒã‚±ãƒƒãƒˆæƒ…å ±ã‚»ãƒƒãƒˆ
     /// </summary>
     /// <param name="backetInfo"></param>
     public void SetBacketInfo(AxisMotionBase.BacketInfo backetInfo)

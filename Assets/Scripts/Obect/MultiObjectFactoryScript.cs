@@ -1,4 +1,4 @@
-using MongoDB.Driver;
+ï»¿using MongoDB.Driver;
 using Parameters;
 using System;
 using System.Collections.Generic;
@@ -12,32 +12,32 @@ public class MultiObjectFactoryScript : UseTagBaseScript
     private class MutiObjectTag
     {
         /// <summary>
-        /// ƒf[ƒ^ƒx[ƒX
+        /// ãƒ‡ãƒ¼ã‚¿ãƒ™ãƒ¼ã‚¹
         /// </summary>
         public string Database;
 
         /// <summary>
-        /// ‹@”Ô
+        /// æ©Ÿç•ª
         /// </summary>
         public string MechId;
 
         /// <summary>
-        /// ¶¬ƒ^ƒCƒ~ƒ“ƒO
+        /// ç”Ÿæˆã‚¿ã‚¤ãƒŸãƒ³ã‚°
         /// </summary>
         public TagInfo CreateTag;
 
         /// <summary>
-        /// ƒ^ƒO‚Ìó‘Ô
+        /// ã‚¿ã‚°ã®çŠ¶æ…‹
         /// </summary>
         public bool tagStat = false;
 
         /// <summary>
-        /// ƒIƒuƒWƒFƒNƒgì¬İ’è
+        /// ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆä½œæˆè¨­å®š
         /// </summary>
         public List<MultiObjectInfo> createSettings = new List<MultiObjectInfo>();
 
         /// <summary>
-        /// ƒIƒuƒWƒFƒNƒgíœİ’è
+        /// ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆå‰Šé™¤è¨­å®š
         /// </summary>
         public List<MultiObjectInfo> deleteSettings = new List<MultiObjectInfo>();
     }
@@ -45,72 +45,72 @@ public class MultiObjectFactoryScript : UseTagBaseScript
     private class MultiObjectInfo
     {
         /// <summary>
-        /// íœƒ‚[ƒh
+        /// å‰Šé™¤ãƒ¢ãƒ¼ãƒ‰
         /// </summary>
         public bool IsDelete = false;
 
         /// <summary>
-        /// ’Í‚Ş‚±‚Æ‚ª‰Â”\‚©
+        /// æ´ã‚€ã“ã¨ãŒå¯èƒ½ã‹
         /// </summary>
         public bool IsGrabbable = true;
 
         /// <summary>
-        /// d—Í‚ğg—p‚·‚é‚©
+        /// é‡åŠ›ã‚’ä½¿ç”¨ã™ã‚‹ã‹
         /// </summary>
         public bool IsGravity = true;
 
         /// <summary>
-        /// ÚG‰Â”\‚©
+        /// æ¥è§¦å¯èƒ½ã‹
         /// </summary>
         public bool IsTouch = true;
 
         /// <summary>
-        /// ƒIƒuƒWƒFƒNƒg¶¬ƒ|ƒCƒ“ƒg
+        /// ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆç”Ÿæˆãƒã‚¤ãƒ³ãƒˆ
         /// </summary>
         public Vector3 CreatePoint;
 
         /// <summary>
-        /// ƒIƒuƒWƒFƒNƒg¶¬Šp“x
+        /// ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆç”Ÿæˆè§’åº¦
         /// </summary>
         public Vector3 CreateRotate;
 
         /// <summary>
-        /// ƒ[ƒNƒIƒuƒWƒFƒNƒg
+        /// ãƒ¯ãƒ¼ã‚¯ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆ
         /// </summary>
         public GameObject WorkObject;
 
         /// <summary>
-        /// ƒ[ƒN–¼
+        /// ãƒ¯ãƒ¼ã‚¯å
         /// </summary>
         public string WorkName;
 
         /// <summary>
-        /// ƒ[ƒN‚ª¶‘¶‚µ‚Ä‚¢‚é‹——£
+        /// ãƒ¯ãƒ¼ã‚¯ãŒç”Ÿå­˜ã—ã¦ã„ã‚‹è·é›¢
         /// </summary>
         public float AliveDistance = 10f;
 
         /// <summary>
-        /// ƒoƒPƒbƒg”Ô†
+        /// ãƒã‚±ãƒƒãƒˆç•ªå·
         /// </summary>
         public int BacketNo = -1;
 
         /// <summary>
-        /// ƒ[ƒN•ÏX
+        /// ãƒ¯ãƒ¼ã‚¯å¤‰æ›´
         /// </summary>
         public bool IsChange = false;
 
         /// <summary>
-        /// o—Íæeƒ‚ƒfƒ‹
+        /// å‡ºåŠ›å…ˆè¦ªãƒ¢ãƒ‡ãƒ«
         /// </summary>
         public GameObject objBase;
 
         /// <summary>
-        /// ƒoƒPƒbƒgî•ñ
+        /// ãƒã‚±ãƒƒãƒˆæƒ…å ±
         /// </summary>
         public AxisMotionBase.BacketInfo backetInfo;
 
         /// <summary>
-        /// ƒoƒPƒbƒg‚©
+        /// ãƒã‚±ãƒƒãƒˆã‹
         /// </summary>
 
         public bool isBacket
@@ -189,18 +189,18 @@ public class MultiObjectFactoryScript : UseTagBaseScript
     }
 
     /// <summary>
-    /// ƒIƒuƒWƒFƒNƒgƒAƒbƒvƒf[ƒg
+    /// ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆã‚¢ãƒƒãƒ—ãƒ‡ãƒ¼ãƒˆ
     /// </summary>
     /// <param name="tag"></param>
     void UpdateObject(MutiObjectTag tag)
     {
         if (GlobalScript.isLoaded)
         {
-            // ƒIƒuƒWƒFƒNƒgì¬ˆ—
+            // ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆä½œæˆå‡¦ç†
             foreach (var setting in tag.createSettings.FindAll(d => !d.isBacket || !d.isIgnoreBacket))
             {
                 var change = false;
-                // ¶¬‘O‚Éƒ`ƒFƒbƒN
+                // ç”Ÿæˆå‰ã«ãƒã‚§ãƒƒã‚¯
                 var near = setting.objBase.transform.GetComponentsInChildren<ObjectScript>()
                     .ToList()
                     .Find(d => Vector2.Distance(
@@ -237,13 +237,13 @@ public class MultiObjectFactoryScript : UseTagBaseScript
                     var cbs = obj.GetComponent<CardboardScript>();
                     if (cbs != null)
                     {
-                        // İ’è‚ğƒRƒs[
+                        // è¨­å®šã‚’ã‚³ãƒ”ãƒ¼
                         var org = work.work.GetComponent<CardboardScript>();
                         cbs.SetParameter(org);
                     }
                 }
             }
-            // ƒIƒuƒWƒFƒNƒgíœˆ—
+            // ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆå‰Šé™¤å‡¦ç†
             foreach (var setting in tag.deleteSettings)
             {
                 if (setting.isBacket)
@@ -253,7 +253,7 @@ public class MultiObjectFactoryScript : UseTagBaseScript
                         continue;
                     }
                 }
-                // ƒNƒŠƒAƒtƒ‰ƒOON
+                // ã‚¯ãƒªã‚¢ãƒ•ãƒ©ã‚°ON
                 float dis = Vector3.Distance(transform.localPosition, setting.CreatePoint);
                 if (dis < setting.AliveDistance)
                 {
@@ -271,7 +271,7 @@ public class MultiObjectFactoryScript : UseTagBaseScript
     }
 
     /// <summary>
-    /// g—p‚µ‚Ä‚¢‚éƒ^ƒO‚ğæ“¾‚·‚é
+    /// ä½¿ç”¨ã—ã¦ã„ã‚‹ã‚¿ã‚°ã‚’å–å¾—ã™ã‚‹
     /// </summary>
     /// <returns></returns>
     public override List<TagInfo> GetUseTags()
@@ -291,7 +291,7 @@ public class MultiObjectFactoryScript : UseTagBaseScript
     }
 
     /// <summary>
-    /// ì¬ƒpƒ‰ƒ[ƒ^ƒZƒbƒg
+    /// ä½œæˆãƒ‘ãƒ©ãƒ¡ãƒ¼ã‚¿ã‚»ãƒƒãƒˆ
     /// </summary>
     /// <param name="unitSetting"></param>
     /// <param name="obj"></param>
@@ -301,10 +301,10 @@ public class MultiObjectFactoryScript : UseTagBaseScript
         if (obj.GetType() == typeof(WorkCreateSetting))
         {
             var wk = (WorkCreateSetting)obj;
-            // ƒ[ƒN–¼
+            // ãƒ¯ãƒ¼ã‚¯å
             if (!works.ContainsKey(wk.work))
             {
-                // ƒ[ƒNì¬
+                // ãƒ¯ãƒ¼ã‚¯ä½œæˆ
                 var pool = new WorkPool
                 {
                     work = GlobalScript.CreateWork(null, wk.work),
@@ -333,14 +333,14 @@ public class MultiObjectFactoryScript : UseTagBaseScript
                     );
                 works.Add(wk.work, pool);
             }
-            // o—ÍæƒIƒuƒWƒFƒNƒg
+            // å‡ºåŠ›å…ˆã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆ
             var objFactoryObj = backetInfo != null ? backetInfo.obj : (wk.ignoreMove ? unitSetting.unitObject : unitSetting.moveObject);
             var objFactory = objFactoryObj.transform.GetComponentsInChildren<Transform>().ToList().Find(d => d.name == "ObjectFactory" && (d.parent == objFactoryObj.transform));
             var objBase = objFactory == null ? new GameObject("ObjectFactory") : objFactory.gameObject;
             objBase.transform.parent = objFactoryObj.transform;
             objBase.transform.localPosition = Vector3.zero;
             objBase.transform.localEulerAngles = Vector3.zero;
-            // İ’è’Ç‰Á
+            // è¨­å®šè¿½åŠ 
             var id = unitSetting.Database + ":" + unitSetting.mechId;
             if (!multiObjects.ContainsKey(id))
             {
@@ -382,7 +382,7 @@ public class MultiObjectFactoryScript : UseTagBaseScript
         else if (obj.GetType() == typeof(WorkDeleteSetting))
         {
             var wk = (WorkDeleteSetting)obj;
-            // İ’è’Ç‰Á
+            // è¨­å®šè¿½åŠ 
             var id = unitSetting.Database + ":" + unitSetting.mechId;
             if (!multiObjects.ContainsKey(id))
             {

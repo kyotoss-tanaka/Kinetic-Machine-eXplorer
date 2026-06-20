@@ -1,10 +1,10 @@
-using Parameters;
+ï»¿using Parameters;
 using System;
 using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
-/// ƒŒƒo[‹@\
+/// ãƒ¬ãƒãƒ¼æ©Ÿæ§‹
 /// </summary>
 public class ExMechLeverInfo : ExMechInfo
 {
@@ -17,12 +17,12 @@ public class ExMechLeverInfo : ExMechInfo
             initExPos = sliderAxis.model.transform.localPosition;
         }
 
-        // ƒJƒ€ƒtƒHƒƒA‚Ìe‚ğå²‚É
+        // ã‚«ãƒ ãƒ•ã‚©ãƒ­ã‚¢ã®è¦ªã‚’ä¸»è»¸ã«
         pntAAxis.model.transform.parent = mainAxis.model.transform;
     }
 
     /// <summary>
-    /// ƒXƒ‰ƒCƒ_[ˆÊ’uƒZƒbƒg
+    /// ã‚¹ãƒ©ã‚¤ãƒ€ãƒ¼ä½ç½®ã‚»ãƒƒãƒˆ
     /// </summary>
     public override void RenewPos()
     {

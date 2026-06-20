@@ -1,4 +1,4 @@
-using Parameters;
+ï»¿using Parameters;
 using System;
 using System.Collections.Generic;
 using UnityEngine;
@@ -7,46 +7,46 @@ using System.Diagnostics;
 public class MotionInternal : AxisMotionBase
 {
     /// <summary>
-    /// ƒLƒƒƒ“ƒoƒX•\¦
+    /// ã‚­ãƒ£ãƒ³ãƒã‚¹è¡¨ç¤º
     /// </summary>
     protected override bool isCanvas { get { return true; } }
 
     /// <summary>
-    /// “®ìŠÖ˜AI/O
+    /// å‹•ä½œé–¢é€£I/O
     /// </summary>
     [Serializable]
     public class ActionIo
     {
         /// <summary>
-        /// ŠJnIO
+        /// é–‹å§‹IO
         /// </summary>
         [SerializeField]
         public TagInfo _StartInput;
         /// <summary>
-        /// Š®—¹IO
+        /// å®Œäº†IO
         /// </summary>
         [SerializeField]
         public TagInfo _EndOutput;
         /// <summary>
-        /// ŠJnIO–¼
+        /// é–‹å§‹IOå
         /// </summary
         [SerializeField]
         public string start;
         /// <summary>
-        /// Š®—¹IO–¼
+        /// å®Œäº†IOå
         /// </summary>
         [SerializeField]
         public string end;
         /// <summary>
-        /// ƒgƒŠƒK”­¶’†ƒtƒ‰ƒO
+        /// ãƒˆãƒªã‚¬ç™ºç”Ÿä¸­ãƒ•ãƒ©ã‚°
         /// </summary>
         public bool isTrigger;
         /// <summary>
-        /// “ü—Í”½“]
+        /// å…¥åŠ›åè»¢
         /// </summary>
         public bool isInputRvs;
         /// <summary>
-        /// ’l
+        /// å€¤
         /// </summary>
         private bool isValue;
         public void RenewTrigger(int value)
@@ -55,7 +55,7 @@ public class MotionInternal : AxisMotionBase
             /*
             if (!isValue)
             {
-                // w—ß‚ªOFF‚È‚çŠ®—¹‚àOFF‚µ‚Ä‚¨‚­
+                // æŒ‡ä»¤ãŒOFFãªã‚‰å®Œäº†ã‚‚OFFã—ã¦ãŠã
                 GlobalScript.SetTagData(EndOutput, 0);
             }
             */
@@ -65,60 +65,60 @@ public class MotionInternal : AxisMotionBase
     }
 
     /// <summary>
-    /// “®ì‹Èüî•ñ
+    /// å‹•ä½œæ›²ç·šæƒ…å ±
     /// </summary>
     public class ActionCurveInfo
     {
         /// <summary>
-        /// ŠJnˆÊ’u
+        /// é–‹å§‹ä½ç½®
         /// </summary>
         public Vector3 startPos;
         /// <summary>
-        /// –Ú•WˆÊ’u
+        /// ç›®æ¨™ä½ç½®
         /// </summary>
         public Vector3 targetPos;
         /// <summary>
-        /// ƒXƒgƒ[ƒN
+        /// ã‚¹ãƒˆãƒ­ãƒ¼ã‚¯
         /// </summary>
         public float st;
         /// <summary>
-        /// ƒIƒtƒZƒbƒg
+        /// ã‚ªãƒ•ã‚»ãƒƒãƒˆ
         /// </summary>
         public float offset;
         /// <summary>
-        /// “®ì•ûŒü
+        /// å‹•ä½œæ–¹å‘
         /// </summary>
 //        public int dir;
         /// <summary>
-        /// “®ìŠÔ
+        /// å‹•ä½œæ™‚é–“
         /// </summary>
         public float totalTime;
         /// <summary>
-        /// ‰Á‘¬ŠÔ
+        /// åŠ é€Ÿæ™‚é–“
         /// </summary>
         public float aclTime;
         /// <summary>
-        /// Œ¸‘¬ŠÔ
+        /// æ¸›é€Ÿæ™‚é–“
         /// </summary>
         public float dclTime;
         /// <summary>
-        /// Å‘å‘¬“x
+        /// æœ€å¤§é€Ÿåº¦
         /// </summary>
         public float maxSpd;
         /// <summary>
-        /// “®ì”gŒ`
+        /// å‹•ä½œæ³¢å½¢
         /// </summary>
         public List<float> actCurve = new List<float>();
         /// <summary>
-        /// “®ìIO
+        /// å‹•ä½œIO
         /// </summary>
         public ActionIo actionIo;
         /// <summary>
-        /// ˜A‘±“®ì
+        /// é€£ç¶šå‹•ä½œ
         /// </summary>
         public bool isContinue;
         /// <summary>
-        /// ˆÊ’uæ“¾
+        /// ä½ç½®å–å¾—
         /// </summary>
         /// <param name="time"></param>
         /// <returns></returns>
@@ -144,7 +144,7 @@ public class MotionInternal : AxisMotionBase
             return false;
         }
         /// <summary>
-        /// ƒJ[ƒuì¬
+        /// ã‚«ãƒ¼ãƒ–ä½œæˆ
         /// </summary>
         public void CreateCurve(UnitAction action, Vector3 pos, float st, ActionIo actionIo)
         {
@@ -161,7 +161,7 @@ public class MotionInternal : AxisMotionBase
             float acc_Msec = action.aclVal / Million;
             float dcc_Msec = action.dclVal / Million;
 
-            // ’è”‚Í–‘OŒvZ‚µ‚Ä‚¨‚­
+            // å®šæ•°ã¯äº‹å‰è¨ˆç®—ã—ã¦ãŠã
             float mul_maxV_Msec_mTa = maxSpd * aclTime;
             float strokeA = mul_maxV_Msec_mTa / 2f;
             float mTe = totalTime - aclTime - dclTime;
@@ -181,25 +181,25 @@ public class MotionInternal : AxisMotionBase
                 else
                 {
                     float move;
-                    // t‚Í‘äŒ`¶‘¤‚ÌOŠpŒ`“à
+                    // tã¯å°å½¢å·¦å´ã®ä¸‰è§’å½¢å†…
                     if (elapsedT <= aclTime)
                     {
                         move = (acc_Msec * elapsedT * elapsedT) / 2f;
                         move = Mathf.Round(move * (st / stroke) * 100000f) / 100000f;
                     }
-                    // ‘äŒ`¶‘¤‚ÌOŠpŒ` + t‚Í‘äŒ`^‚ñ’†‚ÌlŠpŒ`“à
+                    // å°å½¢å·¦å´ã®ä¸‰è§’å½¢ + tã¯å°å½¢çœŸã‚“ä¸­ã®å››è§’å½¢å†…
                     else if (elapsedT > aclTime && elapsedT <= sub_mMoveT_mTb)
                     {
                         move = strokeA + maxSpd * (elapsedT - aclTime);
                         move = Mathf.Round(move * (st / stroke) * 100000f) / 100000f;
                     }
-                    // ‘äŒ`¶‘¤‚ÌOŠpŒ` + ‘äŒ`^‚ñ’†‚ÌlŠpŒ` + t‚Í‘äŒ`‰E‘¤‚ÌOŠpŒ`“à
+                    // å°å½¢å·¦å´ã®ä¸‰è§’å½¢ + å°å½¢çœŸã‚“ä¸­ã®å››è§’å½¢ + tã¯å°å½¢å³å´ã®ä¸‰è§’å½¢å†…
                     else if (sub_mMoveT_mTb < elapsedT && elapsedT != beforMMoveT)
                     {
                         move = strokeAB + (maxV_Msec_Double - dcc_Msec * (elapsedT + sub_mTb_mMoveT)) * (elapsedT + sub_mTb_mMoveT) / 2f;
                         move = Mathf.Round(move * (st / stroke) * 100000f) / 100000f;
                     }
-                    // t‚ÍI“_F‘äŒ`©‘Ì‚Ì–ÊÏ(‘SƒXƒgƒ[ƒN)
+                    // tã¯çµ‚ç‚¹ï¼šå°å½¢è‡ªä½“ã®é¢ç©(å…¨ã‚¹ãƒˆãƒ­ãƒ¼ã‚¯)
                     else
                     {
                         move = Mathf.Round(st * 100000f) / 100000f;
@@ -211,111 +211,111 @@ public class MotionInternal : AxisMotionBase
     }
 
     /// <summary>
-    /// ˆÊ’uƒJƒ€ƒ|ƒW
+    /// ä½ç½®ã‚«ãƒ ãƒã‚¸
     /// </summary>
     private class CamPosInfo
     {
         /// <summary>
-        /// –Ú•WˆÊ’u
+        /// ç›®æ¨™ä½ç½®
         /// </summary>
         public float Target;
         /// <summary>
-        /// ˆÊ’u
+        /// ä½ç½®
         /// </summary>
         public Vector3 Position;
         /// <summary>
-        /// Š®—¹IO–¼
+        /// å®Œäº†IOå
         /// </summary>
         public string end;
         /// <summary>
-        /// Š®—¹IO
+        /// å®Œäº†IO
         /// </summary>
         public TagInfo _EndOutput;
         /// <summary>
-        /// iŠpw—ß
+        /// é€²è§’æŒ‡ä»¤
         /// </summary>
         public bool AdvanceAngle;
     }
 
     /// <summary>
-    /// “®ìŠÖ˜AI/O
+    /// å‹•ä½œé–¢é€£I/O
     /// </summary>
     [SerializeField]
     private List<ActionIo> actionIos;
 
     /// <summary>
-    /// “®ì‹Èüî•ñ
+    /// å‹•ä½œæ›²ç·šæƒ…å ±
     /// </summary>
     [SerializeField]
     private List<ActionCurveInfo> actionCurveInfos = new List<ActionCurveInfo>();
 
     /// <summary>
-    /// “®ì’†‹Èü
+    /// å‹•ä½œä¸­æ›²ç·š
     /// </summary>
     [SerializeField]
     public ActionCurveInfo actionCurve = new ActionCurveInfo();
 
     /// <summary>
-    /// “®ì‹Èüî•ñ
+    /// å‹•ä½œæ›²ç·šæƒ…å ±
     /// </summary>
     [SerializeField]
     private List<CamPosInfo> camPosInfos = new List<CamPosInfo>();
 
     /// <summary>
-    /// ’è”
+    /// å®šæ•°
     /// </summary>
     [SerializeField]
     private bool isMoving = false;
 
     /// <summary>
-    /// Œo‰ßƒ^ƒCƒ}[
+    /// çµŒéã‚¿ã‚¤ãƒãƒ¼
     /// </summary>
     private Stopwatch sw = new Stopwatch();
 
     /// <summary>
-    /// ’ÊM’x‚êŠÔ
+    /// é€šä¿¡é…ã‚Œæ™‚é–“
     /// </summary>
     private float delayTime;
 
     /// <summary>
-    /// Œ»İˆÊ’u
+    /// ç¾åœ¨ä½ç½®
     /// </summary>
     private float nowSpd;
 
     /// <summary>
-    /// Œ»İ‘¬“x
+    /// ç¾åœ¨é€Ÿåº¦
     /// </summary>
     private float nowPos;
 
     /// <summary>
-    /// ‘O‰ñ‘¬“x
+    /// å‰å›é€Ÿåº¦
     /// </summary>
     private float prvPos;
 
     /// <summary>
-    /// Œ»İŠÔ
+    /// ç¾åœ¨æ™‚é–“
     /// </summary>
     [SerializeField]
     private long nowTime;
 
     /// <summary>
-    /// ‘O‰ñŠÔ
+    /// å‰å›æ™‚é–“
     /// </summary>
     [SerializeField]
     private long prvTime;
 
     /// <summary>
-    /// ŠÔƒIƒtƒZƒbƒg
+    /// æ™‚é–“ã‚ªãƒ•ã‚»ãƒƒãƒˆ
     /// </summary>
     private long timeOffset;
 
     /// <summary>
-    /// •‚“®¬”“_‚ÌŒë·‚ªæ‚é‚Ì‚Å•Ê‚É‚½‚¹‚Ä‚¨‚­
+    /// æµ®å‹•å°æ•°ç‚¹ã®èª¤å·®ãŒä¹—ã‚‹ã®ã§åˆ¥ã«æŒãŸã›ã¦ãŠã
     /// </summary>
     private Vector3 innerPosition = Vector3.zero;
 
     /// <summary>
-    /// Œ»İˆÊ’u(ŠO•”ƒ^ƒCƒ€ƒ`ƒƒ[ƒgQÆ)
+    /// ç¾åœ¨ä½ç½®(å¤–éƒ¨ã‚¿ã‚¤ãƒ ãƒãƒ£ãƒ¼ãƒˆå‚ç…§æ™‚)
     /// </summary>
     public float nowValue
     {
@@ -336,7 +336,7 @@ public class MotionInternal : AxisMotionBase
         }
     }
 
-    /// ŠJnˆ—
+    /// é–‹å§‹å‡¦ç†
     /// </summary>
     protected override void Start()
     {
@@ -344,13 +344,13 @@ public class MotionInternal : AxisMotionBase
     }
 
     /// <summary>
-    /// ƒ†ƒjƒbƒgİ’è‚©‚ç“®ìİ’èXV
+    /// ãƒ¦ãƒ‹ãƒƒãƒˆè¨­å®šã‹ã‚‰å‹•ä½œè¨­å®šæ›´æ–°
     /// </summary>
     public override void RenewMoveDir()
     {
         base.RenewMoveDir();
 
-        // ƒf[ƒ^‰Šú‰»
+        // ãƒ‡ãƒ¼ã‚¿åˆæœŸåŒ–
         if (actionIos == null)
         {
             actionIos = new();
@@ -363,17 +363,17 @@ public class MotionInternal : AxisMotionBase
         actionIos.Clear();
         isMoving = false;
 
-        // ƒTƒCƒNƒ‹ƒ^ƒOİ’è
+        // ã‚µã‚¤ã‚¯ãƒ«ã‚¿ã‚°è¨­å®š
         var tag = GlobalScript.callbackTags.Find(d => d.database == unitSetting.Database);
         cycleTag = tag == null ? null : (tag.cycle.Tag == "" ? null : tag.cycle);
 
-        // ’ÊM’x‚êŠÔ
+        // é€šä¿¡é…ã‚Œæ™‚é–“
         delayTime = unitSetting.actionSetting.delay;
 
-        // ƒJƒ€ƒ|ƒWî•ñì‚è’¼‚µ
+        // ã‚«ãƒ ãƒã‚¸æƒ…å ±ä½œã‚Šç›´ã—
         camPosInfos = new List<CamPosInfo>();
 
-        // Œ»İˆÊ’u•Û
+        // ç¾åœ¨ä½ç½®ä¿æŒ
         if (isBacket)
         {
         }
@@ -381,11 +381,11 @@ public class MotionInternal : AxisMotionBase
         {
             innerPosition = exModeChange ? Vector3.zero : (isRotate ? moveObject.transform.localEulerAngles : moveObject.transform.localPosition);
         }
-        // ‰ŠúˆÊ’u•Û
+        // åˆæœŸä½ç½®ä¿æŒ
         foreach (var action in unitSetting.actionSetting.actions)
         {
             var actionIo = new ActionIo();
-            // “®ìƒgƒŠƒK
+            // å‹•ä½œãƒˆãƒªã‚¬
             if ((action.start != "") && (action.start[0] == '-'))
             {
                 actionIo.start = action.start.Substring(1);
@@ -397,12 +397,12 @@ public class MotionInternal : AxisMotionBase
                 actionIo.isInputRvs = false;
             }
 
-            // “®ìŠ®—¹
+            // å‹•ä½œå®Œäº†
             actionIo.end = action.end;
             actionIos.Add(actionIo);
             if (exModeChange)
             {
-                // o—Íƒ‚[ƒh•ÏX‚ÍŠg’£‹@\‘¤‚Å‰ñ“]•ûŒü‚ÆƒIƒtƒZƒbƒg‚ª©“®‚ÅŒvZ
+                // å‡ºåŠ›ãƒ¢ãƒ¼ãƒ‰å¤‰æ›´æ™‚ã¯æ‹¡å¼µæ©Ÿæ§‹å´ã§å›è»¢æ–¹å‘ã¨ã‚ªãƒ•ã‚»ãƒƒãƒˆãŒè‡ªå‹•ã§è¨ˆç®—
                 action.targetPos = moveDir * action.target;
             }
             else
@@ -411,7 +411,7 @@ public class MotionInternal : AxisMotionBase
             }
             action.targetPos /= Thousand;
 
-            // ƒJƒ€ƒ|ƒWì¬
+            // ã‚«ãƒ ãƒã‚¸ä½œæˆ
             if (camPosInfos.Find(d => d.Target == action.target) == null)
             {
                 camPosInfos.Add(new CamPosInfo
@@ -422,25 +422,25 @@ public class MotionInternal : AxisMotionBase
                 });
             }
 
-            // Šî–{“®ìİ’è
+            // åŸºæœ¬å‹•ä½œè¨­å®š
             if (unitSetting.actionSetting.acl == 1)
             {
-                // ŠÔİ’è
+                // æ™‚é–“è¨­å®š
                 action.aclTime = action.acl * Thousand;
                 action.dclTime = action.dcl * Thousand;
-                // Å‘å‘¬“x‚ğŒvZ‚µ‚ÄÅ‘å‘¬“xƒŠƒXƒg‚É‰Á‚¦‚é
+                // æœ€å¤§é€Ÿåº¦ã‚’è¨ˆç®—ã—ã¦æœ€å¤§é€Ÿåº¦ãƒªã‚¹ãƒˆã«åŠ ãˆã‚‹
                 action.velocity = Math.Abs((2 * action.stroke) / (2 * action.time * Thousand - action.aclTime - action.dclTime)) * Thousand;
 
-                // ‰ÁŒ¸‘¬“x‚ğŒvZ‚µ‚Ä“®ìİ’è‚ÉŠi”[‚·‚é
+                // åŠ æ¸›é€Ÿåº¦ã‚’è¨ˆç®—ã—ã¦å‹•ä½œè¨­å®šã«æ ¼ç´ã™ã‚‹
                 action.aclVal = action.velocity / action.aclTime * Thousand;
                 action.dclVal = action.velocity / action.dclTime * Thousand;
             }
             else
             {
-                // ‰Á‘¬“xİ’è
+                // åŠ é€Ÿåº¦è¨­å®š
                 if (isRotate)
                 {
-                    // š‰ñ“]‚Í‰Á‘¬“x‚ÍŒ»ó–³Œø
+                    // â˜…å›è»¢æ™‚ã¯åŠ é€Ÿåº¦ã¯ç¾çŠ¶ç„¡åŠ¹
                     action.aclVal = 0;
                     action.dclVal = 0;
                 }
@@ -449,7 +449,7 @@ public class MotionInternal : AxisMotionBase
                     action.aclVal = action.acl * 9800;
                     action.dclVal = action.dcl * 9800;
                 }
-                // ‰ğ‚ÌŒö®‚É‚¨‚¯‚é”»•Ê®‚ÌŒvZ‚ğs‚¤
+                // è§£ã®å…¬å¼ã«ãŠã‘ã‚‹åˆ¤åˆ¥å¼ã®è¨ˆç®—ã‚’è¡Œã†
                 float a = -(1 / action.aclVal + 1 / action.dclVal);
                 float b = 2 * action.time;
                 float c = -2 * Math.Abs(action.stroke);
@@ -457,22 +457,22 @@ public class MotionInternal : AxisMotionBase
 
                 if (discriminant > 0)
                 {
-                    // À”‰ğ
+                    // å®Ÿæ•°è§£
                     action.velocity = CommonFunction.QuadraticFormula_Real(discriminant, a, b, c);
-                    // ‰ÁŒ¸‘¬ŠÔ‚ğŒvZ‚µ‚Ä“®ìİ’è‚ÉŠi”[‚·‚é
+                    // åŠ æ¸›é€Ÿæ™‚é–“ã‚’è¨ˆç®—ã—ã¦å‹•ä½œè¨­å®šã«æ ¼ç´ã™ã‚‹
                     action.aclTime = action.velocity / action.aclVal * Thousand;
                     action.dclTime = action.velocity / action.dclVal * Thousand;
                 }
                 else
                 {
-                    // ‹•”‰ğ‚Ì‚½‚ßŠÔİ’è‚É•ÏX
+                    // è™šæ•°è§£ã®ãŸã‚æ™‚é–“è¨­å®šã«å¤‰æ›´
                     action.isChanged = true;
                     action.aclTime = action.time / 2 * Thousand;
                     action.dclTime = action.time / 2 * Thousand;
-                    // Å‘å‘¬“x‚ğŒvZ‚µ‚ÄÅ‘å‘¬“xƒŠƒXƒg‚É‰Á‚¦‚é
+                    // æœ€å¤§é€Ÿåº¦ã‚’è¨ˆç®—ã—ã¦æœ€å¤§é€Ÿåº¦ãƒªã‚¹ãƒˆã«åŠ ãˆã‚‹
                     action.velocity = Math.Abs((2 * action.stroke) / (2 * action.time * Thousand - action.aclTime - action.dclTime)) * Thousand;
 
-                    // ‰ÁŒ¸‘¬“x‚ğŒvZ‚µ‚Ä“®ìİ’è‚ÉŠi”[‚·‚é
+                    // åŠ æ¸›é€Ÿåº¦ã‚’è¨ˆç®—ã—ã¦å‹•ä½œè¨­å®šã«æ ¼ç´ã™ã‚‹
                     action.aclVal = action.velocity / action.aclTime * Thousand;
                     action.dclVal = action.velocity / action.dclTime * Thousand;
                 }
@@ -481,7 +481,7 @@ public class MotionInternal : AxisMotionBase
 
         if (!GlobalScript.isSystemRecorder)
         {
-            // ‹N“®OFF
+            // èµ·å‹•æ™‚OFF
             foreach (var campos in camPosInfos)
             {
                 SetTagValue(campos.end, ref campos._EndOutput, 0);
@@ -490,7 +490,7 @@ public class MotionInternal : AxisMotionBase
     }
 
     /// <summary>FixedUpdate
-    /// ƒ^ƒCƒ}[ˆ—
+    /// ã‚¿ã‚¤ãƒãƒ¼å‡¦ç†
     /// </summary>
     // Update is called once per frame
 //    protected override void MyFixedUpdate()
@@ -510,25 +510,25 @@ public class MotionInternal : AxisMotionBase
         }
         if (!isMoving)
         {
-            // Œo‰ßŠÔƒNƒŠƒA
+            // çµŒéæ™‚é–“ã‚¯ãƒªã‚¢
             nowTime = 0;
-            // ƒgƒŠƒKXV
+            // ãƒˆãƒªã‚¬æ›´æ–°
             for (int i = 0; i < actionIos.Count; i++)
             {
                 actionIos[i].RenewTrigger(GetTagValue(actionIos[i].start, ref actionIos[i]._StartInput));
             }
-            // “ü—ÍI/Oƒ`ƒFƒbƒN
+            // å…¥åŠ›I/Oãƒã‚§ãƒƒã‚¯
             for (int i = 0; i < actionIos.Count; i++)
             {
                 if (actionIos[i].isTrigger)
                 {
-                    // “®ìŠJnƒgƒŠƒKŒŸo’†
+                    // å‹•ä½œé–‹å§‹ãƒˆãƒªã‚¬æ¤œå‡ºä¸­
                     sw.Reset();
                     sw.Restart();
-                    // –Ú•WÀ•W‚ÆŒ»İÀ•W‚Ì‹——£‚ğƒXƒgƒ[ƒN‚Æ‚µ‚Ä“®ì‹Èü‚ğì¬‚·‚é
+                    // ç›®æ¨™åº§æ¨™ã¨ç¾åœ¨åº§æ¨™ã®è·é›¢ã‚’ã‚¹ãƒˆãƒ­ãƒ¼ã‚¯ã¨ã—ã¦å‹•ä½œæ›²ç·šã‚’ä½œæˆã™ã‚‹
                     if (!Generate_ST_Curve(i))
                     {
-                        // “’BÏ‚İ
+                        // åˆ°é”æ¸ˆã¿
                         continue;
                     }
                     isMoving = true;
@@ -539,26 +539,26 @@ public class MotionInternal : AxisMotionBase
         }
         else
         {
-            // Œo‰ß‘ª’è
+            // çµŒéæ¸¬å®š
             nowTime = (GlobalScript.isSystemRecorder ? GlobalScript.sysRecMilliseconds : (cycleTag == null ? sw.ElapsedMilliseconds : GlobalScript.GetTagData(cycleTag))) - timeOffset;
-            // ’ÊM’x‚êŠÔ‚İ‚ÅI—¹IO‚ğON
+            // é€šä¿¡é…ã‚Œæ™‚é–“è¾¼ã¿ã§çµ‚äº†IOã‚’ON
             if (nowTime >= actionCurve.actCurve.Count - delayTime)
             {
-                // iŠpw—ß
+                // é€²è§’æŒ‡ä»¤
                 var campos = camPosInfos.Find(d => d.end == actionCurve.actionIo.end);
                 if (campos != null)
                 {
                     campos.AdvanceAngle = true;
                 }
             }
-            // ˆÊ’uæ“¾
+            // ä½ç½®å–å¾—
             float pos = 0;
             if (actionCurve.getPosition(nowTime, ref pos))
             {
-                // “®ìI—¹
+                // å‹•ä½œçµ‚äº†
                 if (actionCurve.isContinue)
                 {
-                    // Œp‘±“®ì‚È‚çƒCƒ“ƒ^[ƒƒbƒN
+                    // ç¶™ç¶šå‹•ä½œãªã‚‰ã‚¤ãƒ³ã‚¿ãƒ¼ãƒ­ãƒƒã‚¯
                     isMoving = GetTagValue(actionCurve.actionIo.end, ref actionCurve.actionIo._StartInput) != 0;
                 }
                 else
@@ -567,7 +567,7 @@ public class MotionInternal : AxisMotionBase
                 }
                 if (exModeChange)
                 {
-                    // Šg’£‹@\ƒ‚[ƒh•ÏX
+                    // æ‹¡å¼µæ©Ÿæ§‹ãƒ¢ãƒ¼ãƒ‰å¤‰æ›´æ™‚
                     innerPosition = isRotate ? actionCurve.targetPos * Thousand : actionCurve.targetPos;
                     exScript.SetExTarget(innerPosition);
                 }
@@ -581,14 +581,14 @@ public class MotionInternal : AxisMotionBase
                     {
                         if (isRotate)
                         {
-                            // ‰ñ“]“®ì
+                            // å›è»¢å‹•ä½œ
                             moveObject.transform.localEulerAngles = actionCurve.targetPos * Thousand;
                             innerPosition = actionCurve.targetPos * Thousand;
                             nowPos = Vector3.Distance(Vector3.zero, moveObject.transform.localEulerAngles);
                         }
                         else
                         {
-                            // ’¼ü“®ì
+                            // ç›´ç·šå‹•ä½œ
                             var position = transform.TransformPoint(actionCurve.targetPos);
                             //rb.MovePosition(position);
                             moveObject.transform.localPosition = actionCurve.targetPos;
@@ -604,7 +604,7 @@ public class MotionInternal : AxisMotionBase
                 {
                     if (exModeChange)
                     {
-                        // Šg’£‹@\ƒ‚[ƒh•ÏX
+                        // æ‹¡å¼µæ©Ÿæ§‹ãƒ¢ãƒ¼ãƒ‰å¤‰æ›´æ™‚
                         innerPosition = isRotate ? actionCurve.startPos * Thousand + pos * moveDir : actionCurve.startPos + pos * moveDir / Thousand;
                         exScript.SetExTarget(innerPosition);
                     }
@@ -616,14 +616,14 @@ public class MotionInternal : AxisMotionBase
                     {
                         if (isRotate)
                         {
-                            // ‰ñ“]“®ì
+                            // å›è»¢å‹•ä½œ
                             moveObject.transform.localEulerAngles = actionCurve.startPos * Thousand + pos * moveDir;
                             innerPosition = actionCurve.startPos * Thousand + pos * moveDir;
                             nowPos = Vector3.Distance(Vector3.zero, moveObject.transform.localEulerAngles);
                         }
                         else
                         {
-                            // ’¼ü“®ì
+                            // ç›´ç·šå‹•ä½œ
                             /*
                             var position = transform.TransformPoint(actionCurve.startPos + pos * moveDir / Thousand);
                             rb.MovePosition(position);
@@ -636,7 +636,7 @@ public class MotionInternal : AxisMotionBase
                 }
                 catch (Exception ex)
                 {
-                    UnityEngine.Debug.Log($"ƒGƒ‰[Fƒ†ƒjƒbƒg–¼u{unitSetting.name}v: {ex.Message}");
+                    UnityEngine.Debug.Log($"ã‚¨ãƒ©ãƒ¼ï¼šãƒ¦ãƒ‹ãƒƒãƒˆåã€Œ{unitSetting.name}ã€: {ex.Message}");
                 }
             }
 
@@ -644,7 +644,7 @@ public class MotionInternal : AxisMotionBase
             {
                 if (isRotate)
                 {
-                    // ‰ñ“]“®ì
+                    // å›è»¢å‹•ä½œ
                     foreach (var child in chuckSetting.children)
                     {
                         child.setting.moveObject.transform.localEulerAngles = (exModeChange ? innerPosition : moveObject.transform.localEulerAngles) * child.dir * child.rate + child.offset * moveDir;
@@ -652,7 +652,7 @@ public class MotionInternal : AxisMotionBase
                 }
                 else
                 {
-                    // ’¼ü“®ì
+                    // ç›´ç·šå‹•ä½œ
                     foreach (var child in chuckSetting.children)
                     {
                         child.setting.moveObject.transform.localPosition = (exModeChange ? innerPosition : moveObject.transform.localPosition) * child.dir * child.rate + child.offset * moveDir / Thousand;
@@ -669,24 +669,24 @@ public class MotionInternal : AxisMotionBase
         }
         /****************************************/
 
-        // ˆÊ’uæ“¾
+        // ä½ç½®å–å¾—
         if (isRotate)
         {
-            // ‰ñ“]“®ì
+            // å›è»¢å‹•ä½œ
             nowPos = Vector3.Distance(Vector3.zero, moveObject.transform.localEulerAngles);
         }
         else
         {
-            // ’¼ü“®ì
+            // ç›´ç·šå‹•ä½œ
             nowPos = Vector3.Distance(Vector3.zero, moveObject.transform.localPosition) * Thousand;
         }
-        // ‘¬“xZo
+        // é€Ÿåº¦ç®—å‡º
         if (nowTime - prvTime > 0)
         {
             nowSpd = (nowPos - prvPos) / (nowTime - prvTime) * 1000;
         }
 
-        // o—Íˆ—
+        // å‡ºåŠ›å‡¦ç†
         if (!GlobalScript.isSystemRecorder)
         {
             foreach (var campos in camPosInfos)
@@ -705,13 +705,13 @@ public class MotionInternal : AxisMotionBase
             }
         }
 
-        // ‘O‰ñƒf[ƒ^•Û
+        // å‰å›ãƒ‡ãƒ¼ã‚¿ä¿æŒ
         prvTime = nowTime;
         prvPos = nowPos;
     }
 
     /// <summary>
-    /// STƒJ[ƒuì¬
+    /// STã‚«ãƒ¼ãƒ–ä½œæˆ
     /// </summary>
     /// <param name="action"></param>
     bool Generate_ST_Curve(int index)
@@ -727,54 +727,54 @@ public class MotionInternal : AxisMotionBase
             var actionIo = actionIos[nowIndex];
             if (i == 0)
             {
-                // ‰‰ñ
+                // åˆå›
                 targetPos = action.targetPos;
                 if (isRotate)
                 {
-                    // ‰ñ“]“®ì
+                    // å›è»¢å‹•ä½œ
                     startPos = innerPosition / Thousand;
                     var prvIndex = (index + actionIos.Count - 1) % actionIos.Count;
                     var diff = (startPos - unitSetting.actionSetting.actions[prvIndex].targetPos) * Thousand;
                     if ((int)Math.Round(diff.x + diff.y + diff.z) % 360 == 0)
                     {
-                        // ‘O‰ñ‚Ì–Ú•WˆÊ’u‚Æˆê’v‚µ‚Ä‚¢‚é‚Ì‚Å‘O‰ñ‚Ì–Ú•WˆÊ’u‚ğg—p
+                        // å‰å›ã®ç›®æ¨™ä½ç½®ã¨ä¸€è‡´ã—ã¦ã„ã‚‹ã®ã§å‰å›ã®ç›®æ¨™ä½ç½®ã‚’ä½¿ç”¨
                         startPos = unitSetting.actionSetting.actions[prvIndex].targetPos;
                     }
                 }
                 else
                 {
-                    // ’¼ü“®ì
+                    // ç›´ç·šå‹•ä½œ
                     startPos = innerPosition;
                 }
                 st = Vector3.Distance(targetPos, startPos) * Thousand;
                 if (isRotate)
                 {
-                    // ‰ñ“]Œn‚Í360‹‚Å³‹K‰»
+                    // å›è»¢ç³»ã¯360Â°ã§æ­£è¦åŒ–
                     st = (int)Math.Round(st) % 360;
                 }
             }
             else
             {
-                // ˜A‘±“®ì
+                // é€£ç¶šå‹•ä½œæ™‚
                 startPos = targetPos;
                 targetPos = action.targetPos;
                 st = Vector3.Distance(targetPos, startPos) * Thousand;
             }
             if (st <= 0.001)
             {
-                // 0.1mˆÈ‰º‚Í“®ì‚È‚µ
+                // 0.1mä»¥ä¸‹ã¯å‹•ä½œãªã—
                 return false;
             }
             var direction = (action.targetPos - startPos).normalized;
             if (direction.x + direction.y + direction.z < 0)
             {
-                // ‹t“]
+                // é€†è»¢
                 st = -st;
             }
             var curve = actionCurveInfos.Find(d => d.startPos == startPos && d.targetPos == targetPos);
             if (curve == null)
             {
-                // ”gŒ`ì¬
+                // æ³¢å½¢ä½œæˆ
                 curve = new ActionCurveInfo();
                 curve.CreateCurve(action, startPos, st, actionIo);
                 actionCurveInfos.Add(curve);
@@ -791,12 +791,12 @@ public class MotionInternal : AxisMotionBase
             else
             {
                 var endPoint = actionCurve.actCurve[actionCurve.actCurve.Count - 1];
-                // ’â~ŠÔ•ª’Ç‰Á
+                // åœæ­¢æ™‚é–“åˆ†è¿½åŠ 
                 for(var j = 0; j < action.stop * Thousand; j++)
                 {
                     actionCurve.actCurve.Add(endPoint);
                 }
-                // “®ì’Ç‰Á
+                // å‹•ä½œè¿½åŠ 
                 foreach (var tmp in curve.actCurve)
                 {
                     actionCurve.actCurve.Add(tmp + endPoint);
@@ -813,7 +813,7 @@ public class MotionInternal : AxisMotionBase
     }
 
     /// <summary>
-    /// ƒLƒƒƒ“ƒoƒX•\¦—pƒf[ƒ^ì¬
+    /// ã‚­ãƒ£ãƒ³ãƒã‚¹è¡¨ç¤ºç”¨ãƒ‡ãƒ¼ã‚¿ä½œæˆ
     /// </summary>
     public override void RenewCanvasValues()
     {

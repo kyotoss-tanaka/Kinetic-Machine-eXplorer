@@ -1,4 +1,4 @@
-#if UNITY_EDITOR
+ï»¿#if UNITY_EDITOR
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEditor;
@@ -46,13 +46,13 @@ public class BuildAndRun
         {
             if (EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo())
             {
-                Debug.Log("ƒV[ƒ“‚ğ•Û‘¶‚µ‚Ü‚µ‚½B");
+                Debug.Log("ã‚·ãƒ¼ãƒ³ã‚’ä¿å­˜ã—ã¾ã—ãŸã€‚");
             }
 
             string configPath = Path.Combine("Assets/StreamingAssets/Datas", "BuildConfig.json");
             if (!File.Exists(configPath))
             {
-                Debug.LogError("İ’èƒtƒ@ƒCƒ‹‚ªŒ©‚Â‚©‚è‚Ü‚¹‚ñ: " + configPath);
+                Debug.LogError("è¨­å®šãƒ•ã‚¡ã‚¤ãƒ«ãŒè¦‹ã¤ã‹ã‚Šã¾ã›ã‚“: " + configPath);
                 return;
             }
 
@@ -70,10 +70,10 @@ public class BuildAndRun
             */
             if (folderPath != "")
             {
-                // ƒGƒNƒXƒvƒ[ƒ‰[‚ÅŠJ‚­
+                // ã‚¨ã‚¯ã‚¹ãƒ—ãƒ­ãƒ¼ãƒ©ãƒ¼ã§é–‹ã
                 System.Diagnostics.Process.Start("explorer.exe", folderPath);
-                // ƒ^ƒCƒgƒ‹AƒƒbƒZ[ƒWAƒ{ƒ^ƒ“–¼
-                EditorUtility.DisplayDialog("î•ñ", "ƒrƒ‹ƒh‚ªŠ®—¹‚µ‚Ü‚µ‚½B", "OK");
+                // ã‚¿ã‚¤ãƒˆãƒ«ã€ãƒ¡ãƒƒã‚»ãƒ¼ã‚¸ã€ãƒœã‚¿ãƒ³å
+                EditorUtility.DisplayDialog("æƒ…å ±", "ãƒ“ãƒ«ãƒ‰ãŒå®Œäº†ã—ã¾ã—ãŸã€‚", "OK");
             }
         }
         catch
@@ -86,13 +86,13 @@ public class BuildAndRun
     {
         if (EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo())
         {
-            Debug.Log("ƒV[ƒ“‚ğ•Û‘¶‚µ‚Ü‚µ‚½B");
+            Debug.Log("ã‚·ãƒ¼ãƒ³ã‚’ä¿å­˜ã—ã¾ã—ãŸã€‚");
         }
 
         string configPath = Path.Combine("Assets/StreamingAssets/Datas", "BuildConfig.json");
         if (!File.Exists(configPath))
         {
-            Debug.LogError("İ’èƒtƒ@ƒCƒ‹‚ªŒ©‚Â‚©‚è‚Ü‚¹‚ñ: " + configPath);
+            Debug.LogError("è¨­å®šãƒ•ã‚¡ã‚¤ãƒ«ãŒè¦‹ã¤ã‹ã‚Šã¾ã›ã‚“: " + configPath);
             return;
         }
 
@@ -113,13 +113,13 @@ public class BuildAndRun
         {
             if (EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo())
             {
-                Debug.Log("ƒV[ƒ“‚ğ•Û‘¶‚µ‚Ü‚µ‚½B");
+                Debug.Log("ã‚·ãƒ¼ãƒ³ã‚’ä¿å­˜ã—ã¾ã—ãŸã€‚");
             }
 
             string configPath = Path.Combine("Assets/StreamingAssets/Datas", "BuildConfig.json");
             if (!File.Exists(configPath))
             {
-                Debug.LogError("İ’èƒtƒ@ƒCƒ‹‚ªŒ©‚Â‚©‚è‚Ü‚¹‚ñ: " + configPath);
+                Debug.LogError("è¨­å®šãƒ•ã‚¡ã‚¤ãƒ«ãŒè¦‹ã¤ã‹ã‚Šã¾ã›ã‚“: " + configPath);
                 return;
             }
 
@@ -134,10 +134,10 @@ public class BuildAndRun
             */
             if (folderPath != "")
             {
-                // ƒGƒNƒXƒvƒ[ƒ‰[‚ÅŠJ‚­
+                // ã‚¨ã‚¯ã‚¹ãƒ—ãƒ­ãƒ¼ãƒ©ãƒ¼ã§é–‹ã
                 System.Diagnostics.Process.Start("explorer.exe", folderPath);
-                // ƒ^ƒCƒgƒ‹AƒƒbƒZ[ƒWAƒ{ƒ^ƒ“–¼
-                EditorUtility.DisplayDialog("î•ñ", "ƒrƒ‹ƒh‚ªŠ®—¹‚µ‚Ü‚µ‚½B", "OK");
+                // ã‚¿ã‚¤ãƒˆãƒ«ã€ãƒ¡ãƒƒã‚»ãƒ¼ã‚¸ã€ãƒœã‚¿ãƒ³å
+                EditorUtility.DisplayDialog("æƒ…å ±", "ãƒ“ãƒ«ãƒ‰ãŒå®Œäº†ã—ã¾ã—ãŸã€‚", "OK");
             }
         }
         catch
@@ -152,13 +152,13 @@ public class BuildAndRun
         {
             if (EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo())
             {
-                Debug.Log("ƒV[ƒ“‚ğ•Û‘¶‚µ‚Ü‚µ‚½B");
+                Debug.Log("ã‚·ãƒ¼ãƒ³ã‚’ä¿å­˜ã—ã¾ã—ãŸã€‚");
             }
 
             string configPath = Path.Combine("Assets/StreamingAssets/Datas", "BuildConfig.json");
             if (!File.Exists(configPath))
             {
-                Debug.LogError("İ’èƒtƒ@ƒCƒ‹‚ªŒ©‚Â‚©‚è‚Ü‚¹‚ñ: " + configPath);
+                Debug.LogError("è¨­å®šãƒ•ã‚¡ã‚¤ãƒ«ãŒè¦‹ã¤ã‹ã‚Šã¾ã›ã‚“: " + configPath);
                 return;
             }
 
@@ -169,10 +169,10 @@ public class BuildAndRun
             var folderPath = BuildAndRunProcess(build, false, true);
             if (folderPath != "")
             {
-                // ƒGƒNƒXƒvƒ[ƒ‰[‚ÅŠJ‚­
+                // ã‚¨ã‚¯ã‚¹ãƒ—ãƒ­ãƒ¼ãƒ©ãƒ¼ã§é–‹ã
                 System.Diagnostics.Process.Start("explorer.exe", folderPath);
-                // ƒ^ƒCƒgƒ‹AƒƒbƒZ[ƒWAƒ{ƒ^ƒ“–¼
-                EditorUtility.DisplayDialog("î•ñ", "ƒrƒ‹ƒh‚ªŠ®—¹‚µ‚Ü‚µ‚½B", "OK");
+                // ã‚¿ã‚¤ãƒˆãƒ«ã€ãƒ¡ãƒƒã‚»ãƒ¼ã‚¸ã€ãƒœã‚¿ãƒ³å
+                EditorUtility.DisplayDialog("æƒ…å ±", "ãƒ“ãƒ«ãƒ‰ãŒå®Œäº†ã—ã¾ã—ãŸã€‚", "OK");
             }
         }
         catch
@@ -181,7 +181,7 @@ public class BuildAndRun
     }
 
     /// <summary>
-    /// ƒrƒ‹ƒhˆ—
+    /// ãƒ“ãƒ«ãƒ‰å‡¦ç†
     /// </summary>
     private static string BuildAndRunProcess(Parameters.BuildConfig build, bool isRun, bool isProd = false)
     {
@@ -197,20 +197,20 @@ public class BuildAndRun
             buildOptions = build.isRelease ? BuildOptions.None : BuildOptions.Development | BuildOptions.ConnectWithProfiler | BuildOptions.AllowDebugging// | BuildOptions.EnableDeepProfilingSupport
         };
 
-        // ƒV[ƒ““Ç‚İ‚İ
+        // ã‚·ãƒ¼ãƒ³èª­ã¿è¾¼ã¿
         //        SwitchBuild(build);
 
         AssetDatabase.SaveAssets();
         AssetDatabase.Refresh();
 
-        // ƒrƒ‹ƒhƒ^[ƒQƒbƒg‚Ì•ÏŠ·
+        // ãƒ“ãƒ«ãƒ‰ã‚¿ãƒ¼ã‚²ãƒƒãƒˆã®å¤‰æ›
         if (!TryParseTarget(config.target, out BuildTarget target, out BuildTargetGroup group))
         {
-            Debug.LogError("•s³‚Èƒrƒ‹ƒhƒ^[ƒQƒbƒg: " + config.target);
+            Debug.LogError("ä¸æ­£ãªãƒ“ãƒ«ãƒ‰ã‚¿ãƒ¼ã‚²ãƒƒãƒˆ: " + config.target);
             return "";
         }
 
-        // ƒvƒ‰ƒbƒgƒtƒH[ƒ€Ø‚è‘Ö‚¦
+        // ãƒ—ãƒ©ãƒƒãƒˆãƒ•ã‚©ãƒ¼ãƒ åˆ‡ã‚Šæ›¿ãˆ
         EditorUserBuildSettings.SwitchActiveBuildTarget(group, target);
 
         // PlayerSettings
@@ -221,7 +221,7 @@ public class BuildAndRun
 
         PlayerSettings.Android.bundleVersionCode = 1;
 
-        // VŒ`® API
+        // æ–°å½¢å¼ API
         PlayerSettings.SetScriptingBackend(NamedBuildTarget.Android, ScriptingImplementation.IL2CPP);
         PlayerSettings.Android.targetArchitectures = AndroidArchitecture.ARM64;
         PlayerSettings.Android.minSdkVersion = AndroidSdkVersions.AndroidApiLevel23;
@@ -238,7 +238,7 @@ public class BuildAndRun
         EditorUserBuildSettings.exportAsGoogleAndroidProject = false;
         //        EditorUserBuildSettings.development = !build.isRelease;
 
-        // Addressableİ’è
+        // Addressableè¨­å®š
         AddressableAssetSettings settings = AddressableAssetSettingsDefaultObject.Settings;
         settings.DefaultGroup.Settings.ActivePlayModeDataBuilderIndex = 1;
         AddPrefabToAddressables("Assets/Resources/Prefabs/DummyPrefab.prefab");
@@ -252,7 +252,7 @@ public class BuildAndRun
 
         QualitySettings.SetQualityLevel(System.Array.IndexOf(QualitySettings.names, "High"), true);
 
-        // ƒpƒXİ’è
+        // ãƒ‘ã‚¹è¨­å®š
         string projectPath = Directory.GetParent(Application.dataPath).FullName;
         string folderPath = Path.Combine(projectPath, productDir);
         var jsonPath = Path.Combine(folderPath, "RuntimeActionBindings.json");
@@ -261,20 +261,20 @@ public class BuildAndRun
             File.Delete(jsonPath);
         }
 
-        // •Û‘¶
+        // ä¿å­˜
         AssetDatabase.SaveAssets();
 
-        // ƒvƒƒOƒ‰ƒ€Às
+        // ãƒ—ãƒ­ã‚°ãƒ©ãƒ å®Ÿè¡Œ
         BuildPipeline.BuildPlayer(options);
 
-        // Addressableİ’è–ß‚·
+        // Addressableè¨­å®šæˆ»ã™
         settings.DefaultGroup.Settings.ActivePlayModeDataBuilderIndex = 0;
-        // •Û‘¶
+        // ä¿å­˜
         AssetDatabase.SaveAssets();
 
         if (!isProd)
         {
-            // »”Ôî•ñ‚Ìƒf[ƒ^‚ğíœ
+            // è£½ç•ªæƒ…å ±ã®ãƒ‡ãƒ¼ã‚¿ã‚’å‰Šé™¤
             var dataPath = Path.Combine(folderPath, "KMX_Data/StreamingAssets/Datas");
             var prefabPath = Path.Combine(folderPath, "KMX_Data/ServerData");
             if (Directory.Exists(dataPath))
@@ -285,7 +285,7 @@ public class BuildAndRun
             {
                 Directory.Delete(prefabPath, true);
             }
-            // ƒtƒHƒ‹ƒ_‚¾‚¯ì¬‚µ‚Ä‚¨‚­
+            // ãƒ•ã‚©ãƒ«ãƒ€ã ã‘ä½œæˆã—ã¦ãŠã
             Directory.CreateDirectory(dataPath);
             Directory.CreateDirectory(prefabPath);
         }
@@ -313,10 +313,10 @@ public class BuildAndRun
 
     static void SwitchBuild(Parameters.BuildConfig build)
     {
-        // ƒV[ƒ““Ç‚İ‚İ
+        // ã‚·ãƒ¼ãƒ³èª­ã¿è¾¼ã¿
         var scene = EditorSceneManager.OpenScene(scenePath, OpenSceneMode.Single);
         
-        // ƒCƒxƒ“ƒgƒVƒXƒeƒ€æ“¾
+        // ã‚¤ãƒ™ãƒ³ãƒˆã‚·ã‚¹ãƒ†ãƒ å–å¾—
         var eventSystem = FindInScene(scene, "EventSystem");
         var pointableInput = eventSystem != null ? eventSystem.GetComponent<UnityEngine.EventSystems.PointerInputModule>() : null;
         if (pointableInput != null)
@@ -324,13 +324,13 @@ public class BuildAndRun
             pointableInput.enabled = build.isVR || build.isMR;
         }
 
-        // ƒIƒuƒWƒFƒNƒg‚ğŒŸõ
+        // ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆã‚’æ¤œç´¢
         var normalSetting = FindInScene(scene, "NormalSetting");
         var vrSetting = FindInScene(scene, "VRSetting");
         var mrSetting = FindInScene(scene, "MRSetting");
         var parent = normalSetting != null ? normalSetting.transform.parent : (vrSetting != null ? vrSetting.transform.parent : mrSetting.transform.parent);
         
-        // İ’èØ‚è‘Ö‚¦
+        // è¨­å®šåˆ‡ã‚Šæ›¿ãˆ
         if (build.isVR)
         {
             if (vrCamera == null)
@@ -394,13 +394,13 @@ public class BuildAndRun
                 GameObject.DestroyImmediate(mrSetting);
             }
         }
-        // Meta XR‚Ì©“®ƒ[ƒh‹@”\İ’è
+        // Meta XRã®è‡ªå‹•ãƒ­ãƒ¼ãƒ‰æ©Ÿèƒ½è¨­å®š
         var settings = XRGeneralSettings.Instance;
         settings.InitManagerOnStart = build.isXR;
         EditorUtility.SetDirty(settings);
         AssetDatabase.SaveAssets();
 
-        // ƒV[ƒ“•Û‘¶
+        // ã‚·ãƒ¼ãƒ³ä¿å­˜
         EditorSceneManager.SaveScene(scene);
     }
 
@@ -423,7 +423,7 @@ public class BuildAndRun
                 target = BuildTarget.WebGL;
                 group = BuildTargetGroup.WebGL;
                 return true;
-            // ‘¼‚Ìƒ^[ƒQƒbƒg‚à•K—v‚É‰‚¶‚Ä’Ç‰Á
+            // ä»–ã®ã‚¿ãƒ¼ã‚²ãƒƒãƒˆã‚‚å¿…è¦ã«å¿œã˜ã¦è¿½åŠ 
             default:
                 return false;
         }
@@ -436,7 +436,7 @@ public class BuildAndRun
         return BuildOptions.None;
     }
 
-    // ”ñƒAƒNƒeƒBƒu‚Å‚àŒŸõ‚Å‚«‚éÄ‹AŠÖ”
+    // éã‚¢ã‚¯ãƒ†ã‚£ãƒ–ã§ã‚‚æ¤œç´¢ã§ãã‚‹å†å¸°é–¢æ•°
     private static GameObject FindInScene(Scene scene, string name)
     {
         foreach (var root in scene.GetRootGameObjects())
@@ -484,12 +484,12 @@ public class BuildAndRun
         }
         catch (System.Exception e)
         {
-            UnityEngine.Debug.LogError("ADBƒRƒ}ƒ“ƒh‚ÌÀs‚É¸”s‚µ‚Ü‚µ‚½: " + e.Message);
+            UnityEngine.Debug.LogError("ADBã‚³ãƒãƒ³ãƒ‰ã®å®Ÿè¡Œã«å¤±æ•—ã—ã¾ã—ãŸ: " + e.Message);
         }
     }
 
     /// <summary>
-    /// ƒvƒŒƒnƒu‚ğ“o˜^‚µ‚Ä‚¨‚­
+    /// ãƒ—ãƒ¬ãƒãƒ–ã‚’ç™»éŒ²ã—ã¦ãŠã
     /// </summary>
     /// <param name="prefabPath"></param>
     private static void AddPrefabToAddressables(string prefabPath)
@@ -497,23 +497,23 @@ public class BuildAndRun
         var settings = AddressableAssetSettingsDefaultObject.Settings;
         if (settings == null)
         {
-            Debug.LogError("AddressableAssetSettings ‚ªŒ©‚Â‚©‚è‚Ü‚¹‚ñ");
+            Debug.LogError("AddressableAssetSettings ãŒè¦‹ã¤ã‹ã‚Šã¾ã›ã‚“");
             return;
         }
 
-        // ƒfƒtƒHƒ‹ƒgƒOƒ‹[ƒvi•K—v‚È‚çê—pƒOƒ‹[ƒv‚Å‚àOKj
+        // ãƒ‡ãƒ•ã‚©ãƒ«ãƒˆã‚°ãƒ«ãƒ¼ãƒ—ï¼ˆå¿…è¦ãªã‚‰å°‚ç”¨ã‚°ãƒ«ãƒ¼ãƒ—ã§ã‚‚OKï¼‰
         AddressableAssetGroup group = settings.DefaultGroup;
 
         string guid = AssetDatabase.AssetPathToGUID(prefabPath);
 
-        // ‚·‚Å‚É“o˜^Ï‚İ‚È‚ç‰½‚à‚µ‚È‚¢
+        // ã™ã§ã«ç™»éŒ²æ¸ˆã¿ãªã‚‰ä½•ã‚‚ã—ãªã„
         AddressableAssetEntry entry = settings.FindAssetEntry(guid);
         if (entry == null)
         {
             entry = settings.CreateOrMoveEntry(guid, group);
             entry.address = Path.GetFileNameWithoutExtension(prefabPath);
 
-            Debug.Log($"Addressables ‚É Prefab “o˜^: {entry.address}");
+            Debug.Log($"Addressables ã« Prefab ç™»éŒ²: {entry.address}");
         }
     }
 }

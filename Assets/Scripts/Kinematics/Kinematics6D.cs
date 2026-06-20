@@ -1,4 +1,4 @@
-using Parameters;
+ï»¿using Parameters;
 using System.Collections;
 using System.Collections.Generic;
 using System.Text.Json;
@@ -7,7 +7,7 @@ using UnityEngine;
 
 public class Kinematics6D : Kinematics3D
 {
-    #region ƒvƒƒpƒeƒB
+    #region ãƒ—ãƒ­ãƒ‘ãƒ†ã‚£
     [SerializeField]
     protected TagInfo RX;
 
@@ -23,18 +23,18 @@ public class Kinematics6D : Kinematics3D
     [SerializeField]
     protected GameObject HeadObject;
 
-    #endregion ƒvƒƒpƒeƒB
+    #endregion ãƒ—ãƒ­ãƒ‘ãƒ†ã‚£
 
-    #region •Ï”
+    #region å¤‰æ•°
     protected float trxMax = 0;
     protected float trxMin = 0;
     protected float tryMax = 0;
     protected float tryMin = 0;
     protected float trzMax = 0;
     protected float trzMin = 0;
-    #endregion •Ï”
+    #endregion å¤‰æ•°
 
-    #region ŠÖ”
+    #region é–¢æ•°
 
     // Start is called before the first frame update
     protected override void Start()
@@ -73,7 +73,7 @@ public class Kinematics6D : Kinematics3D
     }
 
     /// <summary>
-    /// g—p‚µ‚Ä‚¢‚éƒ^ƒO‚ğæ“¾‚·‚é
+    /// ä½¿ç”¨ã—ã¦ã„ã‚‹ã‚¿ã‚°ã‚’å–å¾—ã™ã‚‹
     /// </summary>
     /// <returns></returns>
     public override List<TagInfo> GetUseTags()
@@ -82,7 +82,7 @@ public class Kinematics6D : Kinematics3D
     }
 
     /// <summary>
-    /// –Ú•WˆÊ’uƒZƒbƒg
+    /// ç›®æ¨™ä½ç½®ã‚»ãƒƒãƒˆ
     /// </summary>
     /// <param name="target"></param>
     public virtual void setTarget(Vector3 targe, Vector3 rotate)
@@ -91,7 +91,7 @@ public class Kinematics6D : Kinematics3D
     }
 
     /// <summary>
-    /// –Ú•WˆÊ’uƒZƒbƒg
+    /// ç›®æ¨™ä½ç½®ã‚»ãƒƒãƒˆ
     /// </summary>
     /// <param name="x"></param>
     /// <param name="y"></param>
@@ -104,14 +104,14 @@ public class Kinematics6D : Kinematics3D
     }
 
     /// <summary>
-    /// “–‚½‚è”»’è’Ç‰Á
+    /// å½“ãŸã‚Šåˆ¤å®šè¿½åŠ 
     /// </summary>
     protected override void SetCollision()
     {
     }
 
     /// <summary>
-    /// ƒpƒ‰ƒ[ƒ^ƒZƒbƒg
+    /// ãƒ‘ãƒ©ãƒ¡ãƒ¼ã‚¿ã‚»ãƒƒãƒˆ
     /// </summary>
     /// <param name="unitSetting"></param>
     /// <param name="robo"></param>
@@ -121,7 +121,7 @@ public class Kinematics6D : Kinematics3D
     }
 
     /// <summary>
-    /// ƒ‚ƒfƒ‹Ä\’z
+    /// ãƒ¢ãƒ‡ãƒ«å†æ§‹ç¯‰
     /// </summary>
     /// <param name="instance"></param>
     protected override void ModelRestructProcess()
@@ -131,5 +131,5 @@ public class Kinematics6D : Kinematics3D
             HeadObject = robo.headUnit.unitObject;
         }
     }
-    #endregion ŠÖ”
+    #endregion é–¢æ•°
 }

@@ -1,11 +1,11 @@
-using System.Collections.Generic;
+ï»¿using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
 using UnityEngine;
 
 public class MPX_R6 : MPX_RX
 {
-    #region •Ï”
+    #region å¤‰æ•°
     protected GameObject arm1_1;
     protected GameObject arm1_2;
     protected GameObject arm2_1;
@@ -23,10 +23,10 @@ public class MPX_R6 : MPX_RX
     private Vector3 angP;
 
     private float offset = 45;
-    #endregion •Ï”
+    #endregion å¤‰æ•°
 
     /// <summary>
-    /// –Ú•WˆÊ’uƒZƒbƒg
+    /// ç›®æ¨™ä½ç½®ã‚»ãƒƒãƒˆ
     /// </summary>
     /// <param name="x"></param>
     /// <param name="y"></param>
@@ -44,7 +44,7 @@ public class MPX_R6 : MPX_RX
     }
 
     /// <summary>
-    /// ƒ‚ƒfƒ‹Ä\’z
+    /// ãƒ¢ãƒ‡ãƒ«å†æ§‹ç¯‰
     /// </summary>
     /// <param name="instance"></param>
     protected override void ModelRestructProcess()
@@ -68,49 +68,49 @@ public class MPX_R6 : MPX_RX
             isRvs = true;
         }
 
-        // ƒA[ƒ€1-1 W0578802-
+        // ã‚¢ãƒ¼ãƒ 1-1 W0578802-
         var arm1_1Tmp = children.Find(d => d.name.Contains("W0578802-") || d.name.Contains("W0652681-"));
         if (arm1_1Tmp != null)
         {
             arm1_1 = arm1_1Tmp.parent.gameObject;
         }
 
-        // ƒA[ƒ€1-2 W0578972-
+        // ã‚¢ãƒ¼ãƒ 1-2 W0578972-
         var arm1_2Tmp = children.Find(d => d.name.Contains("W0578972-"));
         if (arm1_2Tmp != null)
         {
             arm1_2 = arm1_2Tmp.parent.gameObject;
         }
 
-        // ƒA[ƒ€2-1 W0579111-(OŠpƒvƒŒ[ƒg)
+        // ã‚¢ãƒ¼ãƒ 2-1 W0579111-(ä¸‰è§’ãƒ—ãƒ¬ãƒ¼ãƒˆ)
         var arm2_1Tmp = children.Find(d => d.name.Contains("W0579111-") || d.name.Contains("W0652733-"));
         if (arm2_1Tmp != null)
         {
             arm2_1 = arm2_1Tmp.parent.gameObject;
         }
 
-        // ƒA[ƒ€2-2 W0578963-
+        // ã‚¢ãƒ¼ãƒ 2-2 W0578963-
         var arm2_2Tmp = children.Find(d => d.name.Contains("W0578963-") || d.name.Contains("W0652724-"));
         if (arm2_2Tmp != null)
         {
             arm2_2 = arm2_2Tmp.parent.gameObject;
         }
 
-        // ƒA[ƒ€3 W0578936-
+        // ã‚¢ãƒ¼ãƒ 3 W0578936-
         var arm3Tmp = children.Find(d => d.name.Contains("W0578936-") || d.name.Contains("W0652706-"));
         if (arm3Tmp != null)
         {
             arm3 = arm3Tmp.parent.gameObject;
         }
 
-        // ƒA[ƒ€4 W0578981-
+        // ã‚¢ãƒ¼ãƒ 4 W0578981-
         var arm4Tmp = children.Find(d => d.name.Contains("W0578981-"));
         if (arm4Tmp != null)
         {
             arm4 = arm4Tmp.parent.gameObject;
         }
 
-        // ƒvƒŒ[ƒg Œ¸‘¬‹@‚Ì‰ñ“]•”
+        // ãƒ—ãƒ¬ãƒ¼ãƒˆ æ¸›é€Ÿæ©Ÿã®å›è»¢éƒ¨
         var plateTmp = children.Find(d => d.name.Contains("VRGF-45B60P-8AG8_2^88P3_VRGF-45B60P-8AG8"));
         if (plateTmp == null)
         {
@@ -127,7 +127,7 @@ public class MPX_R6 : MPX_RX
             plate.transform.parent = arm2_2.transform;
             angP = plate.transform.localEulerAngles;
 
-            // ƒwƒbƒhƒZƒbƒg
+            // ãƒ˜ãƒƒãƒ‰ã‚»ãƒƒãƒˆ
             if (HeadObject != null)
             {
                 HeadObject.transform.parent = plate.transform;
@@ -135,7 +135,7 @@ public class MPX_R6 : MPX_RX
             }
         }
 
-        // eqŠÖŒW\’z
+        // è¦ªå­é–¢ä¿‚æ§‹ç¯‰
         arm1_1.transform.parent = mpx.transform;
         arm2_1.transform.parent = mpx.transform;
         arm3.transform.parent = mpx.transform;
@@ -143,7 +143,7 @@ public class MPX_R6 : MPX_RX
         arm2_2.transform.parent = arm1_1.transform;
         arm4.transform.parent = arm3.transform;
 
-        // ‰ŠúŠp“xƒZƒbƒg
+        // åˆæœŸè§’åº¦ã‚»ãƒƒãƒˆ
         ang1_1 = arm1_1.transform.localEulerAngles;
         ang1_2 = arm1_2.transform.localEulerAngles;
         ang2_1 = arm2_1.transform.localEulerAngles;

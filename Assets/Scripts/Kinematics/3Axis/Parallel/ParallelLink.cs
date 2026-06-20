@@ -1,4 +1,4 @@
-using System;
+ï»¿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
@@ -7,35 +7,35 @@ using UnityEngine;
 
 public class ParallelLink : UseHeadBase3DScript
 {
-    #region —ñ‹“Œ^
+    #region åˆ—æŒ™å‹
     [Serializable]
     protected enum ParallelType
     {
         /// <summary>
-        /// ƒ^ƒCƒv–³‚µ
+        /// ã‚¿ã‚¤ãƒ—ç„¡ã—
         /// </summary>
         None,
         /// <summary>
-        /// ‘º“cƒpƒ‰ƒŒƒ‹(3²)
+        /// æ‘ç”°ãƒ‘ãƒ©ãƒ¬ãƒ«(3è»¸)
         /// </summary>
         MPS2_3AS,
         /// <summary>
-        /// ‘º“cƒpƒ‰ƒŒƒ‹(4²)
+        /// æ‘ç”°ãƒ‘ãƒ©ãƒ¬ãƒ«(4è»¸)
         /// </summary>
         MPS2_4AS,
         /// <summary>
-        /// •Ï‘¥ƒpƒ‰ƒŒƒ‹
+        /// å¤‰å‰‡ãƒ‘ãƒ©ãƒ¬ãƒ«
         /// </summary>
         MPX_PI,
         /// <summary>
-        /// ìdƒpƒ‰ƒŒƒ‹
+        /// å·é‡ãƒ‘ãƒ©ãƒ¬ãƒ«
         /// </summary>
         YF03N4,
     }
 
-    #endregion —ñ‹“Œ^
+    #endregion åˆ—æŒ™å‹
 
-    #region •Ï”
+    #region å¤‰æ•°
     [SerializeField]
     protected List<List<float>> angle;
 
@@ -71,7 +71,7 @@ public class ParallelLink : UseHeadBase3DScript
     protected List<Transform> arm2 = new List<Transform>();
     protected List<Transform> armSpring = new List<Transform>();
     protected Transform plate;
-    #endregion •Ï”
+    #endregion å¤‰æ•°
 
     public ParallelLink()
     {
@@ -85,7 +85,7 @@ public class ParallelLink : UseHeadBase3DScript
     }
 
     /// <summary>
-    /// ƒpƒ‰ƒ[ƒ^XV
+    /// ãƒ‘ãƒ©ãƒ¡ãƒ¼ã‚¿æ›´æ–°
     /// </summary>
     protected override void RenewParameter()
     {
@@ -107,7 +107,7 @@ public class ParallelLink : UseHeadBase3DScript
     }
 
     /// <summary>
-    /// –Ú•WˆÊ’uƒZƒbƒg
+    /// ç›®æ¨™ä½ç½®ã‚»ãƒƒãƒˆ
     /// </summary>
     /// <param name="x"></param>
     /// <param name="y"></param>
@@ -118,9 +118,9 @@ public class ParallelLink : UseHeadBase3DScript
         var angle = kinematics_R(x, y, z);
         for (var i = 0; i < AXIS_MAX; i++)
         {
-            // ƒA[ƒ€1‚ÌˆÊ’u
+            // ã‚¢ãƒ¼ãƒ 1ã®ä½ç½®
             arm1[i].transform.localEulerAngles = new Vector3(arm1[i].transform.localEulerAngles.x, arm1[i].transform.localEulerAngles.y, angle[i][0]);
-            // ƒA[ƒ€2‚ÌˆÊ’u
+            // ã‚¢ãƒ¼ãƒ 2ã®ä½ç½®
             arm2_1[i].transform.localEulerAngles = new Vector3(0, -angle[i][1], angle[i][2]);
             arm2_2[i].transform.localEulerAngles = new Vector3(0, angle[i][1], -angle[i][2]);
         }
@@ -129,7 +129,7 @@ public class ParallelLink : UseHeadBase3DScript
     }
 
     /// <summary>
-    /// ‹t‰ğ‚ğ‰ğ‚­
+    /// é€†è§£ã‚’è§£ã
     /// </summary>
     /// <param name="x"></param>
     /// <param name="y"></param>
@@ -147,7 +147,7 @@ public class ParallelLink : UseHeadBase3DScript
             var cosA = Mathf.Cos(-ARM_RAD_OFFSET[i]);
             var sinAm = Mathf.Sin(ARM_RAD_OFFSET[i]);
             var cosAm = Mathf.Cos(ARM_RAD_OFFSET[i]);
-            // ƒ¦1ŒvZ
+            // Î˜1è¨ˆç®—
             var wk = x * cosA + y * sinA;
             var v = wk + fSH_H[i];
             var w = (x2 + y2 + z2 + fSH2[i] + fH2[i] + fL2[i] - fM2[i] + 2 * wk * fSH_H[i] - 2 * fSH[i] * fH[i]) / (2 * fL[i]);
@@ -161,18 +161,18 @@ public class ParallelLink : UseHeadBase3DScript
             {
                 th1 = th1 - Mathf.PI * 2;
             }
-            // “_A‚ÌÀ•W
+            // ç‚¹Aã®åº§æ¨™
             var Ax = fH[i] * cosA;
             var Ay = fH[i] * sinA;
-            // “_B‚ÌÀ•W
+            // ç‚¹Bã®åº§æ¨™
             var Bx = Ax + fL[i] * Mathf.Cos(wk2) * cosA;
             var By = Ay + fL[i] * Mathf.Cos(wk2) * sinA;
             var Bz = fL[i] * Mathf.Sin(wk2);
-            // “_C‚ÌÀ•W
+            // ç‚¹Cã®åº§æ¨™
             var Cx = x + fSH[i] * cosA;
             var Cy = y + fSH[i] * sinA;
             var Cz = z;
-            // ‚Ë‚¶‚êŒvZ
+            // ã­ã˜ã‚Œè¨ˆç®—
             var Bx2 = Bx * cosAm - By * sinAm;
             var Cx2 = Cx * cosAm - Cy * sinAm;
             var M2 = Mathf.Sqrt((Bx2 - Cx2) * (Bx2 - Cx2) + (Bz - Cz) * (Bz - Cz));

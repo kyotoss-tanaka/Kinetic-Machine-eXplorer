@@ -13,7 +13,8 @@ PlayerSettings:
   useOnDemandResources: 0
   accelerometerFrequency: 60
   companyName: Kyoto Seisakusho Co., Ltd.
-  productName: KMX KMXMaster
+  productName: "KMX R9830_\uFF81\uFF6F\uFF8C\uFF9F\uFF7D\uFF80\uFF70(S)\u7528\u5305\u88C5\uFF97\uFF72\uFF9D
+    \u88FD\u54C1\u4F9B\u7D66\u88C5\u7F6E1\u53F7"
   defaultCursor: {fileID: 0}
   cursorHotspot: {x: 0, y: 0}
   m_SplashScreenBackgroundColor: {r: 0.13725491, g: 0.12156863, b: 0.1254902, a: 1}
@@ -172,7 +173,7 @@ PlayerSettings:
   androidMinAspectRatio: 1
   applicationIdentifier:
     Android: com.kyotoss.kmx_352_mr
-    Standalone: com.kyotoss.kmx-R8120
+    Standalone: com.kyotoss.kmx-R9830
   buildNumber:
     Standalone: 0
     VisionOS: 0

@@ -1,11 +1,11 @@
-using System.Collections;
+ï»¿using System.Collections;
 using System.Collections.Generic;
 using System.Text.Json;
 using UnityEngine;
 
 public class Robo6Axis : UseHeadBase3DScript
 {
-    #region ƒvƒƒpƒeƒB
+    #region ãƒ—ãƒ­ãƒ‘ãƒ†ã‚£
     [SerializeField]
     protected TagInfo J1;
 
@@ -23,9 +23,9 @@ public class Robo6Axis : UseHeadBase3DScript
 
     [SerializeField]
     protected TagInfo J6;
-    #endregion ƒvƒƒpƒeƒB
+    #endregion ãƒ—ãƒ­ãƒ‘ãƒ†ã‚£
 
-    #region •Ï”
+    #region å¤‰æ•°
     protected GameObject j1Object;
     protected GameObject j2Object;
     protected GameObject j3Object;
@@ -41,9 +41,9 @@ public class Robo6Axis : UseHeadBase3DScript
     protected TestPosition testJ6 = new TestPosition { min = -180, max = 180, step = 3, range = 1, target = 0};
 
     protected float tj1 = 0, tj2 = 0, tj3 = 0, tj4 = 0, tj5 = 0, tj6 = 0;
-    #endregion •Ï”
+    #endregion å¤‰æ•°
 
-    #region ŠÖ”
+    #region é–¢æ•°
     // Update is called once per frame
     protected override void MyFixedUpdate()
     {
@@ -69,7 +69,7 @@ public class Robo6Axis : UseHeadBase3DScript
     }
 
     /// <summary>
-    /// –Ú•WˆÊ’uƒZƒbƒg
+    /// ç›®æ¨™ä½ç½®ã‚»ãƒƒãƒˆ
     /// </summary>
     /// <param name="x"></param>
     /// <param name="y"></param>
@@ -85,7 +85,7 @@ public class Robo6Axis : UseHeadBase3DScript
     }
 
     /// <summary>
-    /// g—p‚µ‚Ä‚¢‚éƒ^ƒO‚ğæ“¾‚·‚é
+    /// ä½¿ç”¨ã—ã¦ã„ã‚‹ã‚¿ã‚°ã‚’å–å¾—ã™ã‚‹
     /// </summary>
     /// <returns></returns>
     public override List<TagInfo> GetUseTags()
@@ -101,7 +101,7 @@ public class Robo6Axis : UseHeadBase3DScript
     }
 
     /// <summary>
-    /// ƒpƒ‰ƒ[ƒ^ƒZƒbƒg
+    /// ãƒ‘ãƒ©ãƒ¡ãƒ¼ã‚¿ã‚»ãƒƒãƒˆ
     /// </summary>
     /// <param name="components"></param>
     /// <param name="scriptables"></param>
@@ -117,5 +117,5 @@ public class Robo6Axis : UseHeadBase3DScript
         J5 = GetTagInfoFromPrm(scriptables, kssInstanceIds, root, "J5");
         J6 = GetTagInfoFromPrm(scriptables, kssInstanceIds, root, "J6");
     }
-    #endregion ŠÖ”
+    #endregion é–¢æ•°
 }

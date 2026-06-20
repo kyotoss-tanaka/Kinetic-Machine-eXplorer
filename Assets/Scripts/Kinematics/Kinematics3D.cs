@@ -1,4 +1,4 @@
-using Parameters;
+ï»¿using Parameters;
 using System.Collections;
 using System.Collections.Generic;
 using System.Text.Json;
@@ -8,11 +8,11 @@ using UnityEngine;
 public class Kinematics3D : KinematicsBase
 {
     /// <summary>
-    /// ƒLƒƒƒ“ƒoƒX•\¦
+    /// ã‚­ãƒ£ãƒ³ãƒã‚¹è¡¨ç¤º
     /// </summary>
     protected override bool isCanvas { get { return true; } }
 
-    #region ƒvƒƒpƒeƒB
+    #region ãƒ—ãƒ­ãƒ‘ãƒ†ã‚£
     [SerializeField]
     protected TagInfo X;
 
@@ -30,9 +30,9 @@ public class Kinematics3D : KinematicsBase
     protected float offsetX;
     protected float offsetY;
     protected float offsetZ;
-    #endregion ƒvƒƒpƒeƒB
+    #endregion ãƒ—ãƒ­ãƒ‘ãƒ†ã‚£
 
-    #region •Ï”
+    #region å¤‰æ•°
     protected RobotSetting robo;
     protected float txMax = 0;
     protected float txMin = 0;
@@ -40,9 +40,9 @@ public class Kinematics3D : KinematicsBase
     protected float tyMin = 0;
     protected float tzMax = 0;
     protected float tzMin = 0;
-    #endregion •Ï”
+    #endregion å¤‰æ•°
 
-    #region ŠÖ”
+    #region é–¢æ•°
 
     // Start is called before the first frame update
     protected override void Start()
@@ -63,13 +63,13 @@ public class Kinematics3D : KinematicsBase
         {
             if (robo.isTm)
             {
-                // ƒ^ƒCƒ€ƒ`ƒƒ[ƒg‚©‚çƒ^ƒOæ“¾
+                // ã‚¿ã‚¤ãƒ ãƒãƒ£ãƒ¼ãƒˆã‹ã‚‰ã‚¿ã‚°å–å¾—
                 if (tmActs.Count > 0)
                 {
                     var x = tmActs[0] != null ? tmActs[0].nowValue : 0;
                     var y = tmActs[1] != null ? tmActs[1].nowValue : 0;
                     var z = tmActs[2] != null ? tmActs[2].nowValue : 0;
-                    // mm’PˆÊŒn‚É•ÏŠ·
+                    // mmå˜ä½ç³»ã«å¤‰æ›
                     target.x = x * 1000f;
                     target.y = y * 1000f;
                     target.z = z * 1000f;
@@ -78,13 +78,13 @@ public class Kinematics3D : KinematicsBase
             }
             else
             {
-                // ƒ^ƒO‚©‚çƒf[ƒ^æ“¾
+                // ã‚¿ã‚°ã‹ã‚‰ãƒ‡ãƒ¼ã‚¿å–å¾—
                 if (robo.tags.Count >= 3)
                 {
                     var x = GetTagValueF(robo.tags[0], ref X);
                     var y = GetTagValueF(robo.tags[1], ref Y);
                     var z = GetTagValueF(robo.tags[2], ref Z);
-                    // mm’PˆÊŒn‚É•ÏŠ·
+                    // mmå˜ä½ç³»ã«å¤‰æ›
                     target.x = CheckRangeF(x / (robo.rates[0] == 0 ? 1000f : robo.rates[0] / 1000f), txMin, txMax);
                     target.y = CheckRangeF(y / (robo.rates[1] == 0 ? 1000f : robo.rates[1] / 1000f), tyMin, tyMax);
                     target.z = CheckRangeF(z / (robo.rates[2] == 0 ? 1000f : robo.rates[2] / 1000f), tzMin, tzMax);
@@ -95,7 +95,7 @@ public class Kinematics3D : KinematicsBase
     }
 
     /// <summary>
-    /// g—p‚µ‚Ä‚¢‚éƒ^ƒO‚ğæ“¾‚·‚é
+    /// ä½¿ç”¨ã—ã¦ã„ã‚‹ã‚¿ã‚°ã‚’å–å¾—ã™ã‚‹
     /// </summary>
     /// <returns></returns>
     public override List<TagInfo> GetUseTags()
@@ -104,7 +104,7 @@ public class Kinematics3D : KinematicsBase
     }
 
     /// <summary>
-    /// –Ú•WˆÊ’uƒZƒbƒg
+    /// ç›®æ¨™ä½ç½®ã‚»ãƒƒãƒˆ
     /// </summary>
     /// <param name="target"></param>
     public virtual void setTarget(Vector3 target)
@@ -113,7 +113,7 @@ public class Kinematics3D : KinematicsBase
     }
 
     /// <summary>
-    /// –Ú•WˆÊ’uƒZƒbƒg
+    /// ç›®æ¨™ä½ç½®ã‚»ãƒƒãƒˆ
     /// </summary>
     /// <param name="x"></param>
     /// <param name="y"></param>
@@ -123,12 +123,12 @@ public class Kinematics3D : KinematicsBase
     }
 
     /// <summary>
-    /// “–‚½‚è”»’è’Ç‰Á
+    /// å½“ãŸã‚Šåˆ¤å®šè¿½åŠ 
     /// </summary>
     protected override void SetCollision()
     {
         /*
-        // “–‚½‚è”»’è’Ç‰Á
+        // å½“ãŸã‚Šåˆ¤å®šè¿½åŠ 
         foreach (var mesh in this.GetComponentsInChildren<MeshRenderer>())
         {
             var mf = mesh.GetComponentsInChildren<MeshFilter>();
@@ -152,7 +152,7 @@ public class Kinematics3D : KinematicsBase
         }
         */
         /*
-        // “–‚½‚è”»’è’Ç‰Á
+        // å½“ãŸã‚Šåˆ¤å®šè¿½åŠ 
         foreach (var mesh in this.GetComponentsInChildren<MeshFilter>())
         {
             if (mesh.GetComponentInChildren<Collider>() == null)
@@ -176,7 +176,7 @@ public class Kinematics3D : KinematicsBase
     }
 
     /// <summary>
-    /// ƒpƒ‰ƒ[ƒ^ƒZƒbƒg
+    /// ãƒ‘ãƒ©ãƒ¡ãƒ¼ã‚¿ã‚»ãƒƒãƒˆ
     /// </summary>
     /// <param name="components"></param>
     /// <param name="scriptables"></param>
@@ -191,7 +191,7 @@ public class Kinematics3D : KinematicsBase
     }
 
     /// <summary>
-    /// ƒpƒ‰ƒ[ƒ^ƒZƒbƒg
+    /// ãƒ‘ãƒ©ãƒ¡ãƒ¼ã‚¿ã‚»ãƒƒãƒˆ
     /// </summary>
     /// <param name="unitSetting"></param>
     /// <param name="robo"></param>
@@ -211,7 +211,7 @@ public class Kinematics3D : KinematicsBase
                 tmActs.Add(null);
             }
         }
-        // ƒc[ƒ‹ƒIƒtƒZƒbƒg
+        // ãƒ„ãƒ¼ãƒ«ã‚ªãƒ•ã‚»ãƒƒãƒˆ
         offsetX = 0;
         offsetY = 0;
         offsetZ = 0;
@@ -222,5 +222,5 @@ public class Kinematics3D : KinematicsBase
             offsetZ = robo.offset.Count < 3 ? 0 : robo.offset[2];
         }
     }
-    #endregion ŠÖ”
+    #endregion é–¢æ•°
 }

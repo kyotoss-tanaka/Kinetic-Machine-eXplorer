@@ -1,4 +1,4 @@
-using Parameters;
+ï»¿using Parameters;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -6,7 +6,7 @@ using Unity.Burst.Intrinsics;
 using UnityEngine;
 
 /// <summary>
-/// ƒ[ƒlƒo‹@\
+/// ã‚¼ãƒãƒæ©Ÿæ§‹
 /// </summary>
 public class ExMechGenevaInfo : ExMechInfo
 {
@@ -18,63 +18,63 @@ public class ExMechGenevaInfo : ExMechInfo
     private Vector3 initSliderAng;
 
     /// <summary>
-    /// ‰Šú‰»ˆ—
+    /// åˆæœŸåŒ–å‡¦ç†
     /// </summary>
     public override void Initialize()
     {
-        // §Œä‘ÎÛƒIƒuƒWƒFƒNƒg‚ğì¬
+        // åˆ¶å¾¡å¯¾è±¡ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆã‚’ä½œæˆ
         pntAObject = new GameObject("PointA");
         pntAObject.transform.parent = mainAxis.model.transform;
         pntAObject.transform.position = sliderAxis.model.transform.position;
 
-        //@å²
+        //ã€€ä¸»è»¸
         mainOffsetRot = mainAxis.model.transform.rotation;
 
-        // ŒvZ‹óŠÔì¬
+        // è¨ˆç®—ç©ºé–“ä½œæˆ
         calcSpace = new GameObject("CalcSpace");
         calcSpace.transform.parent = workSpace.transform.parent;
         calcSpace.transform.position = workSpace.transform.position;
         calcSpace.transform.localRotation = Quaternion.FromToRotation(mainAxis.model.transform.localRotation * Vector3.right, Vector3.Scale((pntAObject.transform.localPosition - mainAxis.model.transform.localPosition), mainMask).normalized) * mainAxis.model.transform.localRotation;
         moveDir = new Vector3(0, 0, 1);
 
-        // ]“®²
+        // å¾“å‹•è»¸
         guideDir = guideAxis.model.transform.InverseTransformDirection(calcSpace.transform.forward);
         initDrivenOffset = GetDriveAngle();
         initDirvenAng = guideAxis.model.transform.localEulerAngles;
 
-        // ƒXƒ‰ƒCƒ_²
+        // ã‚¹ãƒ©ã‚¤ãƒ€è»¸
         sliderDir = sliderAxis.model.transform.InverseTransformDirection(calcSpace.transform.forward);
         initSliderAng = sliderAxis.model.transform.localEulerAngles;
 
-        // ‰ŠúˆÊ’u
+        // åˆæœŸä½ç½®
         initPosition = calcSpace.transform.InverseTransformPoint(pntAObject.transform.position);
     }
 
     /// <summary>
-    /// ƒXƒ‰ƒCƒ_[ˆÊ’uƒZƒbƒg
+    /// ã‚¹ãƒ©ã‚¤ãƒ€ãƒ¼ä½ç½®ã‚»ãƒƒãƒˆ
     /// </summary>
     public override void RenewPos()
     {
         base.RenewPos();
 
-        // Šp“xŒvZ
+        // è§’åº¦è¨ˆç®—
         var th = (GetDriveAngle() - initDrivenOffset);
 
-        // ]“®²‚ÌŒvZ
+        // å¾“å‹•è»¸ã®è¨ˆç®—
         guideAxis.model.transform.localEulerAngles = th * guideDir + Vector3.Scale(initDirvenAng, guideMask);
 
-        // ƒXƒ‰ƒCƒ_²‚ÌŒvZ
+        // ã‚¹ãƒ©ã‚¤ãƒ€è»¸ã®è¨ˆç®—
         Quaternion deltaMain = mainAxis.model.transform.rotation * Quaternion.Inverse(mainOffsetRot);
         sliderAxis.model.transform.position = pntAObject.transform.position;
         sliderAxis.model.transform.localEulerAngles = th * sliderDir + Vector3.Scale(initSliderAng, sliderMask);
 
-        // À•WXV
+        // åº§æ¨™æ›´æ–°
         nowPos = Vector3.Scale(calcSpace.transform.InverseTransformPoint(pntAObject.transform.position) - initPosition, new Vector3(-1, 1, 0));
         nowAngle = mainAxis.model.transform.localEulerAngles;
     }
 
     /// <summary>
-    /// ]“®²Šp“xæ“¾
+    /// å¾“å‹•è»¸è§’åº¦å–å¾—
     /// </summary>
     /// <returns></returns>
     private float GetDriveAngle()

@@ -1,4 +1,4 @@
-using Parameters;
+ï»¿using Parameters;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
@@ -6,29 +6,29 @@ using UnityEngine;
 public class MotionChangeOver : AxisMotionBase
 {
     /// <summary>
-    /// •iíƒ^ƒO
+    /// å“ç¨®ã‚¿ã‚°
     /// </summary>
     [SerializeField]
     protected TagInfo kindTag;
 
     /// <summary>
-    /// Œ»İ‚Ì’l
+    /// ç¾åœ¨ã®å€¤
     /// </summary>
     [SerializeField]
     private int value;
 
     /// <summary>
-    /// Œ^‘Ö‚¦İ’è
+    /// å‹æ›¿ãˆè¨­å®š
     /// </summary>
     protected ChangeOverSetting changeOverSetting;
 
     /// <summary>
-    /// ‰ŠúˆÊ’u
+    /// åˆæœŸä½ç½®
     /// </summary>
     private Vector3 initPos;
 
     /// <summary>
-    /// ‰ŠúŠp“x
+    /// åˆæœŸè§’åº¦
     /// </summary>
     private Vector3 initRot;
 
@@ -39,7 +39,7 @@ public class MotionChangeOver : AxisMotionBase
     }
 
     /// <summary>
-    /// XVˆ—
+    /// æ›´æ–°å‡¦ç†
     /// </summary>
     protected override void MyFixedUpdate()
     {
@@ -125,7 +125,7 @@ public class MotionChangeOver : AxisMotionBase
     }
 
     /// <summary>
-    /// ƒ†ƒjƒbƒgî•ñ‚ğŠO•”‚©‚çİ’è‚·‚é
+    /// ãƒ¦ãƒ‹ãƒƒãƒˆæƒ…å ±ã‚’å¤–éƒ¨ã‹ã‚‰è¨­å®šã™ã‚‹
     /// </summary>
     /// <param name="unitSetting"></param>
     public void SetUnitSettings(UnitSetting unitSetting, ChuckUnitSetting chuckSetting, ChangeOverSetting changeOverSetting)

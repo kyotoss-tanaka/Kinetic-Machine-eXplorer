@@ -1,4 +1,4 @@
-#if UNITY_EDITOR
+ï»¿#if UNITY_EDITOR
 #if DEV_PC
 using NUnit.Framework.Constraints;
 using Oculus.Platform;
@@ -75,7 +75,7 @@ public class PrefabImporter
     protected static IOInterface IO => m_API.IO;
     #endregion
 
-    #region ƒNƒ‰ƒX’è‹`
+    #region ã‚¯ãƒ©ã‚¹å®šç¾©
     public class KssImporterScriptableObject : ScriptableObject
     {
         [SerializeField] private GameObject m_Prefab = null; // readonly
@@ -410,14 +410,14 @@ public class PrefabImporter
         }
         */
     }
-    #endregion ƒNƒ‰ƒX’è‹`
+    #endregion ã‚¯ãƒ©ã‚¹å®šç¾©
 
     [MenuItem("Kyotoss/Create Prefab Files", false, 1)]
     public static void ImportFolder()
     {
         isProcessing = true;
-        // ƒ_ƒCƒAƒƒO‚ğŠJ‚¢‚ÄAOK‚ÉƒR[ƒ‹ƒoƒbƒN‚Åˆ—‚ğs‚¤
-        InputDialogWindow.Show("Prefab Creator", "ƒCƒ“ƒ|[ƒgŒ³ƒtƒHƒ‹ƒ_(ƒtƒ@ƒCƒ‹)‚ğ“ü—Í‚µ‚Ä‚­‚¾‚³‚¢F", @"H:\data", (string input) =>
+        // ãƒ€ã‚¤ã‚¢ãƒ­ã‚°ã‚’é–‹ã„ã¦ã€OKæ™‚ã«ã‚³ãƒ¼ãƒ«ãƒãƒƒã‚¯ã§å‡¦ç†ã‚’è¡Œã†
+        InputDialogWindow.Show("Prefab Creator", "ã‚¤ãƒ³ãƒãƒ¼ãƒˆå…ƒãƒ•ã‚©ãƒ«ãƒ€(ãƒ•ã‚¡ã‚¤ãƒ«)ã‚’å…¥åŠ›ã—ã¦ãã ã•ã„ï¼š", @"H:\data", (string input) =>
         {
             if (string.IsNullOrEmpty(input))
             {
@@ -441,19 +441,19 @@ public class PrefabImporter
         });
     }
 
-    // validateŠÖ”itrue‚È‚ç—LŒøAfalse‚È‚ç–³Œøj
+    // validateé–¢æ•°ï¼ˆtrueãªã‚‰æœ‰åŠ¹ã€falseãªã‚‰ç„¡åŠ¹ï¼‰
     [MenuItem("Kyotoss/Create Prefab Files", true)]
     private static bool ValidateCreatePrefabFiles()
     {
-        return !isProcessing; // ˆ—’†‚È‚ç–³Œø‰»
+        return !isProcessing; // å‡¦ç†ä¸­ãªã‚‰ç„¡åŠ¹åŒ–
     }
 
     [MenuItem("Kyotoss/Create Prefab Files(VR)", false, 2)]
     public static void ImportFolderVR()
     {
         isProcessing = true;
-        // ƒ_ƒCƒAƒƒO‚ğŠJ‚¢‚ÄAOK‚ÉƒR[ƒ‹ƒoƒbƒN‚Åˆ—‚ğs‚¤
-        InputDialogWindow.Show("Prefab Creator", "ƒCƒ“ƒ|[ƒgŒ³ƒtƒHƒ‹ƒ_(ƒtƒ@ƒCƒ‹)‚ğ“ü—Í‚µ‚Ä‚­‚¾‚³‚¢F", @"H:\data", (string input) =>
+        // ãƒ€ã‚¤ã‚¢ãƒ­ã‚°ã‚’é–‹ã„ã¦ã€OKæ™‚ã«ã‚³ãƒ¼ãƒ«ãƒãƒƒã‚¯ã§å‡¦ç†ã‚’è¡Œã†
+        InputDialogWindow.Show("Prefab Creator", "ã‚¤ãƒ³ãƒãƒ¼ãƒˆå…ƒãƒ•ã‚©ãƒ«ãƒ€(ãƒ•ã‚¡ã‚¤ãƒ«)ã‚’å…¥åŠ›ã—ã¦ãã ã•ã„ï¼š", @"H:\data", (string input) =>
         {
             if (string.IsNullOrEmpty(input))
             {
@@ -477,11 +477,11 @@ public class PrefabImporter
         });
     }
 
-    // validateŠÖ”itrue‚È‚ç—LŒøAfalse‚È‚ç–³Œøj
+    // validateé–¢æ•°ï¼ˆtrueãªã‚‰æœ‰åŠ¹ã€falseãªã‚‰ç„¡åŠ¹ï¼‰
     [MenuItem("Kyotoss/Create Prefab Files(VR)", true)]
     private static bool ValidateCreatePrefabVRFiles()
     {
-        return !isProcessing; // ˆ—’†‚È‚ç–³Œø‰»
+        return !isProcessing; // å‡¦ç†ä¸­ãªã‚‰ç„¡åŠ¹åŒ–
     }
 
     public class KssPrefabImport
@@ -503,7 +503,7 @@ public class PrefabImporter
                 {
                     if (m_ImportProgress?.IsCanceling == true || m_ImportProgress?.IsFinished == true)
                     {
-                        // Šù‚É Finish/Cancel Ï‚İ‚È‚Ì‚Å Finish() ‚Ì“ñdŒÄ‚Ño‚µ•s—v
+                        // æ—¢ã« Finish/Cancel æ¸ˆã¿ãªã®ã§ Finish() ã®äºŒé‡å‘¼ã³å‡ºã—ä¸è¦
                     }
                     m_ImportProgress = new SyncedProgress(this, true, "Importing " + m_FileName, true);
                 }
@@ -511,7 +511,7 @@ public class PrefabImporter
             }
         }
 
-        #region ƒNƒ‰ƒX’è‹`
+        #region ã‚¯ãƒ©ã‚¹å®šç¾©
         public struct Tolerances
         {
             public readonly double MaxSag;
@@ -623,7 +623,7 @@ public class PrefabImporter
         /// </summary>
         public class SyncedProgress
         {
-            // Šù‘¶ƒtƒB[ƒ‹ƒh‚É’Ç‰Á
+            // æ—¢å­˜ãƒ•ã‚£ãƒ¼ãƒ«ãƒ‰ã«è¿½åŠ 
             private bool m_IsFinished = false;
             public bool IsFinished => m_IsFinished;
 
@@ -807,7 +807,7 @@ public class PrefabImporter
             /// <param name="message">Optional message describing the completion state.</param>
             public void Finish(string message = "")
             {
-                m_IsFinished = true;  // © ’Ç‰Á
+                m_IsFinished = true;  // â† è¿½åŠ 
                 m_Progress.Report(new ProgressInformation(100, message, false, Status.Finished));
 
                 if (m_ProgressBarPopulated)
@@ -836,7 +836,7 @@ public class PrefabImporter
             /// <param name="message">Optional message describing the cancellation state.</param>
             public void FinishCancel(string message = "")
             {
-                m_IsFinished = true;  // © ’Ç‰Á
+                m_IsFinished = true;  // â† è¿½åŠ 
                 if (Enabled)
                 {
                     m_Progress.Report(new ProgressInformation(-1, message, false, Status.Canceled));
@@ -856,7 +856,7 @@ public class PrefabImporter
             /// <param name="message">Optional message describing the failure state.</param>
             public void Failed(string message = "")
             {
-                m_IsFinished = true;  // © ’Ç‰Á
+                m_IsFinished = true;  // â† è¿½åŠ 
                 m_Progress.Report(new ProgressInformation(-1, message, false, Status.Failed));
 
                 if (m_ProgressBarPopulated)
@@ -972,7 +972,7 @@ public class PrefabImporter
                 m_API.Core.RemoveProgressStepFinishedCallback(m_CallbackId3);
             }
         }
-        #endregion ƒNƒ‰ƒX’è‹`
+        #endregion ã‚¯ãƒ©ã‚¹å®šç¾©
 
         public KssPrefabImport()
         {
@@ -984,7 +984,7 @@ public class PrefabImporter
         }
 
         /// <summary>
-        /// ƒCƒ“ƒ|[ƒgˆ—ŠJn
+        /// ã‚¤ãƒ³ãƒãƒ¼ãƒˆå‡¦ç†é–‹å§‹
         /// </summary>
         /// <param name="folder"></param>
         private async void ImportProcess(string folder)
@@ -1032,7 +1032,7 @@ public class PrefabImporter
                         var tmp = Path.GetFileName(dir);
                         if ((tmp[tmp.Length - 1] == '0') && (tmp[0] != 'Z'))
                         {
-                            // ƒ[ƒh‚·‚×‚«ƒtƒHƒ‹ƒ_
+                            // ãƒ­ãƒ¼ãƒ‰ã™ã¹ããƒ•ã‚©ãƒ«ãƒ€
                             var files = Directory.GetFiles(Path.Combine(dir)).ToList();
                             if (files.Count > 0)
                             {
@@ -1055,37 +1055,37 @@ public class PrefabImporter
             }
             if (isSuccess)
             {
-                // ƒ^ƒCƒgƒ‹AƒƒbƒZ[ƒWAƒ{ƒ^ƒ“–¼
+                // ã‚¿ã‚¤ãƒˆãƒ«ã€ãƒ¡ãƒƒã‚»ãƒ¼ã‚¸ã€ãƒœã‚¿ãƒ³å
                 string projectPath = Directory.GetParent(UnityEngine.Application.dataPath).FullName;
                 string folderPath = Path.Combine(Path.Combine(Path.Combine(projectPath, "Assets"), PixyzProjectSettings.PrefabFolder), m_ProdNo);
                 if (isVR)
                 {
-                    // VR—p
+                    // VRç”¨
                     folderPath = Path.Combine(folderPath, "VR");
-                    // VR—pƒf[ƒ^ì¬
+                    // VRç”¨ãƒ‡ãƒ¼ã‚¿ä½œæˆ
 //                    PrefabMeshMerger.MergePrefabProcess(folderPath);
                 }
-                EditorUtility.DisplayDialog("î•ñ", "Prefabì¬ˆ—‚ªŠ®—¹‚µ‚Ü‚µ‚½B", "OK");
-                // ƒGƒNƒXƒvƒ[ƒ‰[‚ÅŠJ‚­
+                EditorUtility.DisplayDialog("æƒ…å ±", "Prefabä½œæˆå‡¦ç†ãŒå®Œäº†ã—ã¾ã—ãŸã€‚", "OK");
+                // ã‚¨ã‚¯ã‚¹ãƒ—ãƒ­ãƒ¼ãƒ©ãƒ¼ã§é–‹ã
                 System.Diagnostics.Process.Start("explorer.exe", folderPath);
             }
             else
             {
-                // ƒ^ƒCƒgƒ‹AƒƒbƒZ[ƒWAƒ{ƒ^ƒ“–¼
-                EditorUtility.DisplayDialog("î•ñ", "Prefabì¬ˆ—‚É¸”s‚µ‚Ü‚µ‚½B", "OK");
+                // ã‚¿ã‚¤ãƒˆãƒ«ã€ãƒ¡ãƒƒã‚»ãƒ¼ã‚¸ã€ãƒœã‚¿ãƒ³å
+                EditorUtility.DisplayDialog("æƒ…å ±", "Prefabä½œæˆå‡¦ç†ã«å¤±æ•—ã—ã¾ã—ãŸã€‚", "OK");
             }
             isProcessing = false;
         }
 
         /// <summary>
-        /// ƒCƒ“ƒ|[ƒgˆ—
+        /// ã‚¤ãƒ³ãƒãƒ¼ãƒˆå‡¦ç†
         /// </summary>
         /// <returns></returns>
         private Task ImportProcessTask()
         {
             ImportProgress.Enabled = true;
 
-            // ‰Šúİ’è
+            // åˆæœŸè¨­å®š
             SetModuleProperties();
             SetTolerances();
 
@@ -1549,7 +1549,7 @@ public class PrefabImporter
         }
 
         /// <summary>
-        /// ƒ|ƒXƒgƒvƒƒZƒX
+        /// ãƒã‚¹ãƒˆãƒ—ãƒ­ã‚»ã‚¹
         /// </summary>
         /// <param name="resetVariablesCallback"></param>
         private void PostProcess(Action<UnityEngine.Object> resetVariablesCallback)
@@ -1766,7 +1766,7 @@ public class PrefabImporter
             string folderPath = "Assets/" + PixyzProjectSettings.PrefabFolder + "/" + m_ProdNo;
             if (isVR)
             {
-                // VR—p
+                // VRç”¨
                 folderPath = Path.Combine(folderPath, "VR");
             }
             fileName = m_FileName;
@@ -2127,16 +2127,16 @@ public class InputDialogWindow : EditorWindow
         EditorGUILayout.BeginHorizontal();
         inputText = EditorGUILayout.TextField(inputText);
 
-        if (GUILayout.Button("ƒtƒHƒ‹ƒ_QÆ", GUILayout.Width(100)))
+        if (GUILayout.Button("ãƒ•ã‚©ãƒ«ãƒ€å‚ç…§", GUILayout.Width(100)))
         {
-            string selected = EditorUtility.OpenFolderPanel("ƒtƒHƒ‹ƒ_‘I‘ğ", inputText, "");
+            string selected = EditorUtility.OpenFolderPanel("ãƒ•ã‚©ãƒ«ãƒ€é¸æŠ", inputText, "");
             if (!string.IsNullOrEmpty(selected))
                 inputText = selected;
         }
 
-        if (GUILayout.Button("ƒtƒ@ƒCƒ‹QÆ", GUILayout.Width(100)))
+        if (GUILayout.Button("ãƒ•ã‚¡ã‚¤ãƒ«å‚ç…§", GUILayout.Width(100)))
         {
-            string selected = EditorUtility.OpenFilePanelWithFilters("ƒtƒ@ƒCƒ‹‘I‘ğ", inputText, new string[] { "SolidWorksƒtƒ@ƒCƒ‹", "sldasm,SLDASM" });  // "ƒtƒBƒ‹ƒ^–¼", "Šg’£qƒŠƒXƒg(ƒJƒ“ƒ}‹æØ‚è)";
+            string selected = EditorUtility.OpenFilePanelWithFilters("ãƒ•ã‚¡ã‚¤ãƒ«é¸æŠ", inputText, new string[] { "SolidWorksãƒ•ã‚¡ã‚¤ãƒ«", "sldasm,SLDASM" });  // "ãƒ•ã‚£ãƒ«ã‚¿å", "æ‹¡å¼µå­ãƒªã‚¹ãƒˆ(ã‚«ãƒ³ãƒåŒºåˆ‡ã‚Š)";
             if (!string.IsNullOrEmpty(selected))
                 inputText = selected;
         }
@@ -2153,7 +2153,7 @@ public class InputDialogWindow : EditorWindow
             Close();
         }
 
-        if (GUILayout.Button("ƒLƒƒƒ“ƒZƒ‹", GUILayout.Width(100)))
+        if (GUILayout.Button("ã‚­ãƒ£ãƒ³ã‚»ãƒ«", GUILayout.Width(100)))
         {
             onOk?.Invoke(null);
             Close();

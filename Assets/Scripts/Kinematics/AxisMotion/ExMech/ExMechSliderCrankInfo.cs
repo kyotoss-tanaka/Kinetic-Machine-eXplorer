@@ -1,11 +1,11 @@
-using Parameters;
+ï»¿using Parameters;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
 
 /// <summary>
-/// ƒXƒ‰ƒCƒ_ƒNƒ‰ƒ“ƒN‹@\
+/// ã‚¹ãƒ©ã‚¤ãƒ€ã‚¯ãƒ©ãƒ³ã‚¯æ©Ÿæ§‹
 /// </summary>
 public class SliderCrankInfo : ExMechInfo
 {
@@ -41,7 +41,7 @@ public class SliderCrankInfo : ExMechInfo
         }
     }
     /// <summary>
-    /// ‰Šú‰»ˆ—
+    /// åˆæœŸåŒ–å‡¦ç†
     /// </summary>
     public override void Initialize()
     {
@@ -52,7 +52,7 @@ public class SliderCrankInfo : ExMechInfo
             initExPos = sliderAxis.model.transform.localPosition;
         }
 
-        // ˆê’UƒRƒ“ƒƒbƒh‚Ìˆê”Ô‰“‚¢ƒIƒuƒWƒFƒNƒgæ“¾
+        // ä¸€æ—¦ã‚³ãƒ³ãƒ­ãƒƒãƒ‰ã®ä¸€ç•ªé ã„ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆå–å¾—
         var farPnt = GetModelFarPoint(pntAAxis.model, ref pntFarObject, new Vector3(1, 1, 0));
         var rodMax = Mathf.Max(Mathf.Abs(farPnt.x), Mathf.Abs(farPnt.y));
         rodDir = new Vector3
@@ -61,23 +61,23 @@ public class SliderCrankInfo : ExMechInfo
             y = rodMax == Mathf.Abs(farPnt.y) ? 1 : 0,
             z = rodMax == Mathf.Abs(farPnt.z) ? 1 : 0
         };
-        // L‚Ñ‚Ä‚é•ûŒü‚ª‚í‚©‚Á‚½‚Ì‚ÅÄ“xæ“¾
+        // ä¼¸ã³ã¦ã‚‹æ–¹å‘ãŒã‚ã‹ã£ãŸã®ã§å†åº¦å–å¾—
         farPnt = GetModelFarPoint(pntAAxis.model, ref pntFarObject, rodDir);
         var pos = pntAAxis.model.transform.TransformPoint(farPnt);
         pntBOffset = guideSpace.transform.InverseTransformPoint(pos);
 
-        // ƒRƒ“ƒƒbƒh‚Ìå²‘¤”»’è
+        // ã‚³ãƒ³ãƒ­ãƒƒãƒ‰ã®ä¸»è»¸å´åˆ¤å®š
         var tmpA = Vector3.Scale(mainAxis.model.transform.InverseTransformPoint(pntAAxis.model.transform.position), mainMask);
         var tmpB = Vector3.Scale(mainAxis.model.transform.InverseTransformPoint(pntFarObject.transform.position), mainMask);
 
-        // §Œä‘ÎÛƒIƒuƒWƒFƒNƒg‚ğì¬
+        // åˆ¶å¾¡å¯¾è±¡ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆã‚’ä½œæˆ
         pntAObject = new GameObject("PointA");
         pntBObject = new GameObject("PointB");
 
-        // ƒRƒ“ƒƒbƒh‚ÌªŒ³‚ª‚Ç‚¿‚ç‘¤‚©ƒ`ƒFƒbƒN(å²‚Ì²ã‚É‚¢‚é‚©)
+        // ã‚³ãƒ³ãƒ­ãƒƒãƒ‰ã®æ ¹å…ƒãŒã©ã¡ã‚‰å´ã‹ãƒã‚§ãƒƒã‚¯(ä¸»è»¸ã®è»¸ä¸Šã«ã„ã‚‹ã‹)
         if (CheckRod(tmpA, tmpB))
         {
-            // A‚ÆB“ü‚ê‘Ö‚¦
+            // Aã¨Bå…¥ã‚Œæ›¿ãˆ
             armL = Vector3.Distance(Vector3.zero, tmpB);
             modeB = true;
             pntBOffset = pntAOffset;
@@ -95,10 +95,10 @@ public class SliderCrankInfo : ExMechInfo
         pntAObject.transform.parent = mainAxis.model.transform;
         pntBObject.transform.parent = sliderAxis.model.transform;
 
-        // ƒRƒ“ƒƒbƒh‚Ìeİ’è
+        // ã‚³ãƒ³ãƒ­ãƒƒãƒ‰ã®è¦ªè¨­å®š
         pntAAxis.SetParent(guideSpace);
 
-        // ƒRƒ“ƒƒbƒh‚Ì•ûŒüæ“¾
+        // ã‚³ãƒ³ãƒ­ãƒƒãƒ‰ã®æ–¹å‘å–å¾—
         var conA = pntAAxis.model.transform.InverseTransformPoint(guideSpace.transform.TransformPoint(Vector3.Scale(pntAOffset, moveMask)));
         var conB = pntAAxis.model.transform.InverseTransformPoint(guideSpace.transform.TransformPoint(Vector3.Scale(pntBOffset, moveMask)));
         var conAB = conB - conA;
@@ -115,57 +115,57 @@ public class SliderCrankInfo : ExMechInfo
         {
             rodDir = conAB.z < 0 ? Vector3.forward : Vector3.back;
         }
-        // ‰Šúp¨
+        // åˆæœŸå§¿å‹¢
         initRotRotation = Quaternion.Euler(Vector3.Scale(pntAAxis.model.transform.localEulerAngles, rodDir));
 
-        // ƒKƒCƒhŠî€‚É•ÏX
+        // ã‚¬ã‚¤ãƒ‰åŸºæº–ã«å¤‰æ›´
         var pntA = Vector3.Scale(pntAOffset, moveMask);
         var pntB = Vector3.Scale(pntBOffset, moveMask);
 
-        // ƒKƒCƒh‚Ì•ûŒü•Êˆ—
+        // ã‚¬ã‚¤ãƒ‰ã®æ–¹å‘åˆ¥å‡¦ç†
         if ((guideDir == Vector3.right) || (guideDir == Vector3.left))
         {
-            // ƒKƒCƒh‚ªX•ûŒü
-            // ƒ}ƒCƒiƒX•ûŒü”»’è
+            // ã‚¬ã‚¤ãƒ‰ãŒXæ–¹å‘
+            // ãƒã‚¤ãƒŠã‚¹æ–¹å‘åˆ¤å®š
             var xminus = (pntB - pntA).x < 0 ? 1 : 0;
             if ((moveDir == Vector3.forward) || (moveDir == Vector3.back))
             {
-                // ‰ñ“]²‚ªZ
+                // å›è»¢è»¸ãŒZ
                 var yminus = pntA.y < 0 ? 1 : 0;
                 rotation = Quaternion.Euler(xminus != yminus ? 180 : 0, 0, xminus * 180);
             }
             else if ((moveDir == Vector3.up) || (moveDir == Vector3.down))
             {
-                // ‰ñ“]²‚ªY
+                // å›è»¢è»¸ãŒY
                 var yminus = pntA.z < 0 ? 1 : 0;
                 rotation = Quaternion.Euler((xminus != yminus ? 180 : 0) + 90, xminus * 180, 0);
             }
         }
         else if ((guideDir == Vector3.up) || (guideDir == Vector3.down))
         {
-            // ƒKƒCƒh‚ªY•ûŒü
+            // ã‚¬ã‚¤ãƒ‰ãŒYæ–¹å‘
             var xminus = (pntB - pntA).y < 0 ? 1 : 0;
             if ((moveDir == Vector3.forward) || (moveDir == Vector3.back))
             {
-                // ‰ñ“]²‚ªZ
+                // å›è»¢è»¸ãŒZ
                 var yminus = pntA.x < 0 ? 1 : 0;
 
             }
             else if ((moveDir == Vector3.right) || (moveDir == Vector3.left))
             {
-                // ‰ñ“]²‚ªX
+                // å›è»¢è»¸ãŒX
                 var yminus = pntA.z < 0 ? 1 : 0;
                 rotation = Quaternion.Euler(xminus * 180 + 90, xminus != yminus ? 180 : 0, -90);
             }
         }
         else
         {
-            // ƒKƒCƒh‚ªZ•ûŒü
+            // ã‚¬ã‚¤ãƒ‰ãŒZæ–¹å‘
         }
         var tmp = rotation * pntB;
         yOffset = tmp.y;
         pntBGuideOffset = new Vector2(tmp.x, tmp.y);
-        // ŒvZ‹óŠÔ
+        // è¨ˆç®—ç©ºé–“
         calcSpace = new GameObject("CalcSpace");
         calcSpace.transform.parent = workSpace.transform.parent;
         calcSpace.transform.position = mainAxis.model.transform.position;
@@ -173,20 +173,20 @@ public class SliderCrankInfo : ExMechInfo
         calcSpace.transform.localScale = new(1, 1, 1);
         if (exModeChange)
         {
-            // ŒvZ‹óŠÔ‚ÖˆÚ“®
+            // è¨ˆç®—ç©ºé–“ã¸ç§»å‹•
             mainAxis.model.transform.parent = calcSpace.transform;
             sliderOffset = calcSpace.transform.InverseTransformPoint(sliderAxis.model.transform.position);
         }
-        // ƒXƒ‰ƒCƒ_‰ŠúˆÊ’u
+        // ã‚¹ãƒ©ã‚¤ãƒ€åˆæœŸä½ç½®
         initSliderZeroX = Mathf.Sqrt(armM * armM - (armL - yOffset) * (armL - yOffset));
         initSliderOffset = initSliderZeroX - pntBGuideOffset.x;
-        // å²‚Ì‰ŠúŠp“x
+        // ä¸»è»¸ã®åˆæœŸè§’åº¦
         var initMainAngle = (Quaternion.Inverse(calcSpace.transform.rotation) * mainAxis.model.transform.rotation).eulerAngles.z;
-        // ‰‰ñ‚Ì‹t‰ğ
+        // åˆå›ã®é€†è§£
         var result = InverseKinematics(new Vector3(pntBGuideOffset.x, yOffset, 0));
         var th = result.theta[0] > result.theta[1] ? result.theta[0] : result.theta[1];
         initMainAngleOffset = th - initMainAngle;
-        // ‰Šú’l
+        // åˆæœŸå€¤
         nowPos.y = yOffset;
         nowPos.z = 0;
         nowAngle.x = 0;
@@ -194,13 +194,13 @@ public class SliderCrankInfo : ExMechInfo
     }
 
     /// <summary>
-    /// ƒXƒ‰ƒCƒ_[ˆÊ’uƒZƒbƒg
+    /// ã‚¹ãƒ©ã‚¤ãƒ€ãƒ¼ä½ç½®ã‚»ãƒƒãƒˆ
     /// </summary>
     public override void RenewPos()
     {
         if (exModeChange)
         {
-            // ƒXƒ‰ƒCƒ_ˆÊ’uŒvZ
+            // ã‚¹ãƒ©ã‚¤ãƒ€ä½ç½®è¨ˆç®—
             var m = moveExPos.x + moveExPos.y + moveExPos.z;
             var move = new Vector3
             {
@@ -209,60 +209,60 @@ public class SliderCrankInfo : ExMechInfo
                 z = 0
             };
             sliderAxis.model.transform.position = calcSpace.transform.TransformPoint(sliderOffset + move);
-            // ‹t‰ğ
+            // é€†è§£
             var result = InverseKinematics(new Vector3(initSliderZeroX + m, yOffset, 0));
             if (result.valid)
             {
                 var th = result.theta[0] > result.theta[1] ? result.theta[0] : result.theta[1];
                 mainAxis.model.transform.localEulerAngles = new Vector3(0, 0, th - initMainAngleOffset);
             }
-            // ƒXƒ‰ƒCƒ_ˆÊ’u
+            // ã‚¹ãƒ©ã‚¤ãƒ€ä½ç½®
             nowPos.x = m;
         }
         else
         {
-            // 2ŸŒ³‚ÅŒvZ
+            // 2æ¬¡å…ƒã§è¨ˆç®—
             var y = pntAGuidePos.y - yOffset;
             var x = MathF.Sqrt(armM * armM - y * y);
             pntBGuidePos = new Vector2(pntAGuidePos.x + x, yOffset);
-            // ƒXƒ‰ƒCƒ_‚ÌˆÊ’u
+            // ã‚¹ãƒ©ã‚¤ãƒ€ã®ä½ç½®
             sliderAxis.model.transform.position = guideSpace.transform.TransformPoint(sliderOffset + Vector3.Scale(movePos, guideDir));
             nowPos.x = x - initSliderOffset;
         }
-        // ƒRƒ“ƒƒbƒh’[‚Ìæ“¾
+        // ã‚³ãƒ³ãƒ­ãƒƒãƒ‰ç«¯ã®å–å¾—
         var posA = Vector3.Scale(guideSpace.transform.InverseTransformPoint(pntAObject.transform.position), moveMask);
         var posB = Vector3.Scale(guideSpace.transform.InverseTransformPoint(pntBObject.transform.position), moveMask);
         if (modeB)
         {
             pntAAxis.model.transform.position = pntBObject.transform.position;
-            // ƒRƒ“ƒƒbƒh‚ÌŒü‚«
+            // ã‚³ãƒ³ãƒ­ãƒƒãƒ‰ã®å‘ã
             var rot = Quaternion.FromToRotation(rodDir, posA - posB) * Quaternion.Inverse(initRotRotation);
             pntAAxis.model.transform.localRotation = rot;
         }
         else
         {
             pntAAxis.model.transform.position = pntAObject.transform.position;
-            // ƒRƒ“ƒƒbƒh‚ÌŒü‚«
+            // ã‚³ãƒ³ãƒ­ãƒƒãƒ‰ã®å‘ã
             var rot = Quaternion.FromToRotation(rodDir, posA - posB) * Quaternion.Inverse(initRotRotation);
             pntAAxis.model.transform.localRotation = rot;
         }
-        // Šp“x‚ÆÀ•Wæ“¾
+        // è§’åº¦ã¨åº§æ¨™å–å¾—
         nowAngle.z = NormalizeAngle(90 - (Quaternion.Inverse(calcSpace.transform.rotation) * mainAxis.model.transform.rotation).eulerAngles.z - initMainAngleOffset);
     }
 
     /// <summary>
-    /// ‹t‰ğ‚ğ‰ğ‚­
+    /// é€†è§£ã‚’è§£ã
     /// </summary>
     /// <param name="pos"></param>
     /// <returns></returns>
     protected override SolveResult InverseKinematics(Vector3 pos)
     {
         SolveResult res = new SolveResult();
-        // Šî–{ŒŸ¸
+        // åŸºæœ¬æ¤œæŸ»
         if (armL <= 0f || armM <= 0f)
         {
             res.valid = false;
-            res.message = "r ‚Ü‚½‚Í l ‚ª³‚Å‚È‚¢";
+            res.message = "r ã¾ãŸã¯ l ãŒæ­£ã§ãªã„";
             return res;
         }
 
@@ -275,32 +275,32 @@ public class SliderCrankInfo : ExMechInfo
 
         if (R <= EPS)
         {
-            // R ‚ª0‚É‹ß‚¢ = (x,h) ‚ª (0,0) ‚É”ñí‚É‹ß‚¢i‹Hj
-            // ‚»‚Ìê‡ A‚ÆB‚ª¬‚³‚­‰ğ‚ÌˆÀ’è«‚ªˆ«‚¢
+            // R ãŒ0ã«è¿‘ã„ = (x,h) ãŒ (0,0) ã«éå¸¸ã«è¿‘ã„ï¼ˆç¨€ï¼‰
+            // ãã®å ´åˆ Aã¨BãŒå°ã•ãè§£ã®å®‰å®šæ€§ãŒæ‚ªã„
             res.valid = false;
-            res.message = "R ‚ª¬‚³‚·‚¬‚Ä•sˆÀ’èix,h ‚ªŒ´“_‹ß–Tj";
+            res.message = "R ãŒå°ã•ã™ãã¦ä¸å®‰å®šï¼ˆx,h ãŒåŸç‚¹è¿‘å‚ï¼‰";
             return res;
         }
 
         float ratio = C / R;
-        // ”’lŒë·‚Å +-1 ‚ğ­‚µ’´‚¦‚é‰Â”\«‚ª‚ ‚é‚½‚ßƒNƒ‰ƒ“ƒv
+        // æ•°å€¤èª¤å·®ã§ +-1 ã‚’å°‘ã—è¶…ãˆã‚‹å¯èƒ½æ€§ãŒã‚ã‚‹ãŸã‚ã‚¯ãƒ©ãƒ³ãƒ—
         if (ratio > 1f + 1e-5f || ratio < -1f - 1e-5f)
         {
             res.valid = false;
-            res.message = "•¨—“I‚É‰ğ‚È‚µ (|C| > R)";
+            res.message = "ç‰©ç†çš„ã«è§£ãªã— (|C| > R)";
             return res;
         }
 
         ratio = Mathf.Clamp(ratio, -1f, 1f);
 
-        float alpha = Mathf.Atan2(B, A); // Šî€Šp
-        float delta = Mathf.Acos(ratio); // 0..ƒÎ
+        float alpha = Mathf.Atan2(B, A); // åŸºæº–è§’
+        float delta = Mathf.Acos(ratio); // 0..Ï€
 
-        // “ñ‚Â‚Ì‰ğ
+        // äºŒã¤ã®è§£
         float theta1 = alpha + delta;
         float theta2 = alpha - delta;
 
-        // ³‹K‰»i-ƒÎ..ƒÎj
+        // æ­£è¦åŒ–ï¼ˆ-Ï€..Ï€ï¼‰
         theta1 = NormalizeRad(theta1);
         theta2 = NormalizeRad(theta2);
 
@@ -310,11 +310,11 @@ public class SliderCrankInfo : ExMechInfo
         res.theta.Add(theta2 * Mathf.Rad2Deg);
         res.message = "ok";
 
-        // chosen ‚Ì‘I‘ğƒƒWƒbƒN
+        // chosen ã®é¸æŠãƒ­ã‚¸ãƒƒã‚¯
         var prevThetaRad = mainAxis.model.transform.localEulerAngles.z - initMainAngleOffset;
         if (!float.IsNaN(prevThetaRad))
         {
-            // ³‹K‰»‚µ‚Ä·‚Ì¬‚³‚¢•û‚ğ‘I‚Ô
+            // æ­£è¦åŒ–ã—ã¦å·®ã®å°ã•ã„æ–¹ã‚’é¸ã¶
             float p = NormalizeRad(prevThetaRad);
             float d1 = Mathf.Abs(NormalizeRad(theta1 - p));
             float d2 = Mathf.Abs(NormalizeRad(theta2 - p));
@@ -322,15 +322,15 @@ public class SliderCrankInfo : ExMechInfo
         }
         else
         {
-            // prev ‚ª–³‚¯‚ê‚ÎA•¨—“I‚ÉuƒNƒ‰ƒ“ƒNŠp‚ª‚æ‚èã€“_Šñ‚èi¬‚³‚¢â‘Î’ljv‚È‚Ç‚ÌŠî€‚Å‘I‚Ô
-            // ‚±‚±‚Å‚Í |theta| ‚ª¬‚³‚¢•û‚ğ‘I‚Ôi—p“r‚É‚æ‚Á‚Ä•ÏX‰Âj
+            // prev ãŒç„¡ã‘ã‚Œã°ã€ç‰©ç†çš„ã«ã€Œã‚¯ãƒ©ãƒ³ã‚¯è§’ãŒã‚ˆã‚Šä¸Šæ­»ç‚¹å¯„ã‚Šï¼ˆå°ã•ã„çµ¶å¯¾å€¤ï¼‰ã€ãªã©ã®åŸºæº–ã§é¸ã¶
+            // ã“ã“ã§ã¯ |theta| ãŒå°ã•ã„æ–¹ã‚’é¸ã¶ï¼ˆç”¨é€”ã«ã‚ˆã£ã¦å¤‰æ›´å¯ï¼‰
             res.chosen = ((Mathf.Abs(theta1) <= Mathf.Abs(theta2)) ? theta1 : theta2) * Mathf.Rad2Deg;
         }
         return res;
     }
 
     /// <summary>
-    /// ªŒ³‚ªB‚©ƒ`ƒFƒbƒN
+    /// æ ¹å…ƒãŒBã‹ãƒã‚§ãƒƒã‚¯
     /// </summary>
     /// <param name="a"></param>
     /// <param name="b"></param>

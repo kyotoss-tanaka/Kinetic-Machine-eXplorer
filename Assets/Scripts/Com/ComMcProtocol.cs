@@ -1,4 +1,4 @@
-using Parameters;
+ï»¿using Parameters;
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -11,50 +11,50 @@ using UnityEngine.Networking;
 public class ComMcProtocol : ComProtocolBase
 {
     /// <summary>
-    /// ƒfƒoƒCƒXí•Ê
+    /// ãƒ‡ãƒã‚¤ã‚¹ç¨®åˆ¥
     /// </summary>
     public enum eDeviceType : byte
     {
         /// <summary>
-        /// “ü—Í
+        /// å…¥åŠ›
         /// </summary>
         X = 0x9C,
         /// <summary>
-        /// o—Í
+        /// å‡ºåŠ›
         /// </summary>
         Y = 0x9D,
         /// <summary>
-        /// “à•”ƒŠƒŒ[
+        /// å†…éƒ¨ãƒªãƒ¬ãƒ¼
         /// </summary>
         M = 0x90,
         /// <summary>
-        /// ƒ‰ƒbƒ`ƒŠƒŒ[
+        /// ãƒ©ãƒƒãƒãƒªãƒ¬ãƒ¼
         /// </summary>
         L = 0x92,
         /// <summary>
-        /// ƒŠƒ“ƒNƒŠƒŒ[
+        /// ãƒªãƒ³ã‚¯ãƒªãƒ¬ãƒ¼
         /// </summary>
         B = 0xA0,
         /// <summary>
-        /// ƒf[ƒ^
+        /// ãƒ‡ãƒ¼ã‚¿
         /// </summary>
         D = 0xA8,
         /// <summary>
-        /// ƒŠƒ“ƒN
+        /// ãƒªãƒ³ã‚¯
         /// </summary>
         W = 0xB4,
         /// <summary>
-        /// ƒtƒ@ƒCƒ‹ƒŒƒWƒXƒ^
+        /// ãƒ•ã‚¡ã‚¤ãƒ«ãƒ¬ã‚¸ã‚¹ã‚¿
         /// </summary>
         R = 0xAF,
         /// <summary>
-        /// ƒtƒ@ƒCƒ‹ƒŒƒWƒXƒ^
+        /// ãƒ•ã‚¡ã‚¤ãƒ«ãƒ¬ã‚¸ã‚¹ã‚¿
         /// </summary>
         ZR = 0xB0,
     }
 
     /// <summary>
-    /// ƒAƒNƒZƒXƒ^ƒCƒv
+    /// ã‚¢ã‚¯ã‚»ã‚¹ã‚¿ã‚¤ãƒ—
     /// </summary>
     private enum eAccesstype
     {
@@ -63,7 +63,7 @@ public class ComMcProtocol : ComProtocolBase
     }
 
     /// <summary>
-    /// ƒrƒbƒgƒŒƒWƒXƒ^’è‹`
+    /// ãƒ“ãƒƒãƒˆãƒ¬ã‚¸ã‚¹ã‚¿å®šç¾©
     /// </summary>
     protected override List<string> regTypeBit
     {
@@ -74,7 +74,7 @@ public class ComMcProtocol : ComProtocolBase
     }
 
     /// <summary>
-    /// ƒrƒbƒgƒŒƒWƒXƒ^’è‹`
+    /// ãƒ“ãƒƒãƒˆãƒ¬ã‚¸ã‚¹ã‚¿å®šç¾©
     /// </summary>
     protected override List<string> regTypeBit16
     {
@@ -85,7 +85,7 @@ public class ComMcProtocol : ComProtocolBase
     }
 
     /// <summary>
-    /// 16bitƒŒƒWƒXƒ^’è‹`
+    /// 16bitãƒ¬ã‚¸ã‚¹ã‚¿å®šç¾©
     /// </summary>
     protected override List<string> regTypeData16
     {
@@ -96,7 +96,7 @@ public class ComMcProtocol : ComProtocolBase
     }
 
     /// <summary>
-    /// ˆêŠ‡óMİ’è
+    /// ä¸€æ‹¬å—ä¿¡è¨­å®š
     /// </summary>
     public override int BULK_RCV_COUNT
     {
@@ -107,7 +107,7 @@ public class ComMcProtocol : ComProtocolBase
     }
 
     /// <summary>
-    /// ƒrƒbƒg”
+    /// ãƒ“ãƒƒãƒˆæ•°
     /// </summary>
     public override int BIT_COUNT
     {
@@ -118,22 +118,22 @@ public class ComMcProtocol : ComProtocolBase
     }
 
     /// <summary>
-    /// “Ç‚İo‚µƒRƒ}ƒ“ƒh
+    /// èª­ã¿å‡ºã—ã‚³ãƒãƒ³ãƒ‰
     /// </summary>
     protected ushort ReadCommand = 0x0401;
 
     /// <summary>
-    /// ‘‚«‚İƒRƒ}ƒ“ƒh
+    /// æ›¸ãè¾¼ã¿ã‚³ãƒãƒ³ãƒ‰
     /// </summary>
     protected ushort WriteCommand = 0x1401;
 
     /// <summary>
-    /// ŒÅ’èƒRƒ}ƒ“ƒh
+    /// å›ºå®šã‚³ãƒãƒ³ãƒ‰
     /// </summary>
     protected ushort ReadSubCommand = 0;
 
     /// <summary>
-    /// ŠJnˆ—
+    /// é–‹å§‹å‡¦ç†
     /// </summary>
     protected override void Start()
     {
@@ -146,53 +146,53 @@ public class ComMcProtocol : ComProtocolBase
     }
 
     /// <summary>
-    /// “d•¶ì¬
+    /// é›»æ–‡ä½œæˆ
     /// </summary>
     /// <param name="data"></param>
     /// <param name="values"></param>
     /// <returns></returns>
     protected override List<byte> CreateMessage(KMXDBSetting data, ref int commandId, List<ulong> values = null)
     {
-        // —v‹“d•¶
+        // è¦æ±‚é›»æ–‡
         var message = new List<byte>
         {
-            // ƒTƒuƒwƒbƒ_
+            // ã‚µãƒ–ãƒ˜ãƒƒãƒ€
             0x50, 0x00,
-            // ƒlƒbƒgƒ[ƒN”Ô†
+            // ãƒãƒƒãƒˆãƒ¯ãƒ¼ã‚¯ç•ªå·
             (byte)directData.NetAddress,
-            // PC”Ô†
+            // PCç•ªå·
             (byte)directData.PcNo,
-            // —v‹æƒ†ƒjƒbƒgI/O”Ô†
+            // è¦æ±‚å…ˆãƒ¦ãƒ‹ãƒƒãƒˆI/Oç•ªå·
             0xFF, 0x03,
-            // —v‹æƒ†ƒjƒbƒg‹Ç”Ô†
+            // è¦æ±‚å…ˆãƒ¦ãƒ‹ãƒƒãƒˆå±€ç•ªå·
             0x00
         };
-        // –{•¶
+        // æœ¬æ–‡
         var body = new List<byte>();
         byte deviceType = (byte)Enum.Parse(typeof(eDeviceType), data.RegisterType);
         ushort command = values == null ? ReadCommand : WriteCommand;
         ushort subcommand = values == null ? ReadSubCommand : (ushort)(regTypeBit.Contains(data.RegisterType) ? 1 : 0);
 
-        // ŠÄ‹ƒ^ƒCƒ}
+        // ç›£è¦–ã‚¿ã‚¤ãƒ
         ushort timer = 0x0010;
         body.AddRange(BitConverter.GetBytes(timer));
-        // ƒRƒ}ƒ“ƒh
+        // ã‚³ãƒãƒ³ãƒ‰
         body.AddRange(BitConverter.GetBytes(command));
-        // ƒTƒuƒRƒ}ƒ“ƒh
+        // ã‚µãƒ–ã‚³ãƒãƒ³ãƒ‰
         body.AddRange(BitConverter.GetBytes(subcommand));
-        // æ“ªƒfƒoƒCƒX”Ô†
+        // å…ˆé ­ãƒ‡ãƒã‚¤ã‚¹ç•ªå·
         body.AddRange(BitConverter.GetBytes(data.RegisterNo));
         body.RemoveAt(body.Count - 1);
-        // ƒfƒoƒCƒXƒR[ƒh
+        // ãƒ‡ãƒã‚¤ã‚¹ã‚³ãƒ¼ãƒ‰
         body.Add(deviceType);
-        // ƒfƒoƒCƒX“_”
+        // ãƒ‡ãƒã‚¤ã‚¹ç‚¹æ•°
         if (values == null)
         {
-            // ƒŠ[ƒh
+            // ãƒªãƒ¼ãƒ‰
             var dataCount = data.AllDataCount;
             if (regTypeBit.Contains(data.RegisterType))
             {
-                // ƒrƒbƒg‚È‚ç
+                // ãƒ“ãƒƒãƒˆãªã‚‰
                 if (dataCount % BIT_COUNT == 0)
                 {
                     dataCount /= BIT_COUNT;
@@ -217,11 +217,11 @@ public class ComMcProtocol : ComProtocolBase
         }
         else
         {
-            // ƒ‰ƒCƒg
+            // ãƒ©ã‚¤ãƒˆ
             body.AddRange(BitConverter.GetBytes((ushort)values.Count));
             if (subcommand == 1)
             {
-                // ƒrƒbƒgƒfƒoƒCƒX—p
+                // ãƒ“ãƒƒãƒˆãƒ‡ãƒã‚¤ã‚¹ç”¨
                 for (int i = 0; i < values.Count; i += 2)
                 {
                     byte tmp = 0;
@@ -235,22 +235,22 @@ public class ComMcProtocol : ComProtocolBase
             }
             else
             {
-                // ƒ[ƒhƒfƒoƒCƒX—p
+                // ãƒ¯ãƒ¼ãƒ‰ãƒ‡ãƒã‚¤ã‚¹ç”¨
                 for (int i = 0; i < values.Count; i++)
                 {
                     body.AddRange(BitConverter.GetBytes((ushort)values[i]));
                 }
             }
         }
-        // ƒRƒ}ƒ“ƒh’·
+        // ã‚³ãƒãƒ³ãƒ‰é•·
         message.AddRange(BitConverter.GetBytes((ushort)body.Count));
-        // –{•¶
+        // æœ¬æ–‡
         message.AddRange(body);
         return message;
     }
 
     /// <summary>
-    /// óMƒf[ƒ^•ªÍˆ—
+    /// å—ä¿¡ãƒ‡ãƒ¼ã‚¿åˆ†æå‡¦ç†
     /// </summary>
     /// <param name="datas"></param>
     /// <returns></returns>
@@ -258,13 +258,13 @@ public class ComMcProtocol : ComProtocolBase
     {
         var buff = datas.ToArray();
         var errCode = BitConverter.ToInt16(buff, 0);
-        // I—¹ƒR[ƒh‚ª0‚È‚çóM¬Œ÷
+        // çµ‚äº†ã‚³ãƒ¼ãƒ‰ãŒ0ãªã‚‰å—ä¿¡æˆåŠŸ
         if (errCode == 0)
         {
             var index = 0;
             if (regTypeBit.Contains(data.RegisterType))
             {
-                // ƒrƒbƒgƒf[ƒ^
+                // ãƒ“ãƒƒãƒˆãƒ‡ãƒ¼ã‚¿
                 for (var i = 2; i < buff.Length; i++)
                 {
                     for (var j = 0; j < 8; j++)
@@ -287,7 +287,7 @@ public class ComMcProtocol : ComProtocolBase
             }
             else
             {
-                // ƒ[ƒhƒf[ƒ^
+                // ãƒ¯ãƒ¼ãƒ‰ãƒ‡ãƒ¼ã‚¿
                 var size = data.DataType == DBSetting.eDeviceSize.DW ? sizeof(int) : (data.DataType == DBSetting.eDeviceSize.QW ? sizeof(long) : sizeof(short));
                 var isUnit = data.DataType == DBSetting.eDeviceSize.UnitTag;
                 for (var i = 2; i < buff.Length; i += size)

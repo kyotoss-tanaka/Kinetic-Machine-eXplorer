@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+ï»¿using System.Collections.Generic;
 using System.Linq;
 using Unity.VisualScripting;
 using UnityEngine;
@@ -8,7 +8,7 @@ public class MPX_PI : ParallelLink
     //    float ARM1_OFFSET2 = -6.56242787f;
 
     /// <summary>
-    /// ƒRƒ“ƒXƒgƒ‰ƒNƒ^
+    /// ã‚³ãƒ³ã‚¹ãƒˆãƒ©ã‚¯ã‚¿
     /// </summary>
     public MPX_PI() : base()
     {
@@ -29,12 +29,12 @@ public class MPX_PI : ParallelLink
         angle = kinematics_R(x, -y, z);
         for (var i = 0; i < AXIS_MAX; i++)
         {
-            // ƒA[ƒ€1‚ÌˆÊ’u
+            // ã‚¢ãƒ¼ãƒ 1ã®ä½ç½®
             arm1[i].localEulerAngles = new Vector3(arm1[i].localEulerAngles.x, arm1[i].localEulerAngles.y, angle[i][0]);
-            // ƒA[ƒ€2‚ÌˆÊ’u
+            // ã‚¢ãƒ¼ãƒ 2ã®ä½ç½®
             arm2[i * 2 + 0].localEulerAngles = new Vector3(0, -angle[i][1], angle[i][2]);
             arm2[i * 2 + 1].localEulerAngles = new Vector3(0, angle[i][1] - 180, -angle[i][2]);
-            // ˜AŒ‹•”‚ÌˆÊ’u
+            // é€£çµéƒ¨ã®ä½ç½®
             var rad = angle[i][2] * RADIANS;
             armSpring[i * 2 + 0].localEulerAngles = new Vector3(0, 0, -angle[i][2]);
             armSpring[i * 2 + 0].localPosition = new Vector3(SPRING1_OFFSET_X + SPRING_OFFSET_Y * Mathf.Sin(rad), SPRING_OFFSET_Y * Mathf.Cos(rad), 0);
@@ -45,7 +45,7 @@ public class MPX_PI : ParallelLink
     }
 
     /// <summary>
-    /// ƒ‚ƒfƒ‹Ä\’z
+    /// ãƒ¢ãƒ‡ãƒ«å†æ§‹ç¯‰
     /// </summary>
     /// <param name="instance"></param>
     protected override void ModelRestructProcess()
@@ -57,17 +57,17 @@ public class MPX_PI : ParallelLink
         armSpring = new();
 
         var children = unitSetting.moveObject.GetComponentsInChildren<Transform>().ToList();
-        arm1.AddRange(children.Where(d => d.name.Contains("ƒA[ƒ€i1²—p")));
-        arm1.AddRange(children.Where(d => d.name.Contains("ƒA[ƒ€i2E3²—p")));
+        arm1.AddRange(children.Where(d => d.name.Contains("ã‚¢ãƒ¼ãƒ ï¼ˆ1è»¸ç”¨")));
+        arm1.AddRange(children.Where(d => d.name.Contains("ã‚¢ãƒ¼ãƒ ï¼ˆ2ãƒ»3è»¸ç”¨")));
         var arm2_children = new List<Transform>();
-        arm2_children.Add(children.Find(d => d.name == "13Q1_ÀŞ²2±°Ñ_XMC-Z1400-19-2"));
-        arm2_children.Add(children.Find(d => d.name == "13Q1_ÀŞ²2±°Ñ_XMC-Z1400-19-1"));
-        arm2_children.Add(children.Find(d => d.name == "13Q1_ÀŞ²2±°Ñ_XMC-Z1400-19-3"));
+        arm2_children.Add(children.Find(d => d.name == "13Q1_ï¾€ï¾ï½²2ï½±ï½°ï¾‘_XMC-Z1400-19-2"));
+        arm2_children.Add(children.Find(d => d.name == "13Q1_ï¾€ï¾ï½²2ï½±ï½°ï¾‘_XMC-Z1400-19-1"));
+        arm2_children.Add(children.Find(d => d.name == "13Q1_ï¾€ï¾ï½²2ï½±ï½°ï¾‘_XMC-Z1400-19-3"));
         for (var i = 0; i < AXIS_MAX; i++)
         {
             var arm2Tmp = arm2_children[i].gameObject.GetComponentsInChildren<Transform>();
-            arm2.AddRange(arm2Tmp.Where(d => d.name.Contains("Copy of ‘æ“ñƒA[ƒ€ƒJ[ƒ{ƒ“")));
-            armSpring.AddRange(arm2Tmp.Where(d => d.name.Contains("Copy of ‘æ“ñƒA[ƒ€ƒoƒlƒAƒbƒV")));
+            arm2.AddRange(arm2Tmp.Where(d => d.name.Contains("Copy of ç¬¬äºŒã‚¢ãƒ¼ãƒ ã‚«ãƒ¼ãƒœãƒ³")));
+            armSpring.AddRange(arm2Tmp.Where(d => d.name.Contains("Copy of ç¬¬äºŒã‚¢ãƒ¼ãƒ ãƒãƒã‚¢ãƒƒã‚·")));
             var gArm1 = new GameObject($"Arm1-{i + 1}");
             InsertParent(gArm1.transform, arm1[i]);
             gArm1.transform.parent = parallel.transform;
@@ -82,9 +82,9 @@ public class MPX_PI : ParallelLink
             }
             gArm1.transform.localEulerAngles = new Vector3(gArm1.transform.localEulerAngles.x, gArm1.transform.localEulerAngles.y, 0);
         }
-        var tmpPlate = children.FirstOrDefault(d => d.name.Contains("ƒwƒbƒhƒvƒŒ[ƒg")).gameObject;
+        var tmpPlate = children.FirstOrDefault(d => d.name.Contains("ãƒ˜ãƒƒãƒ‰ãƒ—ãƒ¬ãƒ¼ãƒˆ")).gameObject;
         plate = tmpPlate.transform;
-        // ƒwƒbƒhƒZƒbƒg
+        // ãƒ˜ãƒƒãƒ‰ã‚»ãƒƒãƒˆ
         if (HeadObject != null)
         {
             HeadObject.transform.parent = plate.transform;
@@ -96,8 +96,8 @@ public class MPX_PI : ParallelLink
 
         var children = GetComponentsInChildren<Transform>().ToList();
 
-        // ƒA[ƒ€1-1
-        var arm1_1Parent = children.Find(d => (d.transform.parent == this.transform) && (d.name.Contains("ƒA[ƒ€i1²—pj-1")));
+        // ã‚¢ãƒ¼ãƒ 1-1
+        var arm1_1Parent = children.Find(d => (d.transform.parent == this.transform) && (d.name.Contains("ã‚¢ãƒ¼ãƒ ï¼ˆ1è»¸ç”¨ï¼‰-1")));
         var arm1_1Base = new GameObject("ArmBase1");
         var arm1_1Parts = new GameObject("ArmParts1");
         var arm1_1AllParts = arm1_1Parent.GetComponentsInChildren<Transform>().ToList().FindAll(d => d != arm1_1Parent);
@@ -113,8 +113,8 @@ public class MPX_PI : ParallelLink
         }
         arm1.Add(arm1_1Base);
 
-        // ƒA[ƒ€1-2
-        var arm1_2Parent = children.Find(d => (d.transform.parent == this.transform) && (d.name.Contains("ƒA[ƒ€i2E3²—pj-1")));
+        // ã‚¢ãƒ¼ãƒ 1-2
+        var arm1_2Parent = children.Find(d => (d.transform.parent == this.transform) && (d.name.Contains("ã‚¢ãƒ¼ãƒ ï¼ˆ2ãƒ»3è»¸ç”¨ï¼‰-1")));
         var arm1_2Base = new GameObject("ArmBase1");
         var arm1_2Parts = new GameObject("ArmParts1");
         var arm1_2AllParts = arm1_2Parent.GetComponentsInChildren<Transform>().ToList().FindAll(d => d != arm1_2Parent);
@@ -130,8 +130,8 @@ public class MPX_PI : ParallelLink
         }
         arm1.Add(arm1_2Base);
 
-        // ƒA[ƒ€1-3
-        var arm1_3Parent = children.Find(d => (d.transform.parent == this.transform) && (d.name.Contains("ƒA[ƒ€i2E3²—pj-2")));
+        // ã‚¢ãƒ¼ãƒ 1-3
+        var arm1_3Parent = children.Find(d => (d.transform.parent == this.transform) && (d.name.Contains("ã‚¢ãƒ¼ãƒ ï¼ˆ2ãƒ»3è»¸ç”¨ï¼‰-2")));
         var arm1_3Base = new GameObject("ArmBase1");
         var arm1_3Parts = new GameObject("ArmParts1");
         var arm1_3AllParts = arm1_3Parent.GetComponentsInChildren<Transform>().ToList().FindAll(d => d != arm1_3Parent);
@@ -147,10 +147,10 @@ public class MPX_PI : ParallelLink
         }
         arm1.Add(arm1_3Base);
 
-        // ƒA[ƒ€2-1
-        var arm2_1Parent = children.Find(d => (d.transform.parent == this.transform) && (d.name.Contains("ÀŞ²2±°Ñ_XMC-Z1400-19-2")));
-        var arm2_1Arms = arm2_1Parent.GetComponentsInChildren<Transform>().ToList().FindAll(d => d.name.Contains("‘æ“ñƒA[ƒ€ƒJ[ƒ{ƒ“"));
-        var arm2_1Springs = arm2_1Parent.GetComponentsInChildren<Transform>().ToList().FindAll(d => d.name.Contains("‘æ“ñƒA[ƒ€ƒoƒlƒAƒbƒV") && (d.parent == arm2_1Parent.transform));
+        // ã‚¢ãƒ¼ãƒ 2-1
+        var arm2_1Parent = children.Find(d => (d.transform.parent == this.transform) && (d.name.Contains("ï¾€ï¾ï½²2ï½±ï½°ï¾‘_XMC-Z1400-19-2")));
+        var arm2_1Arms = arm2_1Parent.GetComponentsInChildren<Transform>().ToList().FindAll(d => d.name.Contains("ç¬¬äºŒã‚¢ãƒ¼ãƒ ã‚«ãƒ¼ãƒœãƒ³"));
+        var arm2_1Springs = arm2_1Parent.GetComponentsInChildren<Transform>().ToList().FindAll(d => d.name.Contains("ç¬¬äºŒã‚¢ãƒ¼ãƒ ãƒãƒã‚¢ãƒƒã‚·") && (d.parent == arm2_1Parent.transform));
         var arm2_1Base = new GameObject("ArmBase2");
         foreach (var spring in arm2_1Springs)
         {
@@ -164,10 +164,10 @@ public class MPX_PI : ParallelLink
         arm2_1.Add(arm2_1Arms[0].gameObject);
         arm2_2.Add(arm2_1Arms[1].gameObject);
 
-        // ƒA[ƒ€2-2
-        var arm2_2Parent = children.Find(d => (d.transform.parent == this.transform) && (d.name.Contains("ÀŞ²2±°Ñ_XMC-Z1400-19-1")));
-        var arm2_2Arms = arm2_2Parent.GetComponentsInChildren<Transform>().ToList().FindAll(d => d.name.Contains("‘æ“ñƒA[ƒ€ƒJ[ƒ{ƒ“"));
-        var arm2_2Springs = arm2_2Parent.GetComponentsInChildren<Transform>().ToList().FindAll(d => d.name.Contains("‘æ“ñƒA[ƒ€ƒoƒlƒAƒbƒV") && (d.parent == arm2_2Parent.transform));
+        // ã‚¢ãƒ¼ãƒ 2-2
+        var arm2_2Parent = children.Find(d => (d.transform.parent == this.transform) && (d.name.Contains("ï¾€ï¾ï½²2ï½±ï½°ï¾‘_XMC-Z1400-19-1")));
+        var arm2_2Arms = arm2_2Parent.GetComponentsInChildren<Transform>().ToList().FindAll(d => d.name.Contains("ç¬¬äºŒã‚¢ãƒ¼ãƒ ã‚«ãƒ¼ãƒœãƒ³"));
+        var arm2_2Springs = arm2_2Parent.GetComponentsInChildren<Transform>().ToList().FindAll(d => d.name.Contains("ç¬¬äºŒã‚¢ãƒ¼ãƒ ãƒãƒã‚¢ãƒƒã‚·") && (d.parent == arm2_2Parent.transform));
         var arm2_2Base = new GameObject("ArmBase2");
         foreach (var spring in arm2_2Springs)
         {
@@ -181,10 +181,10 @@ public class MPX_PI : ParallelLink
         arm2_1.Add(arm2_2Arms[0].gameObject);
         arm2_2.Add(arm2_2Arms[1].gameObject);
 
-        // ƒA[ƒ€2-3
-        var arm2_3Parent = children.Find(d => (d.transform.parent == this.transform) && (d.name.Contains("ÀŞ²2±°Ñ_XMC-Z1400-19-3")));
-        var arm2_3Arms = arm2_3Parent.GetComponentsInChildren<Transform>().ToList().FindAll(d => d.name.Contains("‘æ“ñƒA[ƒ€ƒJ[ƒ{ƒ“"));
-        var arm2_3Springs = arm2_3Parent.GetComponentsInChildren<Transform>().ToList().FindAll(d => d.name.Contains("‘æ“ñƒA[ƒ€ƒoƒlƒAƒbƒV") && (d.parent == arm2_3Parent.transform));
+        // ã‚¢ãƒ¼ãƒ 2-3
+        var arm2_3Parent = children.Find(d => (d.transform.parent == this.transform) && (d.name.Contains("ï¾€ï¾ï½²2ï½±ï½°ï¾‘_XMC-Z1400-19-3")));
+        var arm2_3Arms = arm2_3Parent.GetComponentsInChildren<Transform>().ToList().FindAll(d => d.name.Contains("ç¬¬äºŒã‚¢ãƒ¼ãƒ ã‚«ãƒ¼ãƒœãƒ³"));
+        var arm2_3Springs = arm2_3Parent.GetComponentsInChildren<Transform>().ToList().FindAll(d => d.name.Contains("ç¬¬äºŒã‚¢ãƒ¼ãƒ ãƒãƒã‚¢ãƒƒã‚·") && (d.parent == arm2_3Parent.transform));
         var arm2_3Base = new GameObject("ArmBase2");
         foreach (var spring in arm2_3Springs)
         {
@@ -198,7 +198,7 @@ public class MPX_PI : ParallelLink
         arm2_1.Add(arm2_3Arms[0].gameObject);
         arm2_2.Add(arm2_3Arms[1].gameObject);
 
-        // ‰ŠúŠp“xƒZƒbƒg
+        // åˆæœŸè§’åº¦ã‚»ãƒƒãƒˆ
         arm1_1Parent.transform.localEulerAngles = new Vector3(arm1_1Parent.transform.localEulerAngles.x, arm1_1Parent.transform.localEulerAngles.y, 0);
         arm1_2Parent.transform.localEulerAngles = new Vector3(arm1_2Parent.transform.localEulerAngles.x, arm1_2Parent.transform.localEulerAngles.y, 0);
         arm1_3Parent.transform.localEulerAngles = new Vector3(arm1_3Parent.transform.localEulerAngles.x, arm1_3Parent.transform.localEulerAngles.y, 0);
@@ -206,23 +206,23 @@ public class MPX_PI : ParallelLink
         arm2_2Parent.transform.localEulerAngles = new Vector3(-90, arm2_2Parent.transform.localEulerAngles.y, arm2_2Parent.transform.localEulerAngles.z);
         arm2_3Parent.transform.localEulerAngles = new Vector3(-90, arm2_3Parent.transform.localEulerAngles.y, arm2_3Parent.transform.localEulerAngles.z);
 
-        // ƒvƒŒ[ƒg
-        plate = children.Where(d => d.name.Contains("ƒwƒbƒhƒvƒŒ[ƒg")).ToList()[0].gameObject;
-        // ƒwƒbƒhƒZƒbƒg
+        // ãƒ—ãƒ¬ãƒ¼ãƒˆ
+        plate = children.Where(d => d.name.Contains("ãƒ˜ãƒƒãƒ‰ãƒ—ãƒ¬ãƒ¼ãƒˆ")).ToList()[0].gameObject;
+        // ãƒ˜ãƒƒãƒ‰ã‚»ãƒƒãƒˆ
         if (HeadObject != null)
         {
             HeadObject.transform.parent = plate.transform;
         }
 
-        // Ã“Iƒoƒbƒ`ƒ“ƒO‚É•ÏX
-        var staticObject = children.Find(d => d.name.Contains("‹ì“®•”•Ï‘¥120“x")).gameObject;
+        // é™çš„ãƒãƒƒãƒãƒ³ã‚°ã«å¤‰æ›´
+        var staticObject = children.Find(d => d.name.Contains("é§†å‹•éƒ¨å¤‰å‰‡120åº¦")).gameObject;
         MeshRenderer[] renderers = staticObject.GetComponentsInChildren<MeshRenderer>();
         GameObject[] batchTargets = new GameObject[renderers.Length];
         for (int i = 0; i < renderers.Length; i++)
         {
             batchTargets[i] = renderers[i].gameObject;
         }
-        // Ã“Iƒoƒbƒ`ƒ“ƒO‚ğÀsie‚É‚Ü‚Æ‚ß‚Äƒoƒbƒ`ƒ“ƒOj
+        // é™çš„ãƒãƒƒãƒãƒ³ã‚°ã‚’å®Ÿè¡Œï¼ˆè¦ªã«ã¾ã¨ã‚ã¦ãƒãƒƒãƒãƒ³ã‚°ï¼‰
         StaticBatchingUtility.Combine(batchTargets, staticObject);
         */
     }

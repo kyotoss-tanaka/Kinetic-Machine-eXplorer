@@ -1,17 +1,17 @@
-using System;
+ï»¿using System;
 using System.Collections.Generic;
 using System.Numerics;
 using UnityEngine;
 
 public static class CommonFunction
 {
-    #region ‰ğ‚ÌŒö®
+    #region è§£ã®å…¬å¼
     /// <summary>
-    /// ‰ğ‚ÌŒö®‚É‚¨‚¯‚é”»•Ê®b^2 - 4ac‚ğŒvZ‚·‚é
+    /// è§£ã®å…¬å¼ã«ãŠã‘ã‚‹åˆ¤åˆ¥å¼b^2 - 4acã‚’è¨ˆç®—ã™ã‚‹
     /// </summary>
-    /// <param name="a">a•Ï”</param>
-    /// <param name="b">b•Ï”</param>
-    /// <param name="c">c•Ï”</param>
+    /// <param name="a">aå¤‰æ•°</param>
+    /// <param name="b">bå¤‰æ•°</param>
+    /// <param name="c">cå¤‰æ•°</param>
     /// <returns></returns>
     public static float Discriminant(float a, float b, float c)
     {
@@ -21,18 +21,18 @@ public static class CommonFunction
     }
 
     /// <summary>
-    /// À”‰ğ
+    /// å®Ÿæ•°è§£
     /// </summary>
-    /// <param name="discriminant">”»•Ê®b^2 - 4ac</param>
-    /// <param name="a">a•Ï”</param>
-    /// <param name="b">b•Ï”</param>
-    /// <param name="c">c•Ï”</param>
+    /// <param name="discriminant">åˆ¤åˆ¥å¼b^2 - 4ac</param>
+    /// <param name="a">aå¤‰æ•°</param>
+    /// <param name="b">bå¤‰æ•°</param>
+    /// <param name="c">cå¤‰æ•°</param>
     /// <returns></returns>
     public static float QuadraticFormula_Real(float discriminant, float a, float b, float c)
     {
         float plusResult;
 
-        // ƒvƒ‰ƒX‰ğ‚ª³‰ğ‚È‚Ì‚Å‚±‚ê‚¾‚¯ŒvZ‚·‚é
+        // ãƒ—ãƒ©ã‚¹è§£ãŒæ­£è§£ãªã®ã§ã“ã‚Œã ã‘è¨ˆç®—ã™ã‚‹
         plusResult = (-b + Mathf.Sqrt(discriminant)) / (2 * a);
         //minusResult = (-b - Mathf.Sqrt(discriminant)) / (2 * a);
 
@@ -40,12 +40,12 @@ public static class CommonFunction
     }
 
     /// <summary>
-    /// ‹•”‰ğ
+    /// è™šæ•°è§£
     /// </summary>
-    /// <param name="discriminant">”»•Ê®b^2 - 4ac</param>
-    /// <param name="a">a•Ï”</param>
-    /// <param name="b">b•Ï”</param>
-    /// <param name="c">c•Ï”</param>
+    /// <param name="discriminant">åˆ¤åˆ¥å¼b^2 - 4ac</param>
+    /// <param name="a">aå¤‰æ•°</param>
+    /// <param name="b">bå¤‰æ•°</param>
+    /// <param name="c">cå¤‰æ•°</param>
     /// <returns></returns>
     public static float QuadraticFormula_Complex(float discriminant, float a, float b, float c)
     {
@@ -57,11 +57,11 @@ public static class CommonFunction
         return (float)root1.Real;
     }
 
-    #endregion ‰ğ‚ÌŒö®
+    #endregion è§£ã®å…¬å¼
 
-    #region ƒƒ\ƒbƒh
+    #region ãƒ¡ã‚½ãƒƒãƒ‰
     /// <summary>
-    /// ƒV[ƒ“ƒpƒX‚ğæ“¾‚·‚é
+    /// ã‚·ãƒ¼ãƒ³ãƒ‘ã‚¹ã‚’å–å¾—ã™ã‚‹
     /// </summary>
     /// <param name="obj"></param>
     /// <returns></returns>
@@ -80,7 +80,7 @@ public static class CommonFunction
     }
 
     /// <summary>
-    /// íœˆ—
+    /// å‰Šé™¤å‡¦ç†
     /// </summary>
     /// <param name="obj"></param>
     public static void DestroyWithMaterials(GameObject obj)
@@ -98,13 +98,13 @@ public static class CommonFunction
         }
     }
 
-    #region ƒfƒoƒbƒO—p
+    #region ãƒ‡ãƒãƒƒã‚°ç”¨
     private static bool isDebug = false;
     private static System.Diagnostics.Stopwatch swDebug = new();
     private static long prvLap = 0;
 
     /// <summary>
-    /// ƒfƒoƒbƒO—pî•ñ‰Šú‰»
+    /// ãƒ‡ãƒãƒƒã‚°ç”¨æƒ…å ±åˆæœŸåŒ–
     /// </summary>
     public static void DebugInfoInit()
     {
@@ -113,7 +113,7 @@ public static class CommonFunction
     }
 
     /// <summary>
-    /// ƒfƒoƒbƒOƒƒO
+    /// ãƒ‡ãƒãƒƒã‚°ãƒ­ã‚°
     /// </summary>
     public static void DebugLog(string message, bool isForce = false)
     {
@@ -123,7 +123,7 @@ public static class CommonFunction
             prvLap = swDebug.ElapsedMilliseconds;
         }
     }
-    #endregion ƒfƒoƒbƒO—p
+    #endregion ãƒ‡ãƒãƒƒã‚°ç”¨
 
-    #endregion ƒƒ\ƒbƒh
+    #endregion ãƒ¡ã‚½ãƒƒãƒ‰
 }

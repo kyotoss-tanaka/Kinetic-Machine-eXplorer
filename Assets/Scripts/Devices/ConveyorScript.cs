@@ -1,4 +1,4 @@
-using Parameters;
+ï»¿using Parameters;
 using System.Collections;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
@@ -10,63 +10,63 @@ using static UnityEngine.UI.CanvasScaler;
 public class ConveyorScript : KssBaseScript
 {
     /// <summary>
-    /// ƒLƒƒƒ“ƒoƒX•\¦
+    /// ã‚­ãƒ£ãƒ³ãƒã‚¹è¡¨ç¤º
     /// </summary>
     protected override bool isCanvas { get { return true; } }
 
     /// <summary>
-    /// ƒxƒ‹ƒgƒRƒ“ƒxƒA‚Ìİ’è‘¬“x
+    /// ãƒ™ãƒ«ãƒˆã‚³ãƒ³ãƒ™ã‚¢ã®è¨­å®šé€Ÿåº¦
     /// </summary>
     [SerializeField]
     private float TargetDriveSpeed = 1.0f;
 
     /// <summary>
-    /// ƒxƒ‹ƒgƒRƒ“ƒxƒA‚ª•¨‘Ì‚ğ“®‚©‚·•ûŒü
+    /// ãƒ™ãƒ«ãƒˆã‚³ãƒ³ãƒ™ã‚¢ãŒç‰©ä½“ã‚’å‹•ã‹ã™æ–¹å‘
     /// </summary>
     [SerializeField]
     private Vector3 DriveDirection = new Vector3(1, 0, 0);
 
     /// <summary>
-    /// ƒRƒ“ƒxƒA‚ª•¨‘Ì‚ğ‰Ÿ‚·—Íi‰Á‘¬—Íj
+    /// ã‚³ãƒ³ãƒ™ã‚¢ãŒç‰©ä½“ã‚’æŠ¼ã™åŠ›ï¼ˆåŠ é€ŸåŠ›ï¼‰
     /// </summary>
     [SerializeField]
     private float _forcePower = 9.8f;
 
     /// <summary>
-    /// “®–€CŒW”(0`1)
+    /// å‹•æ‘©æ“¦ä¿‚æ•°(0ï½1)
     /// </summary>
     [SerializeField]
     private float dynamicFriction = 0.2f;
 
     /// <summary>
-    /// Ã–€CŒW”(0`1)
+    /// é™æ‘©æ“¦ä¿‚æ•°(0ï½1)
     /// </summary>
     [SerializeField]
     private float staticFriction = 0.25f;
 
     /// <summary>
-    /// “®ìƒ^ƒO
+    /// å‹•ä½œã‚¿ã‚°
     /// </summary>
     [SerializeField]
     private TagInfo ActTag;
 
     /// <summary>
-    /// •¨‘Ìƒ}ƒeƒŠƒAƒ‹
+    /// ç‰©ä½“ãƒãƒ†ãƒªã‚¢ãƒ«
     /// </summary>
     private PhysicsMaterial physicMaterial;
 
     /// <summary>
-    /// Œ»İ‚Ìƒxƒ‹ƒgƒRƒ“ƒxƒA‚Ì‘¬“x
+    /// ç¾åœ¨ã®ãƒ™ãƒ«ãƒˆã‚³ãƒ³ãƒ™ã‚¢ã®é€Ÿåº¦
     /// </summary>
     private float CurrentSpeed { get { return _currentSpeed; } }
 
     /// <summary>
-    /// Œ»İ‘¬“x
+    /// ç¾åœ¨é€Ÿåº¦
     /// </summary>
     private float _currentSpeed = 0;
 
     /// <summary>
-    /// ÚG‚µ‚Ä‚¢‚éƒIƒuƒWƒFƒNƒg
+    /// æ¥è§¦ã—ã¦ã„ã‚‹ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆ
     /// </summary>
     private List<Rigidbody> _rigidbodies = new List<Rigidbody>();
 
@@ -76,12 +76,12 @@ public class ConveyorScript : KssBaseScript
     private BoxCollider boxCollider;
 
     /// <summary>
-    /// ƒRƒ“ƒxƒAİ’è
+    /// ã‚³ãƒ³ãƒ™ã‚¢è¨­å®š
     /// </summary>
     private ConveyerSetting cv;
 
     /// <summary>
-    /// “®ì’†
+    /// å‹•ä½œä¸­
     /// </summary>
     private bool isMoving;
 
@@ -103,14 +103,14 @@ public class ConveyorScript : KssBaseScript
         {
             isMoving &= GlobalScript.GetTagData(ActTag) == 1;
         }
-        // –€CŒW”ƒZƒbƒg
+        // æ‘©æ“¦ä¿‚æ•°ã‚»ãƒƒãƒˆ
         boxCollider.material.staticFriction = staticFriction;
         boxCollider.material.dynamicFriction = dynamicFriction;
 
-        //Á–Å‚µ‚½ƒIƒuƒWƒFƒNƒg‚Íœ‹‚·‚é
+        //æ¶ˆæ»…ã—ãŸã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆã¯é™¤å»ã™ã‚‹
         _rigidbodies.RemoveAll(r => r == null);
         /*
-         ƒIƒuƒWƒFƒNƒg‚Ì•û‚Å‹N°‚³‚¹‚½
+         ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆã®æ–¹ã§èµ·åºŠã•ã›ãŸ
         foreach (var rb in _rigidbodies)
         {
             if (rb.IsSleeping())
@@ -121,15 +121,15 @@ public class ConveyorScript : KssBaseScript
         */
 
         /*
-        // •ûŒüƒZƒbƒg
+        // æ–¹å‘ã‚»ãƒƒãƒˆ
         var direction = transform.TransformDirection(DriveDirection);
 
         foreach (var r in _rigidbodies)
         {
-            //•¨‘Ì‚ÌˆÚ“®‘¬“x‚Ìƒxƒ‹ƒgƒRƒ“ƒxƒA•ûŒü‚Ì¬•ª‚¾‚¯‚ğæ‚èo‚·
+            //ç‰©ä½“ã®ç§»å‹•é€Ÿåº¦ã®ãƒ™ãƒ«ãƒˆã‚³ãƒ³ãƒ™ã‚¢æ–¹å‘ã®æˆåˆ†ã ã‘ã‚’å–ã‚Šå‡ºã™
             var objectSpeed = Vector3.Dot(r.velocity, direction);
 
-            //–Ú•W’lˆÈ‰º‚È‚ç‰Á‘¬‚·‚é
+            //ç›®æ¨™å€¤ä»¥ä¸‹ãªã‚‰åŠ é€Ÿã™ã‚‹
             if (objectSpeed < Mathf.Abs(TargetDriveSpeed))
             {
                 r.AddForce(direction * _forcePower, ForceMode.Acceleration);
@@ -158,16 +158,16 @@ public class ConveyorScript : KssBaseScript
         var rigidBody = collision.rigidbody;
         if ((rigidBody != null) && isMoving)
         {
-            // •ûŒüƒZƒbƒg
+            // æ–¹å‘ã‚»ãƒƒãƒˆ
             var direction = transform.TransformDirection(DriveDirection);
-            // …•½•ûŒü‚É—Í‚ğ‰Á‚¦‚Ä•¨‘Ì‚ğˆÚ“®
+            // æ°´å¹³æ–¹å‘ã«åŠ›ã‚’åŠ ãˆã¦ç‰©ä½“ã‚’ç§»å‹•
             rigidBody.linearVelocity = TargetDriveSpeed * direction;
             //rigidBody.velocity = new Vector3(conveyorSpeed, rigidBody.velocity.y, rigidBody.velocity.z);
         }
     }
 
     /// <summary>
-    /// ƒpƒ‰ƒ[ƒ^‚ğƒZƒbƒg‚·‚é
+    /// ãƒ‘ãƒ©ãƒ¡ãƒ¼ã‚¿ã‚’ã‚»ãƒƒãƒˆã™ã‚‹
     /// </summary>
     /// <param name="components"></param>
     /// <param name="scriptables"></param>
@@ -183,7 +183,7 @@ public class ConveyorScript : KssBaseScript
     }
 
     /// <summary>
-    /// ƒpƒ‰ƒ[ƒ^‚ğƒZƒbƒg‚·‚é
+    /// ãƒ‘ãƒ©ãƒ¡ãƒ¼ã‚¿ã‚’ã‚»ãƒƒãƒˆã™ã‚‹
     /// </summary>
     /// <param name="unitSetting"></param>
     /// <param name="robo"></param>
@@ -208,7 +208,7 @@ public class ConveyorScript : KssBaseScript
         {
             DriveDirection = new Vector3(0, 1 * cv.dir * transform.localScale.y, 0);
         }
-        // ƒ^ƒOİ’è
+        // ã‚¿ã‚°è¨­å®š
         if (cv.actTag != null)
         {
             ActTag = ScriptableObject.CreateInstance<TagInfo>();
@@ -217,7 +217,7 @@ public class ConveyorScript : KssBaseScript
             ActTag.Tag = cv.actTag;
         }
 
-        // Õ“ËŒŸ’m’Ç‰Á
+        // è¡çªæ¤œçŸ¥è¿½åŠ 
         var rig = transform.GetComponent<Rigidbody>();
         if (rig == null)
         {
@@ -231,7 +231,7 @@ public class ConveyorScript : KssBaseScript
         {
             mesh.AddComponent<BoxCollider>();
         }
-        // ƒRƒ“ƒxƒA‚Ì‚½‚ßÚG‚ğ–³Œø‰»
+        // ã‚³ãƒ³ãƒ™ã‚¢ã®ãŸã‚æ¥è§¦ã‚’ç„¡åŠ¹åŒ–
         var mc = GetComponentInChildren<MeshCollider>();
         if (mc != null)
         {
@@ -240,7 +240,7 @@ public class ConveyorScript : KssBaseScript
     }
 
     /// <summary>
-    /// ƒLƒƒƒ“ƒoƒX•\¦—pƒf[ƒ^ì¬
+    /// ã‚­ãƒ£ãƒ³ãƒã‚¹è¡¨ç¤ºç”¨ãƒ‡ãƒ¼ã‚¿ä½œæˆ
     /// </summary>
     public override void RenewCanvasValues()
     {

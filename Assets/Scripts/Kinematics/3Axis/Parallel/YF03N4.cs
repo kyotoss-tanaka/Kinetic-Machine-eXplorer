@@ -1,11 +1,11 @@
-using System.Collections.Generic;
+ï»¿using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
 
 public class YF03N4 : ParallelLink
 {
     /// <summary>
-    /// ƒRƒ“ƒXƒgƒ‰ƒNƒ^
+    /// ã‚³ãƒ³ã‚¹ãƒˆãƒ©ã‚¯ã‚¿
     /// </summary>
     public YF03N4() : base()
     {
@@ -26,12 +26,12 @@ public class YF03N4 : ParallelLink
         angle = kinematics_R(x, -y, z);
         for (var i = 0; i < AXIS_MAX; i++)
         {
-            // ƒA[ƒ€1‚ÌˆÊ’u
+            // ã‚¢ãƒ¼ãƒ 1ã®ä½ç½®
             arm1[i].localEulerAngles = new Vector3(arm1[i].localEulerAngles.x, arm1[i].localEulerAngles.y, -angle[i][0]);
-            // ƒA[ƒ€2‚ÌˆÊ’u
+            // ã‚¢ãƒ¼ãƒ 2ã®ä½ç½®
             arm2[i * 2 + 0].transform.localEulerAngles = new Vector3(0, 90 - angle[i][1], angle[i][2]);
             arm2[i * 2 + 1].transform.localEulerAngles = new Vector3(0, -90 + angle[i][1], -angle[i][2]);
-            // ˜AŒ‹•”‚ÌˆÊ’u
+            // é€£çµéƒ¨ã®ä½ç½®
             var rad = angle[i][2] * RADIANS;
             armSpring[i * 2 + 0].localEulerAngles = new Vector3(0, 0, 90 - angle[i][2]);
             armSpring[i * 2 + 0].localPosition = new Vector3(SPRING1_OFFSET_X + SPRING_OFFSET_Y * Mathf.Sin(rad), SPRING_OFFSET_Y * Mathf.Cos(rad), 0);
@@ -42,7 +42,7 @@ public class YF03N4 : ParallelLink
     }
 
     /// <summary>
-    /// ƒ‚ƒfƒ‹Ä\’z
+    /// ãƒ¢ãƒ‡ãƒ«å†æ§‹ç¯‰
     /// </summary>
     /// <param name="instance"></param>
     protected override void ModelRestructProcess()
@@ -60,16 +60,16 @@ public class YF03N4 : ParallelLink
         arm1.Add(children.Find(d => d.name.Contains("YF003N-A031_J2")));
 
         var arm2_children = new List<Transform>();
-        arm2_children.Add(children.Find(d => d.name.Contains("ìdƒpƒ‰ƒŒƒ‹‘æ“ñƒA[ƒ€^01S1_YF03N4_¶Ü»·¼Ş­³º³-3")));
-        arm2_children.Add(children.Find(d => d.name.Contains("ìdƒpƒ‰ƒŒƒ‹‘æ“ñƒA[ƒ€^01S1_YF03N4_¶Ü»·¼Ş­³º³-5")));
-        arm2_children.Add(children.Find(d => d.name.Contains("ìdƒpƒ‰ƒŒƒ‹‘æ“ñƒA[ƒ€^01S1_YF03N4_¶Ü»·¼Ş­³º³-4")));
+        arm2_children.Add(children.Find(d => d.name.Contains("å·é‡ãƒ‘ãƒ©ãƒ¬ãƒ«ç¬¬äºŒã‚¢ãƒ¼ãƒ ^01S1_YF03N4_ï½¶ï¾œï½»ï½·ï½¼ï¾ï½­ï½³ï½ºï½³-3")));
+        arm2_children.Add(children.Find(d => d.name.Contains("å·é‡ãƒ‘ãƒ©ãƒ¬ãƒ«ç¬¬äºŒã‚¢ãƒ¼ãƒ ^01S1_YF03N4_ï½¶ï¾œï½»ï½·ï½¼ï¾ï½­ï½³ï½ºï½³-5")));
+        arm2_children.Add(children.Find(d => d.name.Contains("å·é‡ãƒ‘ãƒ©ãƒ¬ãƒ«ç¬¬äºŒã‚¢ãƒ¼ãƒ ^01S1_YF03N4_ï½¶ï¾œï½»ï½·ï½¼ï¾ï½­ï½³ï½ºï½³-4")));
 
         for (var i = 0; i < AXIS_MAX; i++)
         {
             var gArm1 = new GameObject($"Arm1-{i + 1}");
             arm2_children[i].transform.localEulerAngles = new Vector3(0, arm2_children[i].transform.localEulerAngles.y, arm2_children[i].transform.localEulerAngles.z);
-            arm2.AddRange(arm2_children[i].GetComponentsInChildren<Transform>().Where(d => d.name.Contains("YF003N-A031_‘æ“ñƒA[ƒ€")));
-            armSpring.AddRange(arm2_children[i].GetComponentsInChildren<Transform>().Where(d => d.name.Contains("Copy of ƒXƒvƒŠƒ“ƒOƒ†ƒjƒbƒg")));
+            arm2.AddRange(arm2_children[i].GetComponentsInChildren<Transform>().Where(d => d.name.Contains("YF003N-A031_ç¬¬äºŒã‚¢ãƒ¼ãƒ ")));
+            armSpring.AddRange(arm2_children[i].GetComponentsInChildren<Transform>().Where(d => d.name.Contains("Copy of ã‚¹ãƒ—ãƒªãƒ³ã‚°ãƒ¦ãƒ‹ãƒƒãƒˆ")));
             InsertParent(gArm1.transform, arm1[i]);
             gArm1.transform.parent = parallel.transform;
             for (var j = 0; j < 2; j++)
@@ -82,15 +82,15 @@ public class YF03N4 : ParallelLink
             armSpring[i * 2 + 1].parent = arm2[i * 2 + 0];
         }
 
-        // ƒvƒŒ[ƒg
-        plate = children.Where(d => d.name.Contains("ƒwƒbƒhƒvƒŒ[ƒg")).ToList()[0];
-        // ƒwƒbƒhƒZƒbƒg
+        // ãƒ—ãƒ¬ãƒ¼ãƒˆ
+        plate = children.Where(d => d.name.Contains("ãƒ˜ãƒƒãƒ‰ãƒ—ãƒ¬ãƒ¼ãƒˆ")).ToList()[0];
+        // ãƒ˜ãƒƒãƒ‰ã‚»ãƒƒãƒˆ
         if (HeadObject != null)
         {
             HeadObject.transform.parent = plate.transform;
         }
 
-        // Ã“Iƒoƒbƒ`ƒ“ƒO‚É•ÏX
+        // é™çš„ãƒãƒƒãƒãƒ³ã‚°ã«å¤‰æ›´
         var staticObject = children.Find(d => d.name.Contains("YF003N-A031_BASE")).gameObject;
         MeshRenderer[] renderers = staticObject.GetComponentsInChildren<MeshRenderer>();
         GameObject[] batchTargets = new GameObject[renderers.Length];
@@ -98,7 +98,7 @@ public class YF03N4 : ParallelLink
         {
             batchTargets[i] = renderers[i].gameObject;
         }
-        // Ã“Iƒoƒbƒ`ƒ“ƒO‚ğÀsie‚É‚Ü‚Æ‚ß‚Äƒoƒbƒ`ƒ“ƒOj
+        // é™çš„ãƒãƒƒãƒãƒ³ã‚°ã‚’å®Ÿè¡Œï¼ˆè¦ªã«ã¾ã¨ã‚ã¦ãƒãƒƒãƒãƒ³ã‚°ï¼‰
 //        StaticBatchingUtility.Combine(batchTargets, staticObject);
     }
 }

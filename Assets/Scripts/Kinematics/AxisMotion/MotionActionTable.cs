@@ -1,4 +1,4 @@
-using Parameters;
+ï»¿using Parameters;
 using System.Collections;
 using System.Collections.Generic;
 using System.Globalization;
@@ -8,47 +8,47 @@ using UnityEngine;
 public class MotionActionTable : AxisMotionBase
 {
     /// <summary>
-    /// ƒLƒƒƒ“ƒoƒX•\¦
+    /// ã‚­ãƒ£ãƒ³ãƒã‚¹è¡¨ç¤º
     /// </summary>
     protected override bool isCanvas { get { return true; } }
 
     /// <summary>
-    /// ƒf[ƒ^”{—¦
+    /// ãƒ‡ãƒ¼ã‚¿å€ç‡
     /// </summary>
     protected float rate;
 
     /// <summary>
-    /// Œ»İŠÔ
+    /// ç¾åœ¨æ™‚é–“
     /// </summary>
     [SerializeField]
     protected int time;
 
     /// <summary>
-    /// Œ»İƒTƒCƒNƒ‹
+    /// ç¾åœ¨ã‚µã‚¤ã‚¯ãƒ«
     /// </summary>
     [SerializeField]
     protected int cycle;
 
     /// <summary>
-    /// ƒe[ƒuƒ‹ˆÊ’u
+    /// ãƒ†ãƒ¼ãƒ–ãƒ«ä½ç½®
     /// </summary>
     [SerializeField]
     protected decimal value;
 
     /// <summary>
-    /// Œ»İˆÊ’u
+    /// ç¾åœ¨ä½ç½®
     /// </summary>
     [SerializeField]
     protected float position;
 
     /// <summary>
-    /// ƒIƒtƒZƒbƒg
+    /// ã‚ªãƒ•ã‚»ãƒƒãƒˆ
     /// </summary>
     [SerializeField]
     protected float offset;
 
     /// <summary>
-    /// “®ìƒe[ƒuƒ‹
+    /// å‹•ä½œãƒ†ãƒ¼ãƒ–ãƒ«
     /// </summary>
     [SerializeField]
     protected ActionTableData actionTableData;
@@ -58,18 +58,18 @@ public class MotionActionTable : AxisMotionBase
     {
         base.Start();
 
-        // ƒ†ƒjƒbƒgİ’èXV
+        // ãƒ¦ãƒ‹ãƒƒãƒˆè¨­å®šæ›´æ–°
         RenewMoveDir();
     }
 
     /// <summary>
-    /// ƒ†ƒjƒbƒgİ’è‚©‚ç“®ìİ’èXV
+    /// ãƒ¦ãƒ‹ãƒƒãƒˆè¨­å®šã‹ã‚‰å‹•ä½œè¨­å®šæ›´æ–°
     /// </summary>
     public override void RenewMoveDir()
     {
         base.RenewMoveDir();
 
-        // ƒTƒCƒNƒ‹ƒ^ƒOİ’è
+        // ã‚µã‚¤ã‚¯ãƒ«ã‚¿ã‚°è¨­å®š
         var tag = GlobalScript.callbackTags.Find(d => d.database == unitSetting.Database);
         cycleTag = tag == null ? null : tag.cycle;
 
@@ -77,7 +77,7 @@ public class MotionActionTable : AxisMotionBase
 
         offset = isRotate ? unitSetting.actionSetting.offset : unitSetting.actionSetting.offset / 1000f;
 
-        // ƒe[ƒuƒ‹æ“¾
+        // ãƒ†ãƒ¼ãƒ–ãƒ«å–å¾—
         actionTableData = GlobalScript.actionTableDatas.Find(d => (d.mechId == unitSetting.mechId) && (d.name == unitSetting.name));
         if (actionTableData == null)
         {
@@ -85,13 +85,13 @@ public class MotionActionTable : AxisMotionBase
         }
         else
         {
-            // ŠÔ‚²‚Æ‚Éƒ\[ƒg
+            // æ™‚é–“ã”ã¨ã«ã‚½ãƒ¼ãƒˆ
             actionTableData.datas = actionTableData.datas.OrderBy(d => d.time).ToList();
         }
     }
 
     /// <summary>
-    /// XVˆ—
+    /// æ›´æ–°å‡¦ç†
     /// </summary>
     protected override void MyFixedUpdate()
     {

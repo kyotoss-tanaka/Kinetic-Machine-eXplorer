@@ -1,4 +1,4 @@
-using Parameters;
+ï»¿using Parameters;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
@@ -18,13 +18,13 @@ public class InfoCanvasScript : CanvasBaseScript
     {
         base.Start();
 
-        // ƒLƒƒƒ“ƒoƒXæ“¾
+        // ã‚­ãƒ£ãƒ³ãƒã‚¹å–å¾—
         canvas = GetComponent<Canvas>();
 
-        // ƒ{ƒ^ƒ“ƒXƒNƒŠƒvƒgæ“¾
+        // ãƒœã‚¿ãƒ³ã‚¹ã‚¯ãƒªãƒ—ãƒˆå–å¾—
         buttonScript = transform.GetComponentInChildren<InfoCanvasButtonScript>();
 
-        // ƒ`ƒƒ[ƒg•\¦
+        // ãƒãƒ£ãƒ¼ãƒˆè¡¨ç¤º
         var c = (GameObject)Resources.Load("Charts/LineChart_Time");
         chartScript = Instantiate(c).GetComponent<LineChartScript>();
         chartScript.transform.parent = canvas.transform;

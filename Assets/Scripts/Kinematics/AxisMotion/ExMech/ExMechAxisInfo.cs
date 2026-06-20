@@ -1,4 +1,4 @@
-using Parameters;
+ï»¿using Parameters;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -10,7 +10,7 @@ public class ExMechAxisInfo
     [SerializeField]
     public List<GameObject> children;
     /// <summary>
-    /// e‚ğƒZƒbƒg‚·‚é
+    /// è¦ªã‚’ã‚»ãƒƒãƒˆã™ã‚‹
     /// </summary>
     /// <param name="parent"></param>
     public void SetParent(GameObject parent)

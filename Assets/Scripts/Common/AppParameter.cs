@@ -1,4 +1,4 @@
-using System;
+ï»¿using System;
 using System.Collections.Generic;
 using System.Net.Sockets;
 using System.Text.Json.Serialization;
@@ -10,23 +10,23 @@ namespace Parameters
     public enum RobotType
     {
         /// <summary>
-        /// 2²ƒA[ƒ€
+        /// 2è»¸ã‚¢ãƒ¼ãƒ 
         /// </summary>
         ARM,
         /// <summary>
-        /// “V’İ‚è2²ƒA[ƒ€
+        /// å¤©åŠã‚Š2è»¸ã‚¢ãƒ¼ãƒ 
         /// </summary>
         CEILING_ARM,
         /// <summary>
-        /// ‘º“cƒpƒ‰ƒŒƒ‹(3²)
+        /// æ‘ç”°ãƒ‘ãƒ©ãƒ¬ãƒ«(3è»¸)
         /// </summary>
         MPS2_3AS,
         /// <summary>
-        /// ‘º“cƒpƒ‰ƒŒƒ‹(4²)
+        /// æ‘ç”°ãƒ‘ãƒ©ãƒ¬ãƒ«(4è»¸)
         /// </summary>
         MPS2_4AS,
         /// <summary>
-        /// •Ï‘¥ƒpƒ‰ƒŒƒ‹
+        /// å¤‰å‰‡ãƒ‘ãƒ©ãƒ¬ãƒ«
         /// </summary>
         MPX_PI,
         /// <summary>
@@ -46,11 +46,11 @@ namespace Parameters
         /// </summary>
         MPX_R6,
         /// <summary>
-        /// ìdƒpƒ‰ƒŒƒ‹
+        /// å·é‡ãƒ‘ãƒ©ãƒ¬ãƒ«
         /// </summary>
         YF03N4,
         /// <summary>
-        /// ìd6²
+        /// å·é‡6è»¸
         /// </summary>
         RS007L,
         /// <summary>
@@ -58,7 +58,7 @@ namespace Parameters
         /// </summary>
         CRX_30iA,
         /// <summary>
-        /// –¢’è‹`
+        /// æœªå®šç¾©
         /// </summary>
         UNDEFINED
     }
@@ -182,15 +182,15 @@ namespace Parameters
     public class DataExchangeSetting
     {
         /// <summary>
-        /// DB”Ô†
+        /// DBç•ªå·
         /// </summary>
         public int dbNo { get; set; }
         /// <summary>
-        /// ‹@”Ô
+        /// æ©Ÿç•ª
         /// </summary>
         public string mechId { get; set; }
         /// <summary>
-        /// ƒf[ƒ^İ’è
+        /// ãƒ‡ãƒ¼ã‚¿è¨­å®š
         /// </summary>
         public List<DataEx> datas { get; set; }
     }
@@ -198,19 +198,19 @@ namespace Parameters
     public class DataEx
     {
         /// <summary>
-        /// ‰Šú’l
+        /// åˆæœŸå€¤
         /// </summary>
         public int initValue { get; set; }
         /// <summary>
-        /// “ü—Íƒf[ƒ^
+        /// å…¥åŠ›ãƒ‡ãƒ¼ã‚¿
         /// </summary>
         public string input { get; set; }
         /// <summary>
-        /// o—Íƒf[ƒ^
+        /// å‡ºåŠ›ãƒ‡ãƒ¼ã‚¿
         /// </summary>
         public string output { get; set; }
         /// <summary>
-        /// ‰Šúˆ—ƒtƒ‰ƒO
+        /// åˆæœŸå‡¦ç†ãƒ•ãƒ©ã‚°
         /// </summary>
         public bool isInit
         {
@@ -225,121 +225,121 @@ namespace Parameters
     public class UnitSetting
     {
         /// <summary>
-        /// ‹@”Ô
+        /// æ©Ÿç•ª
         /// </summary>
         public string Database;
         /// <summary>
-        /// DB”Ô†
+        /// DBç•ªå·
         /// </summary>
         public int dbNo { get; set; }
         /// <summary>
-        /// ‹@”Ô
+        /// æ©Ÿç•ª
         /// </summary>
         public string mechId { get; set; }
         /// <summary>
-        /// ƒ†ƒjƒbƒg–¼
+        /// ãƒ¦ãƒ‹ãƒƒãƒˆå
         /// </summary>
         public string name { get; set; }
         /// <summary>
-        /// Õ“Ë‚ ‚è
+        /// è¡çªã‚ã‚Š
         /// </summary>
         public int collision { get; set; }
         /// <summary>
-        /// “¯Šú‹@\
+        /// åŒæœŸæ©Ÿæ§‹
         /// </summary>
         public bool sync { get; set; }
         /// <summary>
-        /// ƒOƒ‹[ƒvƒIƒuƒWƒFƒNƒg
+        /// ã‚°ãƒ«ãƒ¼ãƒ—ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆ
         /// </summary>
         public string group { get; set; }
         /// <summary>
-        /// eƒIƒuƒWƒFƒNƒg
+        /// è¦ªã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆ
         /// </summary>
         public string parent { get; set; }
         /// <summary>
-        /// â‘ÎƒpƒX
+        /// çµ¶å¯¾ãƒ‘ã‚¹
         /// </summary>
         public string path { get; set; }
         /// <summary>
-        /// ƒƒ{ƒbƒgƒ^ƒCƒ€ƒ`ƒƒ[ƒgƒ‚[ƒh
+        /// ãƒ­ãƒœãƒƒãƒˆã‚¿ã‚¤ãƒ ãƒãƒ£ãƒ¼ãƒˆãƒ¢ãƒ¼ãƒ‰
         /// </summary>
         public bool isRoboTimeChart { get; set; }
         /// <summary>
-        /// qƒIƒuƒWƒFƒNƒg–¼
+        /// å­ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆå
         /// </summary>
         public List<UnitChildren> children { get; set; }
         /// <summary>
-        /// qƒIƒuƒWƒFƒNƒg
+        /// å­ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆ
         /// </summary>
         public List<GameObject> childrenObject;
         /// <summary>
-        /// “®ìİ’è
+        /// å‹•ä½œè¨­å®š
         /// </summary>
         public UnitActionSetting actionSetting;
         /// <summary>
-        /// ƒƒ{ƒbƒgİ’è
+        /// ãƒ­ãƒœãƒƒãƒˆè¨­å®š
         /// </summary>
         [SerializeReference]
         public RobotSetting robotSetting;
         /// <summary>
-        /// ƒƒ{ƒbƒgİ’è
+        /// ãƒ­ãƒœãƒƒãƒˆè¨­å®š
         /// </summary>
         [SerializeReference]
         public LinearSetting linearSetting;
         /// <summary>
-        /// Œ^‘Ö‚¦•”•iİ’è
+        /// å‹æ›¿ãˆéƒ¨å“è¨­å®š
         /// </summary>
         public ChangeOverSetting changeOverSetting;
         /// <summary>
-        /// ƒ[ƒN¶¬İ’è
+        /// ãƒ¯ãƒ¼ã‚¯ç”Ÿæˆè¨­å®š
         /// </summary>
         public List<WorkCreateSetting> workSettings;
         /// <summary>
-        /// ƒ[ƒN¶¬İ’è
+        /// ãƒ¯ãƒ¼ã‚¯ç”Ÿæˆè¨­å®š
         /// </summary>
         public List<WorkDeleteSetting> workDeleteSettings;
         /// <summary>
-        /// ƒZƒ“ƒTİ’è
+        /// ã‚»ãƒ³ã‚µè¨­å®š
         /// </summary>
         public List<SensorSetting> sensorSettings;
         /// <summary>
-        /// ‹zˆøİ’è
+        /// å¸å¼•è¨­å®š
         /// </summary>
         public SuctionSetting suctionSetting;
         /// <summary>
-        /// •¨‘ÌŒ`óİ’è
+        /// ç‰©ä½“å½¢çŠ¶è¨­å®š
         /// </summary>
         public ShapeSetting shapeSetting;
         /// <summary>
-        /// ƒXƒCƒbƒ`İ’è
+        /// ã‚¹ã‚¤ãƒƒãƒè¨­å®š
         /// </summary>
         public SwitchSetting switchSetting;
         /// <summary>
-        /// ƒVƒOƒiƒ‹ƒ^ƒ[İ’è
+        /// ã‚·ã‚°ãƒŠãƒ«ã‚¿ãƒ¯ãƒ¼è¨­å®š
         /// </summary>
         public SignalTowerSetting towerSetting;
         /// <summary>
-        /// LEDİ’è
+        /// LEDè¨­å®š
         /// </summary>
         public LedSetting ledSetting;
         /// <summary>
-        /// Šg’£‹@\İ’è
+        /// æ‹¡å¼µæ©Ÿæ§‹è¨­å®š
         /// </summary>
         public ExMechSetting exMechSetting;
         /// <summary>
-        /// ƒoƒPƒbƒgİ’è
+        /// ãƒã‚±ãƒƒãƒˆè¨­å®š
         /// </summary>
         public BacketSetting backetSetting;
         /// <summary>
-        /// “®ìƒIƒuƒWƒFƒNƒg
+        /// å‹•ä½œã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆ
         /// </summary>
         public GameObject moveObject = null;
         /// <summary>
-        /// ƒ†ƒjƒbƒgƒIƒuƒWƒFƒNƒg
+        /// ãƒ¦ãƒ‹ãƒƒãƒˆã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆ
         /// </summary>
         public GameObject unitObject { get; set; }
         /// <summary>
-        /// Õ“Ë‚ ‚è
+        /// è¡çªã‚ã‚Š
         /// </summary>
         public bool isCollision
         {
@@ -364,59 +364,59 @@ namespace Parameters
     public class UnitActionSetting
     {
         /// <summary>
-        /// ‹@”Ô
+        /// æ©Ÿç•ª
         /// </summary>
         public string mechId { get; set; }
         /// <summary>
-        /// ƒ†ƒjƒbƒg–¼
+        /// ãƒ¦ãƒ‹ãƒƒãƒˆå
         /// </summary>
         public string name { get; set; }
         /// <summary>
-        /// “®ìƒ‚[ƒh 0:’¼ü 1:‰ñ“] 2:ŠO•”(’¼ü) 3:ŠO•”(‰ñ“])
+        /// å‹•ä½œãƒ¢ãƒ¼ãƒ‰ 0:ç›´ç·š 1:å›è»¢ 2:å¤–éƒ¨(ç›´ç·š) 3:å¤–éƒ¨(å›è»¢)
         /// </summary>
         public int mode { get; set; }
         /// <summary>
-        /// “®ì² 0:X 1:Y 2:Z
+        /// å‹•ä½œè»¸ 0:X 1:Y 2:Z
         /// </summary>
         public int axis { get; set; }
         /// <summary>
-        /// ‰ñ“]•ûŒü
+        /// å›è»¢æ–¹å‘
         /// </summary>
         public int dir { get; set; }
         /// <summary>
-        /// ƒIƒtƒZƒbƒg
+        /// ã‚ªãƒ•ã‚»ãƒƒãƒˆ
         /// </summary>
         public int offset { get; set; }
         /// <summary>
-        /// ‰Á‘¬“xİ’è 0:‰Á‘¬“x(G) 1:ŠÔ
+        /// åŠ é€Ÿåº¦è¨­å®š 0:åŠ é€Ÿåº¦(G) 1:æ™‚é–“
         /// </summary>
         public int acl { get; set; }
         /// <summary>
-        /// “®ìƒ^ƒO
+        /// å‹•ä½œã‚¿ã‚°
         /// </summary>
         public string tag { get; set; }
         /// <summary>
-        /// “®ìƒ^ƒO”{—¦
+        /// å‹•ä½œã‚¿ã‚°å€ç‡
         /// </summary>
         public int rate { get; set; }
         /// <summary>
-        /// ’ÊM’x‚êŠÔ
+        /// é€šä¿¡é…ã‚Œæ™‚é–“
         /// </summary>
         public int delay { get; set; }
         /// <summary>
-        /// ƒTƒCƒNƒ‹ŠÔ
+        /// ã‚µã‚¤ã‚¯ãƒ«æ™‚é–“
         /// </summary>0
         public int cycle { get; set; }
         /// <summary>
-        /// Šg’£‹@\ƒ‚[ƒh•ÏX
+        /// æ‹¡å¼µæ©Ÿæ§‹ãƒ¢ãƒ¼ãƒ‰å¤‰æ›´
         /// </summary>
         public bool exModeChange { get; set; }
         /// <summary>
-        /// “®ìƒtƒ@ƒCƒ‹
+        /// å‹•ä½œãƒ•ã‚¡ã‚¤ãƒ«
         /// </summary>
         public bool file { get; set; }
         /// <summary>
-        /// “®ìİ’è
+        /// å‹•ä½œè¨­å®š
         /// </summary>
         public List<UnitAction> actions { get; set; } = new();
 
@@ -482,93 +482,93 @@ namespace Parameters
     public class UnitAction
     {
         /// <summary>
-        /// ƒgƒŠƒKƒ^ƒCƒ~ƒ“ƒO
+        /// ãƒˆãƒªã‚¬ã‚¿ã‚¤ãƒŸãƒ³ã‚°
         /// </summary>
         public int trg { get; set; }
         /// <summary>
-        /// –Ú•WˆÊ’u
+        /// ç›®æ¨™ä½ç½®
         /// </summary>
         public float target { get; set; }
         /// <summary>
-        /// ƒIƒtƒZƒbƒg
+        /// ã‚ªãƒ•ã‚»ãƒƒãƒˆ
         /// </summary>
         public float offset { get; set; }
         /// <summary>
-        /// •ûŒü
+        /// æ–¹å‘
         /// </summary>
         public int dir { get; set; }
         /// <summary>
-        /// ƒXƒgƒ[ƒN
+        /// ã‚¹ãƒˆãƒ­ãƒ¼ã‚¯
         /// </summary>
         public float stroke { get; set; }
         /// <summary>
-        /// “®ìŠÔ
+        /// å‹•ä½œæ™‚é–“
         /// </summary>
         public float time { get; set; }
         /// <summary>
-        /// ‰Á‘¬İ’è
+        /// åŠ é€Ÿè¨­å®š
         /// </summary>
         public float acl { get; set; }
         /// <summary>
-        /// Œ¸‘¬İ’è
+        /// æ¸›é€Ÿè¨­å®š
         /// </summary>
         public float dcl { get; set; }
         /// <summary>
-        /// ŠJnƒgƒŠƒKI/O
+        /// é–‹å§‹ãƒˆãƒªã‚¬I/O
         /// </summary>
         public string start { get; set; }
         /// <summary>
-        /// Š®—¹I/O
+        /// å®Œäº†I/O
         /// </summary>
         public string end { get; set; }
         /// <summary>
-        /// ŠJn–¼
+        /// é–‹å§‹å
         /// </summary>
         public string startName { get; set; }
         /// <summary>
-        /// Š®—¹–¼
+        /// å®Œäº†å
         /// </summary>
         public string endName { get; set; } 
         /// <summary>
-        /// Œp‘±ƒtƒ‰ƒO
+        /// ç¶™ç¶šãƒ•ãƒ©ã‚°
         /// </summary>
         public bool isContinue { get; set; }
         /// <summary>
-        /// Œp‘±“®ì‚Ì’â~ŠÔ
+        /// ç¶™ç¶šå‹•ä½œæ™‚ã®åœæ­¢æ™‚é–“
         /// </summary>
         public float stop { get; set; }
         /// <summary>
-        /// –Ú•WÀ•W
+        /// ç›®æ¨™åº§æ¨™
         /// </summary>
         [JsonIgnore]
         public Vector3 targetPos { get; set; }
         /// <summary>
-        /// ‘¬“x
+        /// é€Ÿåº¦
         /// </summary>
         [JsonIgnore]
         public float velocity { get; set; }
         /// <summary>
-        /// ‰Á‘¬ŠÔ
+        /// åŠ é€Ÿæ™‚é–“
         /// </summary>
         [JsonIgnore]
         public float aclTime { get; set; }
         /// <summary>
-        /// Œ¸‘¬ŠÔ
+        /// æ¸›é€Ÿæ™‚é–“
         /// </summary>
         [JsonIgnore]
         public float dclTime { get; set; }
         /// <summary>
-        /// ‰Á‘¬“x
+        /// åŠ é€Ÿåº¦
         /// </summary>
         [JsonIgnore]
         public float aclVal { get; set; }
         /// <summary>
-        /// Œ¸‘¬“x
+        /// æ¸›é€Ÿåº¦
         /// </summary>
         [JsonIgnore]
         public float dclVal { get; set; }
         /// <summary>
-        /// ƒf[ƒ^•ÏXƒtƒ‰ƒO
+        /// ãƒ‡ãƒ¼ã‚¿å¤‰æ›´ãƒ•ãƒ©ã‚°
         /// </summary>
         [JsonIgnore]
         public bool isChanged { get; set; }
@@ -578,27 +578,27 @@ namespace Parameters
     public class HiddenUnit
     {
         /// <summary>
-        /// ‹@”Ô
+        /// æ©Ÿç•ª
         /// </summary>
         public string mechId { get; set; }
         /// <summary>
-        /// ƒ†ƒjƒbƒg–¼
+        /// ãƒ¦ãƒ‹ãƒƒãƒˆå
         /// </summary>
         public string name { get; set; }
         /// <summary>
-        /// e–¼
+        /// è¦ªå
         /// </summary>
         public string parent { get; set; }
         /// <summary>
-        /// ƒ‚[ƒh
+        /// ãƒ¢ãƒ¼ãƒ‰
         /// </summary>
         public int mode { get; set; }
         /// <summary>
-        /// –³Œøƒtƒ‰ƒO
+        /// ç„¡åŠ¹ãƒ•ãƒ©ã‚°
         /// </summary>
         public int disable { get; set; }
         /// <summary>
-        /// —LŒø
+        /// æœ‰åŠ¹
         /// </summary>
         public bool isEnable
         {
@@ -614,23 +614,23 @@ namespace Parameters
     public class InnerProcessSetting
     {
         /// <summary>
-        /// ‹@”Ô
+        /// æ©Ÿç•ª
         /// </summary>
         public string mechId { get; set; }
         /// <summary>
-        /// ƒ^ƒO–¼
+        /// ã‚¿ã‚°å
         /// </summary>
         public string tag { get; set; }
         /// <summary>
-        /// ƒTƒCƒNƒ‹
+        /// ã‚µã‚¤ã‚¯ãƒ«
         /// </summary>
         public decimal cycle { get; set; }
         /// <summary>
-        /// ONƒ^ƒCƒ~ƒ“ƒO
+        /// ONã‚¿ã‚¤ãƒŸãƒ³ã‚°
         /// </summary>
         public decimal onTiming { get; set; }
         /// <summary>
-        /// OFFƒ^ƒCƒ~ƒ“ƒO
+        /// OFFã‚¿ã‚¤ãƒŸãƒ³ã‚°
         /// </summary>
         public decimal offTiming { get; set; }
     }
@@ -639,15 +639,15 @@ namespace Parameters
     public class ChuckUnitSetting
     {
         /// <summary>
-        /// ‹@”Ô
+        /// æ©Ÿç•ª
         /// </summary>
         public string mechId { get; set; }
         /// <summary>
-        /// ƒ†ƒjƒbƒg–¼
+        /// ãƒ¦ãƒ‹ãƒƒãƒˆå
         /// </summary>
         public string name { get; set; }
         /// <summary>
-        /// ƒ`ƒƒƒbƒNƒ†ƒjƒbƒg–¼
+        /// ãƒãƒ£ãƒƒã‚¯ãƒ¦ãƒ‹ãƒƒãƒˆå
         /// </summary>
         public List<ChuckUnit> children { get; set; }
 
@@ -670,52 +670,52 @@ namespace Parameters
     public class RobotSetting
     {
         /// <summary>
-        /// ‹@”Ô
+        /// æ©Ÿç•ª
         /// </summary>
         public string mechId { get; set; }
         /// <summary>
-        /// ƒ†ƒjƒbƒg–¼
+        /// ãƒ¦ãƒ‹ãƒƒãƒˆå
         /// </summary>
         public string name { get; set; }
         /// <summary>
-        /// ƒƒ{ƒbƒgƒ^ƒCƒv
+        /// ãƒ­ãƒœãƒƒãƒˆã‚¿ã‚¤ãƒ—
         /// </summary>
         public string type { get; set; }
         /// <summary>
-        /// ƒwƒbƒhƒ†ƒjƒbƒg
+        /// ãƒ˜ãƒƒãƒ‰ãƒ¦ãƒ‹ãƒƒãƒˆ
         /// </summary>
         public string head { get; set; }
         /// <summary>
-        /// ƒ`ƒƒƒbƒNƒ†ƒjƒbƒg–¼
+        /// ãƒãƒ£ãƒƒã‚¯ãƒ¦ãƒ‹ãƒƒãƒˆå
         /// </summary>
         public List<string> tags { get; set; }
         /// <summary>
-        /// ”{—¦
+        /// å€ç‡
         /// </summary>
         public List<int> rates { get; set; }
         /// <summary>
-        /// ƒIƒtƒZƒbƒg
+        /// ã‚ªãƒ•ã‚»ãƒƒãƒˆ
         /// </summary>
         public List<float> offset { get; set; }
         /// <summary>
-        /// ƒ^ƒCƒ€ƒ`ƒƒ[ƒgg—p
+        /// ã‚¿ã‚¤ãƒ ãƒãƒ£ãƒ¼ãƒˆä½¿ç”¨
         /// </summary>
         public bool isTm { get; set; }
         /// <summary>
-        /// ƒ^ƒCƒ€ƒ`ƒƒ[ƒgƒ†ƒjƒbƒg
+        /// ã‚¿ã‚¤ãƒ ãƒãƒ£ãƒ¼ãƒˆãƒ¦ãƒ‹ãƒƒãƒˆ
         /// </summary>
         public List<string> tmUnitNames { get; set; } = new();
         /// <summary>
-        /// ƒwƒbƒhƒ†ƒjƒbƒgİ’è
+        /// ãƒ˜ãƒƒãƒ‰ãƒ¦ãƒ‹ãƒƒãƒˆè¨­å®š
         /// </summary>
         public UnitSetting headUnit { get; set; }
         /// <summary>
-        /// ƒwƒbƒhƒ†ƒjƒbƒgİ’è
+        /// ãƒ˜ãƒƒãƒ‰ãƒ¦ãƒ‹ãƒƒãƒˆè¨­å®š
         /// </summary>
         public List<UnitSetting> tmUnits { get; set; } = new();
         /*
         /// <summary>
-        /// ƒƒ{ƒbƒgƒ^ƒCƒv
+        /// ãƒ­ãƒœãƒƒãƒˆã‚¿ã‚¤ãƒ—
         /// </summary>
         public RobotType robo
         {
@@ -804,59 +804,59 @@ namespace Parameters
     public class PlanarMotorSetting
     {
         /// <summary>
-        /// ‹@”Ô
+        /// æ©Ÿç•ª
         /// </summary>
         public string mechId { get; set; }
         /// <summary>
-        /// ƒ†ƒjƒbƒg–¼
+        /// ãƒ¦ãƒ‹ãƒƒãƒˆå
         /// </summary>
         public string name { get; set; }
         /// <summary>
-        /// ŒvZ®
+        /// è¨ˆç®—å¼
         /// </summary>
         public string calc { get; set; }
         /// <summary>
-        /// ƒŠƒjƒA”
+        /// ãƒªãƒ‹ã‚¢æ•°
         /// </summary>
         public int count { get; set; }
         /// <summary>
-        /// ƒIƒtƒZƒbƒg(ˆÊ’u)
+        /// ã‚ªãƒ•ã‚»ãƒƒãƒˆ(ä½ç½®)
         /// </summary>
         public List<float> offset_p { get; set; }
         /// <summary>
-        /// ƒIƒtƒZƒbƒg(Šp“x)
+        /// ã‚ªãƒ•ã‚»ãƒƒãƒˆ(è§’åº¦)
         /// </summary>
         public List<float> offset_r { get; set; }
         /// <summary>
-        /// •ûŒü(ˆÊ’u)
+        /// æ–¹å‘(ä½ç½®)
         /// </summary>
         public List<int> dir_p { get; set; }
         /// <summary>
-        /// •ûŒü(Šp“x)
+        /// æ–¹å‘(è§’åº¦)
         /// </summary>
         public List<int> dir_r { get; set; }
         /// <summary>
-        /// ˆÊ’uƒ^ƒO–¼
+        /// ä½ç½®ã‚¿ã‚°å
         /// </summary>
         public List<string> tags_p { get; set; }
         /// <summary>
-        /// Šp“xƒ^ƒO–¼
+        /// è§’åº¦ã‚¿ã‚°å
         /// </summary>
         public List<string> tags_r { get; set; }
         /// <summary>
-        /// ”{—¦(ˆÊ’u)
+        /// å€ç‡(ä½ç½®)
         /// </summary>
         public List<int> rate_p { get; set; }
         /// <summary>
-        /// ”{—¦(Šp“x)
+        /// å€ç‡(è§’åº¦)
         /// </summary>
         public List<int> rate_r { get; set; }
         /// <summary>
-        /// ƒwƒbƒhƒ†ƒjƒbƒg
+        /// ãƒ˜ãƒƒãƒ‰ãƒ¦ãƒ‹ãƒƒãƒˆ
         /// </summary>
         public string mover { get; set; }
         /// <summary>
-        /// ƒwƒbƒhƒ†ƒjƒbƒgİ’è
+        /// ãƒ˜ãƒƒãƒ‰ãƒ¦ãƒ‹ãƒƒãƒˆè¨­å®š
         /// </summary>
         public UnitSetting moverUnit { get; set; }
     }
@@ -866,39 +866,39 @@ namespace Parameters
     public class ConveyerSetting
     {
         /// <summary>
-        /// ‹@”Ô
+        /// æ©Ÿç•ª
         /// </summary>
         public string mechId { get; set; }
         /// <summary>
-        /// ƒ†ƒjƒbƒg–¼
+        /// ãƒ¦ãƒ‹ãƒƒãƒˆå
         /// </summary>
         public string name { get; set; }
         /// <summary>
-        /// “®ì² 0:X 1:Y 2:Z
+        /// å‹•ä½œè»¸ 0:X 1:Y 2:Z
         /// </summary>
         public int axis { get; set; }
         /// <summary>
-        /// •ûŒü
+        /// æ–¹å‘
         /// </summary>
         public int dir { get; set; }
         /// <summary>
-        /// ‘¬“x
+        /// é€Ÿåº¦
         /// </summary>
         public float spd { get; set; }
         /// <summary>
-        /// ‰Á‘¬—Í
+        /// åŠ é€ŸåŠ›
         /// </summary>
         public float force { get; set; }
         /// <summary>
-        /// Ã~–€CŒW”
+        /// é™æ­¢æ‘©æ“¦ä¿‚æ•°
         /// </summary>
         public float staticFriction { get; set; }
         /// <summary>
-        /// “®–€CŒW”
+        /// å‹•æ‘©æ“¦ä¿‚æ•°
         /// </summary>
         public float dynamicFriction { get; set; }
         /// <summary>
-        /// “®ìƒ^ƒO
+        /// å‹•ä½œã‚¿ã‚°
         /// </summary>
         public string actTag { get; set; }
     }
@@ -907,63 +907,63 @@ namespace Parameters
     public class WorkCreateSetting
     {
         /// <summary>
-        /// ‹@”Ô
+        /// æ©Ÿç•ª
         /// </summary>
         public string mechId { get; set; }
         /// <summary>
-        /// ƒ†ƒjƒbƒg–¼
+        /// ãƒ¦ãƒ‹ãƒƒãƒˆå
         /// </summary>
         public string name { get; set; }
         /// <summary>
-        /// ƒ[ƒN–¼
+        /// ãƒ¯ãƒ¼ã‚¯å
         /// </summary>
         public string work { get; set; }
         /// <summary>
-        /// ”c‰Â”\
+        /// æŠŠæŒå¯èƒ½
         /// </summary>
         public int grabbable { get; set; }
         /// <summary>
-        /// ƒ^ƒCƒ}[
+        /// ã‚¿ã‚¤ãƒãƒ¼
         /// </summary>
         public int timer { get; set; }
         /// <summary>
-        /// ¶¬ƒTƒCƒNƒ‹
+        /// ç”Ÿæˆã‚µã‚¤ã‚¯ãƒ«
         /// </summary>
         public float cycle { get; set; }
         /// <summary>
-        /// ¶¬ƒ^ƒO
+        /// ç”Ÿæˆã‚¿ã‚°
         /// </summary>
         public string tag { get; set; }
         /// <summary>
-        /// ¶‘¶‹——£
+        /// ç”Ÿå­˜è·é›¢
         /// </summary>
         public float alive { get; set; }
         /// <summary>
-        /// ƒoƒPƒbƒg”Ô†
+        /// ãƒã‚±ãƒƒãƒˆç•ªå·
         /// </summary>
         public int backetno { get; set; }
         /// <summary>
-        /// ƒIƒtƒZƒbƒg(ˆÊ’u)
+        /// ã‚ªãƒ•ã‚»ãƒƒãƒˆ(ä½ç½®)
         /// </summary>
         public List<float> pos { get; set; }
         /// <summary>
-        /// ƒIƒtƒZƒbƒg(Šp“x)
+        /// ã‚ªãƒ•ã‚»ãƒƒãƒˆ(è§’åº¦)
         /// </summary>
         public List<float> rot { get; set; }
         /// <summary>
-        /// d—Íg—p
+        /// é‡åŠ›ä½¿ç”¨
         /// </summary>
         public bool gravity { get; set; }
         /// <summary>
-        /// •ÏX
+        /// å¤‰æ›´
         /// </summary>
         public bool change { get; set; }
         /// <summary>
-        /// “®ì–³‹
+        /// å‹•ä½œç„¡è¦–
         /// </summary>
         public bool ignoreMove { get; set; }
         /// <summary>
-        /// G‚ê‚È‚¢‚æ‚¤‚É
+        /// è§¦ã‚Œãªã„ã‚ˆã†ã«
         /// </summary>
         public bool isTouch { get; set; } = true;
         public bool isGrabbable
@@ -986,27 +986,27 @@ namespace Parameters
     public class WorkDeleteSetting
     {
         /// <summary>
-        /// ‹@”Ô
+        /// æ©Ÿç•ª
         /// </summary>
         public string mechId { get; set; }
         /// <summary>
-        /// ƒ†ƒjƒbƒg–¼
+        /// ãƒ¦ãƒ‹ãƒƒãƒˆå
         /// </summary>
         public string name { get; set; }
         /// <summary>
-        /// ƒ^ƒO–¼
+        /// ã‚¿ã‚°å
         /// </summary>
         public string tag { get; set; }
         /// <summary>
-        /// ‹——£
+        /// è·é›¢
         /// </summary>
         public float distance { get; set; }
         /// <summary>
-        /// ƒoƒPƒbƒg”Ô†
+        /// ãƒã‚±ãƒƒãƒˆç•ªå·
         /// </summary>
         public int backetno { get; set; }
         /// <summary>
-        /// ƒIƒtƒZƒbƒg(ˆÊ’u)
+        /// ã‚ªãƒ•ã‚»ãƒƒãƒˆ(ä½ç½®)
         /// </summary>
         public List<float> pos { get; set; }
     }
@@ -1015,31 +1015,31 @@ namespace Parameters
     public class SensorSetting
     {
         /// <summary>
-        /// ‹@”Ô
+        /// æ©Ÿç•ª
         /// </summary>
         public string mechId { get; set; }
         /// <summary>
-        /// ƒ†ƒjƒbƒg–¼
+        /// ãƒ¦ãƒ‹ãƒƒãƒˆå
         /// </summary>
         public string name { get; set; }
         /// <summary>
-        /// ƒZƒ“ƒT¶¬
+        /// ã‚»ãƒ³ã‚µç”Ÿæˆ
         /// </summary>
         public int create { get; set; }
         /// <summary>
-        /// •
+        /// å¹…
         /// </summary>
         public float width { get; set; }
         /// <summary>
-        /// ¶¬ƒ^ƒO
+        /// ç”Ÿæˆã‚¿ã‚°
         /// </summary>
         public string tag { get; set; }
         /// <summary>
-        /// ƒIƒtƒZƒbƒg(ˆÊ’u)
+        /// ã‚ªãƒ•ã‚»ãƒƒãƒˆ(ä½ç½®)
         /// </summary>
         public List<float> pos { get; set; }
         /// <summary>
-        /// ƒIƒtƒZƒbƒg(Šp“x)
+        /// ã‚ªãƒ•ã‚»ãƒƒãƒˆ(è§’åº¦)
         /// </summary>
         public List<float> rot { get; set; }
 
@@ -1056,35 +1056,35 @@ namespace Parameters
     public class SuctionSetting
     {
         /// <summary>
-        /// ‹@”Ô
+        /// æ©Ÿç•ª
         /// </summary>
         public string mechId { get; set; }
         /// <summary>
-        /// ƒ†ƒjƒbƒg–¼
+        /// ãƒ¦ãƒ‹ãƒƒãƒˆå
         /// </summary>
         public string name { get; set; }
         /// <summary>
-        /// ¶¬ƒ^ƒO
+        /// ç”Ÿæˆã‚¿ã‚°
         /// </summary>
         public string tag { get; set; }
         /// <summary>
-        /// o—Íƒ^ƒO
+        /// å‡ºåŠ›ã‚¿ã‚°
         /// </summary>
         public string tag_output { get; set; }
         /// <summary>
-        /// ŒÅ’è(ˆÊ’u)
+        /// å›ºå®š(ä½ç½®)
         /// </summary>
         public List<int> pos_fixed { get; set; }
         /// <summary>
-        /// ƒIƒtƒZƒbƒg(Šp“x)
+        /// ã‚ªãƒ•ã‚»ãƒƒãƒˆ(è§’åº¦)
         /// </summary>
         public List<int> rot_fixed { get; set; }
         /// <summary>
-        /// ƒIƒtƒZƒbƒg(ˆÊ’u)
+        /// ã‚ªãƒ•ã‚»ãƒƒãƒˆ(ä½ç½®)
         /// </summary>
         public List<float> pos { get; set; }
         /// <summary>
-        /// ƒIƒtƒZƒbƒg(Šp“x)
+        /// ã‚ªãƒ•ã‚»ãƒƒãƒˆ(è§’åº¦)
         /// </summary>
         public List<float> rot { get; set; }
     }
@@ -1093,15 +1093,15 @@ namespace Parameters
     public class ShapeSetting
     {
         /// <summary>
-        /// ‹@”Ô
+        /// æ©Ÿç•ª
         /// </summary>
         public string mechId { get; set; }
         /// <summary>
-        /// ƒ†ƒjƒbƒg–¼
+        /// ãƒ¦ãƒ‹ãƒƒãƒˆå
         /// </summary>
         public string name { get; set; }
         /// <summary>
-        /// Œ`
+        /// å½¢
         /// </summary>
         public List<UnitShape> datas { get; set; }
     }
@@ -1110,15 +1110,15 @@ namespace Parameters
     public class UnitShape
     {
         /// <summary>
-        /// ©“®İ’è
+        /// è‡ªå‹•è¨­å®š
         /// </summary>
         public bool auto { get; set; }
         /// <summary>
-        /// ’†S“_
+        /// ä¸­å¿ƒç‚¹
         /// </summary>
         public List<float> center { get; set; }
         /// <summary>
-        /// ƒTƒCƒY
+        /// ã‚µã‚¤ã‚º
         /// </summary>
         public List<float> size { get; set; }
     }
@@ -1170,39 +1170,39 @@ namespace Parameters
     public class SwitchSetting
     {
         /// <summary>
-        /// ‹@”Ô
+        /// æ©Ÿç•ª
         /// </summary>
         public string mechId { get; set; }
         /// <summary>
-        /// ƒ†ƒjƒbƒg–¼
+        /// ãƒ¦ãƒ‹ãƒƒãƒˆå
         /// </summary>
         public string name { get; set; }
         /// <summary>
-        /// F
+        /// è‰²
         /// </summary>
         public string color { get; set; }
         /// <summary>
-        /// ƒ^ƒO–¼
+        /// ã‚¿ã‚°å
         /// </summary>
         public string tag { get; set; }
         /// <summary>
-        /// ƒIƒ‹ƒ^ƒlƒCƒg
+        /// ã‚ªãƒ«ã‚¿ãƒã‚¤ãƒˆ
         /// </summary>
         public bool alternate { get; set; }
         /// <summary>
-        /// ‰Šú’l
+        /// åˆæœŸå€¤
         /// </summary>
         public bool value { get; set; }
         /// <summary>
-        /// ƒ‚[ƒh
+        /// ãƒ¢ãƒ¼ãƒ‰
         /// </summary>
         public int mode { get; set; }
         /// <summary>
-        /// ƒIƒtƒZƒbƒg(ˆÊ’u)
+        /// ã‚ªãƒ•ã‚»ãƒƒãƒˆ(ä½ç½®)
         /// </summary>
         public List<float> pos { get; set; }
         /// <summary>
-        /// ƒIƒtƒZƒbƒg(Šp“x)
+        /// ã‚ªãƒ•ã‚»ãƒƒãƒˆ(è§’åº¦)
         /// </summary>
         public List<float> rot { get; set; }
     }
@@ -1211,43 +1211,43 @@ namespace Parameters
     public class SignalTowerSetting
     {
         /// <summary>
-        /// ‹@”Ô
+        /// æ©Ÿç•ª
         /// </summary>
         public string mechId { get; set; }
         /// <summary>
-        /// ƒ†ƒjƒbƒg–¼
+        /// ãƒ¦ãƒ‹ãƒƒãƒˆå
         /// </summary>
         public string name { get; set; }
         /// <summary>
-        /// ƒ^ƒ[ƒ^ƒCƒv
+        /// ã‚¿ãƒ¯ãƒ¼ã‚¿ã‚¤ãƒ—
         /// </summary>
         public int type { get; set; }
         /// <summary>
-        /// ƒ^ƒO–¼
+        /// ã‚¿ã‚°å
         /// </summary>
         public string red { get; set; }
         /// <summary>
-        /// ƒ^ƒO–¼
+        /// ã‚¿ã‚°å
         /// </summary>
         public string yellow { get; set; }
         /// <summary>
-        /// ƒ^ƒO–¼
+        /// ã‚¿ã‚°å
         /// </summary>
         public string green { get; set; }
         /// <summary>
-        /// ƒ^ƒO–¼
+        /// ã‚¿ã‚°å
         /// </summary>
         public string blue { get; set; }
         /// <summary>
-        /// ƒ^ƒO–¼
+        /// ã‚¿ã‚°å
         /// </summary>
         public string white { get; set; }
         /// <summary>
-        /// ƒIƒtƒZƒbƒg(ˆÊ’u)
+        /// ã‚ªãƒ•ã‚»ãƒƒãƒˆ(ä½ç½®)
         /// </summary>
         public List<float> pos { get; set; }
         /// <summary>
-        /// ƒIƒtƒZƒbƒg(Šp“x)
+        /// ã‚ªãƒ•ã‚»ãƒƒãƒˆ(è§’åº¦)
         /// </summary>
         public List<float> rot { get; set; }
     }
@@ -1256,19 +1256,19 @@ namespace Parameters
     public class LedSetting
     {
         /// <summary>
-        /// ‹@”Ô
+        /// æ©Ÿç•ª
         /// </summary>
         public string mechId { get; set; }
         /// <summary>
-        /// ƒ†ƒjƒbƒg–¼
+        /// ãƒ¦ãƒ‹ãƒƒãƒˆå
         /// </summary>
         public string name { get; set; }
         /// <summary>
-        /// ƒ^ƒ[ƒ^ƒCƒv
+        /// ã‚¿ãƒ¯ãƒ¼ã‚¿ã‚¤ãƒ—
         /// </summary>
         public int type { get; set; }
         /// <summary>
-        /// ƒ^ƒOƒf[ƒ^
+        /// ã‚¿ã‚°ãƒ‡ãƒ¼ã‚¿
         /// </summary>
         public List<LedTagData> ledDatas { get; set; } = new();
     }
@@ -1277,11 +1277,11 @@ namespace Parameters
     public class PrefabSetting
     {
         /// <summary>
-        /// ‹@”Ô
+        /// æ©Ÿç•ª
         /// </summary>
         public string mechId { get; set; }
         /// <summary>
-        /// ƒ†ƒjƒbƒg–¼
+        /// ãƒ¦ãƒ‹ãƒƒãƒˆå
         /// </summary>
         public string name { get; set; }
     }
@@ -1290,11 +1290,11 @@ namespace Parameters
     public class LedTagData
     {
         /// <summary>
-        /// F
+        /// è‰²
         /// </summary>
         public string color { get; set; }
         /// <summary>
-        /// ƒ^ƒO
+        /// ã‚¿ã‚°
         /// </summary>
         public string tag { get; set; }
     }
@@ -1303,23 +1303,23 @@ namespace Parameters
     public class CardboardSetting
     {
         /// <summary>
-        /// ‹@”Ô
+        /// æ©Ÿç•ª
         /// </summary>
         public string mechId { get; set; }
         /// <summary>
-        /// ƒ†ƒjƒbƒg–¼
+        /// ãƒ¦ãƒ‹ãƒƒãƒˆå
         /// </summary>
         public string name { get; set; } = "";
         /// <summary>
-        /// ƒTƒCƒNƒ‹
+        /// ã‚µã‚¤ã‚¯ãƒ«
         /// </summary>
         public int cycle { get; set; }
         /// <summary>
-        /// ƒTƒCƒNƒ‹
+        /// ã‚µã‚¤ã‚¯ãƒ«
         /// </summary>
         public int cycle2 { get; set; }
         /// <summary>
-        /// ƒ‚[ƒh
+        /// ãƒ¢ãƒ¼ãƒ‰
         /// </summary>
         public int mode { get; set; }
         /// <summary>
@@ -1327,11 +1327,11 @@ namespace Parameters
         /// </summary>
         public string l1_Body { get; set; } = "";
         /// <summary>
-        /// L1ãƒtƒ‰ƒbƒv
+        /// L1ä¸Šãƒ•ãƒ©ãƒƒãƒ—
         /// </summary>
         public string l1_Top { get; set; } = "";
         /// <summary>
-        /// L1‰ºƒtƒ‰ƒbƒv
+        /// L1ä¸‹ãƒ•ãƒ©ãƒƒãƒ—
         /// </summary>
         public string l1_Bottom { get; set; } = "";
         /// <summary>
@@ -1339,11 +1339,11 @@ namespace Parameters
         /// </summary>
         public string l2_Body { get; set; } = "";
         /// <summary>
-        /// L2ãƒtƒ‰ƒbƒv
+        /// L2ä¸Šãƒ•ãƒ©ãƒƒãƒ—
         /// </summary>
         public string l2_Top { get; set; } = "";
         /// <summary>
-        /// L2‰ºƒtƒ‰ƒbƒv
+        /// L2ä¸‹ãƒ•ãƒ©ãƒƒãƒ—
         /// </summary>
         public string l2_Bottom { get; set; } = "";
         /// <summary>
@@ -1351,11 +1351,11 @@ namespace Parameters
         /// </summary>
         public string w1_Body { get; set; } = "";
         /// <summary>
-        /// W1ãƒtƒ‰ƒbƒv
+        /// W1ä¸Šãƒ•ãƒ©ãƒƒãƒ—
         /// </summary>
         public string w1_Top { get; set; } = "";
         /// <summary>
-        /// W1‰ºƒtƒ‰ƒbƒv
+        /// W1ä¸‹ãƒ•ãƒ©ãƒƒãƒ—
         /// </summary>
         public string w1_Bottom { get; set; } = "";
         /// <summary>
@@ -1363,17 +1363,17 @@ namespace Parameters
         /// </summary>
         public string w2_Body { get; set; } = "";
         /// <summary>
-        /// W2ãƒtƒ‰ƒbƒv
+        /// W2ä¸Šãƒ•ãƒ©ãƒƒãƒ—
         /// </summary>
         public string w2_Top { get; set; } = "";
         /// <summary>
-        /// W2‰ºƒtƒ‰ƒbƒv
+        /// W2ä¸‹ãƒ•ãƒ©ãƒƒãƒ—
         /// </summary>
         public string w2_Bottom { get; set; } = "";
     }
 
     /// <summary>
-    /// Œ^‘Ö‚¦İ’è
+    /// å‹æ›¿ãˆè¨­å®š
     /// </summary>
     [Serializable]
 
@@ -1399,31 +1399,31 @@ namespace Parameters
     public class DebugSetting
     {
         /// <summary>
-        /// ƒf[ƒ^ƒx[ƒX
+        /// ãƒ‡ãƒ¼ã‚¿ãƒ™ãƒ¼ã‚¹
         /// </summary>
         public string database { get; set; }
         /// <summary>
-        /// ‹@”Ô
+        /// æ©Ÿç•ª
         /// </summary>
         public string mechId { get; set; }
         /// <summary>
-        /// Ü‚è•Ô‚µ—p“ü—Íƒ^ƒO
+        /// æŠ˜ã‚Šè¿”ã—ç”¨å…¥åŠ›ã‚¿ã‚°
         /// </summary>
         public string input { get; set; }
         /// <summary>
-        /// Ü‚è•Ô‚µ—po—Íƒ^ƒO
+        /// æŠ˜ã‚Šè¿”ã—ç”¨å‡ºåŠ›ã‚¿ã‚°
         /// </summary>
         public string output { get; set; }
         /// <summary>
-        /// ƒJƒEƒ“ƒ^—p“ü—Íƒ^ƒO
+        /// ã‚«ã‚¦ãƒ³ã‚¿ç”¨å…¥åŠ›ã‚¿ã‚°
         /// </summary>
         public string inputCnt { get; set; }
         /// <summary>
-        /// ƒJƒEƒ“ƒ^—po—Íƒ^ƒO
+        /// ã‚«ã‚¦ãƒ³ã‚¿ç”¨å‡ºåŠ›ã‚¿ã‚°
         /// </summary>
         public string outputCnt { get; set; }
         /// <summary>
-        /// ƒTƒCƒNƒ‹ƒ^ƒO
+        /// ã‚µã‚¤ã‚¯ãƒ«ã‚¿ã‚°
         /// </summary>
         public string cycle { get; set; }
     }
@@ -1500,19 +1500,19 @@ namespace Parameters
             public TagInfo tagOutInfo { get; set; }
         };
         /// <summary>
-        /// –¼‘O
+        /// åå‰
         /// </summary>
         public string name { get; set; } = "";
         /// <summary>
-        /// ƒOƒ‹[ƒv
+        /// ã‚°ãƒ«ãƒ¼ãƒ—
         /// </summary>
         public string group { get; set; } = "";
         /// <summary>
-        /// ƒfƒoƒCƒXƒ^ƒCƒv
+        /// ãƒ‡ãƒã‚¤ã‚¹ã‚¿ã‚¤ãƒ—
         /// </summary>
         public DeviceType devType { get; set; } = DeviceType.Internal;
         /// <summary>
-        /// ˆÊ’uî•ñ
+        /// ä½ç½®æƒ…å ±
         /// </summary>
         public List<Position> positions { get; set; } = new();
     }

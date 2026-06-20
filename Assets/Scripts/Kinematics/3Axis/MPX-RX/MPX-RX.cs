@@ -1,21 +1,21 @@
-using System.Collections.Generic;
+ï»¿using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
 using Unity.VisualScripting;
 using UnityEngine;
 
 /// <summary>
-/// MPX-R35-3   Œ»sR2
-/// MPX-R7-3    Œ»sR3
-/// MPX-R1-3    Œ»sR6
-/// –½–¼ƒ‹[ƒ‹FMPX-Ra-b
-/// MPX: ‹@\–¼(ƒpƒ‰ƒŒƒ‹‚È‚çMPSH)
-/// Ra: ƒ‚[ƒ^—e—Ê(35:3.5KW 7:750W 1: 100W ‚à‚¤ˆêŒ…‘‚â‚µ‚Ä‚à‚¢‚¢‚©‚àH)
-/// b: ƒ^ƒCƒv(2: 2²ƒ^ƒCƒv3: 3²ƒ^ƒCƒv)
+/// MPX-R35-3   ç¾è¡ŒR2
+/// MPX-R7-3    ç¾è¡ŒR3
+/// MPX-R1-3    ç¾è¡ŒR6
+/// å‘½åãƒ«ãƒ¼ãƒ«ï¼šMPX-Ra-b
+/// MPX: æ©Ÿæ§‹å(ãƒ‘ãƒ©ãƒ¬ãƒ«ãªã‚‰MPSï¼Ÿ)
+/// Ra: ãƒ¢ãƒ¼ã‚¿å®¹é‡(35:3.5KW 7:750W 1: 100W ã‚‚ã†ä¸€æ¡å¢—ã‚„ã—ã¦ã‚‚ã„ã„ã‹ã‚‚ï¼Ÿ)
+/// b: ã‚¿ã‚¤ãƒ—(2: 2è»¸ã‚¿ã‚¤ãƒ—3: 3è»¸ã‚¿ã‚¤ãƒ—)
 /// </summary>
 public class MPX_RX : UseHeadBase3DScript
 {
-    #region •Ï”
+    #region å¤‰æ•°
     [SerializeField]
     protected List<float> angle;
 
@@ -29,13 +29,13 @@ public class MPX_RX : UseHeadBase3DScript
     protected int axisType = 0;
 
     /// <summary>
-    /// ‹tŸè
+    /// é€†å‹æ‰‹
     /// </summary>
     protected bool isRvs = false;
 
-    #endregion •Ï”
+    #endregion å¤‰æ•°
     /// <summary>
-    /// ŠJnˆ—
+    /// é–‹å§‹å‡¦ç†
     /// </summary>
     protected override void Start()
     {
@@ -45,7 +45,7 @@ public class MPX_RX : UseHeadBase3DScript
     }
 
     /// <summary>
-    /// ƒpƒ‰ƒ[ƒ^XV
+    /// ãƒ‘ãƒ©ãƒ¡ãƒ¼ã‚¿æ›´æ–°
     /// </summary>
     protected override void RenewParameter()
     {
@@ -56,7 +56,7 @@ public class MPX_RX : UseHeadBase3DScript
     }
 
     /// <summary>
-    /// –Ú•WˆÊ’uƒZƒbƒg
+    /// ç›®æ¨™ä½ç½®ã‚»ãƒƒãƒˆ
     /// </summary>
     /// <param name="x"></param>
     /// <param name="y"></param>
@@ -65,12 +65,12 @@ public class MPX_RX : UseHeadBase3DScript
     {
         if (axisType == 2)
         {
-            // ‰ñ“]–³Œø‰»
+            // å›è»¢ç„¡åŠ¹åŒ–
             z = 0;
         }
         else if (axisType == 3)
         {
-            // ‰ñ“]‚ ‚è
+            // å›è»¢ã‚ã‚Š
             if (robo.isTm)
             {
                 z /= 1000f;
@@ -78,13 +78,13 @@ public class MPX_RX : UseHeadBase3DScript
         }
         else
         {
-            // İ’èˆÙí
+            // è¨­å®šç•°å¸¸
         }
         angle = kinematics_R(x, y, z);
     }
 
     /// <summary>
-    /// ‹t‰ğ‚ğ‰ğ‚­
+    /// é€†è§£ã‚’è§£ã
     /// </summary>
     /// <param name="x"></param>
     /// <param name="y"></param>
@@ -124,7 +124,7 @@ public class MPX_RX : UseHeadBase3DScript
     }
 
     /// <summary>
-    /// ƒ‚ƒfƒ‹Ä\’z
+    /// ãƒ¢ãƒ‡ãƒ«å†æ§‹ç¯‰
     /// </summary>
     /// <param name="instance"></param>
     protected virtual GameObject ModelRestructProcess(string name)

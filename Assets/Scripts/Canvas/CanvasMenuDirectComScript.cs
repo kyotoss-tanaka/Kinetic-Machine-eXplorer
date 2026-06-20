@@ -1,4 +1,4 @@
-using NUnit.Framework;
+ï»¿using NUnit.Framework;
 using System.Collections.Generic;
 using System.Linq;
 using TMPro;
@@ -8,7 +8,7 @@ using UnityEngine.UI;
 
 public class CanvasMenuDirectComScript : CanvasMenuBaseScript
 {
-    // ƒOƒ[ƒoƒ‹İ’è
+    // ã‚°ãƒ­ãƒ¼ãƒãƒ«è¨­å®š
     private GameObject globalSetting;
 
     private GameObject directComContentsBase;
@@ -16,33 +16,33 @@ public class CanvasMenuDirectComScript : CanvasMenuBaseScript
     private List<GameObject> directComInfos = new();
 
     /// <summary>
-    /// ŠJnˆ—
+    /// é–‹å§‹å‡¦ç†
     /// </summary>
     protected override void Awake()
     {
         base.Awake();
 
-        // İ’è
+        // è¨­å®š
         globalSetting = GameObject.FindObjectsByType<GameObject>(FindObjectsSortMode.None).Where(d => d.name == "GlobalSetting").ToList()[0];
 
-        // ƒRƒ“ƒ|ƒlƒ“ƒgæ“¾
+        // ã‚³ãƒ³ãƒãƒãƒ³ãƒˆå–å¾—
         directComContents = GetComponentsInChildren<Transform>(true).ToList().Find(d => d.name == "DirectComContents").gameObject;
         directComContentsBase = GetComponentsInChildren<Transform>(true).ToList().Find(d => d.name == "DirectComContentsBase").gameObject;
     }
 
     /// <summary>
-    /// ‰Šú‰»ˆ—
+    /// åˆæœŸåŒ–å‡¦ç†
     /// </summary>
     private void Initialize()
     {
-        // ƒLƒƒƒ“ƒpƒXíœ
+        // ã‚­ãƒ£ãƒ³ãƒ‘ã‚¹å‰Šé™¤
         foreach (var direct in directComInfos)
         {
             Destroy(direct);
         }
         directComInfos.Clear();
 
-        // ’¼Ú’ÊM
+        // ç›´æ¥é€šä¿¡
         var index = 0;
         foreach (var protocol in globalSetting.GetComponents<ComProtocolBase>().Where(d => d.IsDirect))
         {
@@ -57,7 +57,7 @@ public class CanvasMenuDirectComScript : CanvasMenuBaseScript
                 index++;
             }
         }
-        // ƒLƒƒƒ“ƒoƒX•\¦XV
+        // ã‚­ãƒ£ãƒ³ãƒã‚¹è¡¨ç¤ºæ›´æ–°
         if (directComInfos.Count > 0)
         {
             GetComponent<RectTransform>().sizeDelta = new Vector2(500, 60 + 30 * directComInfos.Count);
@@ -66,7 +66,7 @@ public class CanvasMenuDirectComScript : CanvasMenuBaseScript
     }
 
     /// <summary>
-    /// XVˆ—
+    /// æ›´æ–°å‡¦ç†
     /// </summary>
     protected override void Update()
     {
@@ -74,7 +74,7 @@ public class CanvasMenuDirectComScript : CanvasMenuBaseScript
     }
 
     /// <summary>
-    /// ƒCƒxƒ“ƒg“o˜^
+    /// ã‚¤ãƒ™ãƒ³ãƒˆç™»éŒ²
     /// </summary>
     public override void SetEvents()
     {
@@ -83,13 +83,13 @@ public class CanvasMenuDirectComScript : CanvasMenuBaseScript
     }
 
     /// <summary>
-    /// ƒCƒxƒ“ƒg‰ğœ
+    /// ã‚¤ãƒ™ãƒ³ãƒˆè§£é™¤
     /// </summary>
     public override void ResetEvents()
     {
         base.ResetEvents();
     }
 
-    #region ƒCƒxƒ“ƒgˆ—
-    #endregion ƒCƒxƒ“ƒgˆ—
+    #region ã‚¤ãƒ™ãƒ³ãƒˆå‡¦ç†
+    #endregion ã‚¤ãƒ™ãƒ³ãƒˆå‡¦ç†
 }

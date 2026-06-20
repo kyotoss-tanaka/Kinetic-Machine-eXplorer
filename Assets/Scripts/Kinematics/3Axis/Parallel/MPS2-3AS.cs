@@ -1,4 +1,4 @@
-using System;
+ï»¿using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
@@ -9,7 +9,7 @@ using UnityEngine;
 public class MPS2_3AS : ParallelLink
 {
     /// <summary>
-    /// ƒRƒ“ƒXƒgƒ‰ƒNƒ^
+    /// ã‚³ãƒ³ã‚¹ãƒˆãƒ©ã‚¯ã‚¿
     /// </summary>
     public MPS2_3AS() : base()
     {
@@ -29,16 +29,16 @@ public class MPS2_3AS : ParallelLink
     {
         y = -y;
         var tmp = kinematics_R(x, y, z);
-        // ƒA[ƒ€‚²‚Æ‚ÉŠp“x“ü‚ê‘Ö‚¦
+        // ã‚¢ãƒ¼ãƒ ã”ã¨ã«è§’åº¦å…¥ã‚Œæ›¿ãˆ
         angle = new List<List<float>> { tmp[2], tmp[1], tmp[0] };
         for (var i = 0; i < AXIS_MAX; i++)
         {
-            // ƒA[ƒ€1‚ÌˆÊ’u
+            // ã‚¢ãƒ¼ãƒ 1ã®ä½ç½®
             arm1[i].localEulerAngles = new Vector3(arm1[i].localEulerAngles.x, arm1[i].localEulerAngles.y, angle[i][0]);
-            // ƒA[ƒ€2‚ÌˆÊ’u
+            // ã‚¢ãƒ¼ãƒ 2ã®ä½ç½®
             arm2[i * 2 + 0].localEulerAngles = new Vector3(0, -angle[i][1], angle[i][2]);
             arm2[i * 2 + 1].localEulerAngles = new Vector3(0, angle[i][1], -angle[i][2]);
-            // ˜AŒ‹•”‚ÌˆÊ’u
+            // é€£çµéƒ¨ã®ä½ç½®
             var rad = angle[i][2] * RADIANS;
             armSpring[i * 2 + 0].localEulerAngles = new Vector3(0, 0, -angle[i][2]);
             armSpring[i * 2 + 0].localPosition = new Vector3(SPRING1_OFFSET_X + SPRING_OFFSET_Y * Mathf.Sin(rad), SPRING_OFFSET_Y * Mathf.Cos(rad), 0);
@@ -49,7 +49,7 @@ public class MPS2_3AS : ParallelLink
     }
 
     /// <summary>
-    /// ƒ‚ƒfƒ‹Ä\’z
+    /// ãƒ¢ãƒ‡ãƒ«å†æ§‹ç¯‰
     /// </summary>
     /// <param name="instance"></param>
     protected override void ModelRestructProcess()
@@ -61,9 +61,9 @@ public class MPS2_3AS : ParallelLink
         armSpring = new();
 
         var children = unitSetting.moveObject.GetComponentsInChildren<Transform>().ToList();
-        arm1.AddRange(children.Where(d => d.name.Contains("‘æˆêƒA[ƒ€")));
-        arm2.AddRange(children.Where(d => d.name.Contains("Copy of ‘æ“ñƒA[ƒ€ƒJ[ƒ{ƒ“")));
-        armSpring.AddRange(children.Where(d => d.name.Contains("Copy of ‘æ“ñƒA[ƒ€ƒoƒlƒAƒbƒV")));
+        arm1.AddRange(children.Where(d => d.name.Contains("ç¬¬ä¸€ã‚¢ãƒ¼ãƒ ")));
+        arm2.AddRange(children.Where(d => d.name.Contains("Copy of ç¬¬äºŒã‚¢ãƒ¼ãƒ ã‚«ãƒ¼ãƒœãƒ³")));
+        armSpring.AddRange(children.Where(d => d.name.Contains("Copy of ç¬¬äºŒã‚¢ãƒ¼ãƒ ãƒãƒã‚¢ãƒƒã‚·")));
         for (var i = 0; i < AXIS_MAX; i++)
         {
             var gArm1 = new GameObject($"Arm1-{i + 1}");
@@ -80,9 +80,9 @@ public class MPS2_3AS : ParallelLink
             }
             gArm1.transform.localEulerAngles = new Vector3(gArm1.transform.localEulerAngles.x, gArm1.transform.localEulerAngles.y, 0);
         }
-        var tmpPlate = children.FirstOrDefault(d => d.name.Contains("OŠpƒvƒŒ[ƒg")).gameObject;
+        var tmpPlate = children.FirstOrDefault(d => d.name.Contains("ä¸‰è§’ãƒ—ãƒ¬ãƒ¼ãƒˆ")).gameObject;
         plate = tmpPlate.transform;
-        // ƒwƒbƒhƒZƒbƒg
+        // ãƒ˜ãƒƒãƒ‰ã‚»ãƒƒãƒˆ
         if (HeadObject != null)
         {
             HeadObject.transform.parent = plate.transform;

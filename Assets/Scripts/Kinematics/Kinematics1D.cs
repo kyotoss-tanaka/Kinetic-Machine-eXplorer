@@ -1,4 +1,4 @@
-using System.Collections;
+ï»¿using System.Collections;
 using System.Collections.Generic;
 using System.Text.Json;
 using Unity.VisualScripting;
@@ -6,13 +6,13 @@ using UnityEngine;
 
 public class Kinematics1D : KinematicsBase
 {
-    #region ƒvƒƒpƒeƒB
+    #region ãƒ—ãƒ­ãƒ‘ãƒ†ã‚£
     [SerializeField]
     protected TagInfo X;
 
-    #endregion ƒvƒƒpƒeƒB
+    #endregion ãƒ—ãƒ­ãƒ‘ãƒ†ã‚£
 
-    #region ŠÖ”
+    #region é–¢æ•°
 
     // Start is called before the first frame update
     protected override void Start()
@@ -25,7 +25,7 @@ public class Kinematics1D : KinematicsBase
     }
 
     /// <summary>
-    /// g—p‚µ‚Ä‚¢‚éƒ^ƒO‚ğæ“¾‚·‚é
+    /// ä½¿ç”¨ã—ã¦ã„ã‚‹ã‚¿ã‚°ã‚’å–å¾—ã™ã‚‹
     /// </summary>
     /// <returns></returns>
     public override List<TagInfo> GetUseTags()
@@ -34,7 +34,7 @@ public class Kinematics1D : KinematicsBase
     }
 
     /// <summary>
-    /// –Ú•WˆÊ’uƒZƒbƒg
+    /// ç›®æ¨™ä½ç½®ã‚»ãƒƒãƒˆ
     /// </summary>
     /// <param name="x"></param>
     /// <param name="y"></param>
@@ -44,7 +44,7 @@ public class Kinematics1D : KinematicsBase
     }
 
     /// <summary>
-    /// ƒpƒ‰ƒ[ƒ^ƒZƒbƒg
+    /// ãƒ‘ãƒ©ãƒ¡ãƒ¼ã‚¿ã‚»ãƒƒãƒˆ
     /// </summary>
     /// <param name="components"></param>
     /// <param name="scriptables"></param>
@@ -59,5 +59,5 @@ public class Kinematics1D : KinematicsBase
         }
         X = GetTagInfoFromPrm(scriptables, kssInstanceIds, root, "X");
     }
-    #endregion ŠÖ”
+    #endregion é–¢æ•°
 }

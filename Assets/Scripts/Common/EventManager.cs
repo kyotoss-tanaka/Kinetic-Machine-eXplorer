@@ -1,4 +1,4 @@
-using System;
+ï»¿using System;
 using System.Linq;
 using UnityEngine;
 using UnityEngine.UIElements;
@@ -23,12 +23,12 @@ public class EventManager : BaseBehaviour
     }
 
     /// <summary>
-    /// ƒIƒuƒWƒFƒNƒg‘I‘ğƒCƒxƒ“ƒg
+    /// ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆé¸æŠã‚¤ãƒ™ãƒ³ãƒˆ
     /// </summary>
     private Action<GameObject> objectSelectEvents;
 
     /// <summary>
-    /// ƒIƒuƒWƒFƒNƒg‘I‘ğƒCƒxƒ“ƒg“o˜^
+    /// ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆé¸æŠã‚¤ãƒ™ãƒ³ãƒˆç™»éŒ²
     /// </summary>
     public void RegisterObjectSelect(Action<GameObject> action)
     {
@@ -36,7 +36,7 @@ public class EventManager : BaseBehaviour
     }
 
     /// <summary>
-    /// ƒIƒuƒWƒFƒNƒg‘I‘ğƒCƒxƒ“ƒg“o˜^‰ğœ
+    /// ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆé¸æŠã‚¤ãƒ™ãƒ³ãƒˆç™»éŒ²è§£é™¤
     /// </summary>
     public void UnregisterObjectSelect(Action<GameObject> action)
     {
@@ -44,7 +44,7 @@ public class EventManager : BaseBehaviour
     }
 
     /// <summary>
-    /// ƒIƒuƒWƒFƒNƒg‘I‘ğƒCƒxƒ“ƒgÀs
+    /// ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆé¸æŠã‚¤ãƒ™ãƒ³ãƒˆå®Ÿè¡Œ
     /// </summary>
     /// <param name="gameObject"></param>
     public void ProcessObjectSelect(GameObject gameObject)

@@ -1,4 +1,4 @@
-using System.Collections;
+ï»¿using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using XCharts.Runtime;
@@ -24,8 +24,8 @@ public class LineChartScript : MonoBehaviour
             chart = gameObject.AddComponent<LineChart>();
             chart.Init();
         }
-        chart.GetChartComponent<Title>().text = "ƒ^ƒCƒgƒ‹";
-        chart.GetChartComponent<Title>().subText = "ƒTƒuƒ^ƒCƒgƒ‹";
+        chart.GetChartComponent<Title>().text = "ã‚¿ã‚¤ãƒˆãƒ«";
+        chart.GetChartComponent<Title>().subText = "ã‚µãƒ–ã‚¿ã‚¤ãƒˆãƒ«";
 
         var yAxis = chart.GetChartComponent<YAxis>();
         yAxis.minMaxType = Axis.AxisMinMaxType.Custom;

@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+ï»¿using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
 
@@ -12,9 +12,9 @@ public class MPS2_4AS : ParallelLink
         var angle = kinematics_R(x, y, z);
         for (var i = 0; i < AXIS_MAX; i++)
         {
-            // ƒA[ƒ€1‚ÌˆÊ’u
+            // ã‚¢ãƒ¼ãƒ 1ã®ä½ç½®
             arm1[i].transform.localEulerAngles = new Vector3(arm1[i].transform.localEulerAngles.x, arm1[i].transform.localEulerAngles.y, angle[i][0]);
-            // ƒA[ƒ€2‚ÌˆÊ’u
+            // ã‚¢ãƒ¼ãƒ 2ã®ä½ç½®
             arm2_1[i].transform.localEulerAngles = new Vector3(0, -angle[i][1], angle[i][2]);
             arm2_2[i].transform.localEulerAngles = new Vector3(0, angle[i][1], -angle[i][2]);
         }
@@ -23,7 +23,7 @@ public class MPS2_4AS : ParallelLink
     }
 
     /// <summary>
-    /// ƒ‚ƒfƒ‹Ä\’z
+    /// ãƒ¢ãƒ‡ãƒ«å†æ§‹ç¯‰
     /// </summary>
     /// <param name="instance"></param>
     protected override void ModelRestructProcess()
@@ -37,13 +37,13 @@ public class MPS2_4AS : ParallelLink
         var allArm1 = children.Where(d => d.name.Contains("ARM")).Select(d => d.gameObject).ToList();
         var allArm2 = children.Where(d => d.name.Contains("ROD")).Select(d => d.gameObject).ToList();
 
-        // ƒx[ƒXƒIƒuƒWƒFƒNƒgæ“¾
+        // ãƒ™ãƒ¼ã‚¹ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆå–å¾—
         baseObject = children.FirstOrDefault(d => d.name.Contains("BASE")).gameObject;
 
-        // ‰Â“®”ÍˆÍƒIƒuƒWƒFƒNƒg
-        var area = children.FirstOrDefault(d => d.name.Contains("‰Â“®”ÍˆÍ")).gameObject;
+        // å¯å‹•ç¯„å›²ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆ
+        var area = children.FirstOrDefault(d => d.name.Contains("å¯å‹•ç¯„å›²")).gameObject;
 
-        // ƒNƒ[ƒ“—pƒA[ƒ€æ“¾
+        // ã‚¯ãƒ­ãƒ¼ãƒ³ç”¨ã‚¢ãƒ¼ãƒ å–å¾—
         var clnArm1 = allArm1.FindAll(d => d.name.Contains("-1"));
         var clnArm2_1 = allArm2.FindAll(d => d.name.Contains("-3"));
         var clnArm2_2 = allArm2.FindAll(d => d.name.Contains("-4"));
@@ -98,7 +98,7 @@ public class MPS2_4AS : ParallelLink
         joint2.transform.localPosition = new Vector3(0, 0, 0);
         joint2.transform.localEulerAngles = new Vector3(0, 0, 0);
 
-        // •s—v‚ÈƒA[ƒ€‚ğíœ
+        // ä¸è¦ãªã‚¢ãƒ¼ãƒ ã‚’å‰Šé™¤
         foreach (var arm in allArm1)
         {
             Destroy(arm.gameObject);

@@ -1,4 +1,4 @@
-using System.Linq;
+ï»¿using System.Linq;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using System.Reflection;
@@ -41,17 +41,17 @@ public class CameraController : MonoBehaviour
 #endif
 
     /// <summary>
-    /// ƒL[ƒ{[ƒh‚Ìó‘Ô
+    /// ã‚­ãƒ¼ãƒœãƒ¼ãƒ‰ã®çŠ¶æ…‹
     /// </summary>
 //    private bool isControl, isShift, isMouseLeft;
 
     /// <summary>
-    /// Šeíƒ{ƒ^ƒ“ó‘Ô
+    /// å„ç¨®ãƒœã‚¿ãƒ³çŠ¶æ…‹
     /// </summary>
     private bool isMouseRight, isMouseMiddle;
 
     /// <summary>
-    /// ŠJnˆ—
+    /// é–‹å§‹å‡¦ç†
     /// </summary>
     void Start()
     {
@@ -61,7 +61,7 @@ public class CameraController : MonoBehaviour
     }
 
     /// <summary>
-    /// —LŒø
+    /// æœ‰åŠ¹æ™‚
     /// </summary>
     void OnEnable()
     {
@@ -80,7 +80,7 @@ public class CameraController : MonoBehaviour
     }
 
     /// <summary>
-    /// –³Œø
+    /// ç„¡åŠ¹æ™‚
     /// </summary>
     void OnDisable()
     {
@@ -99,14 +99,14 @@ public class CameraController : MonoBehaviour
     }
 
     /// <summary>
-    /// ƒL[ƒCƒxƒ“ƒg
+    /// ã‚­ãƒ¼ã‚¤ãƒ™ãƒ³ãƒˆ
     /// </summary>
     /// <param name="key"></param>
     private void HandleKey(Key key, bool value, bool isCtrl, bool isShift)
     {
         if (value)
         {
-            // ONˆ—
+            // ONå‡¦ç†
             if (key == Key.F)
             {
                 // F
@@ -150,7 +150,7 @@ public class CameraController : MonoBehaviour
     }
 
     /// <summary>
-    /// ƒ}ƒEƒXƒ_ƒEƒ“ƒCƒxƒ“ƒg
+    /// ãƒã‚¦ã‚¹ãƒ€ã‚¦ãƒ³ã‚¤ãƒ™ãƒ³ãƒˆ
     /// </summary>
     /// <param name="button"></param>
     private void MouseDownEvent(InputManager.MouseButton button, Vector2 mousePos)
@@ -170,7 +170,7 @@ public class CameraController : MonoBehaviour
     }
 
     /// <summary>
-    /// ƒ}ƒEƒXƒAƒbƒvƒCƒxƒ“ƒg
+    /// ãƒã‚¦ã‚¹ã‚¢ãƒƒãƒ—ã‚¤ãƒ™ãƒ³ãƒˆ
     /// </summary>
     /// <param name="button"></param>
     private void MouseUpEvent(InputManager.MouseButton button, Vector2 mousePos)
@@ -190,19 +190,19 @@ public class CameraController : MonoBehaviour
     }
 
     /// <summary>
-    /// ƒ}ƒEƒXƒzƒC[ƒ‹ƒCƒxƒ“ƒg
+    /// ãƒã‚¦ã‚¹ãƒ›ã‚¤ãƒ¼ãƒ«ã‚¤ãƒ™ãƒ³ãƒˆ
     /// </summary>
     /// <param name="mousePos"></param>
     private void MouseWheelEvent(Vector2 scrollDelta)
     {
         float dist = Vector3.Distance(transform.position, targetPosition);
-        float speedFactor = Mathf.Clamp01(dist / 10f);  // ‹——£10ˆÈã‚È‚çÅ‘å‘¬A‹ß‚¢‚Æ‚«‚Í’x‚­
+        float speedFactor = Mathf.Clamp01(dist / 10f);  // è·é›¢10ä»¥ä¸Šãªã‚‰æœ€å¤§é€Ÿã€è¿‘ã„ã¨ãã¯é…ã
         float moveSpeed = wheelSpeed * speedFactor;
         transform.position += transform.forward * scrollDelta.y * moveSpeed;
     }
 
     /// <summary>
-    /// ƒ}ƒEƒXˆÚ“®ƒCƒxƒ“ƒg
+    /// ãƒã‚¦ã‚¹ç§»å‹•ã‚¤ãƒ™ãƒ³ãƒˆ
     /// </summary>
     /// <param name="mousePos"></param>
     private void MouseMoveEvent(Vector2 mousePos, Vector2 moveDelta)
@@ -223,7 +223,7 @@ public class CameraController : MonoBehaviour
     }
 
     /// <summary>
-    /// ‰ŠúˆÊ’u
+    /// åˆæœŸä½ç½®
     /// </summary>
     public void SetInitPosition()
     {
@@ -233,7 +233,7 @@ public class CameraController : MonoBehaviour
     }
 
     /// <summary>
-    /// ¸_‚Æ‚Ì•”‰®‚ÌˆÊ’u
+    /// ç²¾ç¥ã¨æ™‚ã®éƒ¨å±‹ã®ä½ç½®
     /// </summary>
     public void SetRoomPosition()
     {
@@ -243,7 +243,7 @@ public class CameraController : MonoBehaviour
     }
 
     /// <summary>
-    /// ‹“_‚Ì‰Šú‰»
+    /// è¦–ç‚¹ã®åˆæœŸåŒ–
     /// </summary>
     public void InitCameraPosition()
     {
@@ -251,7 +251,7 @@ public class CameraController : MonoBehaviour
     }
 
     /// <summary>
-    /// ‹“_‚Ìİ’è
+    /// è¦–ç‚¹ã®è¨­å®š
     /// </summary>
     public void SetTargetPosition(Vector3 targetPosition)
     {
@@ -259,12 +259,12 @@ public class CameraController : MonoBehaviour
     }
 
     /// <summary>
-    /// ãˆÚ“®
+    /// ä¸Šç§»å‹•
     /// </summary>
     /// <param name="isControl"></param>
     public void MovePosition(Vector2 move, bool isControl, bool isShift)
     {
-        // ã‰º
+        // ä¸Šä¸‹
         if (move.y > 0)
         {
             if (isShift)
@@ -295,7 +295,7 @@ public class CameraController : MonoBehaviour
                 transform.Translate(Vector3.back * Time.deltaTime * moveSpeed);
             }
         }
-        // ¶‰E
+        // å·¦å³
         if (move.x < 0)
         {
             if (isControl)
@@ -358,13 +358,13 @@ public class CameraController : MonoBehaviour
             MouseWheel(scrollWheel);
         }
 
-        // ƒ{ƒ^ƒ“‚ª‰Ÿ‚³‚ê‚½‚çŒ»İ‚Ìƒ}ƒEƒXˆÊ’u‚ğ•Û‘¶
+        // ãƒœã‚¿ãƒ³ãŒæŠ¼ã•ã‚ŒãŸã‚‰ç¾åœ¨ã®ãƒã‚¦ã‚¹ä½ç½®ã‚’ä¿å­˜
         if (mouseWasPressedThisFrame)
         {
             preMousePos = mouse.position.ReadValue();
         }
 
-        // ƒhƒ‰ƒbƒOˆ—i‚ ‚È‚½‚ÌŠù‘¶ŠÖ”‚É‡‚í‚¹‚Äj
+        // ãƒ‰ãƒ©ãƒƒã‚°å‡¦ç†ï¼ˆã‚ãªãŸã®æ—¢å­˜é–¢æ•°ã«åˆã‚ã›ã¦ï¼‰
         MouseDrag(mouse.position.ReadValue());
     }
 
@@ -373,7 +373,7 @@ public class CameraController : MonoBehaviour
         if (cameraEnable)
         {
             float dist = Vector3.Distance(transform.position, targetPosition);
-            float speedFactor = Mathf.Clamp01(dist / 10f);  // ‹——£10ˆÈã‚È‚çÅ‘å‘¬A‹ß‚¢‚Æ‚«‚Í’x‚­
+            float speedFactor = Mathf.Clamp01(dist / 10f);  // è·é›¢10ä»¥ä¸Šãªã‚‰æœ€å¤§é€Ÿã€è¿‘ã„ã¨ãã¯é…ã
             float moveSpeed = wheelSpeed * speedFactor;
             transform.position += transform.forward * delta * moveSpeed;
         }
@@ -408,13 +408,13 @@ public class CameraController : MonoBehaviour
     }
 
     /// <summary>
-    /// ƒtƒH[ƒJƒX
+    /// ãƒ•ã‚©ãƒ¼ã‚«ã‚¹
     /// </summary>
     /// <param name="target"></param>
     public void FocusTo(Transform target)
     {
         focusDistance = focusDistance <= 1f ? 3f : 1f;
-        // ƒJƒƒ‰‚ÌŒü‚«‚ÍˆÛ‚µ‚½‚Ü‚ÜAƒ^[ƒQƒbƒg‚ğ’†‰›‚É
+        // ã‚«ãƒ¡ãƒ©ã®å‘ãã¯ç¶­æŒã—ãŸã¾ã¾ã€ã‚¿ãƒ¼ã‚²ãƒƒãƒˆã‚’ä¸­å¤®ã«
         Vector3 forward = transform.forward;
         transform.position = target.position - forward * focusDistance;
 
@@ -422,7 +422,7 @@ public class CameraController : MonoBehaviour
     }
 
     /// <summary>
-    /// ƒtƒH[ƒJƒX
+    /// ãƒ•ã‚©ãƒ¼ã‚«ã‚¹
     /// </summary>
     public void FocusTo()
     {

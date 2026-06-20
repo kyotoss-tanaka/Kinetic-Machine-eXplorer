@@ -1,4 +1,4 @@
-using Npgsql;
+ï»¿using Npgsql;
 using Parameters;
 using System;
 using System.Collections;
@@ -16,35 +16,35 @@ public class ComInner : ComBaseScript
     public class ActionTiming
     {
         /// <summary>
-        /// ‹@”Ô
+        /// æ©Ÿç•ª
         /// </summary>
         public string name;
         /// <summary>
-        /// ‹@”Ô
+        /// æ©Ÿç•ª
         /// </summary>
         public int index;
         /// <summary>
-        /// ‹@”Ô
+        /// æ©Ÿç•ª
         /// </summary>
         public string mechId;
         /// <summary>
-        /// ƒTƒCƒNƒ‹
+        /// ã‚µã‚¤ã‚¯ãƒ«
         /// </summary>
         public int cycle;
         /// <summary>
-        /// Œ»İƒTƒCƒNƒ‹
+        /// ç¾åœ¨ã‚µã‚¤ã‚¯ãƒ«
         /// </summary>
         public int nowCycle;
         /// <summary>
-        /// Œ»İƒTƒCƒNƒ‹
+        /// ç¾åœ¨ã‚µã‚¤ã‚¯ãƒ«
         /// </summary>
         public int prvCycle;
         /// <summary>
-        /// ƒ^ƒCƒ~ƒ“ƒO”Ô†
+        /// ã‚¿ã‚¤ãƒŸãƒ³ã‚°ç•ªå·
         /// </summary>
         public int no;
         /// <summary>
-        /// ƒ^ƒCƒ~ƒ“ƒO
+        /// ã‚¿ã‚¤ãƒŸãƒ³ã‚°
         /// </summary>
         public List<ActionTimingData> timings = new();
     }
@@ -53,19 +53,19 @@ public class ComInner : ComBaseScript
     public class ActionTimingData
     {
         /// <summary>
-        /// ƒgƒŠƒKƒ^ƒCƒ~ƒ“ƒO
+        /// ãƒˆãƒªã‚¬ã‚¿ã‚¤ãƒŸãƒ³ã‚°
         /// </summary>
         public int trg;
         /// <summary>
-        /// “ü—Íƒ^ƒO
+        /// å…¥åŠ›ã‚¿ã‚°
         /// </summary>
         public string input;
         /// <summary>
-        /// o—Íƒ^ƒO
+        /// å‡ºåŠ›ã‚¿ã‚°
         /// </summary>
         public string output;
         /// <summary>
-        /// Œp‘±
+        /// ç¶™ç¶š
         /// </summary>
         public bool isContinue;
     }
@@ -73,68 +73,68 @@ public class ComInner : ComBaseScript
     private class TimingData
     {
         /// <summary>
-        /// ‹@”Ô
+        /// æ©Ÿç•ª
         /// </summary>
         public string mechId;
         /// <summary>
-        /// ƒTƒCƒNƒ‹
+        /// ã‚µã‚¤ã‚¯ãƒ«
         /// </summary>
         public int cycle;
         /// <summary>
-        /// ONƒ^ƒCƒ~ƒ“ƒO
+        /// ONã‚¿ã‚¤ãƒŸãƒ³ã‚°
         /// </summary>
         public int on;
         /// <summary>
-        /// OFFƒ^ƒCƒ~ƒ“ƒO
+        /// OFFã‚¿ã‚¤ãƒŸãƒ³ã‚°
         /// </summary>
         public int off;
         /// <summary>
-        /// ƒ^ƒO
+        /// ã‚¿ã‚°
         /// </summary>
         public string tag;
     }
 
     /// <summary>
-    /// ƒT[ƒo[–¼
+    /// ã‚µãƒ¼ãƒãƒ¼å
     /// </summary>
     public string Name { get { return Server + ":" + Port.ToString(); } }
 
     /// <summary>
-    /// ŠÔ’â~
+    /// æ™‚é–“åœæ­¢
     /// </summary>
     [SerializeField]
     public bool isStop = false;
 
     /// <summary>
-    /// ŠÔ”ä—¦
+    /// æ™‚é–“æ¯”ç‡
     /// </summary>
     [SerializeField]
     public float timeRate = 1;
 
     /// <summary>
-    /// ƒ^ƒCƒ~ƒ“ƒOİ’è
+    /// ã‚¿ã‚¤ãƒŸãƒ³ã‚°è¨­å®š
     /// </summary>
     [SerializeField]
     private List<TimingData> timings = new();
 
     /// <summary>
-    /// “®ìİ’è
+    /// å‹•ä½œè¨­å®š
     /// </summary>
     [SerializeField]
     public List<ActionTiming> acts = new();
 
     /// <summary>
-    /// ƒ^ƒCƒ~ƒ“ƒO—p
+    /// ã‚¿ã‚¤ãƒŸãƒ³ã‚°ç”¨
     /// </summary>
     System.Diagnostics.Stopwatch swTiming = new();
 
     /// <summary>
-    /// Œ»İ‚ÌŠÔ
+    /// ç¾åœ¨ã®æ™‚é–“
     /// </summary>
     private long elapsedMilliseconds = 0;
 
     /// <summary>
-    /// ‘O‰ñ‚ÌŠÔ
+    /// å‰å›ã®æ™‚é–“
     /// </summary>
     private long prvElapsedMilliseconds = 0;
 
@@ -150,17 +150,17 @@ public class ComInner : ComBaseScript
     public List<int> outputs = new();
 
     /// <summary>
-    /// •\¦ƒTƒCƒNƒ‹
+    /// è¡¨ç¤ºã‚µã‚¤ã‚¯ãƒ«
     /// </summary>
     public int viewCycle = 1000;
 
     /// <summary>
-    /// ƒRƒ}‘—‚èƒXƒeƒbƒv
+    /// ã‚³ãƒé€ã‚Šã‚¹ãƒ†ãƒƒãƒ—
     /// </summary>
     public int step = 0;
 
     /// <summary>
-    /// Œo‰ßŠÔ
+    /// çµŒéæ™‚é–“
     /// </summary>
     public int time = 0;
 
@@ -179,7 +179,7 @@ public class ComInner : ComBaseScript
     }
 
     /// <summary>
-    /// XVˆ—
+    /// æ›´æ–°å‡¦ç†
     /// </summary>
     protected override void FixedUpdate()
     {
@@ -187,10 +187,10 @@ public class ComInner : ComBaseScript
         {
             base.FixedUpdate();
 
-            // ƒf[ƒ^ŒğŠ·ˆ—
+            // ãƒ‡ãƒ¼ã‚¿äº¤æ›å‡¦ç†
             DataExchangeProcess();
 
-            // ƒf[ƒ^XVˆ—
+            // ãƒ‡ãƒ¼ã‚¿æ›´æ–°å‡¦ç†
             lock (objLock)
             {
                 RenewData();
@@ -203,7 +203,7 @@ public class ComInner : ComBaseScript
     }
 
     /// <summary>
-    /// íœ
+    /// å‰Šé™¤æ™‚
     /// </summary>
     protected override void OnDestroy()
     {
@@ -211,7 +211,7 @@ public class ComInner : ComBaseScript
     }
 
     /// <summary>
-    /// ƒf[ƒ^XV
+    /// ãƒ‡ãƒ¼ã‚¿æ›´æ–°
     /// </summary>
     public override void RenewData()
     {
@@ -219,7 +219,7 @@ public class ComInner : ComBaseScript
         var sw = new System.Diagnostics.Stopwatch();
         sw.Start();
 
-        // Œo‰ßŠÔì¬
+        // çµŒéæ™‚é–“ä½œæˆ
         var lap = swTiming.ElapsedMilliseconds;
         if (step != 0)
         {
@@ -238,7 +238,7 @@ public class ComInner : ComBaseScript
         }
         try
         {
-            // I/Oƒ^ƒCƒ~ƒ“ƒOƒZƒbƒg
+            // I/Oã‚¿ã‚¤ãƒŸãƒ³ã‚°ã‚»ãƒƒãƒˆ
             foreach (var timing in timings)
             {
                 var now = time % timing.cycle;
@@ -260,7 +260,7 @@ public class ComInner : ComBaseScript
                 GlobalScript.tagDatas[Name][timing.mechId][timing.tag].Value = value;
             }
 
-            // “®ìİ’èƒZƒbƒg
+            // å‹•ä½œè¨­å®šã‚»ãƒƒãƒˆ
             var onTags = new List<TagInfo>();
             var offTags = new List<TagInfo>();
             foreach (var act in acts)
@@ -274,7 +274,7 @@ public class ComInner : ComBaseScript
                 }
                 if (GlobalScript.tagDatas[Name][act.mechId][input].Value == 1)
                 {
-                    // ON’†Š®—¹M†‘Ò‚¿
+                    // ONä¸­å®Œäº†ä¿¡å·å¾…ã¡
                     if (GlobalScript.tagDatas[Name][act.mechId][output].Value == 1)
                     {
                         offTags.Add(GlobalScript.tagDatas[Name][act.mechId][input]);
@@ -283,11 +283,11 @@ public class ComInner : ComBaseScript
                 }
                 else
                 {
-                    // OFF’†‚Å‚ ‚ê‚Î’Ê‰ß”»’è
+                    // OFFä¸­ã§ã‚ã‚Œã°é€šéåˆ¤å®š
                     bool isContinue = act.timings[act.no].isContinue;
                     if (isContinue)
                     {
-                        // ˜A‘±“®ì‚Ìê‡‚ÍŸ‚Ìƒ|ƒCƒ“ƒg‚Ö
+                        // é€£ç¶šå‹•ä½œã®å ´åˆã¯æ¬¡ã®ãƒã‚¤ãƒ³ãƒˆã¸
                         act.no = (act.no + 1) % act.timings.Count;
                     }
                     else
@@ -295,7 +295,7 @@ public class ComInner : ComBaseScript
                         var trg = act.timings[act.no].trg;
                         if (act.prvCycle <= act.nowCycle)
                         {
-                            // ’Êíˆ—
+                            // é€šå¸¸å‡¦ç†
                             if (trg >= act.prvCycle && trg < act.nowCycle)
                             {
                                 onTags.Add(GlobalScript.tagDatas[Name][act.mechId][input]);
@@ -303,7 +303,7 @@ public class ComInner : ComBaseScript
                         }
                         else
                         {
-                            // ”½“]ˆ—
+                            // åè»¢å‡¦ç†
                             if ((trg >= act.prvCycle) || (trg <= act.nowCycle))
                             {
                                 onTags.Add(GlobalScript.tagDatas[Name][act.mechId][input]);
@@ -313,7 +313,7 @@ public class ComInner : ComBaseScript
                 }
                 act.prvCycle = act.nowCycle;
             }
-            // ˆêŠ‡o—Í
+            // ä¸€æ‹¬å‡ºåŠ›
             foreach (var tag in onTags)
             {
                 tag.Value = 1;
@@ -352,7 +352,7 @@ public class ComInner : ComBaseScript
     }
 
     /// <summary>
-    /// ƒ^ƒO‚É’l‚ğƒZƒbƒg‚·‚é
+    /// ã‚¿ã‚°ã«å€¤ã‚’ã‚»ãƒƒãƒˆã™ã‚‹
     /// </summary>
     /// <param name="tag"></param>
     /// <param name=""></param>
@@ -371,7 +371,7 @@ public class ComInner : ComBaseScript
     }
 
     /// <summary>
-    /// ƒpƒ‰ƒ[ƒ^‚ğƒZƒbƒg‚·‚é
+    /// ãƒ‘ãƒ©ãƒ¡ãƒ¼ã‚¿ã‚’ã‚»ãƒƒãƒˆã™ã‚‹
     /// </summary>
     /// <param name="components"></param>
     /// <param name="scriptables"></param>
@@ -388,7 +388,7 @@ public class ComInner : ComBaseScript
     }
 
     /// <summary>
-    /// ƒpƒ‰ƒ[ƒ^ƒZƒbƒg
+    /// ãƒ‘ãƒ©ãƒ¡ãƒ¼ã‚¿ã‚»ãƒƒãƒˆ
     /// </summary>
     /// <param name="No"></param>
     /// <param name="Cycle"></param>
@@ -402,7 +402,7 @@ public class ComInner : ComBaseScript
     {
         SetParameter(No, Cycle, Server, Port, Database, User, Password, isClientMode, dataExchange);
 
-        // ‰Šúƒ^ƒOì¬
+        // åˆæœŸã‚¿ã‚°ä½œæˆ
         if (!GlobalScript.tagDatas.ContainsKey(Name))
         {
             GlobalScript.tagDatas.Add(Name, new Dictionary<string, Dictionary<string, TagInfo>>());
@@ -430,7 +430,7 @@ public class ComInner : ComBaseScript
             }
         }
 
-        // I/Oƒ^ƒCƒ~ƒ“ƒOƒZƒbƒg
+        // I/Oã‚¿ã‚¤ãƒŸãƒ³ã‚°ã‚»ãƒƒãƒˆ
         timings = new();
         foreach (var inner in innerSettings.FindAll(d => d.cycle != 0))
         {
@@ -445,7 +445,7 @@ public class ComInner : ComBaseScript
             timings.Add(timing);
         }
 
-        // “®ìİ’èƒZƒbƒg
+        // å‹•ä½œè¨­å®šã‚»ãƒƒãƒˆ
         acts = new();
         foreach (var actionSetting in actionSettings)
         {
@@ -466,7 +466,7 @@ public class ComInner : ComBaseScript
                     input = action.start,
                     output = action.end
                 };
-                // ƒ^ƒOì¬
+                // ã‚¿ã‚°ä½œæˆ
                 if (!GlobalScript.tagDatas[Name].ContainsKey(actionSetting.mechId))
                 {
                     GlobalScript.tagDatas[Name].Add(actionSetting.mechId, new Dictionary<string, TagInfo>());

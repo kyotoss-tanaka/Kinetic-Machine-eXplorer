@@ -1,4 +1,4 @@
-using Npgsql;
+ï»¿using Npgsql;
 using Parameters;
 using StackExchange.Redis;
 using System;
@@ -22,7 +22,7 @@ using System.Diagnostics;
 public class ComRedis : ComBaseScript
 {
     /// <summary>
-    /// MQTTóMƒf[ƒ^
+    /// MQTTå—ä¿¡ãƒ‡ãƒ¼ã‚¿
     /// </summary>
     public class RedisItem
     {
@@ -32,12 +32,12 @@ public class ComRedis : ComBaseScript
     }
 
     /// <summary>
-    /// ƒT[ƒo[–¼
+    /// ã‚µãƒ¼ãƒãƒ¼å
     /// </summary>
     public string Name { get { return Server + ":" + Port.ToString(); } }
 
     /// <summary>
-    /// ƒgƒsƒbƒN
+    /// ãƒˆãƒ”ãƒƒã‚¯
     /// </summary>
     [SerializeField]
     public string Topic = "UnityData";
@@ -51,28 +51,28 @@ public class ComRedis : ComBaseScript
     public double avgRcvCycle = 0;
 
     /// <summary>
-    /// ŠÔŒv‘ª—p
+    /// æ™‚é–“è¨ˆæ¸¬ç”¨
     /// </summary>
     private Stopwatch swRcv = new Stopwatch();
     /// <summary>
-    /// ƒTƒCƒNƒ‹ŠÔ
+    /// ã‚µã‚¤ã‚¯ãƒ«æ™‚é–“
     /// </summary>
     private List<long> cycleRcvLaps = new List<long>();
 
     /// <summary>
-    /// WebAPIƒAƒNƒZƒX
+    /// WebAPIã‚¢ã‚¯ã‚»ã‚¹
     /// </summary>
     private bool IsWebApi = false;
 
     /// <summary>
-    /// ‘—Mo—ˆ‚È‚©‚Á‚½ƒ^ƒOƒoƒbƒtƒ@(MQTT‚Åƒf[ƒ^\¬‚ªŠm’è‚·‚é‘O‚É‘—M‚µ‚Ä‚¢‚½ƒf[ƒ^)
+    /// é€ä¿¡å‡ºæ¥ãªã‹ã£ãŸã‚¿ã‚°ãƒãƒƒãƒ•ã‚¡(MQTTã§ãƒ‡ãƒ¼ã‚¿æ§‹æˆãŒç¢ºå®šã™ã‚‹å‰ã«é€ä¿¡ã—ã¦ã„ãŸãƒ‡ãƒ¼ã‚¿)
     /// </summary>
     List<TagInfo> tagBuffer = new List<TagInfo>();
 
-    // óMƒf[ƒ^
+    // å—ä¿¡ãƒ‡ãƒ¼ã‚¿
     private volatile Dictionary<string, List<HashEntry>> latestRcvDatas = new();
 
-    // ‘—Mƒf[ƒ^
+    // é€ä¿¡ãƒ‡ãƒ¼ã‚¿
     private volatile Dictionary<string, string> latestSndDatas = new();
 
     /// <summary>
@@ -81,22 +81,22 @@ public class ComRedis : ComBaseScript
     private ConnectionMultiplexer redis;
 
     /// <summary>
-    /// ƒf[ƒ^ƒx[ƒX
+    /// ãƒ‡ãƒ¼ã‚¿ãƒ™ãƒ¼ã‚¹
     /// </summary>
     private IDatabase db;
 
     /// <summary>
-    /// ƒTƒuƒXƒNƒ‰ƒCƒo[
+    /// ã‚µãƒ–ã‚¹ã‚¯ãƒ©ã‚¤ãƒãƒ¼
     /// </summary>
     private ISubscriber sub;
 
     /// <summary>
-    /// WebAPIƒAƒNƒZƒX—pURL
+    /// WebAPIã‚¢ã‚¯ã‚»ã‚¹ç”¨URL
     /// </summary>
     private string url { get { return "http://" + Server + ":1880/api/redis/"; } }
 
     /// <summary>
-    /// Ú‘±’†
+    /// æ¥ç¶šä¸­
     /// </summary>
     private bool IsConnecting;
 
@@ -105,7 +105,7 @@ public class ComRedis : ComBaseScript
     {
         if ((Application.platform == RuntimePlatform.Android) || (Application.platform == RuntimePlatform.IPhonePlayer))
         {
-            //’[––‚ªAndroid‚©iOS‚¾‚Á‚½ê‡‚Ìˆ—
+            //ç«¯æœ«ãŒAndroidã‹iOSã ã£ãŸå ´åˆã®å‡¦ç†
             IsWebApi = true;
         }
         if (!GlobalScript.tagDatas.ContainsKey(Name))
@@ -127,13 +127,13 @@ public class ComRedis : ComBaseScript
         Connect();
     }
     /// <summary>
-    /// Ú‘±
+    /// æ¥ç¶š
     /// </summary>
     private async void Connect()
     {
         try
         {
-            // ƒNƒ‰ƒCƒAƒ“ƒgì¬
+            // ã‚¯ãƒ©ã‚¤ã‚¢ãƒ³ãƒˆä½œæˆ
             IsConnecting = true;
             redis = await ConnectionMultiplexer.ConnectAsync((Server == "localhost" ? "127.0.0.1" : Server) + ":" + Port);
             db = redis.GetDatabase();
@@ -147,7 +147,7 @@ public class ComRedis : ComBaseScript
     }
 
     /// <summary>
-    /// ÄÚ‘±
+    /// å†æ¥ç¶š
     /// </summary>
     private void Reconnect()
     {
@@ -164,7 +164,7 @@ public class ComRedis : ComBaseScript
     }
 
     /// <summary>
-    /// Ø’f
+    /// åˆ‡æ–­
     /// </summary>
     private void Disconnect()
     {
@@ -174,7 +174,7 @@ public class ComRedis : ComBaseScript
     }
 
     /// <summary>
-    /// óMŠ„‚è‚İ
+    /// å—ä¿¡å‰²ã‚Šè¾¼ã¿
     /// </summary>
     /// <param name="e"></param>
     /// <returns></returns>
@@ -191,23 +191,23 @@ public class ComRedis : ComBaseScript
         avgRcvCycle = cycleRcvLaps.Average();
         swRcv.Restart();
 
-        // ƒf[ƒ^óM
+        // ãƒ‡ãƒ¼ã‚¿å—ä¿¡
         var topic = value.ToString().Split('.');
         latestRcvDatas[topic[1]] = db.HashGetAll(value.ToString()).ToList();
     }
 
     /// <summary>
-    /// API’ÊM
+    /// APIé€šä¿¡
     /// </summary>
     /// <returns></returns>
     private IEnumerator DataUpdate()
     {
         while (this.enabled)
         {
-            // ƒf[ƒ^ŒğŠ·ˆ—
+            // ãƒ‡ãƒ¼ã‚¿äº¤æ›å‡¦ç†
             DataExchangeProcess();
 
-            // ƒf[ƒ^XVˆ—
+            // ãƒ‡ãƒ¼ã‚¿æ›´æ–°å‡¦ç†
             lock (objLock)
             {
                 RenewData();
@@ -227,7 +227,7 @@ public class ComRedis : ComBaseScript
     }
 
     /// <summary>
-    /// ƒ^ƒO‚É’l‚ğƒZƒbƒg‚·‚é
+    /// ã‚¿ã‚°ã«å€¤ã‚’ã‚»ãƒƒãƒˆã™ã‚‹
     /// </summary>
     /// <param name="tag"></param>
     /// <param name=""></param>
@@ -235,12 +235,12 @@ public class ComRedis : ComBaseScript
     {
         if ((Application.platform != RuntimePlatform.Android) && (Application.platform != RuntimePlatform.IPhonePlayer))
         {
-            // ‘—Mƒf[ƒ^ì¬
+            // é€ä¿¡ãƒ‡ãƒ¼ã‚¿ä½œæˆ
             lock (objLock)
             {
                 var datas = new List<TagInfoCom>();
                 var send = new List<TagInfo>();
-                // –¢‘—Mƒf[ƒ^XV
+                // æœªé€ä¿¡ãƒ‡ãƒ¼ã‚¿æ›´æ–°
                 foreach (var tag in tags)
                 {
                     var buff = tagBuffer.Find(d => d.Tag == tag.Tag);
@@ -270,7 +270,7 @@ public class ComRedis : ComBaseScript
                         }
                     }
                 }
-                // ‘—MÏƒf[ƒ^íœ
+                // é€ä¿¡æ¸ˆãƒ‡ãƒ¼ã‚¿å‰Šé™¤
                 tagBuffer.RemoveAll(d => send.Contains(d));
                 if (datas.Count == 0)
                 {
@@ -293,7 +293,7 @@ public class ComRedis : ComBaseScript
     }
 
     /// <summary>
-    /// ƒf[ƒ^XV
+    /// ãƒ‡ãƒ¼ã‚¿æ›´æ–°
     /// </summary>
     public override void RenewData()
     {
@@ -307,7 +307,7 @@ public class ComRedis : ComBaseScript
 #if UNITY_EDITOR
             if (!EditorApplication.isPlaying)
             {
-                // WebAPIƒAƒNƒZƒX
+                // WebAPIã‚¢ã‚¯ã‚»ã‚¹
                 StartCoroutine(RenewDataApi());
             }
 #endif
@@ -318,7 +318,7 @@ public class ComRedis : ComBaseScript
             sw.Start();
             try
             {
-                // ƒf[ƒ^‘—M
+                // ãƒ‡ãƒ¼ã‚¿é€ä¿¡
                 if (!isClientMode && writeDatas.Count > 0)
                 {
                     var sendDatas = new Dictionary<string, List<RedisItem>>();
@@ -340,7 +340,7 @@ public class ComRedis : ComBaseScript
                         SendMessage(data.Key, data.Value);
                     }
                 }
-                // ƒf[ƒ^“Ç
+                // ãƒ‡ãƒ¼ã‚¿èª­è¾¼
                 foreach (var payload in latestRcvDatas)
                 {
                     if (latestRcvDatas[payload.Key] != null)
@@ -384,7 +384,7 @@ public class ComRedis : ComBaseScript
     }
 
     /// <summary>
-    /// API‚Å‚Ìƒf[ƒ^XV
+    /// APIã§ã®ãƒ‡ãƒ¼ã‚¿æ›´æ–°
     /// </summary>
     /// <returns></returns>
     public IEnumerator RenewDataApi()
@@ -402,14 +402,14 @@ public class ComRedis : ComBaseScript
                 }
                 else if (req.responseCode == 200)
                 {
-                    // óMˆ—
+                    // å—ä¿¡å‡¦ç†
                     var rcvDatas = JsonSerializer.Deserialize<List<LatestData>>(req.downloadHandler.text);
                     foreach (var data in rcvDatas)
                     {
                         var mech = data.mech_id;
                         if (!GlobalScript.tagDatas[Name].ContainsKey(mech))
                         {
-                            // ‹@”Ôì¬
+                            // æ©Ÿç•ªä½œæˆ
                             GlobalScript.tagDatas[Name].Add(mech, new Dictionary<string, TagInfo>());
                         }
                         var tag = data.event_id;
@@ -449,7 +449,7 @@ public class ComRedis : ComBaseScript
     }
 
     /// <summary>
-    /// ƒf[ƒ^‘—M
+    /// ãƒ‡ãƒ¼ã‚¿é€ä¿¡
     /// </summary>
     /// <param name="mechId"></param>
     /// <param name="topic"></param>
@@ -458,12 +458,12 @@ public class ComRedis : ComBaseScript
     {
         try
         {
-            // ÄÚ‘±”»’è
+            // å†æ¥ç¶šåˆ¤å®š
             if (!redis.IsConnected)
             {
                 Reconnect();
             }
-            // ƒf[ƒ^ƒZƒbƒg
+            // ãƒ‡ãƒ¼ã‚¿ã‚»ãƒƒãƒˆ
             var hash = new List<HashEntry>();
             foreach (var data in datas)
             {
@@ -479,7 +479,7 @@ public class ComRedis : ComBaseScript
     }
 
     /// <summary>
-    /// ƒpƒ‰ƒ[ƒ^‚ğƒZƒbƒg‚·‚é
+    /// ãƒ‘ãƒ©ãƒ¡ãƒ¼ã‚¿ã‚’ã‚»ãƒƒãƒˆã™ã‚‹
     /// </summary>
     /// <param name="components"></param>
     /// <param name="scriptables"></param>

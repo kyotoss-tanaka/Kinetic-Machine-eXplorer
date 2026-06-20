@@ -1,4 +1,4 @@
-using Parameters;
+ï»¿using Parameters;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -10,7 +10,7 @@ using UnityEngine;
 using UnityEngine.UIElements;
 
 /// <summary>
-/// ’iƒ{[ƒ‹—pƒXƒNƒŠƒvƒg
+/// æ®µãƒœãƒ¼ãƒ«ç”¨ã‚¹ã‚¯ãƒªãƒ—ãƒˆ
 /// </summary>
 public class CardboardScript : KssBaseScript
 {
@@ -60,55 +60,55 @@ public class CardboardScript : KssBaseScript
     }
 
     /// <summary>
-    /// ’iƒ{[ƒ‹İ’è
+    /// æ®µãƒœãƒ¼ãƒ«è¨­å®š
     /// </summary>
     [SerializeField]
     protected CardboardSetting cardboardSetting;
 
     /// <summary>
-    /// ƒ‚[ƒh 0:L1/W1 1:L2/W2 1:L1/L2 2:W1:W2
+    /// ãƒ¢ãƒ¼ãƒ‰ 0:L1/W1 1:L2/W2 1:L1/L2 2:W1:W2
     /// </summary>
     [SerializeField]
     protected int mode;
 
     /// <summary>
-    /// Œ»İŠÔ
+    /// ç¾åœ¨æ™‚é–“
     /// </summary>
     [SerializeField]
     protected int time;
 
     /// <summary>
-    /// Œ»İŠÔ
+    /// ç¾åœ¨æ™‚é–“
     /// </summary>
     [SerializeField]
     protected int startTime;
 
     /// <summary>
-    /// Œ»İƒTƒCƒNƒ‹
+    /// ç¾åœ¨ã‚µã‚¤ã‚¯ãƒ«
     /// </summary>
     [SerializeField]
     protected int cycle;
 
     /// <summary>
-    /// BodyŠÔ‹——£
+    /// Bodyé–“è·é›¢
     /// </summary>
     [SerializeField]
     protected float distance;
 
     /// <summary>
-    /// ƒTƒCƒY
+    /// ã‚µã‚¤ã‚º
     /// </summary>
     [SerializeField]
     protected CardboardSize Size;
 
     /// <summary>
-    /// ‹zˆø’†î•ñ
+    /// å¸å¼•ä¸­æƒ…å ±
     /// </summary>
     [SerializeField]
     protected List<SuckInfo> suckInfos = new();
 
     /// <summary>
-    /// ‘S•”•i
+    /// å…¨éƒ¨å“
     /// </summary>
     [SerializeField]
     protected List<CardboardParts> cardboardParts = new();
@@ -139,7 +139,7 @@ public class CardboardScript : KssBaseScript
     CardboardParts W2_Bottom;
 
     /// <summary>
-    /// ƒTƒCƒNƒ‹ƒ^ƒO
+    /// ã‚µã‚¤ã‚¯ãƒ«ã‚¿ã‚°
     /// </summary>
     protected TagInfo cycleTag;
 
@@ -149,18 +149,18 @@ public class CardboardScript : KssBaseScript
     private Rigidbody rigi = null;
 
     /// <summary>
-    /// ŠJnˆ—
+    /// é–‹å§‹å‡¦ç†
     /// </summary>
     protected override void Start()
     {
         base.Start();
 
-        // ‰Šú‰»ˆ—
+        // åˆæœŸåŒ–å‡¦ç†
         Initialize();
     }
 
     /// <summary>
-    /// üŠúˆ—
+    /// å‘¨æœŸå‡¦ç†
     /// </summary>
     protected override void FixedUpdate()
     {
@@ -178,10 +178,10 @@ public class CardboardScript : KssBaseScript
         // Body
         if (suckInfos.Count > 0)
         {
-            // ‹zˆø‚³‚ê‚Ä‚¢‚é‚Æ‚«‚Ì‚İ’iƒ{[ƒ‹“®ì
+            // å¸å¼•ã•ã‚Œã¦ã„ã‚‹ã¨ãã®ã¿æ®µãƒœãƒ¼ãƒ«å‹•ä½œ
             if (startTime < 0)
             {
-                // ƒTƒCƒNƒ‹‚Íƒ‹[ƒv‚µ‚È‚¢
+                // ã‚µã‚¤ã‚¯ãƒ«ã¯ãƒ«ãƒ¼ãƒ—ã—ãªã„
                 startTime = time - cycle;
             }
         }
@@ -204,7 +204,7 @@ public class CardboardScript : KssBaseScript
                     }
                     if (parts.isFlap)
                     {
-                        // ƒtƒ‰ƒbƒv‚È‚ç
+                        // ãƒ•ãƒ©ãƒƒãƒ—ãªã‚‰
                         parts.parts.transform.localEulerAngles = (float)parts.value * parts.axis;
                     }
                 }
@@ -214,14 +214,14 @@ public class CardboardScript : KssBaseScript
                 var value = (float)L1_Body.value;
                 if (mode == 0)
                 {
-                    // L1Šî€
+                    // L1åŸºæº–
                     W1_Body.parts.transform.localEulerAngles = (180 - value) * W1_Body.axis;
                     W2_Body.parts.transform.localEulerAngles = (180 - value) * W2_Body.axis;
                     L2_Body.parts.transform.localEulerAngles = value * L2_Body.axis;
                 }
                 else
                 {
-                    // L2Šî€
+                    // L2åŸºæº–
                     W2_Body.parts.transform.localEulerAngles = (180 - value) * W2_Body.axis;
                     W1_Body.parts.transform.localEulerAngles = (180 - value) * W1_Body.axis;
                     L1_Body.parts.transform.localEulerAngles = value * L1_Body.axis;
@@ -254,10 +254,10 @@ public class CardboardScript : KssBaseScript
         var vctAngle = Vector3.zero;
         if (suckInfos.Count == 2)
         {
-            // •Às
+            // ä¸¦è¡Œ
             var box1 = suckInfos[0].parts.script.boxCollider;
             var box2 = suckInfos[1].parts.script.boxCollider;
-            // ˆø‚Á’£‚Á‚Ä‚¢‚é‚Æ‚«‚Ì‚İˆ—
+            // å¼•ã£å¼µã£ã¦ã„ã‚‹ã¨ãã®ã¿å‡¦ç†
             if (mode >= 2)
             {
                 if (LinePlaneIntersection(box1, box2))
@@ -296,7 +296,7 @@ public class CardboardScript : KssBaseScript
             }
             else
             {
-                // ’¼Šp
+                // ç›´è§’
                 Vector3 normal1 = GetThinAxisNormal(box1);
                 Vector3 normal2 = GetThinAxisNormal(box2);
                 angle = Vector3.Angle(normal1, normal2);
@@ -320,7 +320,7 @@ public class CardboardScript : KssBaseScript
     }
     /*
     /// <summary>
-    /// “ñ‚Â‚ÌƒRƒ‰ƒCƒ_[‚Ì‹——£‚ğ}‚é
+    /// äºŒã¤ã®ã‚³ãƒ©ã‚¤ãƒ€ãƒ¼ã®è·é›¢ã‚’å›³ã‚‹
     /// </summary>
     /// <param name="boxA"></param>
     /// <param name="boxB"></param>
@@ -339,15 +339,15 @@ public class CardboardScript : KssBaseScript
         float denom = Vector3.Dot(dir, planeNormal);
         if (Mathf.Abs(denom) < 1e-6f)
         {
-            // dir ‚Æ planeNormal ‚ª’¼Œğ ¨ •½s‚È‚Ì‚ÅŒğ·‚µ‚È‚¢
+            // dir ã¨ planeNormal ãŒç›´äº¤ â†’ å¹³è¡Œãªã®ã§äº¤å·®ã—ãªã„
             return false;
         }
 
         float t = Vector3.Dot(planePoint - p0, planeNormal) / denom;
         if (t < 0)
         {
-            // Œğ“_‚Í’¼ü‚Ì‹t•ûŒüi•K—v‚É‰‚¶‚Ä”»’èj
-            // ’¼ü‚Å‚Í‚È‚­u”¼’¼üv‚Æl‚¦‚½‚¢ê‡‚Í false
+            // äº¤ç‚¹ã¯ç›´ç·šã®é€†æ–¹å‘ï¼ˆå¿…è¦ã«å¿œã˜ã¦åˆ¤å®šï¼‰
+            // ç›´ç·šã§ã¯ãªãã€ŒåŠç›´ç·šã€ã¨è€ƒãˆãŸã„å ´åˆã¯ false
         }
 
         intersection = p0 + dir * t;
@@ -360,31 +360,31 @@ public class CardboardScript : KssBaseScript
         Vector3 size = box.size;
         Vector3 scale = box.transform.lossyScale;
 
-        // Še²‚Ìƒ[ƒ‹ƒhƒXƒP[ƒ‹ƒTƒCƒYi= Œ©‚½–Ú‚ÌŒú‚İj
+        // å„è»¸ã®ãƒ¯ãƒ¼ãƒ«ãƒ‰ã‚¹ã‚±ãƒ¼ãƒ«ã‚µã‚¤ã‚ºï¼ˆ= è¦‹ãŸç›®ã®åšã¿ï¼‰
         float sx = Mathf.Abs(size.x * scale.x);
         float sy = Mathf.Abs(size.y * scale.y);
         float sz = Mathf.Abs(size.z * scale.z);
 
-        // Å¬²‚ğ”»’è‚µ‚ÄAƒ[ƒ‹ƒh‹óŠÔ‚Ì•ûŒüƒxƒNƒgƒ‹‚ğ•Ô‚·
+        // æœ€å°è»¸ã‚’åˆ¤å®šã—ã¦ã€ãƒ¯ãƒ¼ãƒ«ãƒ‰ç©ºé–“ã®æ–¹å‘ãƒ™ã‚¯ãƒˆãƒ«ã‚’è¿”ã™
         if (sx <= sy && sx <= sz)
-            return box.transform.right;      // ŒX‚¢‚½X²
+            return box.transform.right;      // å‚¾ã„ãŸXè»¸
         else if (sy <= sx && sy <= sz)
-            return box.transform.up;         // ŒX‚¢‚½Y²
+            return box.transform.up;         // å‚¾ã„ãŸYè»¸
         else
-            return box.transform.forward;    // ŒX‚¢‚½Z²
+            return box.transform.forward;    // å‚¾ã„ãŸZè»¸
     }
     */
     /// <summary>
-    /// ‰Šú‰»ˆ—
+    /// åˆæœŸåŒ–å‡¦ç†
     /// </summary>
     private void Initialize()
     {
-        // ƒTƒCƒNƒ‹ƒ^ƒOİ’è
+        // ã‚µã‚¤ã‚¯ãƒ«ã‚¿ã‚°è¨­å®š
         var tag = GlobalScript.callbackTags.Find(d => d.database == unitSetting.Database);
         cycleTag = tag == null ? null : tag.cycle;
         startTime = -1;
 
-        // Rigidbody’Ç‰Á
+        // Rigidbodyè¿½åŠ 
         rigi = GetComponent<Rigidbody>();
         if (rigi == null)
         {
@@ -393,7 +393,7 @@ public class CardboardScript : KssBaseScript
         rigi.isKinematic = false;
         rigi.useGravity = true;
 
-        // ƒtƒ‰ƒbƒv‚ÌeqŠÖŒWİ’è
+        // ãƒ•ãƒ©ãƒƒãƒ—ã®è¦ªå­é–¢ä¿‚è¨­å®š
         L1_Top.parts.transform.parent = L1_Body.parts.transform;
         L1_Bottom.parts.transform.parent = L1_Body.parts.transform;
         L2_Top.parts.transform.parent = L2_Body.parts.transform;
@@ -403,23 +403,23 @@ public class CardboardScript : KssBaseScript
         W2_Top.parts.transform.parent = W2_Body.parts.transform;
         W2_Bottom.parts.transform.parent = W2_Body.parts.transform;
 
-        // ƒ{ƒfƒB‚ÌeqŠÖŒW
+        // ãƒœãƒ‡ã‚£ã®è¦ªå­é–¢ä¿‚
         if (mode == 0)
         {
-            // L1Šî€‚ÅŠJ‚­
+            // L1åŸºæº–ã§é–‹ã
             W2_Body.parts.transform.parent = L1_Body.parts.transform;
             L2_Body.parts.transform.parent = W2_Body.parts.transform;
             W1_Body.parts.transform.parent = L2_Body.parts.transform;
         }
         else
         {
-            // L2Šî€‚ÅŠJ‚­
+            // L2åŸºæº–ã§é–‹ã
             W1_Body.parts.transform.parent = L2_Body.parts.transform;
             L1_Body.parts.transform.parent = W1_Body.parts.transform;
             W2_Body.parts.transform.parent = L1_Body.parts.transform;
         }
         /*
-        // ƒ‚[ƒh•ÊeqŠÖŒWİ’è
+        // ãƒ¢ãƒ¼ãƒ‰åˆ¥è¦ªå­é–¢ä¿‚è¨­å®š
         if (mode == 1)
         {
             L1_Body.parts.transform.parent = W2_Body.parts.transform;
@@ -442,7 +442,7 @@ public class CardboardScript : KssBaseScript
         }
         */
 
-        // Šeİ’è
+        // å„è¨­å®š
         L1_Top.isFlap = true;
         L1_Bottom.isFlap = true;
         L2_Top.isFlap = true;
@@ -471,7 +471,7 @@ public class CardboardScript : KssBaseScript
     }
 
     /// <summary>
-    /// ƒRƒ“ƒ|[ƒlƒ“ƒgƒZƒbƒg
+    /// ã‚³ãƒ³ãƒãƒ¼ãƒãƒ³ãƒˆã‚»ãƒƒãƒˆ
     /// </summary>
     /// <param name="parts"></param>
     private void SetComponent(CardboardParts parts)
@@ -479,7 +479,7 @@ public class CardboardScript : KssBaseScript
         parts.script = parts.parts.AddComponent<CardboardPartsScript>();
         parts.script.isFlap = parts.isFlap;
 
-        // ƒe[ƒuƒ‹ƒf[ƒ^æ“¾
+        // ãƒ†ãƒ¼ãƒ–ãƒ«ãƒ‡ãƒ¼ã‚¿å–å¾—
         var unit = unitSetting.name + ":";
         parts.actionTableData = GlobalScript.actionTableDatas.Find(d => (d.mechId == unitSetting.mechId) && (d.name == unit + parts.name));
         if (parts.actionTableData == null)
@@ -488,13 +488,13 @@ public class CardboardScript : KssBaseScript
         }
         else
         {
-            // ŠÔ‚²‚Æ‚Éƒ\[ƒg
+            // æ™‚é–“ã”ã¨ã«ã‚½ãƒ¼ãƒˆ
             parts.actionTableData.datas = parts.actionTableData.datas.OrderBy(d => d.time).ToList();
         }
     }
 
     /// <summary>
-    /// ‹zˆøƒZƒbƒg
+    /// å¸å¼•ã‚»ãƒƒãƒˆ
     /// </summary>
     public bool SetSuction(SuctionScript suction, GameObject parts)
     {
@@ -526,7 +526,7 @@ public class CardboardScript : KssBaseScript
     }
 
     /// <summary>
-    /// ‹zˆøƒZƒbƒg
+    /// å¸å¼•ã‚»ãƒƒãƒˆ
     /// </summary>
     public void ResetSuction(SuctionScript suction)
     {
@@ -551,7 +551,7 @@ public class CardboardScript : KssBaseScript
     }
 
     /// <summary>
-    /// ƒpƒ‰ƒ[ƒ^ƒZƒbƒg
+    /// ãƒ‘ãƒ©ãƒ¡ãƒ¼ã‚¿ã‚»ãƒƒãƒˆ
     /// </summary>
     /// <param name="unitSetting"></param>
     /// <param name="obj"></param>
@@ -561,7 +561,7 @@ public class CardboardScript : KssBaseScript
     }
 
     /// <summary>
-    /// ƒpƒ‰ƒ[ƒ^ƒZƒbƒg
+    /// ãƒ‘ãƒ©ãƒ¡ãƒ¼ã‚¿ã‚»ãƒƒãƒˆ
     /// </summary>
     /// <param name="unitSetting"></param>
     /// <param name="obj"></param>
@@ -644,7 +644,7 @@ public class CardboardScript : KssBaseScript
     }
 
     /// <summary>
-    /// İ’èæ“¾
+    /// è¨­å®šå–å¾—
     /// </summary>
     /// <returns></returns>
     public UnitSetting GetUnitSetting()
@@ -653,7 +653,7 @@ public class CardboardScript : KssBaseScript
     }
 
     /// <summary>
-    /// İ’èæ“¾
+    /// è¨­å®šå–å¾—
     /// </summary>
     /// <returns></returns>
     public CardboardSetting GetSetting()

@@ -1,4 +1,4 @@
-using Oculus.Interaction;
+ï»¿using Oculus.Interaction;
 using Oculus.Interaction.Input;
 using System;
 using System.Collections.Generic;
@@ -28,7 +28,7 @@ public class InputManager : BaseBehaviour
     }
 
     /// <summary>
-    /// ƒ}ƒEƒX‚Ìƒ{ƒ^ƒ“
+    /// ãƒã‚¦ã‚¹ã®ãƒœã‚¿ãƒ³
     /// </summary>
     public enum MouseButton : int
     {
@@ -38,7 +38,7 @@ public class InputManager : BaseBehaviour
     }
 
     /// <summary>
-    /// ƒ^ƒbƒ`‚Ìƒ{ƒ^ƒ“
+    /// ã‚¿ãƒƒãƒã®ãƒœã‚¿ãƒ³
     /// </summary>
     public enum TouchButton : int
     {
@@ -69,58 +69,58 @@ public class InputManager : BaseBehaviour
     }
 
     /// <summary>
-    /// ƒL[ƒ{[ƒhƒCƒxƒ“ƒg
+    /// ã‚­ãƒ¼ãƒœãƒ¼ãƒ‰ã‚¤ãƒ™ãƒ³ãƒˆ
     /// </summary>
     private Dictionary<Key, Action<Key, bool, bool, bool>> keyActions = new Dictionary<Key, Action<Key, bool, bool, bool>>();
     /// <summary>
-    /// ƒL[ƒ{[ƒhó‘Ô
+    /// ã‚­ãƒ¼ãƒœãƒ¼ãƒ‰çŠ¶æ…‹
     /// </summary>
     private Dictionary<Key, bool> keyValues = new Dictionary<Key, bool>();
     /// <summary>
-    /// ƒ}ƒEƒXƒ_ƒEƒ“ƒCƒxƒ“ƒg
+    /// ãƒã‚¦ã‚¹ãƒ€ã‚¦ãƒ³ã‚¤ãƒ™ãƒ³ãƒˆ
     /// </summary>
     private Action<MouseButton, Vector2> mouseDownEvents;
     /// <summary>
-    /// ƒ}ƒEƒXƒAƒbƒvƒCƒxƒ“ƒg
+    /// ãƒã‚¦ã‚¹ã‚¢ãƒƒãƒ—ã‚¤ãƒ™ãƒ³ãƒˆ
     /// </summary>
     private Action<MouseButton, Vector2> mouseUpEvents;
     /// <summary>
-    /// ƒ}ƒEƒXƒzƒC[ƒ‹ƒCƒxƒ“ƒg
+    /// ãƒã‚¦ã‚¹ãƒ›ã‚¤ãƒ¼ãƒ«ã‚¤ãƒ™ãƒ³ãƒˆ
     /// </summary>
     private Action<Vector2> mouseWheelEvents;
     /// <summary>
-    /// ƒ}ƒEƒXƒ€[ƒuƒCƒxƒ“ƒg
+    /// ãƒã‚¦ã‚¹ãƒ ãƒ¼ãƒ–ã‚¤ãƒ™ãƒ³ãƒˆ
     /// </summary>
     private Action<Vector2, Vector2> mouseMoveEvents;
     /// <summary>
-    /// ƒ^ƒbƒ`ƒ_ƒEƒ“ƒCƒxƒ“ƒg
+    /// ã‚¿ãƒƒãƒãƒ€ã‚¦ãƒ³ã‚¤ãƒ™ãƒ³ãƒˆ
     /// </summary>
     private Action<TouchButton, GameObject> touchDownEvents;
     /// <summary>
-    /// ƒ^ƒbƒ`ƒAƒbƒvƒCƒxƒ“ƒg
+    /// ã‚¿ãƒƒãƒã‚¢ãƒƒãƒ—ã‚¤ãƒ™ãƒ³ãƒˆ
     /// </summary>
     private Action<TouchButton, GameObject> touchUpEvents;
     /// <summary>
-    /// ƒ{ƒ^ƒ“ƒ_ƒEƒ“ƒCƒxƒ“ƒg
+    /// ãƒœã‚¿ãƒ³ãƒ€ã‚¦ãƒ³ã‚¤ãƒ™ãƒ³ãƒˆ
     /// </summary>
     private Action<ControllerButton> buttonDownEvents;
     /// <summary>
-    /// ƒAƒbƒvƒCƒxƒ“ƒg
+    /// ã‚¢ãƒƒãƒ—ã‚¤ãƒ™ãƒ³ãƒˆ
     /// </summary>
     private Action<ControllerButton> buttonUpEvents;
 
     /// <summary>
-    /// ƒ}ƒEƒXˆÊ’u
+    /// ãƒã‚¦ã‚¹ä½ç½®
     /// </summary>
     private Vector2 mousePos, prvMousePos;
 
     /// <summary>
-    /// Šeíƒ{ƒ^ƒ“ó‘Ô
+    /// å„ç¨®ãƒœã‚¿ãƒ³çŠ¶æ…‹
     /// </summary>
     private bool isMouseLeft, isMouseRight, isMouseMiddle, isKeyCtrl, isKeyShift;
 
     /// <summary>
-    /// ƒXƒNƒŠ[ƒ““àƒtƒ‰ƒO
+    /// ã‚¹ã‚¯ãƒªãƒ¼ãƒ³å†…ãƒ•ãƒ©ã‚°
     /// </summary>
     private bool isInsideScreen;
 
@@ -133,13 +133,13 @@ public class InputManager : BaseBehaviour
     private RayInteractor rayControllerR;
 
     /// <summary>
-    /// ‹N°ƒCƒxƒ“ƒg
+    /// èµ·åºŠã‚¤ãƒ™ãƒ³ãƒˆ
     /// </summary>
     protected override void Awake()
     {
         base.Awake();
 
-        // ŠeíRayInteractoræ“¾
+        // å„ç¨®RayInteractorå–å¾—
         var handRays = FindObjectsByType<RayInteractor>(FindObjectsSortMode.None).Where(d => d.name == "HandRayInteractor");
         foreach (var handRay in handRays)
         {
@@ -171,34 +171,34 @@ public class InputManager : BaseBehaviour
     }
 
     /// <summary>
-    /// XVˆ—
+    /// æ›´æ–°å‡¦ç†
     /// </summary>
     protected override void Update()
     {
-        // ƒXƒNƒŠ[ƒ““à‚©ƒ`ƒFƒbƒN
+        // ã‚¹ã‚¯ãƒªãƒ¼ãƒ³å†…ã‹ãƒã‚§ãƒƒã‚¯
         isInsideScreen = IsMouseInsideScreen();
 
-        // ƒL[ƒAƒbƒvƒf[ƒg
+        // ã‚­ãƒ¼ã‚¢ãƒƒãƒ—ãƒ‡ãƒ¼ãƒˆ
         KeyUpdate();
 
         if (!GlobalScript.IsInTimeChart)
         {
-            // ƒ}ƒEƒXƒAƒbƒvƒf[ƒg
+            // ãƒã‚¦ã‚¹ã‚¢ãƒƒãƒ—ãƒ‡ãƒ¼ãƒˆ
             MouseUpdate();
 
             if (GlobalScript.isXRMode)
             {
-                // ƒ{ƒ^ƒ“ƒAƒbƒvƒf[ƒg
+                // ãƒœã‚¿ãƒ³ã‚¢ãƒƒãƒ—ãƒ‡ãƒ¼ãƒˆ
                 ButtonUpdate();
 
-                // ƒ^ƒbƒ`ƒAƒbƒvƒf[ƒg
+                // ã‚¿ãƒƒãƒã‚¢ãƒƒãƒ—ãƒ‡ãƒ¼ãƒˆ
                 TouchUpdate();
             }
         }
     }
 
     /// <summary>
-    /// ƒL[ƒAƒbƒvƒf[ƒg
+    /// ã‚­ãƒ¼ã‚¢ãƒƒãƒ—ãƒ‡ãƒ¼ãƒˆ
     /// </summary>
     private void KeyUpdate()
     {
@@ -220,7 +220,7 @@ public class InputManager : BaseBehaviour
     }
 
     /// <summary>
-    /// ƒ}ƒEƒXƒAƒbƒvƒf[ƒg
+    /// ãƒã‚¦ã‚¹ã‚¢ãƒƒãƒ—ãƒ‡ãƒ¼ãƒˆ
     /// </summary>
     private void MouseUpdate()
     {
@@ -270,7 +270,7 @@ public class InputManager : BaseBehaviour
     }
 
     /// <summary>
-    /// ƒ{ƒ^ƒ“ƒAƒbƒvƒf[ƒg
+    /// ãƒœã‚¿ãƒ³ã‚¢ãƒƒãƒ—ãƒ‡ãƒ¼ãƒˆ
     ///    A Button.One
     ///    B Button.Two
     ///    X Button.Three
@@ -417,7 +417,7 @@ public class InputManager : BaseBehaviour
     }
 
     /// <summary>
-    /// ƒ^ƒbƒ`ƒAƒbƒvƒf[ƒg
+    /// ã‚¿ãƒƒãƒã‚¢ãƒƒãƒ—ãƒ‡ãƒ¼ãƒˆ
     /// </summary>
     private void TouchUpdate()
     {
@@ -444,7 +444,7 @@ public class InputManager : BaseBehaviour
     }
 
     /// <summary>
-    /// ‰æ–Ê“à‚Éƒ}ƒEƒX‚ª‚ ‚é‚©ƒ`ƒFƒbƒN
+    /// ç”»é¢å†…ã«ãƒã‚¦ã‚¹ãŒã‚ã‚‹ã‹ãƒã‚§ãƒƒã‚¯
     /// </summary>
     /// <returns></returns>
     private bool IsMouseInsideScreen()
@@ -455,7 +455,7 @@ public class InputManager : BaseBehaviour
     }
 
     /// <summary>
-    /// ƒL[‚²‚Æ‚ÌƒCƒxƒ“ƒg“o˜^
+    /// ã‚­ãƒ¼ã”ã¨ã®ã‚¤ãƒ™ãƒ³ãƒˆç™»éŒ²
     /// </summary>
     /// <param name="key"></param>
     /// <param name="action"></param>
@@ -473,7 +473,7 @@ public class InputManager : BaseBehaviour
     }
 
     /// <summary>
-    /// ƒL[‚²‚Æ‚Ìƒxƒ“ƒg“o˜^‰ğœ
+    /// ã‚­ãƒ¼ã”ã¨ã®ãƒ™ãƒ³ãƒˆç™»éŒ²è§£é™¤
     /// </summary>
     /// <param name="key"></param>
     /// <param name="action"></param>
@@ -488,7 +488,7 @@ public class InputManager : BaseBehaviour
     }
 
     /// <summary>
-    /// ƒ}ƒEƒXƒ_ƒEƒ“ƒCƒxƒ“ƒg“o˜^
+    /// ãƒã‚¦ã‚¹ãƒ€ã‚¦ãƒ³ã‚¤ãƒ™ãƒ³ãƒˆç™»éŒ²
     /// </summary>
     /// <param name="action"></param>
     public void RegisterMouseDown(Action<MouseButton, Vector2> action)
@@ -497,7 +497,7 @@ public class InputManager : BaseBehaviour
     }
 
     /// <summary>
-    /// ƒ}ƒEƒXƒ_ƒEƒ“ƒCƒxƒ“ƒg“o˜^‰ğœ
+    /// ãƒã‚¦ã‚¹ãƒ€ã‚¦ãƒ³ã‚¤ãƒ™ãƒ³ãƒˆç™»éŒ²è§£é™¤
     /// </summary>
     public void UnregisterMouseDown(Action<MouseButton, Vector2> action)
     {
@@ -505,7 +505,7 @@ public class InputManager : BaseBehaviour
     }
 
     /// <summary>
-    /// ƒ}ƒEƒXƒAƒbƒvƒCƒxƒ“ƒg“o˜^
+    /// ãƒã‚¦ã‚¹ã‚¢ãƒƒãƒ—ã‚¤ãƒ™ãƒ³ãƒˆç™»éŒ²
     /// </summary>
     public void RegisterMouseUp(Action<MouseButton, Vector2> action)
     {
@@ -513,7 +513,7 @@ public class InputManager : BaseBehaviour
     }
 
     /// <summary>
-    /// ƒ}ƒEƒXƒ_ƒEƒ“ƒCƒxƒ“ƒg“o˜^‰ğœ
+    /// ãƒã‚¦ã‚¹ãƒ€ã‚¦ãƒ³ã‚¤ãƒ™ãƒ³ãƒˆç™»éŒ²è§£é™¤
     /// </summary>
     public void UnregisterMouseUp(Action<MouseButton, Vector2> action)
     {
@@ -521,7 +521,7 @@ public class InputManager : BaseBehaviour
     }
 
     /// <summary>
-    /// ƒ}ƒEƒXƒzƒC[ƒ‹ƒCƒxƒ“ƒg“o˜^
+    /// ãƒã‚¦ã‚¹ãƒ›ã‚¤ãƒ¼ãƒ«ã‚¤ãƒ™ãƒ³ãƒˆç™»éŒ²
     /// </summary>
     public void RegisterMouseWheel(Action<Vector2> action)
     {
@@ -529,7 +529,7 @@ public class InputManager : BaseBehaviour
     }
 
     /// <summary>
-    /// ƒ}ƒEƒXƒzƒC[ƒ‹ƒCƒxƒ“ƒg“o˜^‰ğœ
+    /// ãƒã‚¦ã‚¹ãƒ›ã‚¤ãƒ¼ãƒ«ã‚¤ãƒ™ãƒ³ãƒˆç™»éŒ²è§£é™¤
     /// </summary>
     public void UnregisterMouseWheel(Action<Vector2> action)
     {
@@ -537,7 +537,7 @@ public class InputManager : BaseBehaviour
     }
 
     /// <summary>
-    /// ƒ}ƒEƒXƒzƒC[ƒ‹ƒCƒxƒ“ƒg“o˜^
+    /// ãƒã‚¦ã‚¹ãƒ›ã‚¤ãƒ¼ãƒ«ã‚¤ãƒ™ãƒ³ãƒˆç™»éŒ²
     /// </summary>
     public void RegisterMouseMove(Action<Vector2, Vector2> action)
     {
@@ -545,7 +545,7 @@ public class InputManager : BaseBehaviour
     }
 
     /// <summary>
-    /// ƒ}ƒEƒXƒzƒC[ƒ‹ƒCƒxƒ“ƒg“o˜^‰ğœ
+    /// ãƒã‚¦ã‚¹ãƒ›ã‚¤ãƒ¼ãƒ«ã‚¤ãƒ™ãƒ³ãƒˆç™»éŒ²è§£é™¤
     /// </summary>
     public void UnregisterMouseMove(Action<Vector2, Vector2> action)
     {
@@ -553,7 +553,7 @@ public class InputManager : BaseBehaviour
     }
 
     /// <summary>
-    /// ƒ^ƒbƒ`ƒ_ƒEƒ“ƒCƒxƒ“ƒg“o˜^
+    /// ã‚¿ãƒƒãƒãƒ€ã‚¦ãƒ³ã‚¤ãƒ™ãƒ³ãƒˆç™»éŒ²
     /// </summary>
     public void RegisterTouchDown(Action<TouchButton, GameObject> action)
     {
@@ -561,7 +561,7 @@ public class InputManager : BaseBehaviour
     }
 
     /// <summary>
-    /// ƒ^ƒbƒ`ƒ_ƒEƒ“ƒCƒxƒ“ƒg“o˜^‰ğœ
+    /// ã‚¿ãƒƒãƒãƒ€ã‚¦ãƒ³ã‚¤ãƒ™ãƒ³ãƒˆç™»éŒ²è§£é™¤
     /// </summary>
     public void UnregisterTouchDown(Action<TouchButton, GameObject> action)
     {
@@ -569,7 +569,7 @@ public class InputManager : BaseBehaviour
     }
 
     /// <summary>
-    /// ƒ^ƒbƒ`ƒAƒbƒvƒCƒxƒ“ƒg“o˜^
+    /// ã‚¿ãƒƒãƒã‚¢ãƒƒãƒ—ã‚¤ãƒ™ãƒ³ãƒˆç™»éŒ²
     /// </summary>
     public void RegisterTouchUp(Action<TouchButton, GameObject> action)
     {
@@ -577,7 +577,7 @@ public class InputManager : BaseBehaviour
     }
 
     /// <summary>
-    /// ƒ^ƒbƒ`ƒAƒbƒvƒCƒxƒ“ƒg“o˜^‰ğœ
+    /// ã‚¿ãƒƒãƒã‚¢ãƒƒãƒ—ã‚¤ãƒ™ãƒ³ãƒˆç™»éŒ²è§£é™¤
     /// </summary>
     public void UnregisterTouchUp(Action<TouchButton, GameObject> action)
     {
@@ -585,7 +585,7 @@ public class InputManager : BaseBehaviour
     }
 
     /// <summary>
-    /// ƒ{ƒ^ƒ“ƒ_ƒEƒ“ƒCƒxƒ“ƒg“o˜^
+    /// ãƒœã‚¿ãƒ³ãƒ€ã‚¦ãƒ³ã‚¤ãƒ™ãƒ³ãƒˆç™»éŒ²
     /// </summary>
     public void RegisterButtonDown(Action<ControllerButton> action)
     {
@@ -593,7 +593,7 @@ public class InputManager : BaseBehaviour
     }
 
     /// <summary>
-    /// ƒ{ƒ^ƒ“ƒ_ƒEƒ“ƒCƒxƒ“ƒg“o˜^‰ğœ
+    /// ãƒœã‚¿ãƒ³ãƒ€ã‚¦ãƒ³ã‚¤ãƒ™ãƒ³ãƒˆç™»éŒ²è§£é™¤
     /// </summary>
     public void UnregisterButtonDown(Action<ControllerButton> action)
     {
@@ -601,7 +601,7 @@ public class InputManager : BaseBehaviour
     }
 
     /// <summary>
-    /// ƒ{ƒ^ƒ“ƒAƒbƒvƒCƒxƒ“ƒg“o˜^
+    /// ãƒœã‚¿ãƒ³ã‚¢ãƒƒãƒ—ã‚¤ãƒ™ãƒ³ãƒˆç™»éŒ²
     /// </summary>
     public void RegisterButtonUp(Action<ControllerButton> action)
     {
@@ -609,7 +609,7 @@ public class InputManager : BaseBehaviour
     }
 
     /// <summary>
-    /// ƒ{ƒ^ƒ“ƒAƒbƒvƒCƒxƒ“ƒg“o˜^‰ğœ
+    /// ãƒœã‚¿ãƒ³ã‚¢ãƒƒãƒ—ã‚¤ãƒ™ãƒ³ãƒˆç™»éŒ²è§£é™¤
     /// </summary>
     public void UnregisterButtonUp(Action<ControllerButton> action)
     {
@@ -618,7 +618,7 @@ public class InputManager : BaseBehaviour
 
 
     /// <summary>
-    /// ¶èƒŒƒC‚Ìó‘Ô•ÏXƒCƒxƒ“ƒg
+    /// å·¦æ‰‹ãƒ¬ã‚¤ã®çŠ¶æ…‹å¤‰æ›´ã‚¤ãƒ™ãƒ³ãƒˆ
     /// </summary>
     /// <param name="obj"></param>
     private void rayHandL_WhenStateChanged(InteractorStateChangeArgs obj)
@@ -634,7 +634,7 @@ public class InputManager : BaseBehaviour
     }
 
     /// <summary>
-    /// ‰EèƒŒƒC‚Ìó‘Ô•ÏXƒCƒxƒ“ƒg
+    /// å³æ‰‹ãƒ¬ã‚¤ã®çŠ¶æ…‹å¤‰æ›´ã‚¤ãƒ™ãƒ³ãƒˆ
     /// </summary>
     /// <param name="obj"></param>
     private void rayHandR_WhenStateChanged(InteractorStateChangeArgs obj)
@@ -650,7 +650,7 @@ public class InputManager : BaseBehaviour
     }
 
     /// <summary>
-    /// ¶ƒRƒ“ƒgƒ[ƒ‰ƒŒƒC‚Ìó‘Ô•ÏXƒCƒxƒ“ƒg
+    /// å·¦ã‚³ãƒ³ãƒˆãƒ­ãƒ¼ãƒ©ãƒ¬ã‚¤ã®çŠ¶æ…‹å¤‰æ›´ã‚¤ãƒ™ãƒ³ãƒˆ
     /// </summary>
     /// <param name="obj"></param>
     private void RayControllerL_WhenStateChanged(InteractorStateChangeArgs obj)
@@ -666,7 +666,7 @@ public class InputManager : BaseBehaviour
     }
 
     /// <summary>
-    /// ‰EƒRƒ“ƒgƒ[ƒ‰ƒŒƒC‚Ìó‘Ô•ÏXƒCƒxƒ“ƒg
+    /// å³ã‚³ãƒ³ãƒˆãƒ­ãƒ¼ãƒ©ãƒ¬ã‚¤ã®çŠ¶æ…‹å¤‰æ›´ã‚¤ãƒ™ãƒ³ãƒˆ
     /// </summary>
     /// <param name="obj"></param>
     private void RayControllerR_WhenStateChanged(InteractorStateChangeArgs obj)

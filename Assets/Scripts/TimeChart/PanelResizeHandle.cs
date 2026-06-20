@@ -1,4 +1,4 @@
-using UnityEngine;
+ï»¿using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
 #if UNITY_STANDALONE_WIN || UNITY_EDITOR_WIN
@@ -8,12 +8,12 @@ using System.Runtime.InteropServices;
 namespace KyotoSS.TimingChart
 {
     /// <summary>
-    /// ƒpƒlƒ‹‚Ì‰E’[E‰º’[‚ğƒhƒ‰ƒbƒO‚µ‚ÄƒŠƒTƒCƒY‚·‚éƒnƒ“ƒhƒ‹‚ğ’Ç‰Á‚·‚éB
-    /// ƒ^ƒCƒ€ƒ`ƒƒ[ƒgƒpƒlƒ‹‚Ìƒ‹[ƒg RectTransform ‚ÉƒAƒ^ƒbƒ`‚µ‚Äg—p‚·‚éB
+    /// ãƒ‘ãƒãƒ«ã®å³ç«¯ãƒ»ä¸‹ç«¯ã‚’ãƒ‰ãƒ©ãƒƒã‚°ã—ã¦ãƒªã‚µã‚¤ã‚ºã™ã‚‹ãƒãƒ³ãƒ‰ãƒ«ã‚’è¿½åŠ ã™ã‚‹ã€‚
+    /// ã‚¿ã‚¤ãƒ ãƒãƒ£ãƒ¼ãƒˆãƒ‘ãƒãƒ«ã®ãƒ«ãƒ¼ãƒˆ RectTransform ã«ã‚¢ã‚¿ãƒƒãƒã—ã¦ä½¿ç”¨ã™ã‚‹ã€‚
     /// </summary>
     public class PanelResizeHandle : MonoBehaviour
     {
-        [Header("ƒŠƒTƒCƒYİ’è")]
+        [Header("ãƒªã‚µã‚¤ã‚ºè¨­å®š")]
         public float HandleSize = 8f;
         public float MinWidth = 200f;
         public float MinHeight = 100f;
@@ -37,7 +37,7 @@ namespace KyotoSS.TimingChart
         private Vector2 m_DragStartPos;
         private Vector2 m_StartSize;
 
-        // ƒzƒo[ó‘Ô
+        // ãƒ›ãƒãƒ¼çŠ¶æ…‹
         private bool m_HoverRight;
         private bool m_HoverBottom;
         private bool m_HoverCorner;
@@ -52,7 +52,7 @@ namespace KyotoSS.TimingChart
         private void Update()
         {
 #if UNITY_STANDALONE_WIN || UNITY_EDITOR_WIN
-            // –ˆƒtƒŒ[ƒ€ƒJ[ƒ\ƒ‹‚ğİ’èiUnity‚Ìã‘‚«‚É‘ÎRj
+            // æ¯ãƒ•ãƒ¬ãƒ¼ãƒ ã‚«ãƒ¼ã‚½ãƒ«ã‚’è¨­å®šï¼ˆUnityã®ä¸Šæ›¸ãã«å¯¾æŠ—ï¼‰
             int cursorId = IDC_ARROW;
             if (m_ResizingRight && m_ResizingBottom) cursorId = IDC_SIZENWSE;
             else if (m_ResizingRight) cursorId = IDC_SIZEWE;
@@ -71,19 +71,19 @@ namespace KyotoSS.TimingChart
             var bottom = CreateHandle("ResizeHandle_Bottom");
             var corner = CreateHandle("ResizeHandle_Corner");
 
-            // ‰E’[
+            // å³ç«¯
             right.anchorMin = new Vector2(1f, 0f);
             right.anchorMax = new Vector2(1f, 1f);
             right.offsetMin = new Vector2(-HandleSize, HandleSize);
             right.offsetMax = new Vector2(0f, -HandleSize);
 
-            // ‰º’[
+            // ä¸‹ç«¯
             bottom.anchorMin = new Vector2(0f, 0f);
             bottom.anchorMax = new Vector2(1f, 0f);
             bottom.offsetMin = new Vector2(HandleSize, -HandleSize);
             bottom.offsetMax = new Vector2(-HandleSize, 0f);
 
-            // ‰E‰ºƒR[ƒi[
+            // å³ä¸‹ã‚³ãƒ¼ãƒŠãƒ¼
             corner.anchorMin = new Vector2(1f, 0f);
             corner.anchorMax = new Vector2(1f, 0f);
             corner.offsetMin = new Vector2(-HandleSize, -HandleSize);

@@ -1,4 +1,4 @@
-using Parameters;
+ï»¿using Parameters;
 using System.Collections.Generic;
 using System.Text.Json;
 using Unity.VisualScripting;
@@ -22,12 +22,12 @@ public class UseHeadBase3DScript : Kinematics3D
     public Vector3 SuckOffset;
 
     /// <summary>
-    /// ƒwƒbƒhƒIƒtƒZƒbƒg
+    /// ãƒ˜ãƒƒãƒ‰ã‚ªãƒ•ã‚»ãƒƒãƒˆ
     /// </summary>
     protected float head_offset = 0;
 
     /// <summary>
-    /// ‹zˆø’†ƒIƒuƒWƒFƒNƒg
+    /// å¸å¼•ä¸­ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆ
     /// </summary>
     private List<GameObject> SuckObjects = new List<GameObject>();
 
@@ -36,7 +36,7 @@ public class UseHeadBase3DScript : Kinematics3D
         base.MyFixedUpdate();
         if (SuckObjects.Count > 0 && (GlobalScript.GetTagData(SuckTag) == 0))
         {
-            // ‹zˆøOFF
+            // å¸å¼•OFF
             foreach (var suck in SuckObjects)
             {
                 suck.transform.parent = null;
@@ -49,14 +49,14 @@ public class UseHeadBase3DScript : Kinematics3D
     }
 
     /// <summary>
-    /// Õ“Ë”»’è
+    /// è¡çªåˆ¤å®š
     /// </summary>
     protected override void SetCollision()
     {
         base.SetCollision();
         if (IsSuck && HeadObject != null)
         {
-            // Õ“Ë‰Â”\‚É•ÏX
+            // è¡çªå¯èƒ½ã«å¤‰æ›´
             foreach (var col in HeadObject.GetComponentsInChildren<MeshCollider>())
             {
                 col.isTrigger = false;
@@ -65,7 +65,7 @@ public class UseHeadBase3DScript : Kinematics3D
     }
 
     /// <summary>
-    /// g—p‚µ‚Ä‚¢‚éƒ^ƒO‚ğæ“¾‚·‚é
+    /// ä½¿ç”¨ã—ã¦ã„ã‚‹ã‚¿ã‚°ã‚’å–å¾—ã™ã‚‹
     /// </summary>
     /// <returns></returns>
     public virtual GameObject GetHeadObject()
@@ -109,7 +109,7 @@ public class UseHeadBase3DScript : Kinematics3D
     }
 
     /// <summary>
-    /// ƒpƒ‰ƒ[ƒ^ƒZƒbƒg
+    /// ãƒ‘ãƒ©ãƒ¡ãƒ¼ã‚¿ã‚»ãƒƒãƒˆ
     /// </summary>
     /// <param name="unitSetting"></param>
     /// <param name="robo"></param>

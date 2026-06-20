@@ -1,4 +1,4 @@
-using Parameters;
+ï»¿using Parameters;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -9,14 +9,14 @@ using UnityEngine.SocialPlatforms;
 public class ExMechInfo
 {
     /// <summary>
-    /// ‹t‰ğŒvZŒ‹‰Ê
+    /// é€†è§£è¨ˆç®—çµæœ
     /// </summary>
     public struct SolveResult
     {
-        public bool valid;        // À‰ğ‚ª‘¶İ‚·‚é‚©
-        public List<float> theta; // ‰ğ2
-        public float chosen;      // ‘I‚Î‚ê‚½Šp“x (rad) - prevTheta ‚ª—^‚¦‚ç‚ê‚½‚É‘I‘ğ
-        public string message;    // •â•ƒƒbƒZ[ƒW
+        public bool valid;        // å®Ÿè§£ãŒå­˜åœ¨ã™ã‚‹ã‹
+        public List<float> theta; // è§£2
+        public float chosen;      // é¸ã°ã‚ŒãŸè§’åº¦ (rad) - prevTheta ãŒä¸ãˆã‚‰ã‚ŒãŸæ™‚ã«é¸æŠ
+        public string message;    // è£œåŠ©ãƒ¡ãƒƒã‚»ãƒ¼ã‚¸
     }
 
     public bool exModeChange;
@@ -24,11 +24,11 @@ public class ExMechInfo
     public Vector3 nowAngle;
     public Vector3 initAngle;
     /// <summary>
-    /// ƒƒCƒ“ƒ‚ƒfƒ‹
+    /// ãƒ¡ã‚¤ãƒ³ãƒ¢ãƒ‡ãƒ«
     /// </summary>
     public ExMechAxisInfo mainAxis;
     /// <summary>
-    /// ƒKƒCƒh—p(LM“™)
+    /// ã‚¬ã‚¤ãƒ‰ç”¨(LMç­‰)
     /// </summary>
     public ExMechAxisInfo guideAxis;
     public ExMechAxisInfo pntAAxis;
@@ -163,24 +163,24 @@ public class ExMechInfo
     }
 
     /// <summary>
-    /// ‰Šú‰»ˆ—
+    /// åˆæœŸåŒ–å‡¦ç†
     /// </summary>
     public virtual void Initialize()
     {
-        // LMƒKƒCƒh‚ÌÀ•WŒn‚ğƒZƒbƒg
+        // LMã‚¬ã‚¤ãƒ‰ã®åº§æ¨™ç³»ã‚’ã‚»ãƒƒãƒˆ
         if (guideAxis == null)
         {
             moveDir = mainDir;
         }
         else
         {
-            // ƒKƒCƒh‹óŠÔ
+            // ã‚¬ã‚¤ãƒ‰ç©ºé–“
             guideSpace = new GameObject("GuideSpace");
             guideSpace.transform.parent = workSpace.transform.parent;
             guideSpace.transform.position = mainAxis.model.transform.position;
             guideSpace.transform.eulerAngles = guideAxis.model.transform.eulerAngles;
             guideSpace.transform.localScale = new(1, 1, 1);
-            // ƒKƒCƒh‚Ì•ûŒü
+            // ã‚¬ã‚¤ãƒ‰ã®æ–¹å‘
             guideDir = guideSpace.transform.InverseTransformVector(GetMechDir(guideAxis.model));
             moveDir = guideAxis.model.transform.InverseTransformVector(mainAxis.model.transform.TransformVector(mainDir));
         }
@@ -190,11 +190,11 @@ public class ExMechInfo
     }
 
     /// <summary>
-    /// ˆÊ’uXVˆ—
+    /// ä½ç½®æ›´æ–°å‡¦ç†
     /// </summary>
     public virtual void RenewPos()
     {
-        // ƒƒCƒ“Šp“xZo
+        // ãƒ¡ã‚¤ãƒ³è§’åº¦ç®—å‡º
         Quaternion worldRot = mainAxis.model.transform.rotation;
         Quaternion workspaceLocalRot = Quaternion.Inverse(workSpace.transform.rotation) * worldRot;
         nowAngle = Vector3.Scale(workspaceLocalRot.eulerAngles, moveDir);
@@ -204,7 +204,7 @@ public class ExMechInfo
     }
 
     /// <summary>
-    /// ‡‰^“®Šw‚Ì‰ğ‚­
+    /// é †é‹å‹•å­¦ã®è§£ã
     /// </summary>
     protected virtual Vector3 ForwardKinematics(List<float> angle)
     {
@@ -212,7 +212,7 @@ public class ExMechInfo
     }
 
     /// <summary>
-    /// ‹t‰^“®Šw‚Ì‰ğ‚­
+    /// é€†é‹å‹•å­¦ã®è§£ã
     /// </summary>
     protected virtual SolveResult InverseKinematics(Vector3 pos)
     {
@@ -220,7 +220,7 @@ public class ExMechInfo
     }
 
     /// <summary>
-    /// ƒ‚ƒfƒ‹‚Ì•ûŒü‚ğæ“¾(ƒ[ƒ‹ƒhÀ•W)
+    /// ãƒ¢ãƒ‡ãƒ«ã®æ–¹å‘ã‚’å–å¾—(ãƒ¯ãƒ¼ãƒ«ãƒ‰åº§æ¨™)
     /// </summary>
     /// <param name="model"></param>
     /// <returns></returns>
@@ -232,11 +232,11 @@ public class ExMechInfo
         foreach (var mf in model.GetComponentsInChildren<MeshFilter>())
         {
             var mesh = mf.sharedMesh;
-            var bounds = mesh.bounds; // ƒ[ƒJƒ‹À•W‚Å‚ÌƒoƒEƒ“ƒfƒBƒ“ƒOƒ{ƒbƒNƒX
+            var bounds = mesh.bounds; // ãƒ­ãƒ¼ã‚«ãƒ«åº§æ¨™ã§ã®ãƒã‚¦ãƒ³ãƒ‡ã‚£ãƒ³ã‚°ãƒœãƒƒã‚¯ã‚¹
 
-            Vector3 size = bounds.size; // x, y, z‚»‚ê‚¼‚ê‚Ì’·‚³
+            Vector3 size = bounds.size; // x, y, zãã‚Œãã‚Œã®é•·ã•
 
-            // Å’·•ûŒü‚ğ‹‚ß‚é
+            // æœ€é•·æ–¹å‘ã‚’æ±‚ã‚ã‚‹
             float max = Mathf.Max(size.x, Mathf.Max(size.y, size.z));
             if (maxLength < max)
             {
@@ -260,7 +260,7 @@ public class ExMechInfo
     }
 
     /// <summary>
-    /// ƒƒbƒVƒ…‚Åˆê”Ô‰“‚¢ƒ|ƒCƒ“ƒg(Z‚Í‚È‚¢‘O’ñ)
+    /// ãƒ¡ãƒƒã‚·ãƒ¥ã§ä¸€ç•ªé ã„ãƒã‚¤ãƒ³ãƒˆ(Zã¯ãªã„å‰æ)
     /// </summary>
     /// <returns></returns>
     protected Vector3 GetModelFarPoint(GameObject model, ref GameObject obj, Vector3 dir)
@@ -291,7 +291,7 @@ public class ExMechInfo
     }
 
     /// <summary>
-    /// ƒƒbƒVƒ…‚Åˆê”Ô‰“‚¢ƒ|ƒCƒ“ƒg
+    /// ãƒ¡ãƒƒã‚·ãƒ¥ã§ä¸€ç•ªé ã„ãƒã‚¤ãƒ³ãƒˆ
     /// </summary>
     /// <returns></returns>
     protected Vector3 GetModelNearPoint(GameObject model, ref GameObject obj)
@@ -315,7 +315,7 @@ public class ExMechInfo
     }
 
     /// <summary>
-    /// }180‹‚É³‹K‰»
+    /// Â±180Â°ã«æ­£è¦åŒ–
     /// </summary>
     /// <param name="angle"></param>
     /// <returns></returns>
@@ -326,7 +326,7 @@ public class ExMechInfo
     }
 
     /// <summary>
-    ///  ³‹K‰»: -ƒÎ < angle <= ƒÎ
+    ///  æ­£è¦åŒ–: -Ï€ < angle <= Ï€
     /// </summary>
     /// <param name="a"></param>
     /// <returns></returns>
@@ -339,7 +339,7 @@ public class ExMechInfo
     }
 
     /// <summary>
-    /// “®ìƒ‚[ƒh•ÏX‚ÌˆÚ“®‹——£ƒZƒbƒg
+    /// å‹•ä½œãƒ¢ãƒ¼ãƒ‰å¤‰æ›´æ™‚ã®ç§»å‹•è·é›¢ã‚»ãƒƒãƒˆ
     /// </summary>
     /// <param name="move"></param>
     public void SetMovePos(Vector3 move)

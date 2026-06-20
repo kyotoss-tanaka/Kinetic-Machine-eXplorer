@@ -1,4 +1,4 @@
-using Parameters;
+ï»¿using Parameters;
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -34,7 +34,7 @@ public class InfoCanvasButtonScript : BaseBehaviour
     {
         base.Start();
 
-        // ‰Šúİ’è
+        // åˆæœŸè¨­å®š
         img = transform.GetComponentInChildren<Image>();
         rect = transform.parent.GetComponent<RectTransform>();
         meshUnit = transform.GetComponentsInChildren<TextMeshProUGUI>()[0];

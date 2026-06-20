@@ -1,4 +1,4 @@
-using Npgsql;
+ï»¿using Npgsql;
 using Parameters;
 using System;
 using System.Collections;
@@ -17,26 +17,26 @@ using static ComOpcUaApi;
 public class ComPostgres : ComBaseScript
 {
     /// <summary>
-    /// ƒT[ƒo[–¼
+    /// ã‚µãƒ¼ãƒãƒ¼å
     /// </summary>
     public string Name { get { return Server + ":" + Port.ToString(); } }
 
     /// <summary>
-    /// WebAPIƒAƒNƒZƒX
+    /// WebAPIã‚¢ã‚¯ã‚»ã‚¹
     /// </summary>
     private bool IsWebApi = false;
 
     /// <summary>
-    /// WebAPIƒAƒNƒZƒX—pURL
+    /// WebAPIã‚¢ã‚¯ã‚»ã‚¹ç”¨URL
     /// </summary>
     private string url { get { return "http://" + Server + ":1880/api/db/"; } }
 
     /// <summary>
-    /// ˆ—’†
+    /// å‡¦ç†ä¸­
     /// </summary>
     private bool isProcessing = false;
     /// <summary>
-    /// DB‚Ìƒf[ƒ^
+    /// DBã®ãƒ‡ãƒ¼ã‚¿
     /// </summary>
     public class LatestData
     {
@@ -48,12 +48,12 @@ public class ComPostgres : ComBaseScript
     }
 
     /// <summary>
-    /// óMƒ^ƒO
+    /// å—ä¿¡ã‚¿ã‚°
     /// </summary>
     private List<LatestData> tagInfos;
 
     /// <summary>
-    /// ƒ^ƒO”
+    /// ã‚¿ã‚°æ•°
     /// </summary>
     private int tagCount = 0;
 
@@ -65,7 +65,7 @@ public class ComPostgres : ComBaseScript
         tagInfos = new();
         if ((Application.platform == RuntimePlatform.Android) || (Application.platform == RuntimePlatform.IPhonePlayer))
         {
-            //’[––‚ªAndroid‚©iOS‚¾‚Á‚½ê‡‚Ìˆ—
+            //ç«¯æœ«ãŒAndroidã‹iOSã ã£ãŸå ´åˆã®å‡¦ç†
             IsWebApi = true;
         }
         if (!GlobalScript.tagDatas.ContainsKey(Name))
@@ -87,7 +87,7 @@ public class ComPostgres : ComBaseScript
     }
     /*
     /// <summary>
-    /// XVˆ—
+    /// æ›´æ–°å‡¦ç†
     /// </summary>
     protected override void Update()
     {
@@ -106,25 +106,25 @@ public class ComPostgres : ComBaseScript
     }
 
     /// <summary>
-    /// ”ñ“¯ŠúXV
+    /// éåŒæœŸæ›´æ–°
     /// </summary>
     /// <returns></returns>
     private async Task DataUpdateTask()
     {
         if (GlobalScript.isLoaded)
         {
-            // ƒf[ƒ^ŒğŠ·ˆ—
+            // ãƒ‡ãƒ¼ã‚¿äº¤æ›å‡¦ç†
             DataExchangeProcess();
 
-            // ƒf[ƒ^XVˆ—
+            // ãƒ‡ãƒ¼ã‚¿æ›´æ–°å‡¦ç†
             await RenewDataAsync();
         }
-        // ˆ—Š®—¹
+        // å‡¦ç†å®Œäº†
         isProcessing = false;
     }
 
     /// <summary>
-    /// ”ñ“¯ŠúDBƒAƒNƒZƒX
+    /// éåŒæœŸDBã‚¢ã‚¯ã‚»ã‚¹
     /// </summary>
     /// <returns></returns>
     private async Task<bool> RenewDataAsync()
@@ -137,14 +137,14 @@ public class ComPostgres : ComBaseScript
         {
             try
             {
-                // Ú‘±‚ÌŠm—§
+                // æ¥ç¶šã®ç¢ºç«‹
                 connection.Open();
-                // ‘‚«‚İˆ—
+                // æ›¸ãè¾¼ã¿å‡¦ç†
                 if (!isClientMode && writeDatas.Count > 0)
                 {
                     using (var command = connection.CreateCommand())
                     {
-                        // ‘‚«‚İÀs
+                        // æ›¸ãè¾¼ã¿å®Ÿè¡Œ
                         command.CommandText = "";
                         foreach (var tag in writeDatas)
                         {
@@ -157,16 +157,16 @@ public class ComPostgres : ComBaseScript
                     }
                 }
                 tagInfos = new();
-                // “Ç‚İ‚İˆ—
+                // èª­ã¿è¾¼ã¿å‡¦ç†
                 using (var command = connection.CreateCommand())
                 {
-                    // SELECT•¶‚ÌÀs
+                    // SELECTæ–‡ã®å®Ÿè¡Œ
                     command.CommandText = "SELECT * FROM latestdata;";
                     command.Prepare();
                     using (var reader = command.ExecuteReader())
                     {
-                        avgProcess = sw.ElapsedMilliseconds;//š
-                        // 1s‚¸‚Âƒf[ƒ^‚ğæ“¾
+                        avgProcess = sw.ElapsedMilliseconds;//â˜…
+                        // 1è¡Œãšã¤ãƒ‡ãƒ¼ã‚¿ã‚’å–å¾—
                         while (reader.Read())
                         {
                             tagInfos.Add(new LatestData
@@ -187,7 +187,7 @@ public class ComPostgres : ComBaseScript
                     {
                         if (!GlobalScript.tagDatas[Name].ContainsKey(mech))
                         {
-                            // ‹@”Ôì¬
+                            // æ©Ÿç•ªä½œæˆ
                             GlobalScript.tagDatas[Name].Add(mech, new Dictionary<string, TagInfo>());
                         }
                         if (!GlobalScript.tagDatas[Name][mech].ContainsKey(tag))
@@ -209,7 +209,7 @@ public class ComPostgres : ComBaseScript
                     dct.Value = tagInfo.data_value;
                 }
                 tagCount = tagInfos.Count;
-                // DB‚Ìƒf[ƒ^ì¬Š®—¹
+                // DBã®ãƒ‡ãƒ¼ã‚¿ä½œæˆå®Œäº†
                 isRcvDb = true;
             }
             catch (Exception ex)
@@ -223,7 +223,7 @@ public class ComPostgres : ComBaseScript
     */
 
     /// <summary>
-    /// API’ÊM
+    /// APIé€šä¿¡
     /// </summary>
     /// <returns></returns>
     private IEnumerator DataUpdate()
@@ -234,10 +234,10 @@ public class ComPostgres : ComBaseScript
             {
                 if (GlobalScript.isLoaded)
                 {
-                    // ƒf[ƒ^ŒğŠ·ˆ—
+                    // ãƒ‡ãƒ¼ã‚¿äº¤æ›å‡¦ç†
                     DataExchangeProcess();
 
-                    // ƒf[ƒ^XVˆ—
+                    // ãƒ‡ãƒ¼ã‚¿æ›´æ–°å‡¦ç†
                     RenewData();
                 }
                 var sw = new System.Diagnostics.Stopwatch();
@@ -262,7 +262,7 @@ public class ComPostgres : ComBaseScript
     }
 
     /// <summary>
-    /// ƒ^ƒO‚É’l‚ğƒZƒbƒg‚·‚é
+    /// ã‚¿ã‚°ã«å€¤ã‚’ã‚»ãƒƒãƒˆã™ã‚‹
     /// </summary>
     /// <param name="tag"></param>
     /// <param name=""></param>
@@ -270,7 +270,7 @@ public class ComPostgres : ComBaseScript
     {
         if ((Application.platform != RuntimePlatform.Android) && (Application.platform != RuntimePlatform.IPhonePlayer))
         {
-            // ‘—Mƒf[ƒ^ì¬
+            // é€ä¿¡ãƒ‡ãƒ¼ã‚¿ä½œæˆ
             lock (objLock)
             {
                 var datas = new List<TagInfoCom>();
@@ -306,7 +306,7 @@ public class ComPostgres : ComBaseScript
     }
 
     /// <summary>
-    /// ƒf[ƒ^XV
+    /// ãƒ‡ãƒ¼ã‚¿æ›´æ–°
     /// </summary>
     public override void RenewData()
     {
@@ -314,7 +314,7 @@ public class ComPostgres : ComBaseScript
 
         if (!GlobalScript.tagDatas.ContainsKey(Name))
         {
-            // DBì¬
+            // DBä½œæˆ
             GlobalScript.tagDatas.Add(Name, new Dictionary<string, Dictionary<string, TagInfo>>());
         }
         if (IsWebApi)
@@ -322,7 +322,7 @@ public class ComPostgres : ComBaseScript
 #if UNITY_EDITOR
             if (!EditorApplication.isPlaying)
             {
-                // WebAPIƒAƒNƒZƒX
+                // WebAPIã‚¢ã‚¯ã‚»ã‚¹
                 StartCoroutine(RenewDataApi());
             }
 #endif
@@ -342,7 +342,7 @@ public class ComPostgres : ComBaseScript
                         {
                             if (!GlobalScript.tagDatas[Name].ContainsKey(mech))
                             {
-                                // ‹@”Ôì¬
+                                // æ©Ÿç•ªä½œæˆ
                                 GlobalScript.tagDatas[Name].Add(mech, new Dictionary<string, TagInfo>());
                             }
                             if (!GlobalScript.tagDatas[Name][mech].ContainsKey(tag))
@@ -365,7 +365,7 @@ public class ComPostgres : ComBaseScript
                     }
                     tagCount = tagInfos.Count;
                     tagInfos.Clear();
-                    // DB‚Ìƒf[ƒ^ì¬Š®—¹
+                    // DBã®ãƒ‡ãƒ¼ã‚¿ä½œæˆå®Œäº†
                     isRcvDb = true;
                     cntTest = 0;
                 }
@@ -373,7 +373,7 @@ public class ComPostgres : ComBaseScript
                 {
                     cntTest++;
                 }
-                // DB‚Ö‚ÌƒAƒNƒZƒX‚ğ•Êƒ^ƒXƒN‚É
+                // DBã¸ã®ã‚¢ã‚¯ã‚»ã‚¹ã‚’åˆ¥ã‚¿ã‚¹ã‚¯ã«
                 _ = Task.Run(() =>
                 {
                     var sw = new System.Diagnostics.Stopwatch();
@@ -383,16 +383,16 @@ public class ComPostgres : ComBaseScript
                     {
                         try
                         {
-                            // Ú‘±‚ÌŠm—§
+                            // æ¥ç¶šã®ç¢ºç«‹
                             connection.Open();
-                            // ‘‚«‚İˆ—
+                            // æ›¸ãè¾¼ã¿å‡¦ç†
                             lock (objLock)
                             {
                                 if (!isClientMode && writeDatas.Count > 0)
                                 {
                                     using (var command = connection.CreateCommand())
                                     {
-                                        // ‘‚«‚İÀs
+                                        // æ›¸ãè¾¼ã¿å®Ÿè¡Œ
                                         command.CommandText = "";
                                         var sb = new StringBuilder();
                                         foreach (var tag in writeDatas)
@@ -407,16 +407,16 @@ public class ComPostgres : ComBaseScript
                                     }
                                 }
                             }
-                            // “Ç‚İ‚İˆ—
+                            // èª­ã¿è¾¼ã¿å‡¦ç†
                             tagInfos = new();
                             using (var command = connection.CreateCommand())
                             {
-                                // SELECT•¶‚ÌÀs
+                                // SELECTæ–‡ã®å®Ÿè¡Œ
                                 command.CommandText = "SELECT * FROM latestdata;";
                                 command.Prepare();
                                 using (var reader = command.ExecuteReader())
                                 {
-                                    // 1s‚¸‚Âƒf[ƒ^‚ğæ“¾
+                                    // 1è¡Œãšã¤ãƒ‡ãƒ¼ã‚¿ã‚’å–å¾—
                                     while (reader.Read())
                                     {
                                         tagInfos.Add(new LatestData
@@ -443,7 +443,7 @@ public class ComPostgres : ComBaseScript
     }
 
     /// <summary>
-    /// API‚Å‚Ìƒf[ƒ^XV
+    /// APIã§ã®ãƒ‡ãƒ¼ã‚¿æ›´æ–°
     /// </summary>
     /// <returns></returns>
     public IEnumerator RenewDataApi()
@@ -460,7 +460,7 @@ public class ComPostgres : ComBaseScript
                 }
                 else if (req.responseCode == 200)
                 {
-                    // óMˆ—
+                    // å—ä¿¡å‡¦ç†
                     tagInfos = JsonSerializer.Deserialize<List<LatestData>>(req.downloadHandler.text);
                     foreach (var data in tagInfos)
                     {
@@ -472,7 +472,7 @@ public class ComPostgres : ComBaseScript
                         {
                             if (!GlobalScript.tagDatas[Name].ContainsKey(mech))
                             {
-                                // ‹@”Ôì¬
+                                // æ©Ÿç•ªä½œæˆ
                                 GlobalScript.tagDatas[Name].Add(mech, new Dictionary<string, TagInfo>());
                             }
                             if (!GlobalScript.tagDatas[Name][mech].ContainsKey(tag))
@@ -493,7 +493,7 @@ public class ComPostgres : ComBaseScript
                         GlobalScript.tagDatas[Name][mech][tag].Value = val;
                     }
                     tagCount = tagInfos.Count;
-                    // DB‚Ìƒf[ƒ^ì¬Š®—¹
+                    // DBã®ãƒ‡ãƒ¼ã‚¿ä½œæˆå®Œäº†
                     isRcvDb = true;
                 }
             }
@@ -512,7 +512,7 @@ public class ComPostgres : ComBaseScript
     }
 
     /// <summary>
-    /// ƒpƒ‰ƒ[ƒ^‚ğƒZƒbƒg‚·‚é
+    /// ãƒ‘ãƒ©ãƒ¡ãƒ¼ã‚¿ã‚’ã‚»ãƒƒãƒˆã™ã‚‹
     /// </summary>
     /// <param name="components"></param>
     /// <param name="scriptables"></param>

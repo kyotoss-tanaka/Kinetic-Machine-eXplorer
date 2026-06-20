@@ -1514,6 +1514,11 @@ namespace Parameters
         /// </summary>
         private void SetDatabaseSetting()
         {
+#if UNITY_WEBGL && !UNITY_EDITOR
+            // WebGL: 外部通信を一切行わない（一旦すべて接続なし）。
+            // socket / スレッド / OPC UA SDK は WebGL 非対応のため、通信クラスを生成しない＝実行経路に入らない。
+            // TODO(HMI): 将来 HMIバックエンドとの通信(WebSocket/HTTP)へ切替時は、ここで ComHmi 等を生成する。
+#else
             foreach (var p in postgresSettings)
             {
                 var ex = dataExSettings.Find(d => d.dbNo == p.No);
@@ -1576,6 +1581,7 @@ namespace Parameters
                     }
                 }
             }
+#endif
         }
 
         /// <summary>

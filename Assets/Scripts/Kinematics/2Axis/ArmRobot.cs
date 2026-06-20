@@ -1,27 +1,27 @@
-using System.Collections.Generic;
+ï»¿using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
 
 public class ArmRobot : UseHeadBase3DScript
 {
     /// <summary>
-    /// ‚Q²ƒA[ƒ€—pƒIƒuƒWƒFƒNƒg
+    /// ï¼’è»¸ã‚¢ãƒ¼ãƒ ç”¨ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆ
     /// </summary>
     protected GameObject arm;
 
     /// <summary>
-    /// Šp“x
+    /// è§’åº¦
     /// </summary>
     [SerializeField]
     protected List<float> angle;
 
     /// <summary>
-    /// ƒA[ƒ€’·1
+    /// ã‚¢ãƒ¼ãƒ é•·1
     /// </summary>
     protected float L1;
 
     /// <summary>
-    /// ƒA[ƒ€’·2
+    /// ã‚¢ãƒ¼ãƒ é•·2
     /// </summary>
     protected float L2;
 
@@ -44,7 +44,7 @@ public class ArmRobot : UseHeadBase3DScript
     protected Vector3 angP;
 
     /// <summary>
-    /// ŠJnˆ—
+    /// é–‹å§‹å‡¦ç†
     /// </summary>
     protected override void Start()
     {
@@ -52,7 +52,7 @@ public class ArmRobot : UseHeadBase3DScript
     }
 
     /// <summary>
-    /// ƒpƒ‰ƒ[ƒ^XV
+    /// ãƒ‘ãƒ©ãƒ¡ãƒ¼ã‚¿æ›´æ–°
     /// </summary>
     protected override void RenewParameter()
     {
@@ -63,7 +63,7 @@ public class ArmRobot : UseHeadBase3DScript
     }
 
     /// <summary>
-    /// –Ú•WˆÊ’uƒZƒbƒg
+    /// ç›®æ¨™ä½ç½®ã‚»ãƒƒãƒˆ
     /// </summary>
     /// <param name="x"></param>
     /// <param name="y"></param>
@@ -82,7 +82,7 @@ public class ArmRobot : UseHeadBase3DScript
     }
 
     /// <summary>
-    /// ‹t‰ğ‚ğ‰ğ‚­
+    /// é€†è§£ã‚’è§£ã
     /// </summary>
     /// <param name="x"></param>
     /// <param name="y"></param>
@@ -96,7 +96,7 @@ public class ArmRobot : UseHeadBase3DScript
         float dist = Mathf.Sqrt(dist2);
         float theta1, theta2;
 
-        // “’B•s‰Â”\
+        // åˆ°é”ä¸å¯èƒ½
         if (dist > L1 + L2 || dist < Mathf.Abs(L1 - L2))
         {
             ret.Add(0);
@@ -104,16 +104,16 @@ public class ArmRobot : UseHeadBase3DScript
             return ret;
         }
 
-        // --- ƒÆ2 ---
+        // --- Î¸2 ---
         float cos2 = (dist2 - L1 * L1 - L2 * L2) / (2f * L1 * L2);
         cos2 = Mathf.Clamp(cos2, -1f, 1f);
 
         float sin2 = Mathf.Sqrt(1f - cos2 * cos2);
-//        if (!elbowUp) sin2 = -sin2; // •I‰º‚°‰ğ
+//        if (!elbowUp) sin2 = -sin2; // è‚˜ä¸‹ã’è§£
 
         theta2 = Mathf.Atan2(sin2, cos2);
 
-        // --- ƒÆ1 ---
+        // --- Î¸1 ---
         float k1 = L1 + L2 * cos2;
         float k2 = L2 * sin2;
 
@@ -125,7 +125,7 @@ public class ArmRobot : UseHeadBase3DScript
     }
 
     /// <summary>
-    /// ƒ‚ƒfƒ‹Ä\’z
+    /// ãƒ¢ãƒ‡ãƒ«å†æ§‹ç¯‰
     /// </summary>
     /// <param name="instance"></param>
     protected override void ModelRestructProcess()
@@ -135,56 +135,56 @@ public class ArmRobot : UseHeadBase3DScript
 
         var children = unitSetting.moveObject.GetComponentsInChildren<Transform>().ToList();
 
-        // ƒA[ƒ€1 W0334776-(‘æˆêƒA[ƒ€)
+        // ã‚¢ãƒ¼ãƒ 1 W0334776-(ç¬¬ä¸€ã‚¢ãƒ¼ãƒ )
         var arm1_1Tmp = children.Find(d => d.name.Contains("W0334776-"));
         if (arm1_1Tmp != null)
         {
             arm1_1 = arm1_1Tmp.parent.gameObject;
         }
 
-        // ƒA[ƒ€1-2 W0334688-(“ñ²ƒŠƒ“ƒN)
+        // ã‚¢ãƒ¼ãƒ 1-2 W0334688-(äºŒè»¸ãƒªãƒ³ã‚¯)
         var arm1_2Tmp = children.Find(d => d.name.Contains("W0334688-"));
         if (arm1_2Tmp != null)
         {
             arm1_2 = arm1_2Tmp.parent.gameObject;
         }
 
-        // p¨•Û1 W0334703-(‘æˆêp¨•ÛƒŠƒ“ƒN)
+        // å§¿å‹¢ä¿æŒ1 W0334703-(ç¬¬ä¸€å§¿å‹¢ä¿æŒãƒªãƒ³ã‚¯)
         var arm1_3Tmp = children.Find(d => d.name.Contains("W0334703-"));
         if (arm1_3Tmp != null)
         {
             arm1_3 = arm1_3Tmp.parent.gameObject;
         }
 
-        // ƒA[ƒ€ƒŒƒo[@W0334679-(“ñ²ƒŒƒo[)
+        // ã‚¢ãƒ¼ãƒ ãƒ¬ãƒãƒ¼ã€€W0334679-(äºŒè»¸ãƒ¬ãƒãƒ¼)
         var arm1LeverTmp = children.Find(d => d.name.Contains("W0334679-"));
         if (arm1LeverTmp != null)
         {
             arm1Lever = arm1LeverTmp.parent.gameObject;
         }
 
-        // OŠpƒvƒŒ[ƒg W0334712- W0652636-(ƒtƒBƒ“)
+        // ä¸‰è§’ãƒ—ãƒ¬ãƒ¼ãƒˆ W0334712- W0652636-(ãƒ•ã‚£ãƒ³)
         var armTriTmp = children.Find(d => d.name.Contains("W0334712-") || d.name.Contains("W0652636-") || d.name.Contains("W0693785-"));
         if (armTriTmp != null)
         {
             armTri = armTriTmp.parent.gameObject;
         }
 
-        // ƒA[ƒ€2-1 W0334864-(‘æ“ñƒA[ƒ€)
+        // ã‚¢ãƒ¼ãƒ 2-1 W0334864-(ç¬¬äºŒã‚¢ãƒ¼ãƒ )
         var arm2_1Tmp = children.Find(d => d.name.Contains("W0334864-"));
         if (arm2_1Tmp != null)
         {
             arm2_1 = arm2_1Tmp.parent.gameObject;
         }
 
-        // ƒA[ƒ€2-2 W0656252-(‘æ“ñp¨•ÛƒŠƒ“ƒN)
+        // ã‚¢ãƒ¼ãƒ 2-2 W0656252-(ç¬¬äºŒå§¿å‹¢ä¿æŒãƒªãƒ³ã‚¯)
         var arm2_2Tmp = children.Find(d => d.name.Contains("W0656252-") || d.name.Contains("W0693776-"));
         if (arm2_2Tmp != null)
         {
             arm2_2 = arm2_2Tmp.parent.gameObject;
         }
 
-        // ƒvƒŒ[ƒg W0334721-(ƒwƒbƒh)
+        // ãƒ—ãƒ¬ãƒ¼ãƒˆ W0334721-(ãƒ˜ãƒƒãƒ‰)
         var plateTmp = children.Find(d => d.name.Contains("W0334721-"));
         if (plateTmp == null)
         {
@@ -200,7 +200,7 @@ public class ArmRobot : UseHeadBase3DScript
             plate = plateTmp.gameObject;
             plate.transform.parent = arm2_1.transform;
             angP = plate.transform.localEulerAngles;
-            // ƒwƒbƒhƒZƒbƒg
+            // ãƒ˜ãƒƒãƒ‰ã‚»ãƒƒãƒˆ
             if (HeadObject != null)
             {
                 HeadObject.transform.parent = plate.transform;
@@ -209,7 +209,7 @@ public class ArmRobot : UseHeadBase3DScript
         }
 
 
-        // eqŠÖŒWƒZƒbƒg
+        // è¦ªå­é–¢ä¿‚ã‚»ãƒƒãƒˆ
         arm.transform.position = arm1_1.transform.position;
         arm.transform.localEulerAngles = Vector3.zero;
         arm.transform.localScale = Vector3.one;
@@ -221,7 +221,7 @@ public class ArmRobot : UseHeadBase3DScript
         arm2_1.transform.parent = arm1_1.transform;
         arm2_2.transform.parent = armTri.transform;
 
-        // ‰ŠúŠp“xƒZƒbƒg
+        // åˆæœŸè§’åº¦ã‚»ãƒƒãƒˆ
         ang1_1 = arm1_1.transform.localEulerAngles;
         ang1_2 = arm1_2.transform.localEulerAngles;
         ang1_3 = arm1_3.transform.localEulerAngles;
@@ -230,7 +230,7 @@ public class ArmRobot : UseHeadBase3DScript
         ang2_1 = arm2_1.transform.localEulerAngles;
         ang2_2 = arm2_2.transform.localEulerAngles;
 
-        // ƒA[ƒ€’·ƒZƒbƒg
+        // ã‚¢ãƒ¼ãƒ é•·ã‚»ãƒƒãƒˆ
         L1 = Vector3.Distance(Vector3.zero, Vector3.Scale(arm2_1.transform.localPosition, new Vector3(1, 1, 0))) * 1000f;
         L2 = Vector3.Distance(Vector3.zero, Vector3.Scale(plate.transform.localPosition, new Vector3(1, 1, 0))) * 1000f;
     }

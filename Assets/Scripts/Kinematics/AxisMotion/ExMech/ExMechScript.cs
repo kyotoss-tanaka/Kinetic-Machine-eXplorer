@@ -1,4 +1,4 @@
-using Parameters;
+ï»¿using Parameters;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -9,45 +9,45 @@ using UnityEngine.SocialPlatforms;
 public class ExMechScript : UseTagBaseScript
 {
     /// <summary>
-    /// ƒ†ƒjƒbƒgİ’è
+    /// ãƒ¦ãƒ‹ãƒƒãƒˆè¨­å®š
     /// </summary>
     [SerializeField]
     protected ExMechSetting exMechSetting;
 
     /// <summary>
-    /// ‹@\ƒ^ƒCƒv 0:ƒXƒ‰ƒCƒ_[ƒNƒ‰ƒ“ƒN 1:ƒ[ƒlƒo‹@\
+    /// æ©Ÿæ§‹ã‚¿ã‚¤ãƒ— 0:ã‚¹ãƒ©ã‚¤ãƒ€ãƒ¼ã‚¯ãƒ©ãƒ³ã‚¯ 1:ã‚¼ãƒãƒæ©Ÿæ§‹
     /// </summary>
     [SerializeField]
     int mechType;
 
     /// <summary>
-    /// “®ì•ûŒü
+    /// å‹•ä½œæ–¹å‘
     /// </summary>
     [SerializeField]
     Vector3 moveDir;
 
     /// <summary>
-    /// ì‹ÆƒIƒuƒWƒFƒNƒg
+    /// ä½œæ¥­ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆ
     /// </summary>
     GameObject workSpace;
 
     /// <summary>
-    /// ‰ŠúŠp“x
+    /// åˆæœŸè§’åº¦
     /// </summary>
     private Vector3 initAngle = Vector3.zero;
 
     /// <summary>
-    /// ‹@\î•ñ
+    /// æ©Ÿæ§‹æƒ…å ±
     /// </summary>
     private ExMechInfo mechInfo;
 
     /// <summary>
-    /// eƒ‚ƒfƒ‹
+    /// è¦ªãƒ¢ãƒ‡ãƒ«
     /// </summary>
     public GameObject parentModel;
 
     /// <summary>
-    /// Œ»İˆÊ’u
+    /// ç¾åœ¨ä½ç½®
     /// </summary>
     public Vector3 NowPos
     {
@@ -58,7 +58,7 @@ public class ExMechScript : UseTagBaseScript
     }
 
     /// <summary>
-    /// Œ»İŠp“x
+    /// ç¾åœ¨è§’åº¦
     /// </summary>
     public Vector3 NowAngle
     {
@@ -69,18 +69,18 @@ public class ExMechScript : UseTagBaseScript
     }
 
     /// <summary>
-    /// ŠJnˆ—
+    /// é–‹å§‹å‡¦ç†
     /// </summary>
     protected override void Start()
     {
         base.Start();
 
-        // ‰Šú‰»ˆ—
+        // åˆæœŸåŒ–å‡¦ç†
         Initialize();
     }
 
     /// <summary>
-    /// üŠúˆ—
+    /// å‘¨æœŸå‡¦ç†
     /// </summary>
     protected override void FixedUpdate()
     {
@@ -90,28 +90,28 @@ public class ExMechScript : UseTagBaseScript
         }
         if (mechType == 0)
         {
-            // ƒXƒ‰ƒCƒ_[ƒNƒ‰ƒ“ƒN‹@\
+            // ã‚¹ãƒ©ã‚¤ãƒ€ãƒ¼ã‚¯ãƒ©ãƒ³ã‚¯æ©Ÿæ§‹
             mechInfo.RenewPos();
         }
         else if (mechType == 1)
         {
-            // ƒ[ƒlƒo‹@\
+            // ã‚¼ãƒãƒæ©Ÿæ§‹
             mechInfo.RenewPos();
         }
         else if (mechType == 2)
         {
-            // ƒŒƒo[‹@\
+            // ãƒ¬ãƒãƒ¼æ©Ÿæ§‹
             mechInfo.RenewPos();
         }
         else if (mechType == 3)
         {
-            // •ÀsƒŠƒ“ƒN‹@\
+            // ä¸¦è¡Œãƒªãƒ³ã‚¯æ©Ÿæ§‹
             mechInfo.RenewPos();
         }
     }
 
     /// <summary>
-    /// ‰Šú‰»ˆ—
+    /// åˆæœŸåŒ–å‡¦ç†
     /// </summary>
     private void Initialize()
     {
@@ -119,7 +119,7 @@ public class ExMechScript : UseTagBaseScript
     }
 
     /// <summary>
-    /// ƒpƒ‰ƒ[ƒ^‚ğƒZƒbƒg‚·‚é
+    /// ãƒ‘ãƒ©ãƒ¡ãƒ¼ã‚¿ã‚’ã‚»ãƒƒãƒˆã™ã‚‹
     /// </summary>
     /// <param name="unitSetting"></param>
     /// <param name="obj"></param>
@@ -130,7 +130,7 @@ public class ExMechScript : UseTagBaseScript
         mechType = exMechSetting.type;
         var floatAngle = 0f;
 
-        // å²‚Ì“®ì•ûŒüæ“¾
+        // ä¸»è»¸ã®å‹•ä½œæ–¹å‘å–å¾—
         switch (unitSetting.actionSetting.axis)
         {
             case 0:
@@ -172,14 +172,14 @@ public class ExMechScript : UseTagBaseScript
         }
         initAngle = moveDir.normalized * floatAngle;
 
-        // ì‹ÆƒGƒŠƒAì¬(‰ŠúŠp“x•ªƒIƒtƒZƒbƒg)
+        // ä½œæ¥­ã‚¨ãƒªã‚¢ä½œæˆ(åˆæœŸè§’åº¦åˆ†ã‚ªãƒ•ã‚»ãƒƒãƒˆ)
         workSpace = new GameObject("WorkSpace");
         workSpace.transform.parent = unitSetting.unitObject.transform;
         workSpace.transform.localPosition = Vector3.zero;
         workSpace.transform.localEulerAngles = -initAngle;
         workSpace.transform.localScale = new(1, 1, 1);
 
-        // å²İ’è
+        // ä¸»è»¸è¨­å®š
         var mainAxis = new ExMechAxisInfo
         {
             model = unitSetting.moveObject,
@@ -187,7 +187,7 @@ public class ExMechScript : UseTagBaseScript
         };
         if (mechType == 0)
         {
-            // ƒXƒ‰ƒCƒ_[ƒNƒ‰ƒ“ƒN‹@\
+            // ã‚¹ãƒ©ã‚¤ãƒ€ãƒ¼ã‚¯ãƒ©ãƒ³ã‚¯æ©Ÿæ§‹
             mechInfo = new SliderCrankInfo
             {
                 workSpace = workSpace,
@@ -196,7 +196,7 @@ public class ExMechScript : UseTagBaseScript
                 initAngle = initAngle,
                 exModeChange = unitSetting.actionSetting.exModeChange
             };
-            // “®ì‘ÎÛ(‹——£‚Å§Œä‚·‚é•”•ª)
+            // å‹•ä½œå¯¾è±¡(è·é›¢ã§åˆ¶å¾¡ã™ã‚‹éƒ¨åˆ†)
             mechInfo.sliderAxis = new ExMechAxisInfo
             {
                 model = exMechSetting.datas[1].gameObject,
@@ -206,7 +206,7 @@ public class ExMechScript : UseTagBaseScript
             {
                 mechInfo.sliderAxis.children.Add(child.gameObject);
             }
-            // ƒRƒ“ƒƒbƒh(å²‚Ì˜AŒ‹•”‚ªŒ´“_)
+            // ã‚³ãƒ³ãƒ­ãƒƒãƒ‰(ä¸»è»¸ã®é€£çµéƒ¨ãŒåŸç‚¹)
             mechInfo.pntAAxis = new ExMechAxisInfo
             {
                 model = exMechSetting.datas[0].gameObject,
@@ -216,7 +216,7 @@ public class ExMechScript : UseTagBaseScript
             {
                 mechInfo.pntAAxis.children.Add(child.gameObject);
             }
-            // LMƒKƒCƒh(“®ì•ûŒü‚ÌŒŸo—p)
+            // LMã‚¬ã‚¤ãƒ‰(å‹•ä½œæ–¹å‘ã®æ¤œå‡ºç”¨)
             mechInfo.guideAxis = new ExMechAxisInfo
             {
                 model = exMechSetting.datas[2].gameObject,
@@ -230,7 +230,7 @@ public class ExMechScript : UseTagBaseScript
         }
         else if (mechType == 1)
         {
-            // ƒ[ƒlƒo‹@\
+            // ã‚¼ãƒãƒæ©Ÿæ§‹
             mechInfo = new ExMechGenevaInfo
             {
                 workSpace = workSpace,
@@ -239,7 +239,7 @@ public class ExMechScript : UseTagBaseScript
                 initAngle = initAngle,
                 exModeChange = unitSetting.actionSetting.exModeChange
             };
-            // ]“®²
+            // å¾“å‹•è»¸
             mechInfo.guideAxis = new ExMechAxisInfo
             {
                 model = exMechSetting.datas[0].gameObject,
@@ -249,7 +249,7 @@ public class ExMechScript : UseTagBaseScript
             {
                 mechInfo.guideAxis.children.Add(child.gameObject);
             }
-            // “®ì‘ÎÛ(‹——£‚Å§Œä‚·‚é•”•ª)
+            // å‹•ä½œå¯¾è±¡(è·é›¢ã§åˆ¶å¾¡ã™ã‚‹éƒ¨åˆ†)
             mechInfo.sliderAxis = new ExMechAxisInfo
             {
                 model = exMechSetting.datas[1].gameObject,
@@ -263,7 +263,7 @@ public class ExMechScript : UseTagBaseScript
         }
         else if (mechType == 2)
         {
-            // ƒŒƒo[‹@\
+            // ãƒ¬ãƒãƒ¼æ©Ÿæ§‹
             mechInfo = new ExMechLeverInfo
             {
                 workSpace = workSpace,
@@ -272,7 +272,7 @@ public class ExMechScript : UseTagBaseScript
                 initAngle = initAngle,
                 exModeChange = unitSetting.actionSetting.exModeChange
             };
-            // “®ì‘ÎÛ(‹——£‚Å§Œä‚·‚é•”•ª)
+            // å‹•ä½œå¯¾è±¡(è·é›¢ã§åˆ¶å¾¡ã™ã‚‹éƒ¨åˆ†)
             mechInfo.sliderAxis = new ExMechAxisInfo
             {
                 model = exMechSetting.datas[0].gameObject,
@@ -282,7 +282,7 @@ public class ExMechScript : UseTagBaseScript
             {
                 mechInfo.sliderAxis.children.Add(child.gameObject);
             }
-            // ƒJƒ€ƒtƒHƒƒA(å²‚Ì˜AŒ‹•”‚ªŒ´“_)
+            // ã‚«ãƒ ãƒ•ã‚©ãƒ­ã‚¢(ä¸»è»¸ã®é€£çµéƒ¨ãŒåŸç‚¹)
             mechInfo.pntAAxis = new ExMechAxisInfo
             {
                 model = exMechSetting.datas[1].gameObject,
@@ -292,7 +292,7 @@ public class ExMechScript : UseTagBaseScript
             {
                 mechInfo.pntAAxis.children.Add(child.gameObject);
             }
-            // LMƒKƒCƒh(“®ì•ûŒü‚ÌŒŸo—p)
+            // LMã‚¬ã‚¤ãƒ‰(å‹•ä½œæ–¹å‘ã®æ¤œå‡ºç”¨)
             mechInfo.guideAxis = new ExMechAxisInfo
             {
                 model = exMechSetting.datas[2].gameObject,
@@ -306,7 +306,7 @@ public class ExMechScript : UseTagBaseScript
         }
         else if (mechType == 3)
         {
-            // •ÀsƒŠƒ“ƒN
+            // ä¸¦è¡Œãƒªãƒ³ã‚¯
             var isDouble = exMechSetting.datas[3].gameObject != null &&
                            exMechSetting.datas[4].gameObject != null &&
                            exMechSetting.datas[5].gameObject != null;
@@ -319,7 +319,7 @@ public class ExMechScript : UseTagBaseScript
                 exModeChange = unitSetting.actionSetting.exModeChange,
                 isDouble = isDouble
             };
-            // ƒA[ƒ€
+            // ã‚¢ãƒ¼ãƒ 
             foreach (var data in exMechSetting.datas)
             {
                 var axis = new ExMechAxisInfo
@@ -345,34 +345,34 @@ public class ExMechScript : UseTagBaseScript
     }
 
     /// <summary>
-    /// ‹@\‚Ì‰Šú‰»
+    /// æ©Ÿæ§‹ã®åˆæœŸåŒ–
     /// </summary>
     private void InitializeMechEx()
     {
         if (mechType == 0)
         {
-            // ƒŒƒo[‹@\
+            // ãƒ¬ãƒãƒ¼æ©Ÿæ§‹
             mechInfo.Initialize();
         }
         else if (mechType == 1)
         {
-            // ƒ[ƒlƒo‹@\
+            // ã‚¼ãƒãƒæ©Ÿæ§‹
             mechInfo.Initialize();
         }
         else if (mechType == 2)
         {
-            // ƒŒƒo[‹@\
+            // ãƒ¬ãƒãƒ¼æ©Ÿæ§‹
             mechInfo.Initialize();
         }
         else if (mechType == 3)
         {
-            // •ÀsƒŠƒ“ƒN‹@\
+            // ä¸¦è¡Œãƒªãƒ³ã‚¯æ©Ÿæ§‹
             mechInfo.Initialize();
         }
     }
 
     /// <summary>
-    /// –Ú•WÀ•WƒZƒbƒg
+    /// ç›®æ¨™åº§æ¨™ã‚»ãƒƒãƒˆ
     /// </summary>
     /// <param name="move"></param>
     public void SetExTarget(Vector3 move)

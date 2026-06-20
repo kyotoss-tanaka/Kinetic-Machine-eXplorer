@@ -1,4 +1,4 @@
-using Parameters;
+ï»¿using Parameters;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -13,24 +13,24 @@ using UnityEngine.Windows;
 
 public class CanvasMenuInfoScript : KssBaseScript
 {
-    // ƒOƒ[ƒoƒ‹İ’è
+    // ã‚°ãƒ­ãƒ¼ãƒãƒ«è¨­å®š
     private GameObject globalSetting;
 
 #nullable enable
-    // ƒJƒƒ‰
+    // ã‚«ãƒ¡ãƒ©
     private Camera? cameraController = null;
 #nullable disable
 
-    // İ’è
+    // è¨­å®š
     private List<UnitSetting> unitSettings = new();
 
     /// <summary>
-    /// ƒLƒƒƒ“ƒoƒX
+    /// ã‚­ãƒ£ãƒ³ãƒã‚¹
     /// </summary>
     private GameObject canvaObj;
 
     /// <summary>
-    /// Šeíƒ{ƒ^ƒ“
+    /// å„ç¨®ãƒœã‚¿ãƒ³
     /// </summary>
     public Button btnSetting;
     public Button btnInner;
@@ -42,57 +42,57 @@ public class CanvasMenuInfoScript : KssBaseScript
     public Button btnTimeChart;
 
     /// <summary>
-    /// İ’è
+    /// è¨­å®š
     /// </summary>
     private GameObject uiSetting;
     private CanvasMenuSettingScript settingScript;
 
 #nullable enable
     /// <summary>
-    /// “à•”ƒ^ƒCƒ}[
+    /// å†…éƒ¨ã‚¿ã‚¤ãƒãƒ¼
     /// </summary>
     private GameObject? uiInner;
 #nullable disable
     private CanvasMenuTimeScript timeScript;
 
     /// <summary>
-    /// ’¼Ú’ÊM
+    /// ç›´æ¥é€šä¿¡
     /// </summary>
     private GameObject uiDirectCom;
     private CanvasMenuDirectComScript directComScript;
 
     /// <summary>
-    /// ƒAƒZƒ“ƒuƒŠ‘I‘ğ
+    /// ã‚¢ã‚»ãƒ³ãƒ–ãƒªé¸æŠ
     /// </summary>
     private GameObject uiAssembly;
     private CanvasMenuAssemblyScript assemblyScript;
 
     /// <summary>
-    /// “®ìƒ†ƒjƒbƒgî•ñ
+    /// å‹•ä½œãƒ¦ãƒ‹ãƒƒãƒˆæƒ…å ±
     /// </summary>
     private GameObject uiActUnitInfo;
     private CanvasMenuActUnitScript actUnitScript;
 
     /// <summary>
-    /// ’f–Ê•\¦‘I‘ğ
+    /// æ–­é¢è¡¨ç¤ºé¸æŠ
     /// </summary>
     private GameObject uiSlice;
     private CanvasMenuSliceScript sliceScript;
 
     /// <summary>
-    /// ƒVƒXƒeƒ€ƒŒƒR[ƒ_•\¦‘I‘ğ
+    /// ã‚·ã‚¹ãƒ†ãƒ ãƒ¬ã‚³ãƒ¼ãƒ€è¡¨ç¤ºé¸æŠ
     /// </summary>
     private GameObject uiSysRec;
     private CanvasMenuSysRecScript sysRecScript;
 
     /// <summary>
-    /// ƒ^ƒCƒ€ƒ`ƒƒ[ƒg•\¦‘I‘ğ
+    /// ã‚¿ã‚¤ãƒ ãƒãƒ£ãƒ¼ãƒˆè¡¨ç¤ºé¸æŠ
     /// </summary>
     private GameObject uiTimeChart;
     private CanvasMenuTimeChartScript timeChartScript;
 
     /// <summary>
-    /// Šeí•\¦
+    /// å„ç¨®è¡¨ç¤º
     /// </summary>
     private bool visibleSetting = false;
     private bool visibleInner = false;
@@ -104,23 +104,23 @@ public class CanvasMenuInfoScript : KssBaseScript
     private bool visibleTimeChart = false;
 
     /// <summary>
-    /// ²•\¦—p
+    /// è»¸è¡¨ç¤ºç”¨
     /// </summary>
     private GameObject axis;
     private bool isAxisVisible = true;
 
-    #region ‰Šú‰»ˆ—
+    #region åˆæœŸåŒ–å‡¦ç†
     /// <summary>
-    /// ŠJnˆ—
+    /// é–‹å§‹å‡¦ç†
     /// </summary>
     protected override void Awake()
     {
         base.Awake();
 
-        // İ’è
+        // è¨­å®š
         globalSetting = GameObject.FindObjectsByType<GameObject>(FindObjectsSortMode.None).Where(d => d.name == "GlobalSetting").ToList()[0];
 
-        //@Šeíƒ{ƒ^ƒ“
+        //ã€€å„ç¨®ãƒœã‚¿ãƒ³
         btnSetting = GetComponentsInChildren<Button>().ToList().Find(d => d.name == "BtnSetting");
         btnInner = GetComponentsInChildren<Button>().ToList().Find(d => d.name == "BtnTime");
         btnDirect = GetComponentsInChildren<Button>().ToList().Find(d => d.name == "BtnCom");
@@ -135,7 +135,7 @@ public class CanvasMenuInfoScript : KssBaseScript
     {
         base.OnEnable();
 
-        // ƒLƒƒƒ“ƒoƒXì¬
+        // ã‚­ãƒ£ãƒ³ãƒã‚¹ä½œæˆ
         CreateCanvas();
 
         InputManager.Instance.RegisterKey(Key.A, HandleKey);
@@ -166,18 +166,18 @@ public class CanvasMenuInfoScript : KssBaseScript
     }
 
     /// <summary>
-    /// ‰Šú‰»ˆ—
+    /// åˆæœŸåŒ–å‡¦ç†
     /// </summary>
     private void Initialize()
     {
-        // ƒJƒƒ‰•\¦
+        // ã‚«ãƒ¡ãƒ©è¡¨ç¤º
         var cameraControllers = FindObjectsByType<Camera>(FindObjectsSortMode.None).ToList();
         if (cameraControllers.Count > 0)
         {
             cameraController = cameraControllers[0];
         }
 
-        // “®ìƒ†ƒjƒbƒg•\¦
+        // å‹•ä½œãƒ¦ãƒ‹ãƒƒãƒˆè¡¨ç¤º
         settingScript.SetEvents();
         timeScript.SetEvents();
         directComScript.SetEvents();
@@ -187,7 +187,7 @@ public class CanvasMenuInfoScript : KssBaseScript
         sysRecScript.SetEvents();
         timeChartScript.SetEvents();
 
-        // —LŒø/–³ŒøØ‚è‘Ö‚¦
+        // æœ‰åŠ¹/ç„¡åŠ¹åˆ‡ã‚Šæ›¿ãˆ
         btnInner.interactable = timeScript.IsEnabled;
         btnDirect.interactable = globalSetting.GetComponents<ComProtocolBase>().Where(d => d.IsDirect).Count() > 0;
 
@@ -198,7 +198,7 @@ public class CanvasMenuInfoScript : KssBaseScript
     }
 
     /// <summary>
-    /// ƒCƒxƒ“ƒgƒZƒbƒg
+    /// ã‚¤ãƒ™ãƒ³ãƒˆã‚»ãƒƒãƒˆ
     /// </summary>
     public void SetEvents(List<UnitSetting> unitSettings)
     {
@@ -208,16 +208,16 @@ public class CanvasMenuInfoScript : KssBaseScript
     }
 
     /// <summary>
-    /// ƒCƒxƒ“ƒgƒŠƒZƒbƒg
+    /// ã‚¤ãƒ™ãƒ³ãƒˆãƒªã‚»ãƒƒãƒˆ
     /// </summary>
     public void ResetEvents()
     {
     }
-    #endregion ‰Šú‰»ˆ—
+    #endregion åˆæœŸåŒ–å‡¦ç†
 
-    #region ƒCƒxƒ“ƒg
+    #region ã‚¤ãƒ™ãƒ³ãƒˆ
     /// <summary>
-    /// İ’èØ‚è‘Ö‚¦
+    /// è¨­å®šåˆ‡ã‚Šæ›¿ãˆ
     /// </summary>
     private void btnSetting_onClick()
     {
@@ -228,7 +228,7 @@ public class CanvasMenuInfoScript : KssBaseScript
     }
 
     /// <summary>
-    /// ƒ^ƒCƒ}[•\¦Ø‚è‘Ö‚¦
+    /// ã‚¿ã‚¤ãƒãƒ¼è¡¨ç¤ºåˆ‡ã‚Šæ›¿ãˆ
     /// </summary>
     private void btnInner_onClick()
     {
@@ -239,7 +239,7 @@ public class CanvasMenuInfoScript : KssBaseScript
     }
 
     /// <summary>
-    /// ’¼Ú’ÊM•\¦Ø‚è‘Ö‚¦
+    /// ç›´æ¥é€šä¿¡è¡¨ç¤ºåˆ‡ã‚Šæ›¿ãˆ
     /// </summary>
     private void btnDirect_onClick()
     {
@@ -250,7 +250,7 @@ public class CanvasMenuInfoScript : KssBaseScript
     }
 
     /// <summary>
-    /// ƒ†ƒjƒbƒg“®ì•\¦Ø‚è‘Ö‚¦
+    /// ãƒ¦ãƒ‹ãƒƒãƒˆå‹•ä½œè¡¨ç¤ºåˆ‡ã‚Šæ›¿ãˆ
     /// </summary>
     private void btnMotion_onClick()
     {
@@ -261,7 +261,7 @@ public class CanvasMenuInfoScript : KssBaseScript
     }
 
     /// <summary>
-    /// ƒ†ƒjƒbƒg“®ì•\¦Ø‚è‘Ö‚¦
+    /// ãƒ¦ãƒ‹ãƒƒãƒˆå‹•ä½œè¡¨ç¤ºåˆ‡ã‚Šæ›¿ãˆ
     /// </summary>
     public void btnMotion_Visible(bool visible)
     {
@@ -271,7 +271,7 @@ public class CanvasMenuInfoScript : KssBaseScript
         }
     }
     /// <summary>
-    /// ƒAƒZƒ“ƒuƒŠ•\¦•\¦Ø‚è‘Ö‚¦
+    /// ã‚¢ã‚»ãƒ³ãƒ–ãƒªè¡¨ç¤ºè¡¨ç¤ºåˆ‡ã‚Šæ›¿ãˆ
     /// </summary>
     private void btnAsm_onClick()
     {
@@ -282,7 +282,7 @@ public class CanvasMenuInfoScript : KssBaseScript
     }
 
     /// <summary>
-    /// ƒAƒZƒ“ƒuƒŠ•\¦Ø‚è‘Ö‚¦
+    /// ã‚¢ã‚»ãƒ³ãƒ–ãƒªè¡¨ç¤ºåˆ‡ã‚Šæ›¿ãˆ
     /// </summary>
     public void btnAsm_Visible(bool visible)
     {
@@ -293,7 +293,7 @@ public class CanvasMenuInfoScript : KssBaseScript
     }
 
     /// <summary>
-    /// ƒAƒZƒ“ƒuƒŠ•\¦Ø‚è‘Ö‚¦
+    /// ã‚¢ã‚»ãƒ³ãƒ–ãƒªè¡¨ç¤ºåˆ‡ã‚Šæ›¿ãˆ
     /// </summary>
     private void btnSlice_onClick()
     {
@@ -304,7 +304,7 @@ public class CanvasMenuInfoScript : KssBaseScript
     }
 
     /// <summary>
-    /// ƒVƒXƒeƒ€ƒŒƒR[ƒ_•\¦Ø‚è‘Ö‚¦
+    /// ã‚·ã‚¹ãƒ†ãƒ ãƒ¬ã‚³ãƒ¼ãƒ€è¡¨ç¤ºåˆ‡ã‚Šæ›¿ãˆ
     /// </summary>
     private void btnSysRec_onClick()
     {
@@ -316,7 +316,7 @@ public class CanvasMenuInfoScript : KssBaseScript
     }
 
     /// <summary>
-    /// ƒ^ƒCƒ€ƒ`ƒƒ[ƒg•\¦Ø‚è‘Ö‚¦
+    /// ã‚¿ã‚¤ãƒ ãƒãƒ£ãƒ¼ãƒˆè¡¨ç¤ºåˆ‡ã‚Šæ›¿ãˆ
     /// </summary>
     private void btnTimeChart_onClick()
     {
@@ -327,7 +327,7 @@ public class CanvasMenuInfoScript : KssBaseScript
     }
 
     /// <summary>
-    /// ƒL[ƒCƒxƒ“ƒg
+    /// ã‚­ãƒ¼ã‚¤ãƒ™ãƒ³ãƒˆ
     /// </summary>
     /// <param name="key"></param>
     private void HandleKey(Key key, bool value, bool isCtrl, bool isShift)
@@ -336,14 +336,14 @@ public class CanvasMenuInfoScript : KssBaseScript
         {
             if (key == Key.A)
             {
-                // A •\¦/”ñ•\¦Ø‚è‘Ö‚¦
+                // A è¡¨ç¤º/éè¡¨ç¤ºåˆ‡ã‚Šæ›¿ãˆ
                 isAxisVisible = !isAxisVisible;
             }
         }
     }
 
     /// <summary>
-    /// ƒIƒuƒWƒFƒNƒg‘I‘ğ
+    /// ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆé¸æŠ
     /// </summary>
     /// <param name="gameObject"></param>
     private void OnObjectSelect(GameObject gameObject)
@@ -351,20 +351,20 @@ public class CanvasMenuInfoScript : KssBaseScript
         assemblyScript.SetAssembly(gameObject);
         GlobalScript.selectedObject = gameObject;
     }
-    #endregion ƒCƒxƒ“ƒg
+    #endregion ã‚¤ãƒ™ãƒ³ãƒˆ
 
-    #region ƒƒ\ƒbƒh
+    #region ãƒ¡ã‚½ãƒƒãƒ‰
     /// <summary>
-    /// XVˆ—
+    /// æ›´æ–°å‡¦ç†
     /// </summary>
     protected override void Update()
     {
-        // ²XV
+        // è»¸æ›´æ–°
         AxisUpdate();
     }
 
     /// <summary>
-    /// ƒ{ƒ^ƒ“‚ÌFƒZƒbƒg
+    /// ãƒœã‚¿ãƒ³ã®è‰²ã‚»ãƒƒãƒˆ
     /// </summary>
     /// <param name="button"></param>
     /// <param name="value"></param>
@@ -374,7 +374,7 @@ public class CanvasMenuInfoScript : KssBaseScript
     }
 
     /// <summary>
-    /// ƒ{ƒ^ƒ“‚ÌFƒZƒbƒg
+    /// ãƒœã‚¿ãƒ³ã®è‰²ã‚»ãƒƒãƒˆ
     /// </summary>
     /// <param name="button"></param>
     /// <param name="color"></param>
@@ -388,15 +388,15 @@ public class CanvasMenuInfoScript : KssBaseScript
     }
 
     /// <summary>
-    /// ƒLƒƒƒ“ƒoƒXì¬
+    /// ã‚­ãƒ£ãƒ³ãƒã‚¹ä½œæˆ
     /// </summary>
     private void CreateCanvas()
     {
-        // ƒLƒƒƒ“ƒoƒXæ“¾
+        // ã‚­ãƒ£ãƒ³ãƒã‚¹å–å¾—
         var canvasObjs = GameObject.FindObjectsByType<GameObject>(FindObjectsSortMode.None).Where(d => d.name == "Canvas").ToList();
         canvaObj = canvasObjs.Count == 0 ? new GameObject("Canvas", typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster)) : canvasObjs[0];
 
-        // İ’è•\¦
+        // è¨­å®šè¡¨ç¤º
         var setting = GlobalScript.LoadPrefabObject("Prefabs/Canvas", "SettingInfo");
         if (setting.Count > 0)
         {
@@ -409,7 +409,7 @@ public class CanvasMenuInfoScript : KssBaseScript
             settingScript = uiSetting.AddComponent<CanvasMenuSettingScript>();
         }
 
-        // “à•”ˆ—
+        // å†…éƒ¨å‡¦ç†
         var inner = GlobalScript.LoadPrefabObject("Prefabs/Canvas", "ComInner");
         if (inner.Count > 0)
         {
@@ -422,7 +422,7 @@ public class CanvasMenuInfoScript : KssBaseScript
             timeScript = uiInner.AddComponent<CanvasMenuTimeScript>();
         }
 
-        // ’¼Ú’ÊM
+        // ç›´æ¥é€šä¿¡
         var direct = GlobalScript.LoadPrefabObject("Prefabs/Canvas", "DirectComInfo");
         if (direct.Count > 0)
         {
@@ -435,7 +435,7 @@ public class CanvasMenuInfoScript : KssBaseScript
             directComScript = uiDirectCom.AddComponent<CanvasMenuDirectComScript>();
         }
 
-        // “®ìŠm”F
+        // å‹•ä½œç¢ºèª
         var actUnit = GlobalScript.LoadPrefabObject("Prefabs/Canvas", "ActUnitInfo");
         if (actUnit.Count > 0)
         {
@@ -448,7 +448,7 @@ public class CanvasMenuInfoScript : KssBaseScript
             actUnitScript = uiActUnitInfo.AddComponent<CanvasMenuActUnitScript>();
         }
 
-        // ƒAƒZƒ“ƒuƒŠ•\¦
+        // ã‚¢ã‚»ãƒ³ãƒ–ãƒªè¡¨ç¤º
         var asm = GlobalScript.LoadPrefabObject("Prefabs/Canvas", "AssemblySetting");
         if (asm.Count > 0)
         {
@@ -461,7 +461,7 @@ public class CanvasMenuInfoScript : KssBaseScript
             assemblyScript = uiAssembly.AddComponent<CanvasMenuAssemblyScript>();
         }
 
-        // ’f–Ê•\¦
+        // æ–­é¢è¡¨ç¤º
         var slice = GlobalScript.LoadPrefabObject("Prefabs/Canvas", "SliceSetting");
         if (slice.Count > 0)
         {
@@ -474,7 +474,7 @@ public class CanvasMenuInfoScript : KssBaseScript
             sliceScript = uiSlice.AddComponent<CanvasMenuSliceScript>();
         }
 
-        // ƒVƒXƒeƒ€ƒŒƒR[ƒ_•\¦
+        // ã‚·ã‚¹ãƒ†ãƒ ãƒ¬ã‚³ãƒ¼ãƒ€è¡¨ç¤º
         var sysRec = GlobalScript.LoadPrefabObject("Prefabs/Canvas", "SysRecSetting");
         if (sysRec.Count > 0)
         {
@@ -487,7 +487,7 @@ public class CanvasMenuInfoScript : KssBaseScript
             sysRecScript = uiSysRec.AddComponent<CanvasMenuSysRecScript>();
         }
 
-        // ƒVƒXƒeƒ€ƒŒƒR[ƒ_•\¦
+        // ã‚·ã‚¹ãƒ†ãƒ ãƒ¬ã‚³ãƒ¼ãƒ€è¡¨ç¤º
         var timeChart = GlobalScript.LoadPrefabObject("Prefabs/Canvas", "TimeChartSetting");
         if (timeChart.Count > 0)
         {
@@ -500,7 +500,7 @@ public class CanvasMenuInfoScript : KssBaseScript
             timeChartScript = uiTimeChart.AddComponent<CanvasMenuTimeChartScript>();
         }
         
-        // Šeí•\¦
+        // å„ç¨®è¡¨ç¤º
         uiSetting.SetActive(visibleSetting);
         uiInner!.SetActive(visibleInner);
         uiDirectCom.SetActive(visibleDirect);
@@ -512,7 +512,7 @@ public class CanvasMenuInfoScript : KssBaseScript
     }
 
     /// <summary>
-    /// ƒAƒZƒ“ƒuƒŠ‘I‘ğ
+    /// ã‚¢ã‚»ãƒ³ãƒ–ãƒªé¸æŠ
     /// </summary>
     public void SetAssemblyObject(GameObject gameObject, bool isSelectOnly = false)
     {
@@ -524,7 +524,7 @@ public class CanvasMenuInfoScript : KssBaseScript
     }
 
     /// <summary>
-    /// ²ì¬
+    /// è»¸ä½œæˆ
     /// </summary>
     /// <param name="dir"></param>
     /// <param name="color"></param>
@@ -548,7 +548,7 @@ public class CanvasMenuInfoScript : KssBaseScript
     }
 
     /// <summary>
-    /// ²XVˆ—
+    /// è»¸æ›´æ–°å‡¦ç†
     /// </summary>
     private void AxisUpdate()
     {
@@ -582,7 +582,7 @@ public class CanvasMenuInfoScript : KssBaseScript
             float width = Mathf.Lerp(0.0005f, 0.01f, t);
             float length = Mathf.Lerp(0.02f, 0.4f, t);
 
-            // ‘S²‚É“K—p
+            // å…¨è»¸ã«é©ç”¨
             var index = 0;
             foreach (var lr in axis.GetComponentsInChildren<LineRenderer>())
             {
@@ -593,5 +593,5 @@ public class CanvasMenuInfoScript : KssBaseScript
             }
         }
     }
-    #endregion ƒƒ\ƒbƒh
+    #endregion ãƒ¡ã‚½ãƒƒãƒ‰
 }

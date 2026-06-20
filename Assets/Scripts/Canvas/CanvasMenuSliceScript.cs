@@ -1,4 +1,4 @@
-using NUnit.Framework;
+ï»¿using NUnit.Framework;
 using System.Collections.Generic;
 using System.Linq;
 using TMPro;
@@ -18,7 +18,7 @@ public class CanvasMenuSliceScript : CanvasMenuBaseScript
     private TextMeshProUGUI viewText;
 
     /// <summary>
-    /// ŠJnˆ—
+    /// é–‹å§‹å‡¦ç†
     /// </summary>
     protected override void Awake()
     {
@@ -33,7 +33,7 @@ public class CanvasMenuSliceScript : CanvasMenuBaseScript
     }
 
     /// <summary>
-    /// —LŒø
+    /// æœ‰åŠ¹æ™‚
     /// </summary>
     protected override void OnEnable()
     {
@@ -48,7 +48,7 @@ public class CanvasMenuSliceScript : CanvasMenuBaseScript
     }
 
     /// <summary>
-    /// –³Œø
+    /// ç„¡åŠ¹æ™‚
     /// </summary>
     protected override void OnDisable()
     {
@@ -63,7 +63,7 @@ public class CanvasMenuSliceScript : CanvasMenuBaseScript
     }
 
     /// <summary>
-    /// ƒCƒxƒ“ƒgƒŠƒZƒbƒg
+    /// ã‚¤ãƒ™ãƒ³ãƒˆãƒªã‚»ãƒƒãƒˆ
     /// </summary>
     public override void ResetEvents()
     {
@@ -71,35 +71,35 @@ public class CanvasMenuSliceScript : CanvasMenuBaseScript
     }
 
     /// <summary>
-    /// ’f–ÊƒgƒOƒ‹•ÏXƒCƒxƒ“ƒg
+    /// æ–­é¢ãƒˆã‚°ãƒ«å¤‰æ›´ã‚¤ãƒ™ãƒ³ãƒˆ
     /// </summary>
     /// <param name="value"></param>
     public void clipToggle_onValueChanged(bool value)
     {
-        // —LŒø/–³Œø
+        // æœ‰åŠ¹/ç„¡åŠ¹
         viewXToggle.enabled = GlobalScript.clipInfo.isOn;
         viewYToggle.enabled = GlobalScript.clipInfo.isOn;
         viewZToggle.enabled = GlobalScript.clipInfo.isOn;
         viewRvsToggle.enabled = GlobalScript.clipInfo.isOn;
         viewSlider.enabled = GlobalScript.clipInfo.isOn;
-        // ”ÍˆÍ•ÏX
+        // ç¯„å›²å¤‰æ›´
         if (viewXToggle.isOn)
         {
-            // X‚É•ÏX
+            // Xã«å¤‰æ›´
             viewSlider.minValue = GlobalScript.clipInfo.bounds.min.x;
             viewSlider.maxValue = GlobalScript.clipInfo.bounds.max.x;
             viewSlider.value = GlobalScript.clipInfo.x;
         }
         else if (viewYToggle.isOn)
         {
-            // Y‚É•ÏX
+            // Yã«å¤‰æ›´
             viewSlider.minValue = GlobalScript.clipInfo.bounds.min.y;
             viewSlider.maxValue = GlobalScript.clipInfo.bounds.max.y;
             viewSlider.value = GlobalScript.clipInfo.y;
         }
         else if (viewZToggle.isOn)
         {
-            // Z‚É•ÏX
+            // Zã«å¤‰æ›´
             viewSlider.minValue = GlobalScript.clipInfo.bounds.min.z;
             viewSlider.maxValue = GlobalScript.clipInfo.bounds.max.z;
             viewSlider.value = GlobalScript.clipInfo.z;
@@ -110,12 +110,12 @@ public class CanvasMenuSliceScript : CanvasMenuBaseScript
     }
 
     /// <summary>
-    /// ’f–ÊƒXƒ‰ƒCƒ_[’l•ÏXƒCƒxƒ“ƒg
+    /// æ–­é¢ã‚¹ãƒ©ã‚¤ãƒ€ãƒ¼å€¤å¤‰æ›´ã‚¤ãƒ™ãƒ³ãƒˆ
     /// </summary>
     /// <param name="value"></param>
     private void clipSlider_onValueChanged(float value)
     {
-        // ’lƒZƒbƒg
+        // å€¤ã‚»ãƒƒãƒˆ
         if (viewXToggle.isOn)
         {
             GlobalScript.clipInfo.x = value;

@@ -1,4 +1,4 @@
-using Parameters;
+﻿using Parameters;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
@@ -6,7 +6,7 @@ using UnityEngine;
 public class CeilingArmRobot : ArmRobot
 {
     /// <summary>
-    /// �ڕW�ʒu�Z�b�g
+    /// 目標位置セット
     /// </summary>
     /// <param name="x"></param>
     /// <param name="y"></param>

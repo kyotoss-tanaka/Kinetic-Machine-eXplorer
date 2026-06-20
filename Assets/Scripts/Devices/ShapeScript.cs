@@ -1,4 +1,4 @@
-using Parameters;
+ï»¿using Parameters;
 using System.Collections;
 using System.Collections.Generic;
 using Unity.VisualScripting;
@@ -8,7 +8,7 @@ using UnityEngine.UIElements;
 public class ShapeScript : UseTagBaseScript
 {
     /// <summary>
-    /// Õ“ËŒŸ’m
+    /// è¡çªæ¤œçŸ¥
     /// </summary>
     /// <param name="other"></param>
     protected override void OnCollisionEnter(Collision other)
@@ -25,7 +25,7 @@ public class ShapeScript : UseTagBaseScript
     }
 
     /// <summary>
-    /// ƒpƒ‰ƒ[ƒ^ƒZƒbƒg
+    /// ãƒ‘ãƒ©ãƒ¡ãƒ¼ã‚¿ã‚»ãƒƒãƒˆ
     /// </summary>
     /// <param name="unitSetting"></param>
     /// <param name="robo"></param>
@@ -38,7 +38,7 @@ public class ShapeScript : UseTagBaseScript
         {
             if (s.auto)
             {
-                // ©“®¶¬
+                // è‡ªå‹•ç”Ÿæˆ
                 foreach (var r in unitSetting.moveObject.GetComponentsInChildren<Renderer>())
                 {
                     var mf = r.GetComponent<MeshFilter>();
@@ -47,7 +47,7 @@ public class ShapeScript : UseTagBaseScript
 
                     if (r.GetComponent<Collider>() == null)
                     {
-                        // ƒ[ƒJƒ‹ bounds ‚ğg—p
+                        // ãƒ­ãƒ¼ã‚«ãƒ« bounds ã‚’ä½¿ç”¨
                         Bounds b = mf.sharedMesh.bounds;
                         var box = r.gameObject.AddComponent<BoxCollider>();
                         box.center = b.center;
@@ -74,8 +74,8 @@ public class ShapeScript : UseTagBaseScript
                 };
             }
         }
-        // e‚©‚çİ’è‚³‚ê‚é‚±‚Æ‚ğ‰ñ”ğ‚·‚é‚½‚ß‚ÉƒZƒbƒg
-        /* •s•K—vH
+        // è¦ªã‹ã‚‰è¨­å®šã•ã‚Œã‚‹ã“ã¨ã‚’å›é¿ã™ã‚‹ãŸã‚ã«ã‚»ãƒƒãƒˆ
+        /* ä¸å¿…è¦ï¼Ÿ
         foreach (var mesh in this.GetComponentsInChildren<MeshFilter>())
         {
             if (mesh.GetComponentInChildren<Collider>() == null)

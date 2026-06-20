@@ -1,4 +1,4 @@
-using Parameters;
+ï»¿using Parameters;
 using System;
 using System.Collections.Generic;
 using System.Text.Json;
@@ -56,34 +56,34 @@ public class KssBaseScript : BaseBehaviour
     }
 
     /// <summary>
-    /// ƒ}ƒjƒ…ƒAƒ‹İ’è
+    /// ãƒãƒ‹ãƒ¥ã‚¢ãƒ«è¨­å®š
     /// </summary>
     [SerializeField]
     protected bool isManual;
 
     /// <summary>
-    /// ƒLƒƒƒ“ƒoƒX•\¦
+    /// ã‚­ãƒ£ãƒ³ãƒã‚¹è¡¨ç¤º
     /// </summary>
     protected virtual bool isCanvas { get { return false; } }
 
     /// <summary>
-    /// î•ñƒLƒƒƒ“ƒpƒXƒXƒNƒŠƒvƒg
+    /// æƒ…å ±ã‚­ãƒ£ãƒ³ãƒ‘ã‚¹ã‚¹ã‚¯ãƒªãƒ—ãƒˆ
     /// </summary>
     protected InfoCanvasScript canvasScript;
 
     /// <summary>
-    /// ƒ†ƒjƒbƒgİ’è
+    /// ãƒ¦ãƒ‹ãƒƒãƒˆè¨­å®š
     /// </summary>
     [SerializeField]
     public UnitSetting unitSetting;
 
     /// <summary>
-    /// •\¦ƒf[ƒ^
+    /// è¡¨ç¤ºãƒ‡ãƒ¼ã‚¿
     /// </summary>
     protected Dictionary<string, CanvasValue> dctDispValue = new Dictionary<string, CanvasValue>();
 
     /// <summary>
-    /// ƒ‹[ƒg‚©‚ç‚Ì–¼‘O
+    /// ãƒ«ãƒ¼ãƒˆã‹ã‚‰ã®åå‰
     /// </summary>
     public string pathString
     {
@@ -94,7 +94,7 @@ public class KssBaseScript : BaseBehaviour
     }
 
     /// <summary>
-    /// ŠJnˆ—
+    /// é–‹å§‹å‡¦ç†
     /// </summary>
     protected override void Start()
     {
@@ -106,7 +106,7 @@ public class KssBaseScript : BaseBehaviour
             if ((script != null) && script.isCanvas)
             {
                 /*
-                // ƒLƒƒƒ“ƒoƒX•\¦ 
+                // ã‚­ãƒ£ãƒ³ãƒã‚¹è¡¨ç¤º 
                 var c = (GameObject)Resources.Load("Canvas/InfoCanvas");
                 var canvas = Instantiate(c);
                 canvas.transform.parent = transform;
@@ -123,7 +123,7 @@ public class KssBaseScript : BaseBehaviour
     {
         base.Update();
 
-        // ƒ`ƒƒ[ƒgƒXƒNƒŠƒvƒg
+        // ãƒãƒ£ãƒ¼ãƒˆã‚¹ã‚¯ãƒªãƒ—ãƒˆ
         if (canvasScript != null)
         {
             RenewCanvasValues();
@@ -136,7 +136,7 @@ public class KssBaseScript : BaseBehaviour
     }
 
     /// <summary>
-    /// ƒpƒ‰ƒ[ƒ^‚ğƒZƒbƒg‚·‚é
+    /// ãƒ‘ãƒ©ãƒ¡ãƒ¼ã‚¿ã‚’ã‚»ãƒƒãƒˆã™ã‚‹
     /// </summary>
     /// <param name="components"></param>
     /// <param name="scriptables"></param>
@@ -147,7 +147,7 @@ public class KssBaseScript : BaseBehaviour
     }
 
     /// <summary>
-    /// ƒpƒ‰ƒ[ƒ^‚ğƒZƒbƒg‚·‚é
+    /// ãƒ‘ãƒ©ãƒ¡ãƒ¼ã‚¿ã‚’ã‚»ãƒƒãƒˆã™ã‚‹
     /// </summary>
     /// <param name="unitSetting"></param>
     /// <param name="robo"></param>
@@ -377,7 +377,7 @@ public class KssBaseScript : BaseBehaviour
     }
 
     /// <summary>
-    /// ƒ^ƒO‚Ì’læ“¾
+    /// ã‚¿ã‚°ã®å€¤å–å¾—
     /// </summary>
     /// <param name="tag"></param>
     /// <param name="tagInfo"></param>
@@ -419,7 +419,7 @@ public class KssBaseScript : BaseBehaviour
         }
         else if (int.TryParse(tag, out value))
         {
-            // ”’l
+            // æ•°å€¤
             return value;
         }
         else if (index >= 0)
@@ -446,7 +446,7 @@ public class KssBaseScript : BaseBehaviour
     }
 
     /// <summary>
-    /// ƒ^ƒO‚Ì’læ“¾
+    /// ã‚¿ã‚°ã®å€¤å–å¾—
     /// </summary>
     /// <param name="tag"></param>
     /// <param name="tagInfo"></param>
@@ -475,7 +475,7 @@ public class KssBaseScript : BaseBehaviour
         }
         else if (int.TryParse(tag, out value))
         {
-            // ”’l
+            // æ•°å€¤
             return value;
         }
         else if (index >= 0)
@@ -487,7 +487,7 @@ public class KssBaseScript : BaseBehaviour
     }
 
     /// <summary>
-    /// ƒ^ƒO‚Ì’lƒZƒbƒg
+    /// ã‚¿ã‚°ã®å€¤ã‚»ãƒƒãƒˆ
     /// </summary>
     /// <param name="tag"></param>
     /// <param name="tagInfo"></param>

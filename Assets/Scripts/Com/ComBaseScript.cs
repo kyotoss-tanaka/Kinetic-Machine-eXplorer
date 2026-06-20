@@ -1,4 +1,4 @@
-using Parameters;
+ï»¿using Parameters;
 using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -52,63 +52,63 @@ public class ComBaseScript : KssBaseScript
     public bool isCylceClear = false;
 
     /// <summary>
-    /// ƒƒbƒN—pƒIƒuƒWƒFƒNƒg
+    /// ãƒ­ãƒƒã‚¯ç”¨ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆ
     /// </summary>
     protected object objLock = new object();
 
     /// <summary>
-    /// ‘‚«‚İƒf[ƒ^
+    /// æ›¸ãè¾¼ã¿ãƒ‡ãƒ¼ã‚¿
     /// </summary>
     protected volatile List<TagInfoCom> writeDatas = new List<TagInfoCom>();
 
     /// <summary>
-    /// ‰‰ñƒtƒ‰ƒO
+    /// åˆå›ãƒ•ãƒ©ã‚°
     /// </summary>
     protected bool isFirst = true;
 
     /// <summary>
-    /// ‰‰ñóMŠ®—¹ˆ—
+    /// åˆå›å—ä¿¡å®Œäº†å‡¦ç†
     /// </summary>
     protected bool isRcvDb = false;
 
     /// <summary>
-    /// ƒf[ƒ^ŒğŠ·İ’è
+    /// ãƒ‡ãƒ¼ã‚¿äº¤æ›è¨­å®š
     /// </summary>
     protected DataExchangeSetting dataExchange;
 
     /// <summary>
-    /// ƒf[ƒ^‰Šú’lİ’è
+    /// ãƒ‡ãƒ¼ã‚¿åˆæœŸå€¤è¨­å®š
     /// </summary>
     protected List<DataExchange> initDatas = new List<DataExchange>();
 
     /// <summary>
-    /// ƒf[ƒ^ŒğŠ·İ’è
+    /// ãƒ‡ãƒ¼ã‚¿äº¤æ›è¨­å®š
     /// </summary>
     protected List<DataExchange> dataExchanges = new List<DataExchange>();
 
     /// <summary>
-    /// ŠÔŒv‘ª—p
+    /// æ™‚é–“è¨ˆæ¸¬ç”¨
     /// </summary>
     private Stopwatch sw = new Stopwatch();
 
     /// <summary>
-    /// ƒTƒCƒNƒ‹ŠÔ
+    /// ã‚µã‚¤ã‚¯ãƒ«æ™‚é–“
     /// </summary>
     private List<long> cycleLaps = new List<long>();
 
     /// <summary>
-    /// ˆ—ŠÔ
+    /// å‡¦ç†æ™‚é–“
     /// </summary>
     private List<long> processLaps = new List<long>();
     /// <summary>
-    /// ƒf[ƒ^ŒğŠ·ˆ—
+    /// ãƒ‡ãƒ¼ã‚¿äº¤æ›å‡¦ç†
     /// </summary>
     protected virtual void DataExchangeProcess()
     {
         var tags = new List<TagInfo>();
         if (isFirst)
         {
-            // ‰‰ñ‚Ì‚İ
+            // åˆå›ã®ã¿
             foreach (var data in initDatas)
             {
                 GetTagValue(data.OutputTag, ref data.Output);
@@ -130,7 +130,7 @@ public class ComBaseScript : KssBaseScript
             }
         }
 //        GlobalScript.SetTagDatas(tags);
-        // DB‚Ìƒf[ƒ^ì¬Š®—¹‚µ‚Ä‚¢‚È‚¢‚ÆƒXƒ‹[‚³‚ê‚é
+        // DBã®ãƒ‡ãƒ¼ã‚¿ä½œæˆå®Œäº†ã—ã¦ã„ãªã„ã¨ã‚¹ãƒ«ãƒ¼ã•ã‚Œã‚‹
         isFirst = !isRcvDb;
     }
 
@@ -167,7 +167,7 @@ public class ComBaseScript : KssBaseScript
     }
 
     /// <summary>
-    /// ƒpƒ‰ƒ[ƒ^ƒZƒbƒg
+    /// ãƒ‘ãƒ©ãƒ¡ãƒ¼ã‚¿ã‚»ãƒƒãƒˆ
     /// </summary>
     /// <param name="No"></param>
     /// <param name="Cycle"></param>
@@ -179,7 +179,7 @@ public class ComBaseScript : KssBaseScript
     /// <param name="isClientMode"></param>
     public void SetParameter(int No, int Cycle, string Server, int Port, string Database, string User, string Password, bool isClientMode, DataExchangeSetting dataExchange)
     {
-        // ƒ_ƒ~[ƒf[ƒ^ì¬
+        // ãƒ€ãƒŸãƒ¼ãƒ‡ãƒ¼ã‚¿ä½œæˆ
         unitSetting = new UnitSetting
         {
             Database = Server + ":" + Port,
@@ -221,7 +221,7 @@ public class ComBaseScript : KssBaseScript
     }
 
     /// <summary>
-    /// ƒƒbƒNƒIƒuƒWƒFƒNƒgæ“¾
+    /// ãƒ­ãƒƒã‚¯ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆå–å¾—
     /// </summary>
     /// <returns></returns>
     public object GetLockObject()

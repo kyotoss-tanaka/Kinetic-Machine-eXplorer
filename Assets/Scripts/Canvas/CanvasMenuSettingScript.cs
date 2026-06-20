@@ -1,4 +1,4 @@
-using NUnit.Framework;
+ï»¿using NUnit.Framework;
 using Parameters;
 using System;
 using System.Collections.Generic;
@@ -21,9 +21,9 @@ public class CanvasMenuSettingScript : CanvasMenuBaseScript
     private List<float> times = new();
     private List<float> fpss = new();
 
-    #region ‰Šú‰»ˆ—
+    #region åˆæœŸåŒ–å‡¦ç†
     /// <summary>
-    /// ŠJnˆ—
+    /// é–‹å§‹å‡¦ç†
     /// </summary>
     protected override void Awake()
     {
@@ -37,14 +37,14 @@ public class CanvasMenuSettingScript : CanvasMenuBaseScript
     }
 
     /// <summary>
-    /// ‰Šú‰»ˆ—
+    /// åˆæœŸåŒ–å‡¦ç†
     /// </summary>
     private void Initialize()
     {
     }
 
     /// <summary>
-    /// —LŒø
+    /// æœ‰åŠ¹æ™‚
     /// </summary>
     protected override void OnEnable()
     {
@@ -55,7 +55,7 @@ public class CanvasMenuSettingScript : CanvasMenuBaseScript
     }
 
     /// <summary>
-    /// –³Œø
+    /// ç„¡åŠ¹æ™‚
     /// </summary>
     protected override void OnDisable()
     {
@@ -64,11 +64,11 @@ public class CanvasMenuSettingScript : CanvasMenuBaseScript
         usePhysicsToggle.onValueChanged.RemoveAllListeners();
         useColliderToggle.onValueChanged.RemoveAllListeners();
     }
-    #endregion ‰Šú‰»ˆ—
+    #endregion åˆæœŸåŒ–å‡¦ç†
 
-    #region ƒCƒxƒ“ƒg
+    #region ã‚¤ãƒ™ãƒ³ãƒˆ
     /// <summary>
-    /// XVˆ—
+    /// æ›´æ–°å‡¦ç†
     /// </summary>
     protected override void Update()
     {
@@ -85,7 +85,7 @@ public class CanvasMenuSettingScript : CanvasMenuBaseScript
     }
 
     /// <summary>
-    /// •¨—g—pƒgƒOƒ‹•ÏXƒCƒxƒ“ƒg
+    /// ç‰©ç†ä½¿ç”¨ãƒˆã‚°ãƒ«å¤‰æ›´ã‚¤ãƒ™ãƒ³ãƒˆ
     /// </summary>
     /// <param name="value"></param>
     public void useLiensToggle_onValueChanged(bool value)
@@ -94,7 +94,7 @@ public class CanvasMenuSettingScript : CanvasMenuBaseScript
     }
 
     /// <summary>
-    /// •¨—g—pƒgƒOƒ‹•ÏXƒCƒxƒ“ƒg
+    /// ç‰©ç†ä½¿ç”¨ãƒˆã‚°ãƒ«å¤‰æ›´ã‚¤ãƒ™ãƒ³ãƒˆ
     /// </summary>
     /// <param name="value"></param>
     public void usePhysicsToggle_onValueChanged(bool value)
@@ -103,15 +103,15 @@ public class CanvasMenuSettingScript : CanvasMenuBaseScript
     }
 
     /// <summary>
-    /// Õ“Ëg—pƒgƒOƒ‹•ÏXƒCƒxƒ“ƒg
+    /// è¡çªä½¿ç”¨ãƒˆã‚°ãƒ«å¤‰æ›´ã‚¤ãƒ™ãƒ³ãƒˆ
     /// </summary>
     /// <param name="value"></param>
     public void useColliderToggle_onValueChanged(bool value)
     {
         GlobalScript.isCollision = value;
     }
-    #endregion ƒCƒxƒ“ƒg
+    #endregion ã‚¤ãƒ™ãƒ³ãƒˆ
 
-    #region ƒƒ\ƒbƒh
-    #endregion ƒƒ\ƒbƒh
+    #region ãƒ¡ã‚½ãƒƒãƒ‰
+    #endregion ãƒ¡ã‚½ãƒƒãƒ‰
 }

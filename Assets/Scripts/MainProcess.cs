@@ -1,4 +1,4 @@
-using System;
+ï»¿using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
@@ -33,20 +33,20 @@ public class MainProcess : KssBaseScript
     private bool isControl;
 
     /// <summary>
-    /// ‰Šú‰»
+    /// åˆæœŸåŒ–
     /// </summary>
     protected override void Awake()
     {
         base.Awake();
 
-        // ƒJƒƒ‰İ’è
-        // ƒtƒŒ[ƒ€ƒŒ[ƒg
+        // ã‚«ãƒ¡ãƒ©è¨­å®š
+        // ãƒ•ãƒ¬ãƒ¼ãƒ ãƒ¬ãƒ¼ãƒˆ
         if (GlobalScript.isXRMode)
         {
-            // ƒAƒ“ƒhƒƒCƒh
+            // ã‚¢ãƒ³ãƒ‰ãƒ­ã‚¤ãƒ‰
             QualitySettings.vSyncCount = 0;
             Application.targetFrameRate = 120;
-            // VR
+            // VRæ™‚
             // camera.gameObject.SetActive(false);
         }
         else
@@ -57,13 +57,13 @@ public class MainProcess : KssBaseScript
             // ovr.gameObject.SetActive(false);
         }
 
-        // ƒf[ƒ^‰Šú‰»
+        // ãƒ‡ãƒ¼ã‚¿åˆæœŸåŒ–
         var cameraControllers = FindObjectsByType<CameraController>(FindObjectsSortMode.None).ToList();
         if (cameraControllers.Count > 0)
         {
             cameraController = cameraControllers[0];
         }
-        // ƒLƒƒƒ“ƒoƒXƒ[ƒh
+        // ã‚­ãƒ£ãƒ³ãƒã‚¹ãƒ­ãƒ¼ãƒ‰
         if (GlobalScript.isXRMode)
         {
             var canvases = GlobalScript.LoadPrefabObject("Prefabs/Canvas", "XRCanvas");
@@ -110,7 +110,7 @@ public class MainProcess : KssBaseScript
     {
         base.Update();
 
-        // ƒ}ƒEƒXˆ—
+        // ãƒã‚¦ã‚¹å‡¦ç†
 //        MouseUpdate();
     }
 
@@ -118,19 +118,19 @@ public class MainProcess : KssBaseScript
     {
         base.FixedUpdate();
 
-        // Ü‚è•Ô‚µƒeƒXƒg
+        // æŠ˜ã‚Šè¿”ã—ãƒ†ã‚¹ãƒˆ
 //        CallbackTest();
     }
 
     /// <summary>
-    /// ƒL[ƒCƒxƒ“ƒg
+    /// ã‚­ãƒ¼ã‚¤ãƒ™ãƒ³ãƒˆ
     /// </summary>
     /// <param name="key"></param>
     private void HandleKey(Key key, bool value, bool isCtrl, bool isShift)
     {
         if (value)
         {
-            // ONˆ—
+            // ONå‡¦ç†
             if ((key == Key.LeftCtrl) || (key == Key.RightCtrl))
             {
                 isControl = true;
@@ -138,7 +138,7 @@ public class MainProcess : KssBaseScript
         }
         else
         {
-            // OFFˆ—
+            // OFFå‡¦ç†
             if ((key == Key.LeftCtrl) || (key == Key.RightCtrl))
             {
                 isControl = false;
@@ -147,14 +147,14 @@ public class MainProcess : KssBaseScript
     }
 
     /// <summary>
-    /// ƒ}ƒEƒXƒ_ƒEƒ“ƒCƒxƒ“ƒg
+    /// ãƒã‚¦ã‚¹ãƒ€ã‚¦ãƒ³ã‚¤ãƒ™ãƒ³ãƒˆ
     /// </summary>
     /// <param name="button"></param>
     private void MouseDownEvent(InputManager.MouseButton button, Vector2 mousePos)
     {
         if (button == InputManager.MouseButton.LeftButton)
         {
-            // ¶ƒNƒŠƒbƒN
+            // å·¦ã‚¯ãƒªãƒƒã‚¯
             GameObject clickedGameObject = null;
             Vector3 rotateCenter = Vector3.zero;
             Ray ray = Camera.main.ScreenPointToRay(mousePos);
@@ -170,11 +170,11 @@ public class MainProcess : KssBaseScript
             }
             if (hits.Count > 0)
             {
-                // ‘I‘ğ‚ ‚è
+                // é¸æŠã‚ã‚Š
                 clickedGameObject = ((GlobalScript.selectedObject == null) || (hits.FindIndex(d => d.collider.gameObject == GlobalScript.selectedObject) < 0)) ? hits[0].collider.gameObject : hits[(hits.FindIndex(d => d.collider.gameObject == GlobalScript.selectedObject) + 1) % hits.Count].collider.gameObject;
                 if (clickedGameObject.name == "Floor")
                 {
-                    // °‚È‚ç°‚Ìã‚ÅƒNƒŠƒbƒN‚³‚ê‚½‚Æ‚±‚ë‚ğŒŸõ
+                    // åºŠãªã‚‰åºŠã®ä¸Šã§ã‚¯ãƒªãƒƒã‚¯ã•ã‚ŒãŸã¨ã“ã‚ã‚’æ¤œç´¢
                     Plane plane = new Plane(Vector3.up, Vector3.zero);
                     if (plane.Raycast(ray, out float enter))
                     {
@@ -188,24 +188,24 @@ public class MainProcess : KssBaseScript
                 selectedScript = clickedGameObject.GetComponentInChildren<KssBaseScript>();
                 if (selectedScript != null)
                 {
-                    //@ƒ}ƒEƒXƒ_ƒEƒ“
+                    //ã€€ãƒã‚¦ã‚¹ãƒ€ã‚¦ãƒ³
                     selectedScript.OnMouseDown();
                     if (isControl)
                     {
-                        // ‘I‘ğ’†‚Ìƒ}ƒeƒŠƒAƒ‹‚ğ‰ğœ
+                        // é¸æŠä¸­ã®ãƒãƒ†ãƒªã‚¢ãƒ«ã‚’è§£é™¤
                         EventManager.Instance.ProcessObjectSelect(null);
                     }
-                    // ƒQ[ƒ€ƒIƒuƒWƒFƒNƒg‚Ì–¼‘O‚ğo—Í
+                    // ã‚²ãƒ¼ãƒ ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆã®åå‰ã‚’å‡ºåŠ›
                     Debug.Log(clickedGameObject.name);
                 }
                 else
                 {
-                    // ‘I‘ğ’†‚Ìƒ}ƒeƒŠƒAƒ‹‚ğƒZƒbƒg
+                    // é¸æŠä¸­ã®ãƒãƒ†ãƒªã‚¢ãƒ«ã‚’ã‚»ãƒƒãƒˆ
                     if (isControl)
                     {
                         if (GlobalScript.selectedObject == clickedGameObject)
                         {
-                            // Šù‚É‘I‘ğÏ‚İ‚È‚Ì‚Åƒ}ƒeƒŠƒAƒ‹‚ğ‰ğœ
+                            // æ—¢ã«é¸æŠæ¸ˆã¿ãªã®ã§ãƒãƒ†ãƒªã‚¢ãƒ«ã‚’è§£é™¤
                             EventManager.Instance.ProcessObjectSelect(null);
                         }
                         else
@@ -213,13 +213,13 @@ public class MainProcess : KssBaseScript
                             EventManager.Instance.ProcessObjectSelect(clickedGameObject);
                         }
                     }
-                    // ƒQ[ƒ€ƒIƒuƒWƒFƒNƒg‚Ì–¼‘O‚ğo—Í
+                    // ã‚²ãƒ¼ãƒ ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆã®åå‰ã‚’å‡ºåŠ›
                     Debug.Log(clickedGameObject.name);
                 }
             }
             raycastHits.Clear();
             raycastHits.AddRange(hits);
-            // ‰ñ“]’†SƒZƒbƒg
+            // å›è»¢ä¸­å¿ƒã‚»ãƒƒãƒˆ
             if (cameraController != null)
             {
                 cameraController.SetTargetPosition(rotateCenter);
@@ -227,10 +227,10 @@ public class MainProcess : KssBaseScript
         }
         else if (button == InputManager.MouseButton.RightButton)
         {
-            // ‰EƒNƒŠƒbƒN
+            // å³ã‚¯ãƒªãƒƒã‚¯
             if (isControl)
             {
-                // ‘I‘ğ’†‚Ìƒ}ƒeƒŠƒAƒ‹‚ğ‰ğœ
+                // é¸æŠä¸­ã®ãƒãƒ†ãƒªã‚¢ãƒ«ã‚’è§£é™¤
                 selectedScript = null;
                 EventManager.Instance.ProcessObjectSelect(null);
             }
@@ -238,7 +238,7 @@ public class MainProcess : KssBaseScript
     }
 
     /// <summary>
-    /// ƒ}ƒEƒXƒAƒbƒvƒCƒxƒ“ƒg
+    /// ãƒã‚¦ã‚¹ã‚¢ãƒƒãƒ—ã‚¤ãƒ™ãƒ³ãƒˆ
     /// </summary>
     /// <param name="button"></param>
     private void MouseUpEvent(InputManager.MouseButton button, Vector2 mousePos)
@@ -247,7 +247,7 @@ public class MainProcess : KssBaseScript
         {
             if (selectedScript != null)
             {
-                //@ƒ}ƒEƒXƒAƒbƒv
+                //ã€€ãƒã‚¦ã‚¹ã‚¢ãƒƒãƒ—
                 selectedScript.OnMouseUp();
                 selectedScript = null;
             }
@@ -255,7 +255,7 @@ public class MainProcess : KssBaseScript
     }
 
     /// <summary>
-    /// ƒ{ƒ^ƒ“ƒ_ƒEƒ“ƒCƒxƒ“ƒg
+    /// ãƒœã‚¿ãƒ³ãƒ€ã‚¦ãƒ³ã‚¤ãƒ™ãƒ³ãƒˆ
     /// </summary>
     /// <param name="button"></param>
     private void ButtonDownEvent(InputManager.ControllerButton button)
@@ -263,7 +263,7 @@ public class MainProcess : KssBaseScript
     }
 
     /// <summary>
-    /// ƒ{ƒ^ƒ“ƒAƒbƒvƒCƒxƒ“ƒg
+    /// ãƒœã‚¿ãƒ³ã‚¢ãƒƒãƒ—ã‚¤ãƒ™ãƒ³ãƒˆ
     /// </summary>
     /// <param name="button"></param>
     private void ButtonUpEvent(InputManager.ControllerButton button)
@@ -273,7 +273,7 @@ public class MainProcess : KssBaseScript
     /*    
     private void InitCallbackData()
     {
-        // ƒR[ƒ‹ƒoƒbƒNƒf[ƒ^‰Šú‰»
+        // ã‚³ãƒ¼ãƒ«ãƒãƒƒã‚¯ãƒ‡ãƒ¼ã‚¿åˆæœŸåŒ–
         cbTags = new();
         foreach (var tag in GlobalScript.callbackTags)
         {
@@ -283,7 +283,7 @@ public class MainProcess : KssBaseScript
     }
 
     /// <summary>
-    /// ƒR[ƒ‹ƒoƒbƒNƒeƒXƒg
+    /// ã‚³ãƒ¼ãƒ«ãƒãƒƒã‚¯ãƒ†ã‚¹ãƒˆ
     /// </summary>
     public void CallbackTest()
     {
@@ -301,7 +301,7 @@ public class MainProcess : KssBaseScript
             }
             foreach (var tag in GlobalScript.callbackTags)
             {
-                // Ü‚è•Ô‚µ
+                // æŠ˜ã‚Šè¿”ã—
                 if ((tag.input.Tag != "") && (tag.output.Tag != ""))
                 {
                     var input = GlobalScript.GetTagData(tag.input);
@@ -321,7 +321,7 @@ public class MainProcess : KssBaseScript
                     {
                     }
                 }
-                // ƒJƒEƒ“ƒ^
+                // ã‚«ã‚¦ãƒ³ã‚¿
                 if ((tag.cntIn.Tag != "") && (tag.cntOut.Tag != ""))
                 {
                     var count = GlobalScript.GetTagData(tag.cntIn);

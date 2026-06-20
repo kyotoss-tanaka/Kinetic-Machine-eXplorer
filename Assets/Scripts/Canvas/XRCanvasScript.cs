@@ -1,4 +1,4 @@
-
+ï»¿
 using NUnit.Framework;
 using NUnit.Framework.Internal;
 using Oculus.Interaction.Input.Visuals;
@@ -31,17 +31,17 @@ public class XRCanvasScript : CanvasBaseScript
     private bool isRightDown = false;
 
     /// <summary>
-    /// ƒƒRƒ‚[ƒ^[
+    /// ãƒ­ã‚³ãƒ¢ãƒ¼ã‚¿ãƒ¼
     /// </summary>
     private FirstPersonLocomotor locomotor;
 
     /// <summary>
-    /// ƒTƒuƒƒjƒ…[ƒŒƒCƒLƒƒƒ“ƒoƒX
+    /// ã‚µãƒ–ãƒ¡ãƒ‹ãƒ¥ãƒ¼ãƒ¬ã‚¤ã‚­ãƒ£ãƒ³ãƒã‚¹
     /// </summary>
     private GameObject rayCanvasInteraction;
 
     /// <summary>
-    /// ŠeíƒTƒuƒƒjƒ…[
+    /// å„ç¨®ã‚µãƒ–ãƒ¡ãƒ‹ãƒ¥ãƒ¼
     /// </summary>
     private GameObject subMenuSystem;
     private GameObject subMenuBody;
@@ -52,7 +52,7 @@ public class XRCanvasScript : CanvasBaseScript
     private List<GameObject> subMenus = new();
 
     /// <summary>
-    /// Šeíƒ{ƒ^ƒ“
+    /// å„ç¨®ãƒœã‚¿ãƒ³
     /// </summary>
     private Button btnClose;
     private Button btnMainSystem;
@@ -76,50 +76,50 @@ public class XRCanvasScript : CanvasBaseScript
     private List<Button> mainButtons = new();
 
     /// <summary>
-    /// ’f–Ê•\¦—p
+    /// æ–­é¢è¡¨ç¤ºç”¨
     /// </summary>
     private GlobalScript.ClipInfo.SlideMode sliceMode = GlobalScript.ClipInfo.SlideMode.X;
     private Slider sliderSlice;
 
     /// <summary>
-    /// ƒAƒZƒ“ƒuƒŠ•\¦—pƒeƒLƒXƒg
+    /// ã‚¢ã‚»ãƒ³ãƒ–ãƒªè¡¨ç¤ºç”¨ãƒ†ã‚­ã‚¹ãƒˆ
     /// </summary>
     private TextMeshProUGUI txtAssembly;
 
     /// <summary>
-    /// èƒIƒuƒWƒFƒNƒg
+    /// æ‰‹ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆ
     /// </summary>
     private Transform leftHand;
     private Transform rightHand;
 
     /// <summary>
-    /// ƒRƒ“ƒgƒ[ƒ‰
+    /// ã‚³ãƒ³ãƒˆãƒ­ãƒ¼ãƒ©
     /// </summary>
     private ControllerVisual leftController;
     private ControllerVisual rightController;
 
     /// <summary>
-    /// ƒc[ƒ‹ƒIƒuƒWƒFƒNƒg
+    /// ãƒ„ãƒ¼ãƒ«ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆ
     /// </summary>
     private GameObject ToolLeft;
     private GameObject ToolRight;
 
     /// <summary>
-    /// Šeíƒc[ƒ‹
+    /// å„ç¨®ãƒ„ãƒ¼ãƒ«
     /// </summary>
     private GameObject toolPlus;
     private GameObject toolMinus;
     private GameObject toolWrench;
 
     /// <summary>
-    /// ƒc[ƒ‹Õ“ËƒXƒNƒŠƒvƒg
+    /// ãƒ„ãƒ¼ãƒ«è¡çªã‚¹ã‚¯ãƒªãƒ—ãƒˆ
     /// </summary>
     private ToolCollisionScript toolCollisionPlus;
     private ToolCollisionScript toolCollisionMinus;
     private ToolCollisionScript toolCollisionWrench;
 
     /// <summary>
-    /// ƒvƒŒƒnƒuŠÖ˜A
+    /// ãƒ—ãƒ¬ãƒãƒ–é–¢é€£
     /// </summary>
     private GameObject allPrefab;
     private Button btnPrefab;
@@ -127,17 +127,17 @@ public class XRCanvasScript : CanvasBaseScript
     private List<PrefabButtonInfo> btnPrefabs = new();
 
     /// <summary>
-    /// ”ñ•\¦ƒIƒuƒWƒFƒNƒgƒŠƒXƒg
+    /// éè¡¨ç¤ºã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆãƒªã‚¹ãƒˆ
     /// </summary>
     private List<GameObject> hideObjects = new();
 
     /// <summary>
-    /// ‘I‘ğƒIƒuƒWƒFƒNƒgƒŠƒXƒg
+    /// é¸æŠã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆãƒªã‚¹ãƒˆ
     /// </summary>
     private List<GameObject> selectObjects = new();
 
     /// <summary>
-    /// ‘I‘ğƒIƒuƒWƒFƒNƒg
+    /// é¸æŠã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆ
     /// </summary>
     private GameObject selectObject;
 
@@ -145,31 +145,31 @@ public class XRCanvasScript : CanvasBaseScript
     {
         base.Awake();
 
-        // ƒJƒƒ‰æ“¾
+        // ã‚«ãƒ¡ãƒ©å–å¾—
         xrCamera = Camera.main.transform;
 
-        // ƒƒRƒ‚[ƒ^[æ“¾
+        // ãƒ­ã‚³ãƒ¢ãƒ¼ã‚¿ãƒ¼å–å¾—
         locomotor = FindObjectsByType<FirstPersonLocomotor>(FindObjectsSortMode.None).ToList()[0];
 
-        // ƒTƒuƒƒjƒ…[ƒŒƒCƒLƒƒƒ“ƒoƒXæ“¾
+        // ã‚µãƒ–ãƒ¡ãƒ‹ãƒ¥ãƒ¼ãƒ¬ã‚¤ã‚­ãƒ£ãƒ³ãƒã‚¹å–å¾—
         rayCanvasInteraction = GetComponentsInChildren<Transform>(true).Where(d => d.name == "ISDK_RayCanvasInteraction").ToList()[0].gameObject;
 
-        // è‚ğæ“¾
+        // æ‰‹ã‚’å–å¾—
         var hands = FindObjectsByType<Transform>(FindObjectsSortMode.None).Where(d => d.name == "OVRControllerPrefab").ToList();
         leftHand = hands.Find(d => d.parent.name.Contains("Left"));
         rightHand = hands.Find(d => d.parent.name.Contains("Right"));
 
-        // ƒc[ƒ‹ì¬—pƒIƒuƒWƒFƒNƒgì¬
+        // ãƒ„ãƒ¼ãƒ«ä½œæˆç”¨ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆä½œæˆ
         ToolLeft = new GameObject("LeftTools");
         ToolLeft.transform.SetParent(leftHand.parent);
         ToolRight = new GameObject("RightTools");
         ToolRight.transform.SetParent(rightHand.parent);
 
-        // ƒRƒ“ƒgƒ[ƒ‰æ“¾
+        // ã‚³ãƒ³ãƒˆãƒ­ãƒ¼ãƒ©å–å¾—
         leftController = leftHand.parent.GetComponent<ControllerVisual>();
         rightController = rightHand.parent.GetComponent<ControllerVisual>();
 
-        // ƒTƒuƒƒjƒ…[æ“¾
+        // ã‚µãƒ–ãƒ¡ãƒ‹ãƒ¥ãƒ¼å–å¾—
         subMenuSystem = GetComponentsInChildren<Transform>(true).Where(d => d.name == "SubMenu_System").ToList()[0].gameObject;
         subMenuBody = GetComponentsInChildren<Transform>(true).Where(d => d.name == "SubMenu_Body").ToList()[0].gameObject;
         subMenuTool = GetComponentsInChildren<Transform>(true).Where(d => d.name == "SubMenu_Tool").ToList()[0].gameObject;
@@ -184,7 +184,7 @@ public class XRCanvasScript : CanvasBaseScript
         subMenus.Add(subMenuAssembly);
         SetMainButtonClick(subMenuSystem);
 
-        // ƒc[ƒ‹ƒ{ƒ^ƒ“æ“¾
+        // ãƒ„ãƒ¼ãƒ«ãƒœã‚¿ãƒ³å–å¾—
         btnClose = GetComponentsInChildren<Button>().Where(d => d.name == "BtnClose").ToList()[0];
 
         btnMainSystem = GetComponentsInChildren<Button>().Where(d => d.name == "BtnMainSystem").ToList()[0];
@@ -220,7 +220,7 @@ public class XRCanvasScript : CanvasBaseScript
 
         txtAssembly = GetComponentsInChildren<TextMeshProUGUI>(true).Where(d => d.name == "TxtAssembly").ToList()[0];
 
-        // Šeíƒc[ƒ‹ƒ[ƒh
+        // å„ç¨®ãƒ„ãƒ¼ãƒ«ãƒ­ãƒ¼ãƒ‰
         toolPlus = Instantiate(GlobalScript.LoadPrefabObject("Prefabs/Tools", "Screwdriver_Cross")[0]);
         toolMinus = Instantiate(GlobalScript.LoadPrefabObject("Prefabs/Tools", "Screwdriver_Single")[0]);
         toolWrench = Instantiate(GlobalScript.LoadPrefabObject("Prefabs/Tools", "Wrench_Open")[0]);
@@ -228,24 +228,24 @@ public class XRCanvasScript : CanvasBaseScript
         toolMinus.SetActive(false);
         toolWrench.SetActive(false);
 
-        // ƒc[ƒ‹Õ“ËƒXƒNƒŠƒvƒg’Ç‰Á
+        // ãƒ„ãƒ¼ãƒ«è¡çªã‚¹ã‚¯ãƒªãƒ—ãƒˆè¿½åŠ 
         toolCollisionPlus = toolPlus.AddComponent<ToolCollisionScript>();
         toolCollisionMinus = toolMinus.AddComponent<ToolCollisionScript>();
         toolCollisionWrench = toolWrench.AddComponent<ToolCollisionScript>();
 
-        // ƒCƒxƒ“ƒg“o˜^
+        // ã‚¤ãƒ™ãƒ³ãƒˆç™»éŒ²
         InputManager.Instance.RegisterButtonDown(ButtonDownEvent);
         InputManager.Instance.RegisterTouchDown(TouchDownEvent);
     }
 
     /// <summary>
-    /// ŠJnˆ—
+    /// é–‹å§‹å‡¦ç†
     /// </summary>
     protected override void Start()
     {
         base.Start();
 
-        // ƒvƒŒƒnƒuŠÖ˜A
+        // ãƒ—ãƒ¬ãƒãƒ–é–¢é€£
         allPrefab = GameObject.FindObjectsByType<GameObject>(FindObjectsInactive.Include, FindObjectsSortMode.None).Where(d => d.name == "PrefabObjects").ToList()[0];
         btnPrefab = GetComponentsInChildren<Button>(true).ToList().Find(d => d.name == "BtnPrefab");
         for (var i = 0; i < allPrefab.transform.childCount; i++)
@@ -264,7 +264,7 @@ public class XRCanvasScript : CanvasBaseScript
             }
             dctName[info.name].Add(info);
         }
-        // “¯ˆê–¼Ìƒ`ƒFƒbƒN
+        // åŒä¸€åç§°ãƒã‚§ãƒƒã‚¯
         foreach (var info in dctName.Where(d => d.Value.Count > 1).ToList())
         {
             for (var i = 0; i < info.Value.Count; i++)
@@ -276,7 +276,7 @@ public class XRCanvasScript : CanvasBaseScript
         }
         dctName.Clear();
 
-        // ƒCƒxƒ“ƒg—LŒø
+        // ã‚¤ãƒ™ãƒ³ãƒˆæœ‰åŠ¹
         foreach (var btn in btnPrefabs)
         {
             btn.button.onClick.AddListener(() => btnPrefab_onClick(btn));
@@ -285,7 +285,7 @@ public class XRCanvasScript : CanvasBaseScript
     }
 
     /// <summary>
-    /// —LŒø
+    /// æœ‰åŠ¹æ™‚
     /// </summary>
     protected override void OnEnable()
     {
@@ -325,7 +325,7 @@ public class XRCanvasScript : CanvasBaseScript
     }
 
     /// <summary>
-    /// –³Œø
+    /// ç„¡åŠ¹æ™‚
     /// </summary>
     protected override void OnDisable()
     {
@@ -363,19 +363,19 @@ public class XRCanvasScript : CanvasBaseScript
     }
 
     /// <summary>
-    /// XVˆ—
+    /// æ›´æ–°å‡¦ç†
     /// </summary>
     protected override void LateUpdate()
     {
-        // ƒJƒƒ‰‚Ì‘O‚É•\¦
+        // ã‚«ãƒ¡ãƒ©ã®å‰ã«è¡¨ç¤º
         transform.position = xrCamera.position + xrCamera.forward * distance;
         transform.position = new Vector3(transform.position.x, transform.position.y - 0.2f, transform.position.z);
         transform.rotation = Quaternion.LookRotation(transform.position - xrCamera.position);
     }
 
-    #region ƒCƒxƒ“ƒg
+    #region ã‚¤ãƒ™ãƒ³ãƒˆ
     /// <summary>
-    /// ƒ{ƒ^ƒ“ƒ_ƒEƒ“ƒCƒxƒ“ƒg
+    /// ãƒœã‚¿ãƒ³ãƒ€ã‚¦ãƒ³ã‚¤ãƒ™ãƒ³ãƒˆ
     /// </summary>
     /// <param name="button"></param>
     private void ButtonDownEvent(InputManager.ControllerButton button)
@@ -387,7 +387,7 @@ public class XRCanvasScript : CanvasBaseScript
         }
         else if (button == InputManager.ControllerButton.X)
         {
-            // ’á‚¢‚Æ‚±‚ë‚Ö
+            // ä½ã„ã¨ã“ã‚ã¸
             if (locomotor.IsCrouching)
             {
                 SetBody(false, false);
@@ -399,7 +399,7 @@ public class XRCanvasScript : CanvasBaseScript
         }
         else if (button == InputManager.ControllerButton.Y)
         {
-            // ‚‚¢‚Æ‚±‚ë‚Ö
+            // é«˜ã„ã¨ã“ã‚ã¸
             if (locomotor.IsCrouching)
             {
                 SetBody(false, false);
@@ -411,7 +411,7 @@ public class XRCanvasScript : CanvasBaseScript
         }
         else if (button == InputManager.ControllerButton.B)
         {
-            // •\¦/”ñ•\¦
+            // è¡¨ç¤º/éè¡¨ç¤º
             if (selectObject != null)
             {
                 selectObject.SetActive(!selectObject.activeSelf);
@@ -495,7 +495,7 @@ public class XRCanvasScript : CanvasBaseScript
     }
 
     /// <summary>
-    /// ƒgƒŠƒKƒ{ƒ^ƒ“ƒ_ƒEƒ“ƒCƒxƒ“ƒg
+    /// ãƒˆãƒªã‚¬ãƒœã‚¿ãƒ³ãƒ€ã‚¦ãƒ³ã‚¤ãƒ™ãƒ³ãƒˆ
     /// </summary>
     /// <param name="button"></param>
     /// <param name="gameObject"></param>
@@ -539,15 +539,15 @@ public class XRCanvasScript : CanvasBaseScript
     }
 
     /// <summary>
-    /// •Â‚¶‚éƒNƒŠƒbƒN
+    /// é–‰ã˜ã‚‹ã‚¯ãƒªãƒƒã‚¯
     /// </summary>
     private void btnClose_onClick()
     {
         this.gameObject.SetActive(false);
     }
-    #region ƒƒCƒ“ƒƒjƒ…[
+    #region ãƒ¡ã‚¤ãƒ³ãƒ¡ãƒ‹ãƒ¥ãƒ¼
     /// <summary>
-    /// ƒ{ƒfƒBƒNƒŠƒbƒN
+    /// ãƒœãƒ‡ã‚£ã‚¯ãƒªãƒƒã‚¯
     /// </summary>
     private void btnMainSystem_onClick()
     {
@@ -556,7 +556,7 @@ public class XRCanvasScript : CanvasBaseScript
     }
 
     /// <summary>
-    /// ƒ{ƒfƒBƒNƒŠƒbƒN
+    /// ãƒœãƒ‡ã‚£ã‚¯ãƒªãƒƒã‚¯
     /// </summary>
     private void btnMainBody_onClick()
     {
@@ -565,7 +565,7 @@ public class XRCanvasScript : CanvasBaseScript
     }
 
     /// <summary>
-    /// ƒc[ƒ‹ƒNƒŠƒbƒN
+    /// ãƒ„ãƒ¼ãƒ«ã‚¯ãƒªãƒƒã‚¯
     /// </summary>
     private void btnMainTool_onClick()
     {
@@ -574,7 +574,7 @@ public class XRCanvasScript : CanvasBaseScript
     }
 
     /// <summary>
-    /// ƒvƒŒƒnƒuƒNƒŠƒbƒN
+    /// ãƒ—ãƒ¬ãƒãƒ–ã‚¯ãƒªãƒƒã‚¯
     /// </summary>
     private void btnMainPrefab_onClick()
     {
@@ -583,7 +583,7 @@ public class XRCanvasScript : CanvasBaseScript
     }
 
     /// <summary>
-    /// ’f–Ê•\¦ƒNƒŠƒbƒN
+    /// æ–­é¢è¡¨ç¤ºã‚¯ãƒªãƒƒã‚¯
     /// </summary>
     private void btnMainSlice_onClick()
     {
@@ -608,7 +608,7 @@ public class XRCanvasScript : CanvasBaseScript
     }
 
     /// <summary>
-    /// ’f–Ê•\¦ƒNƒŠƒbƒN
+    /// æ–­é¢è¡¨ç¤ºã‚¯ãƒªãƒƒã‚¯
     /// </summary>
     private void btnMainAssembly_onClick()
     {
@@ -617,7 +617,7 @@ public class XRCanvasScript : CanvasBaseScript
     }
 
     /// <summary>
-    /// ƒ{ƒ^ƒ“‚ÌF‚ğƒZƒbƒg‚·‚é
+    /// ãƒœã‚¿ãƒ³ã®è‰²ã‚’ã‚»ãƒƒãƒˆã™ã‚‹
     /// </summary>
     /// <param name="on"></param>
     /// <param name="offs"></param>
@@ -635,7 +635,7 @@ public class XRCanvasScript : CanvasBaseScript
                 button.GetComponent<Image>().color = new Color(1 / 2f, 200 / 255f, 1f, 1 / 2f);
             }
         }
-        // ƒŒƒCƒLƒƒƒXƒg‚Ì”ÍˆÍ•ÏX
+        // ãƒ¬ã‚¤ã‚­ãƒ£ã‚¹ãƒˆã®ç¯„å›²å¤‰æ›´
         if (select == btnMainAssembly)
         {
             ((RectTransform)rayCanvasInteraction.transform).sizeDelta = new Vector2(120, ((RectTransform)transform).sizeDelta.y);
@@ -643,14 +643,14 @@ public class XRCanvasScript : CanvasBaseScript
         else
         {
             ((RectTransform)rayCanvasInteraction.transform).sizeDelta = new Vector2(((RectTransform)transform).sizeDelta.x, ((RectTransform)transform).sizeDelta.y);
-            // ‘I‘ğ‰ğœ
+            // é¸æŠè§£é™¤
             EventManager.Instance.ProcessObjectSelect(null);
             txtAssembly.text = "";
         }
     }
 
     /// <summary>
-    /// ƒƒCƒ“ƒ{ƒ^ƒ“ƒNƒŠƒbƒN
+    /// ãƒ¡ã‚¤ãƒ³ãƒœã‚¿ãƒ³ã‚¯ãƒªãƒƒã‚¯
     /// </summary>
     private void SetMainButtonClick(GameObject select)
     {
@@ -659,11 +659,11 @@ public class XRCanvasScript : CanvasBaseScript
             subMenu.SetActive(select == subMenu);
         }
     }
-    #endregion ƒƒCƒ“ƒƒjƒ…[
+    #endregion ãƒ¡ã‚¤ãƒ³ãƒ¡ãƒ‹ãƒ¥ãƒ¼
 
-    #region ƒTƒuƒƒjƒ…[FƒVƒXƒeƒ€
+    #region ã‚µãƒ–ãƒ¡ãƒ‹ãƒ¥ãƒ¼ï¼šã‚·ã‚¹ãƒ†ãƒ 
     /// <summary>
-    /// ƒVƒXƒeƒ€ƒAƒEƒgƒ‰ƒCƒ“ƒNƒŠƒbƒN
+    /// ã‚·ã‚¹ãƒ†ãƒ ã‚¢ã‚¦ãƒˆãƒ©ã‚¤ãƒ³ã‚¯ãƒªãƒƒã‚¯
     /// </summary>
     private void btnSystemOutlline_onClick()
     {
@@ -677,11 +677,11 @@ public class XRCanvasScript : CanvasBaseScript
             SetSubButtonColor(null, new Button[] { btnSystemOutlline });
         }
     }
-    #endregion ƒTƒuƒƒjƒ…[FƒVƒXƒeƒ€
+    #endregion ã‚µãƒ–ãƒ¡ãƒ‹ãƒ¥ãƒ¼ï¼šã‚·ã‚¹ãƒ†ãƒ 
 
-    #region ƒTƒuƒƒjƒ…[Fƒ{ƒfƒB
+    #region ã‚µãƒ–ãƒ¡ãƒ‹ãƒ¥ãƒ¼ï¼šãƒœãƒ‡ã‚£
     /// <summary>
-    /// ƒ{ƒfƒBƒm[ƒ}ƒ‹‚ğƒNƒŠƒbƒN
+    /// ãƒœãƒ‡ã‚£ãƒãƒ¼ãƒãƒ«ã‚’ã‚¯ãƒªãƒƒã‚¯
     /// </summary>
     private void btnBodyNormal_onClick()
     {
@@ -689,7 +689,7 @@ public class XRCanvasScript : CanvasBaseScript
     }
 
     /// <summary>
-    /// ƒ{ƒfƒBƒAƒbƒv‚ğƒNƒŠƒbƒN
+    /// ãƒœãƒ‡ã‚£ã‚¢ãƒƒãƒ—ã‚’ã‚¯ãƒªãƒƒã‚¯
     /// </summary>
     private void btnBodyUp_onClick()
     {
@@ -697,7 +697,7 @@ public class XRCanvasScript : CanvasBaseScript
     }
 
     /// <summary>
-    /// ƒ{ƒfƒBƒ_ƒEƒ“‚ğƒNƒŠƒbƒN
+    /// ãƒœãƒ‡ã‚£ãƒ€ã‚¦ãƒ³ã‚’ã‚¯ãƒªãƒƒã‚¯
     /// </summary>
     private void btnBodyDown_onClick()
     {
@@ -705,7 +705,7 @@ public class XRCanvasScript : CanvasBaseScript
     }
 
     /// <summary>
-    /// ƒ{ƒfƒBƒZƒbƒg
+    /// ãƒœãƒ‡ã‚£ã‚»ãƒƒãƒˆ
     /// </summary>
     /// <param name="height"></param>
     private void SetBody(bool up, bool down)
@@ -726,11 +726,11 @@ public class XRCanvasScript : CanvasBaseScript
         }
         locomotor.Crouch(up || down);
     }
-    #endregion ƒTƒuƒƒjƒ…[Fƒ{ƒfƒB
+    #endregion ã‚µãƒ–ãƒ¡ãƒ‹ãƒ¥ãƒ¼ï¼šãƒœãƒ‡ã‚£
 
-    #region ƒTƒuƒƒjƒ…[Fƒc[ƒ‹
+    #region ã‚µãƒ–ãƒ¡ãƒ‹ãƒ¥ãƒ¼ï¼šãƒ„ãƒ¼ãƒ«
     /// <summary>
-    /// ƒc[ƒ‹ƒnƒ“ƒh‚ğƒNƒŠƒbƒN
+    /// ãƒ„ãƒ¼ãƒ«ãƒãƒ³ãƒ‰ã‚’ã‚¯ãƒªãƒƒã‚¯
     /// </summary>
     private void btnToolHand_onClick()
     {
@@ -741,7 +741,7 @@ public class XRCanvasScript : CanvasBaseScript
     }
 
     /// <summary>
-    /// ƒc[ƒ‹ƒvƒ‰ƒX‚ğƒNƒŠƒbƒN
+    /// ãƒ„ãƒ¼ãƒ«ãƒ—ãƒ©ã‚¹ã‚’ã‚¯ãƒªãƒƒã‚¯
     /// </summary>
     private void btnToolPlus_onClick()
     {
@@ -750,7 +750,7 @@ public class XRCanvasScript : CanvasBaseScript
     }
 
     /// <summary>
-    /// ƒc[ƒ‹ƒ}ƒCƒiƒX‚ğƒNƒŠƒbƒN
+    /// ãƒ„ãƒ¼ãƒ«ãƒã‚¤ãƒŠã‚¹ã‚’ã‚¯ãƒªãƒƒã‚¯
     /// </summary>
     private void btnToolMinus_onClick()
     {
@@ -759,7 +759,7 @@ public class XRCanvasScript : CanvasBaseScript
     }
 
     /// <summary>
-    /// ƒc[ƒ‹ƒŒƒ“ƒ`‚ğƒNƒŠƒbƒN
+    /// ãƒ„ãƒ¼ãƒ«ãƒ¬ãƒ³ãƒã‚’ã‚¯ãƒªãƒƒã‚¯
     /// </summary>
     private void btnToolWrench_onClick()
     {
@@ -768,7 +768,7 @@ public class XRCanvasScript : CanvasBaseScript
     }
 
     /// <summary>
-    /// ƒc[ƒ‹‚ğƒZƒbƒg‚·‚é
+    /// ãƒ„ãƒ¼ãƒ«ã‚’ã‚»ãƒƒãƒˆã™ã‚‹
     /// </summary>
     /// <param name="tool"></param>
     private void SetTool(GameObject tool, ToolCollisionScript collision, List<GameObject> notUsed)
@@ -797,7 +797,7 @@ public class XRCanvasScript : CanvasBaseScript
     }
 
     /// <summary>
-    /// ƒc[ƒ‹‚ğƒZƒbƒg‚·‚é
+    /// ãƒ„ãƒ¼ãƒ«ã‚’ã‚»ãƒƒãƒˆã™ã‚‹
     /// </summary>
     /// <param name="use"></param>
     /// <param name="notUsed"></param>
@@ -812,11 +812,11 @@ public class XRCanvasScript : CanvasBaseScript
             n.SetActive(false);
         }
     }
-    #endregion ƒTƒuƒƒjƒ…[Fƒc[ƒ‹
+    #endregion ã‚µãƒ–ãƒ¡ãƒ‹ãƒ¥ãƒ¼ï¼šãƒ„ãƒ¼ãƒ«
 
-    #region ƒTƒuƒƒjƒ…[FƒvƒŒƒnƒu
+    #region ã‚µãƒ–ãƒ¡ãƒ‹ãƒ¥ãƒ¼ï¼šãƒ—ãƒ¬ãƒãƒ–
     /// <summary>
-    /// ƒ{ƒ^ƒ“ƒNƒŠƒbƒNƒCƒxƒ“ƒg
+    /// ãƒœã‚¿ãƒ³ã‚¯ãƒªãƒƒã‚¯ã‚¤ãƒ™ãƒ³ãƒˆ
     /// </summary>
     private void btnPrefab_onClick(PrefabButtonInfo info)
     {
@@ -826,7 +826,7 @@ public class XRCanvasScript : CanvasBaseScript
     }
 
     /// <summary>
-    /// ƒ{ƒ^ƒ“ì¬
+    /// ãƒœã‚¿ãƒ³ä½œæˆ
     /// </summary>
     /// <param name=""></param>
     private PrefabButtonInfo CreateButton(GameObject prefab)
@@ -876,7 +876,7 @@ public class XRCanvasScript : CanvasBaseScript
     }
 
     /// <summary>
-    /// ƒvƒŒƒnƒuƒ{ƒ^ƒ“ƒJƒ‰[XV
+    /// ãƒ—ãƒ¬ãƒãƒ–ãƒœã‚¿ãƒ³ã‚«ãƒ©ãƒ¼æ›´æ–°
     /// </summary>
     private void RenewPrefabButtonColor()
     {
@@ -892,11 +892,11 @@ public class XRCanvasScript : CanvasBaseScript
             }
         }
     }
-    #endregion ƒTƒuƒƒjƒ…[FƒvƒŒƒnƒu
+    #endregion ã‚µãƒ–ãƒ¡ãƒ‹ãƒ¥ãƒ¼ï¼šãƒ—ãƒ¬ãƒãƒ–
 
-    #region ƒTƒuƒƒjƒ…[F’f–Ê•\¦
+    #region ã‚µãƒ–ãƒ¡ãƒ‹ãƒ¥ãƒ¼ï¼šæ–­é¢è¡¨ç¤º
     /// <summary>
-    /// ’f–Ê•\¦X
+    /// æ–­é¢è¡¨ç¤ºX
     /// </summary>
     private void btnSliceX_onClick()
     {
@@ -909,7 +909,7 @@ public class XRCanvasScript : CanvasBaseScript
     }
 
     /// <summary>
-    /// ’f–Ê•\¦Y
+    /// æ–­é¢è¡¨ç¤ºY
     /// </summary>
     private void btnSliceY_onClick()
     {
@@ -922,7 +922,7 @@ public class XRCanvasScript : CanvasBaseScript
     }
 
     /// <summary>
-    /// ’f–Ê•\¦Z
+    /// æ–­é¢è¡¨ç¤ºZ
     /// </summary>
     private void btnSliceZ_onClick()
     {
@@ -935,7 +935,7 @@ public class XRCanvasScript : CanvasBaseScript
     }
 
     /// <summary>
-    /// ’f–Ê•\¦”½“]
+    /// æ–­é¢è¡¨ç¤ºåè»¢
     /// </summary>
     private void btnSliceRvs_onClick()
     {
@@ -951,7 +951,7 @@ public class XRCanvasScript : CanvasBaseScript
     }
 
     /// <summary>
-    /// ’f–Ê•\¦‚Ì’lƒZƒbƒg
+    /// æ–­é¢è¡¨ç¤ºã®å€¤ã‚»ãƒƒãƒˆ
     /// </summary>
     private void sliderSlice_onValueChanged(float value)
     {
@@ -969,12 +969,12 @@ public class XRCanvasScript : CanvasBaseScript
         }
         GlobalScript.clipInfo.value = value;
     }
-    #endregion ƒTƒuƒƒjƒ…[F’f–Ê•\¦
-    #endregion ƒCƒxƒ“ƒg
+    #endregion ã‚µãƒ–ãƒ¡ãƒ‹ãƒ¥ãƒ¼ï¼šæ–­é¢è¡¨ç¤º
+    #endregion ã‚¤ãƒ™ãƒ³ãƒˆ
 
-    #region ƒƒ\ƒbƒh
+    #region ãƒ¡ã‚½ãƒƒãƒ‰
     /// <summary>
-    /// ƒ{ƒ^ƒ“‚ÌF‚ğƒZƒbƒg‚·‚é
+    /// ãƒœã‚¿ãƒ³ã®è‰²ã‚’ã‚»ãƒƒãƒˆã™ã‚‹
     /// </summary>
     /// <param name="on"></param>
     /// <param name="offs"></param>
@@ -989,5 +989,5 @@ public class XRCanvasScript : CanvasBaseScript
             off.GetComponent<Image>().color = new Color(1f, 1f, 1 / 2f, 1 / 2f);
         }
     }
-    #endregion ƒƒ\ƒbƒh
+    #endregion ãƒ¡ã‚½ãƒƒãƒ‰
 }

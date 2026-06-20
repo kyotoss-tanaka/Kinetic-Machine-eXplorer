@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+ï»¿using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
 using Unity.VisualScripting;
@@ -6,7 +6,7 @@ using UnityEngine;
 
 public class CRX_30iA: Kinematics6D
 {
-    #region •Ï”
+    #region å¤‰æ•°
     [SerializeField]
     protected List<float> angle;
 
@@ -30,7 +30,7 @@ public class CRX_30iA: Kinematics6D
 
     protected int axisType = 0;
 
-    #endregion •Ï”
+    #endregion å¤‰æ•°
 
     protected override void Start()
     {
@@ -38,7 +38,7 @@ public class CRX_30iA: Kinematics6D
     }
 
     /// <summary>
-    /// ƒpƒ‰ƒ[ƒ^XV
+    /// ãƒ‘ãƒ©ãƒ¡ãƒ¼ã‚¿æ›´æ–°
     /// </summary>
     protected override void RenewParameter()
     {
@@ -49,7 +49,7 @@ public class CRX_30iA: Kinematics6D
     }
 
     /// <summary>
-    /// –Ú•WˆÊ’uƒZƒbƒg
+    /// ç›®æ¨™ä½ç½®ã‚»ãƒƒãƒˆ
     /// </summary>
     /// <param name="x"></param>
     /// <param name="y"></param>
@@ -65,7 +65,7 @@ public class CRX_30iA: Kinematics6D
     }
 
     /// <summary>
-    /// ƒ‚ƒfƒ‹Ä\’z
+    /// ãƒ¢ãƒ‡ãƒ«å†æ§‹ç¯‰
     /// </summary>
     /// <param name="instance"></param>
     protected override void ModelRestructProcess()
@@ -79,20 +79,20 @@ public class CRX_30iA: Kinematics6D
 
         var children = unitSetting.moveObject.GetComponentsInChildren<Transform>().ToList();
 
-        // ƒA[ƒ€1 Y²
+        // ã‚¢ãƒ¼ãƒ 1 Yè»¸
         arm1 = children.Find(d => d.name.Contains("J2BASE"));
-        // ƒA[ƒ€2 Y²
+        // ã‚¢ãƒ¼ãƒ 2 Yè»¸
         arm2 = children.Find(d => d.name.Contains("J2ARM"));
-        // ƒA[ƒ€3 Y²
+        // ã‚¢ãƒ¼ãƒ 3 Yè»¸
         arm3 = children.Find(d => d.name.Contains("J3CASING"));
-        // ƒA[ƒ€4 X²
+        // ã‚¢ãƒ¼ãƒ 4 Xè»¸
         arm4 = children.Find(d => d.name.Contains("J3ARM"));
-        // ƒA[ƒ€5 Y²
+        // ã‚¢ãƒ¼ãƒ 5 Yè»¸
         arm5 = children.Find(d => d.name.Contains("J6CASING"));
-        // ƒA[ƒ€6 X²
+        // ã‚¢ãƒ¼ãƒ 6 Xè»¸
         arm6 = children.Find(d => d.name.Contains("J6FLANGE"));
 
-        // eqŠÖŒWƒZƒbƒg
+        // è¦ªå­é–¢ä¿‚ã‚»ãƒƒãƒˆ
         arm1.parent = crx.transform;
         arm2.parent = arm1;
         arm3.parent = arm2;
@@ -100,7 +100,7 @@ public class CRX_30iA: Kinematics6D
         arm5.parent = arm4;
         arm6.parent = arm5;
 
-        // ‰ŠúŠp“xƒZƒbƒg
+        // åˆæœŸè§’åº¦ã‚»ãƒƒãƒˆ
         ang1 = arm1.localEulerAngles;
         /*
         ang2 = arm2.localEulerAngles;
@@ -110,7 +110,7 @@ public class CRX_30iA: Kinematics6D
         ang6 = arm6.localEulerAngles;
         */
 
-        // ƒwƒbƒhƒZƒbƒg
+        // ãƒ˜ãƒƒãƒ‰ã‚»ãƒƒãƒˆ
         if (HeadObject != null)
         {
             HeadObject.transform.parent = arm6.transform;

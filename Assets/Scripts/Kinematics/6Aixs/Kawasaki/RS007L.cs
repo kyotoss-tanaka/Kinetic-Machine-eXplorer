@@ -1,4 +1,4 @@
-using System.Collections;
+ï»¿using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
@@ -6,16 +6,16 @@ using UnityEngine;
 public class RS007L : Robo6Axis
 {
 
-    #region ŠÖ”
+    #region é–¢æ•°
     /// <summary>
-    /// ƒ‚ƒfƒ‹Ä\’z
+    /// ãƒ¢ãƒ‡ãƒ«å†æ§‹ç¯‰
     /// </summary>
     /// <param name="instance"></param>
     protected override void ModelRestructProcess()
     {
         var children = GetComponentsInChildren<Transform>();
-        // ƒx[ƒXƒIƒuƒWƒFƒNƒgæ“¾
-        baseObject = children.FirstOrDefault(d => d.name.Contains("ƒx[ƒX")).gameObject;
+        // ãƒ™ãƒ¼ã‚¹ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆå–å¾—
+        baseObject = children.FirstOrDefault(d => d.name.Contains("ãƒ™ãƒ¼ã‚¹")).gameObject;
         j1Object = children.FirstOrDefault(d => d.name.Contains("_J1")).gameObject;
         j2Object = children.FirstOrDefault(d => d.name.Contains("_J2")).gameObject;
         j3Object = children.FirstOrDefault(d => d.name.Contains("_J3")).gameObject;
@@ -29,5 +29,5 @@ public class RS007L : Robo6Axis
         j2Object.transform.parent = j1Object.transform;
         j1Object.transform.parent = baseObject.transform;
     }
-    #endregion ŠÖ”
+    #endregion é–¢æ•°
 }

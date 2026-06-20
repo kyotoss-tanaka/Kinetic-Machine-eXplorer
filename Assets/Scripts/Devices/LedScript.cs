@@ -1,4 +1,4 @@
-using Parameters;
+ï»¿using Parameters;
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -13,7 +13,7 @@ using static SwitchScript;
 public class LedScript : KssBaseScript
 {
     /// <summary>
-    /// LEDƒJƒ‰[
+    /// LEDã‚«ãƒ©ãƒ¼
     /// </summary>
     public enum LedColor
     {
@@ -21,7 +21,7 @@ public class LedScript : KssBaseScript
     }
 
     /// <summary>
-    /// LEDƒf[ƒ^
+    /// LEDãƒ‡ãƒ¼ã‚¿
     /// </summary>
     public class LedData
     {
@@ -32,18 +32,18 @@ public class LedScript : KssBaseScript
     }
 
     /// <summary>
-    /// “®ìƒ^ƒCƒv
+    /// å‹•ä½œã‚¿ã‚¤ãƒ—
     /// </summary>
     private int type { get; set; }
 
     /// <summary>
-    /// ƒƒbƒVƒ…
+    /// ãƒ¡ãƒƒã‚·ãƒ¥
     /// </summary>
     [SerializeField]
     private List<MeshRenderer> meshRenderers = new();
 
     /// <summary>
-    /// ƒ^ƒO
+    /// ã‚¿ã‚°
     /// </summary>
     [SerializeField]
     protected List<LedData> leds;
@@ -53,7 +53,7 @@ public class LedScript : KssBaseScript
 
     /*
     /// <summary>
-    /// ƒ|ƒXƒgƒvƒƒZƒX
+    /// ãƒã‚¹ãƒˆãƒ—ãƒ­ã‚»ã‚¹
     /// </summary>
     private Dictionary<MeshRenderer, PostProcessVolume> ppvs = new();
     private Dictionary<MeshRenderer, Bloom> blooms = new();
@@ -72,10 +72,10 @@ public class LedScript : KssBaseScript
         }
         meshRenderers = transform.GetComponentsInChildren<MeshRenderer>().ToList();
         /*
-        // ƒ|ƒXƒgƒvƒƒZƒXƒZƒbƒg
+        // ãƒã‚¹ãƒˆãƒ—ãƒ­ã‚»ã‚¹ã‚»ãƒƒãƒˆ
         foreach (var renderer in meshRenderers)
         {
-            // ƒ|ƒXƒgƒvƒƒZƒXƒvƒƒtƒ@ƒCƒ‹ì¬
+            // ãƒã‚¹ãƒˆãƒ—ãƒ­ã‚»ã‚¹ãƒ—ãƒ­ãƒ•ã‚¡ã‚¤ãƒ«ä½œæˆ
             PostProcessVolume ppv = renderer.transform.AddComponent<PostProcessVolume>();
             ppv.blendDistance = 0.01f;
             ppv.isGlobal = false;
@@ -88,7 +88,7 @@ public class LedScript : KssBaseScript
             blooms[renderer] = bloom;
         }
         */
-        // ‰Šú’lƒZƒbƒg
+        // åˆæœŸå€¤ã‚»ãƒƒãƒˆ
         InitLedColor();
     }
 
@@ -113,7 +113,7 @@ public class LedScript : KssBaseScript
         }
         if (leds.Count > 0)
         {
-            // ƒ^ƒOXV
+            // ã‚¿ã‚°æ›´æ–°
             if (!isManual)
             {
                 for (var i = 0; i < leds.Count; i++)
@@ -121,7 +121,7 @@ public class LedScript : KssBaseScript
                     values[i] = GetTagValue(leds[i].name, ref leds[i]._tag);
                 }
             }
-            // LEDƒZƒbƒg
+            // LEDã‚»ãƒƒãƒˆ
             if (type == 0)
             {
                 foreach (var renderer in meshRenderers)
@@ -201,7 +201,7 @@ public class LedScript : KssBaseScript
     }
 
     /// <summary>
-    /// ƒpƒ‰ƒ[ƒ^ƒZƒbƒg
+    /// ãƒ‘ãƒ©ãƒ¡ãƒ¼ã‚¿ã‚»ãƒƒãƒˆ
     /// </summary>
     /// <param name="unitSetting"></param>
     /// <param name="obj"></param>

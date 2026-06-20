@@ -1,4 +1,4 @@
-#if UNITY_EDITOR
+ï»¿#if UNITY_EDITOR
 using System.Collections.Generic;
 using System.Linq;
 using UnityEditor;
@@ -7,7 +7,7 @@ using UnityEngine;
 
 public class DataBaseTreeView : TreeView
 {
-    // TreeViewItemƒNƒ‰ƒX‚ğŒp³‚µ‚½ƒNƒ‰ƒX‚ğéŒ¾
+    // TreeViewItemã‚¯ãƒ©ã‚¹ã‚’ç¶™æ‰¿ã—ãŸã‚¯ãƒ©ã‚¹ã‚’å®£è¨€
     private class TreeViewItemWithTag : TreeViewItem
     {
         public string value { get; set; }
@@ -44,12 +44,12 @@ public class DataBaseTreeView : TreeView
     }
 
     /// <summary>
-    /// —v‘f‚ğˆÚ“®‚Å‚«‚é‚©
+    /// è¦ç´ ã‚’ç§»å‹•ã§ãã‚‹ã‹
     /// </summary>
     protected override bool CanStartDrag(CanStartDragArgs args) => true;
 
     /// <summary>
-    /// ƒhƒ‰ƒbƒOŠJn‚Ìˆ—
+    /// ãƒ‰ãƒ©ãƒƒã‚°é–‹å§‹æ™‚ã®å‡¦ç†
     /// </summary>
     protected override void SetupDragAndDrop(SetupDragAndDropArgs args)
     {
@@ -61,24 +61,24 @@ public class DataBaseTreeView : TreeView
         DragAndDrop.StartDrag(title);
     }
 
-    // ƒRƒ“ƒXƒgƒ‰ƒNƒ^
+    // ã‚³ãƒ³ã‚¹ãƒˆãƒ©ã‚¯ã‚¿
     public DataBaseTreeView(TreeViewState state) : base(state, CreateHeader())
     {
         Reload();
     }
 
     /// <summary>
-    /// ƒwƒbƒ_ì¬
+    /// ãƒ˜ãƒƒãƒ€ä½œæˆ
     /// </summary>
     /// <returns></returns>
     private static MultiColumnHeader CreateHeader()
     {
-        // MultiColumnHeaderState.ColumnŒ^‚Ì”z—ñ‚ğì¬
+        // MultiColumnHeaderState.Columnå‹ã®é…åˆ—ã‚’ä½œæˆ
         var columns = new[]
         {
            new MultiColumnHeaderState.Column
            {
-               // ƒJƒ‰ƒ€‚Ìƒwƒbƒ_‚É•\¦‚·‚é—v‘f
+               // ã‚«ãƒ©ãƒ ã®ãƒ˜ãƒƒãƒ€ã«è¡¨ç¤ºã™ã‚‹è¦ç´ 
                headerContent = new GUIContent("Name"),
                width = 200,
                minWidth = 150,
@@ -107,9 +107,9 @@ public class DataBaseTreeView : TreeView
            },
        };
 
-        // ”z—ñ‚©‚ç MultiColumnHeaderState ‚ğ\’z
+        // é…åˆ—ã‹ã‚‰ MultiColumnHeaderState ã‚’æ§‹ç¯‰
         var state = new MultiColumnHeaderState(columns);
-        // State ‚©‚ç MultiColumnHeader ‚ğ\’z
+        // State ã‹ã‚‰ MultiColumnHeader ã‚’æ§‹ç¯‰
         return new MultiColumnHeader(state);
     }
 
@@ -117,10 +117,10 @@ public class DataBaseTreeView : TreeView
     {
         var root = new TreeViewItem { id = 0, depth = -1, displayName = "Root" };
 
-        // q—v‘f‚Íˆê’U‹ó‚Å
+        // å­è¦ç´ ã¯ä¸€æ—¦ç©ºã§
         root.children = new List<TreeViewItem>();
 
-        // DBî•ñƒZƒbƒg
+        // DBæƒ…å ±ã‚»ãƒƒãƒˆ
         int id = 0;
         var items = new List<TreeViewItem>();
         foreach (var db in GlobalScript.tagDatas)
@@ -141,7 +141,7 @@ public class DataBaseTreeView : TreeView
             }
         }
 
-        // eqŠÖŒW‚ğ“o˜^
+        // è¦ªå­é–¢ä¿‚ã‚’ç™»éŒ²
         SetupParentsAndChildrenFromDepths(root, items);
 
         return root;
@@ -151,7 +151,7 @@ public class DataBaseTreeView : TreeView
     {
         var item = (TreeViewItemWithTag)args.item;
 
-        // Še—ñ‚ÌƒtƒB[ƒ‹ƒh‚ğ•`‰æ
+        // å„åˆ—ã®ãƒ•ã‚£ãƒ¼ãƒ«ãƒ‰ã‚’æç”»
         for (var i = 0; i < args.GetNumVisibleColumns(); ++i)
         {
             var rect = args.GetCellRect(i);
@@ -160,8 +160,8 @@ public class DataBaseTreeView : TreeView
             switch (columnIndex)
             {
                 case 0:
-                    // 1—ñ–Ú‚Í—v‘f–¼
-                    // ƒCƒ“ƒfƒ“ƒg‚·‚é•K—v‚ª‚ ‚é
+                    // 1åˆ—ç›®ã¯è¦ç´ å
+                    // ã‚¤ãƒ³ãƒ‡ãƒ³ãƒˆã™ã‚‹å¿…è¦ãŒã‚ã‚‹
                     rect.xMin += GetContentIndent(item);
                     EditorGUI.LabelField(rect, item.displayName);
                     break;

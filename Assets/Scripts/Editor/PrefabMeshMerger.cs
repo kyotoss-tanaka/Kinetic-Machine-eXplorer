@@ -1,4 +1,4 @@
-#if UNITY_EDITOR
+ï»¿#if UNITY_EDITOR
 using Parameters;
 using System;
 using System.Collections.Generic;
@@ -13,7 +13,7 @@ using UnityEngine;
 public class PrefabMeshMerger
 {
     /// <summary>
-    /// ƒ}ƒeƒŠƒAƒ‹ƒL[
+    /// ãƒãƒ†ãƒªã‚¢ãƒ«ã‚­ãƒ¼
     /// </summary>
     class MaterialKey
     {
@@ -51,8 +51,8 @@ public class PrefabMeshMerger
     public static void MergePrefabMeshes()
     {
         isProcessing = true;
-        // ƒ_ƒCƒAƒƒO‚ğŠJ‚¢‚ÄAOK‚ÉƒR[ƒ‹ƒoƒbƒN‚Åˆ—‚ğs‚¤
-        string path = EditorUtility.OpenFolderPanel("VR—p‚Éƒ}[ƒW‚·‚é‹@”ÔƒtƒHƒ‹ƒ_‚ğ‘I‘ğ", Path.GetFullPath(Path.Combine(Application.dataPath, "3DModels")), "");
+        // ãƒ€ã‚¤ã‚¢ãƒ­ã‚°ã‚’é–‹ã„ã¦ã€OKæ™‚ã«ã‚³ãƒ¼ãƒ«ãƒãƒƒã‚¯ã§å‡¦ç†ã‚’è¡Œã†
+        string path = EditorUtility.OpenFolderPanel("VRç”¨ã«ãƒãƒ¼ã‚¸ã™ã‚‹æ©Ÿç•ªãƒ•ã‚©ãƒ«ãƒ€ã‚’é¸æŠ", Path.GetFullPath(Path.Combine(Application.dataPath, "3DModels")), "");
         if (path != "")
         {
             path = Path.Combine(path, "VR");
@@ -62,21 +62,21 @@ public class PrefabMeshMerger
             }
             else
             {
-                EditorUtility.DisplayDialog("ƒGƒ‰[", "æ‚ÉVR—pPrefab‚ğì¬‚µ‚Ä‚­‚¾‚³‚¢", "OK");
+                EditorUtility.DisplayDialog("ã‚¨ãƒ©ãƒ¼", "å…ˆã«VRç”¨Prefabã‚’ä½œæˆã—ã¦ãã ã•ã„", "OK");
             }
         }
         isProcessing = false;
     }
 
-    // validateŠÖ”itrue‚È‚ç—LŒøAfalse‚È‚ç–³Œøj
+    // validateé–¢æ•°ï¼ˆtrueãªã‚‰æœ‰åŠ¹ã€falseãªã‚‰ç„¡åŠ¹ï¼‰
     [MenuItem("Kyotoss/Merge Prefab Meshes(VR)", true)]
     private static bool ValidateMergePrefabMeshes()
     {
-        return !isProcessing; // ˆ—’†‚È‚ç–³Œø‰»
+        return !isProcessing; // å‡¦ç†ä¸­ãªã‚‰ç„¡åŠ¹åŒ–
     }
 
     /// <summary>
-    /// ƒ}[ƒWˆ—
+    /// ãƒãƒ¼ã‚¸å‡¦ç†
     /// </summary>
     /// <param name="folder"></param>
     public static async void MergePrefabProcess(string folder)
@@ -84,7 +84,7 @@ public class PrefabMeshMerger
         folder = Path.GetFullPath(folder);
         if (Directory.Exists(folder))
         {
-            // ƒvƒŒƒnƒuƒtƒ@ƒCƒ‹æ“¾
+            // ãƒ—ãƒ¬ãƒãƒ–ãƒ•ã‚¡ã‚¤ãƒ«å–å¾—
             var files = Directory.GetFiles(folder).ToList().FindAll(d => (Path.GetExtension(d) == ".prefab") && !Path.GetFileName(d).Contains("_VR.prefab"));
             if (files.Count > 0)
             {
@@ -114,20 +114,20 @@ public class PrefabMeshMerger
                 {
                     foreach (var file in files)
                     {
-                        EditorUtility.DisplayProgressBar($"Prefabƒ}[ƒW{files.IndexOf(file) + 1}/{files.Count}", $"Prefabƒ[ƒh’†...", (float)files.IndexOf(file) / (float)files.Count);
-                        // •Û‘¶æ
+                        EditorUtility.DisplayProgressBar($"Prefabãƒãƒ¼ã‚¸{files.IndexOf(file) + 1}/{files.Count}", $"Prefabãƒ­ãƒ¼ãƒ‰ä¸­...", (float)files.IndexOf(file) / (float)files.Count);
+                        // ä¿å­˜å…ˆ
                         var filePath = Path.Combine(Path.Combine(dirPath, "Merged"), Path.GetFileNameWithoutExtension(file) + "_VR" + ".prefab");
                         if (File.Exists(filePath))
                         {
                             File.Delete(filePath);
                         }
-                        // Prefab ‚ğ•ÒW—p‚Éƒ[ƒh
+                        // Prefab ã‚’ç·¨é›†ç”¨ã«ãƒ­ãƒ¼ãƒ‰
                         GameObject root = PrefabUtility.LoadPrefabContents(file);
                         root.name = Path.GetFileNameWithoutExtension(file);
                         var hiddenPaths = RenewHiddenObjs(root, hiddenSettings);
                         try
                         {
-                            // ƒ}[ƒWˆ—
+                            // ãƒãƒ¼ã‚¸å‡¦ç†
                             var paths = new HashSet<string>();
                             /*
                             paths.AddRange(excludePaths);
@@ -135,13 +135,13 @@ public class PrefabMeshMerger
                             */
                             MergeSameMaterials(root);
                             UnifySimilarColorMaterials(root, 0.05f);
-                            MergeWholePrefabExcludeMovable(root.transform, paths, mergedPath, $"Prefabƒ}[ƒW{files.IndexOf(file) + 1}/{files.Count}");
-                            // Prefab ‚É•Û‘¶
+                            MergeWholePrefabExcludeMovable(root.transform, paths, mergedPath, $"Prefabãƒãƒ¼ã‚¸{files.IndexOf(file) + 1}/{files.Count}");
+                            // Prefab ã«ä¿å­˜
                             PrefabUtility.SaveAsPrefabAsset(root, filePath);
                         }
                         catch (Exception ex)
                         {
-                            EditorUtility.DisplayDialog("ƒGƒ‰[", ex.Message, "OK");
+                            EditorUtility.DisplayDialog("ã‚¨ãƒ©ãƒ¼", ex.Message, "OK");
                         }
                         finally
                         {
@@ -172,7 +172,7 @@ public class PrefabMeshMerger
             Directory.CreateDirectory(materialPath_s);
         }
 
-        // ===== ‘ÎÛ MeshFilter ’Šo =====
+        // ===== å¯¾è±¡ MeshFilter æŠ½å‡º =====
         var targets = root.GetComponentsInChildren<MeshFilter>()
             .Select(mf => new
             {
@@ -195,7 +195,7 @@ public class PrefabMeshMerger
         if (targets.Count == 0)
             return;
 
-        // ===== (Material ~ subMeshIndex) ‚Å•ª‰ğ =====
+        // ===== (Material Ã— subMeshIndex) ã§åˆ†è§£ =====
         var entries = new List<(Material mat, MeshFilter mf, int subMesh)>();
 
         foreach (var t in targets)
@@ -213,12 +213,12 @@ public class PrefabMeshMerger
             }
         }
 
-        // ===== Material ‚²‚Æ‚Éƒ}[ƒW =====
+        // ===== Material ã”ã¨ã«ãƒãƒ¼ã‚¸ =====
         int index = 0;
         var groups = entries.GroupBy(e => e.mat).ToList();
         foreach (var group in groups)
         {
-            EditorUtility.DisplayProgressBar(label, $"Material‚ÆMeshì¬’†...{groups.IndexOf(group) + 1}/{groups.Count}", (float)(groups.IndexOf(group) + 1) / (float)groups.Count);
+            EditorUtility.DisplayProgressBar(label, $"Materialã¨Meshä½œæˆä¸­...{groups.IndexOf(group) + 1}/{groups.Count}", (float)(groups.IndexOf(group) + 1) / (float)groups.Count);
             Material safeMat = GetOrCreateMaterialAsset(group.Key, materialPath_s);
             if (safeMat == null)
                 continue;
@@ -261,12 +261,12 @@ public class PrefabMeshMerger
             mergedObj.AddComponent<MeshRenderer>().sharedMaterial = safeMat;
         }
 
-        // ===== Œ³ƒIƒuƒWƒFƒNƒgíœ =====
+        // ===== å…ƒã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆå‰Šé™¤ =====
         foreach (var t in targets)
         {
             UnityEngine.Object.DestroyImmediate(t.mf.gameObject);
         }
-        // •s—v•”íœ
+        // ä¸è¦éƒ¨å‰Šé™¤
         var tmp = root.GetComponentsInChildren<Transform>().Where(d => d.name.Contains(".sldasm")).FirstOrDefault();
         if (tmp != null)
         {
@@ -326,14 +326,14 @@ public class PrefabMeshMerger
         if (src == null)
             return null;
 
-        // ‚·‚Å‚É Asset ‚È‚ç‚»‚Ì‚Ü‚Üg‚¤
+        // ã™ã§ã« Asset ãªã‚‰ãã®ã¾ã¾ä½¿ã†
         string srcPath = AssetDatabase.GetAssetPath(src);
         if (!string.IsNullOrEmpty(srcPath))
         {
             return AssetDatabase.LoadAssetAtPath<Material>(srcPath);
         }
 
-        // ƒtƒHƒ‹ƒ_ì¬
+        // ãƒ•ã‚©ãƒ«ãƒ€ä½œæˆ
         if (!AssetDatabase.IsValidFolder(materialFolder))
         {
             string parent = Path.GetDirectoryName(materialFolder).Replace("\\", "/");
@@ -341,7 +341,7 @@ public class PrefabMeshMerger
             AssetDatabase.CreateFolder(parent, name);
         }
 
-        // Material •¡»
+        // Material è¤‡è£½
         Material copy = new Material(src);
         copy.name = src.name;
 
@@ -375,7 +375,7 @@ public class PrefabMeshMerger
                 Mesh meshCopy = UnityEngine.Object.Instantiate(mesh);
                 AssetDatabase.CreateAsset(meshCopy, meshPath);
 
-                // š ·‚µ‘Ö‚¦i•K{j
+                // â˜… å·®ã—æ›¿ãˆï¼ˆå¿…é ˆï¼‰
                 mf.sharedMesh = meshCopy;
                 EditorUtility.SetDirty(mf);
             }
@@ -397,7 +397,7 @@ public class PrefabMeshMerger
                     Material matCopy = UnityEngine.Object.Instantiate(mats[i]);
                     AssetDatabase.CreateAsset(matCopy, matPath);
 
-                    // š ·‚µ‘Ö‚¦i•K{j
+                    // â˜… å·®ã—æ›¿ãˆï¼ˆå¿…é ˆï¼‰
                     mats[i] = matCopy;
                     changed = true;
                 }
@@ -426,7 +426,7 @@ public class PrefabMeshMerger
     }
 
     /// <summary>
-    /// –³‹ƒIƒuƒWƒFƒNƒgXV
+    /// ç„¡è¦–ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆæ›´æ–°
     /// </summary>
     private static HashSet<string> RenewHiddenObjs(GameObject root, List<HiddenUnit> hiddenSettings)
     {
@@ -445,7 +445,7 @@ public class PrefabMeshMerger
             {
                 if (m.mode == 0)
                 {
-                    // ˆê’v
+                    // ä¸€è‡´
                     foreach (var o in root.transform.GetComponentsInChildren<Transform>().ToList().FindAll(d => d.name == m.name))
                     {
                         GetPath(m, CommonFunction.GetScenePath(o.gameObject));
@@ -453,7 +453,7 @@ public class PrefabMeshMerger
                 }
                 else if (m.mode == 1)
                 {
-                    // ‘O•ûˆê’v
+                    // å‰æ–¹ä¸€è‡´
                     foreach (var o in root.transform.GetComponentsInChildren<Transform>().ToList().FindAll(d => d.name.StartsWith(m.name)))
                     {
                         GetPath(m, CommonFunction.GetScenePath(o.gameObject));
@@ -461,7 +461,7 @@ public class PrefabMeshMerger
                 }
                 else if (m.mode == 2)
                 {
-                    // Œã•ûˆê’v
+                    // å¾Œæ–¹ä¸€è‡´
                     foreach (var o in root.transform.GetComponentsInChildren<Transform>().ToList().FindAll(d => d.name.EndsWith(m.name)))
                     {
                         GetPath(m, CommonFunction.GetScenePath(o.gameObject));
@@ -469,7 +469,7 @@ public class PrefabMeshMerger
                 }
                 else if (m.mode == 3)
                 {
-                    // ŠÜ‚Ü‚ê‚Ä‚¢‚é
+                    // å«ã¾ã‚Œã¦ã„ã‚‹
                     foreach (var o in root.transform.GetComponentsInChildren<Transform>().ToList().FindAll(d => d.name.Contains(m.name)))
                     {
                         GetPath(m, CommonFunction.GetScenePath(o.gameObject));
@@ -479,7 +479,7 @@ public class PrefabMeshMerger
         }
         return hidden;
     }
-    #region ƒ}ƒeƒŠƒAƒ‹“‡
+    #region ãƒãƒ†ãƒªã‚¢ãƒ«çµ±åˆ
     static void MergeSameMaterials(GameObject root)
     {
         var map = new Dictionary<MaterialKey, Material>();
@@ -525,7 +525,7 @@ public class PrefabMeshMerger
     {
         var renderers = root.GetComponentsInChildren<MeshRenderer>(true);
 
-        // •s“§–¾ / “§–¾ ‚ÅŠ®‘S•ª—£
+        // ä¸é€æ˜ / é€æ˜ ã§å®Œå…¨åˆ†é›¢
         var opaqueGroups = new List<(Color color, Material mat)>();
         var transparentGroups = new List<(Color color, Material mat)>();
 
@@ -551,7 +551,7 @@ public class PrefabMeshMerger
 
                 var groups = isTransparent ? transparentGroups : opaqueGroups;
 
-                // ‹ß‚¢F‚ğ’T‚·
+                // è¿‘ã„è‰²ã‚’æ¢ã™
                 Material targetMat = null;
                 foreach (var group in groups)
                 {
@@ -562,7 +562,7 @@ public class PrefabMeshMerger
                     }
                 }
 
-                // ‚È‚¯‚ê‚ÎV‹Kì¬
+                // ãªã‘ã‚Œã°æ–°è¦ä½œæˆ
                 if (targetMat == null)
                 {
                     targetMat = CreateUnlitMaterial(srcColor, isTransparent);
@@ -610,18 +610,18 @@ public class PrefabMeshMerger
     {
         if (mat == null) return false;
 
-        // URP Lit / Unlit ‹¤’Ê
+        // URP Lit / Unlit å…±é€š
         if (mat.HasProperty("_Surface"))
         {
             // 0 = Opaque, 1 = Transparent
             return mat.GetFloat("_Surface") > 0.5f;
         }
 
-        // ƒtƒH[ƒ‹ƒoƒbƒN
+        // ãƒ•ã‚©ãƒ¼ãƒ«ãƒãƒƒã‚¯
         return mat.renderQueue >= 3000;
     }
 
-    #endregion ƒ}ƒeƒŠƒAƒ‹“‡
+    #endregion ãƒãƒ†ãƒªã‚¢ãƒ«çµ±åˆ
 
 }
 #endif

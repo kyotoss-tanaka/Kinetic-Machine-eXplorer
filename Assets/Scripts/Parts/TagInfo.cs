@@ -1,4 +1,4 @@
-using JetBrains.Annotations;
+ï»¿using JetBrains.Annotations;
 using System;
 using UnityEngine;
 
@@ -13,47 +13,47 @@ public class TagInfo : KssPartsBase
         }
     }
     /// <summary>
-    /// ƒf[ƒ^ƒx[ƒXƒL[
+    /// ãƒ‡ãƒ¼ã‚¿ãƒ™ãƒ¼ã‚¹ã‚­ãƒ¼
     /// </summary>
     public string Database;
 
     /// <summary>
-    /// ‹@”Ô
+    /// æ©Ÿç•ª
     /// </summary>
     public string MechId;
 
     /// <summary>
-    /// ƒ^ƒO–¼
+    /// ã‚¿ã‚°å
     /// </summary>
     public string Tag;
 
     /// <summary>
-    /// ƒfƒoƒCƒX–¼
+    /// ãƒ‡ãƒã‚¤ã‚¹å
     /// </summary>
     public string Device;
 
     /// <summary>
-    /// ƒTƒCƒY
+    /// ã‚µã‚¤ã‚º
     /// </summary>
     public int Size;
 
     /// <summary>
-    /// ’l
+    /// å€¤
     /// </summary>
     public int Value;
 
     /// <summary>
-    /// ’l(float)
+    /// å€¤(float)
     /// </summary>
     public float fValue;
 
     /// <summary>
-    /// •‚“®¬”“_ƒf[ƒ^
+    /// æµ®å‹•å°æ•°ç‚¹ãƒ‡ãƒ¼ã‚¿
     /// </summary>
     public bool isFloat;
 
     /// <summary>
-    /// ”õl
+    /// å‚™è€ƒ
     /// </summary>
     public string Remarks;
 }
@@ -62,27 +62,27 @@ public class TagInfo : KssPartsBase
 public class TagInfoCom
 {
     /// <summary>
-    /// ‹@”Ô
+    /// æ©Ÿç•ª
     /// </summary>
     public string MechId { set; get; }
 
     /// <summary>
-    /// ƒ^ƒO–¼
+    /// ã‚¿ã‚°å
     /// </summary>
     public string Tag { set; get; }
 
     /// <summary>
-    /// ’l
+    /// å€¤
     /// </summary>
     public int Value { set; get; }
 
     /// <summary>
-    /// ’l(float)
+    /// å€¤(float)
     /// </summary>
     public float fValue { set; get; }
 
     /// <summary>
-    /// •‚“®¬”“_ƒf[ƒ^
+    /// æµ®å‹•å°æ•°ç‚¹ãƒ‡ãƒ¼ã‚¿
     /// </summary>
     public bool isFloat { set; get; }
 }

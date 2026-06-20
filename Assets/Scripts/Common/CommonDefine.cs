@@ -1,4 +1,4 @@
-using System;
+ï»¿using System;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using UnityEngine;
@@ -18,11 +18,11 @@ public class KssSettings
 public class KssSetting
 {
     /// <summary>
-    /// İ’èJSON
+    /// è¨­å®šJSON
     /// </summary>
     public string json;
     /// <summary>
-    /// ƒXƒNƒŠƒvƒgƒ^ƒCƒv
+    /// ã‚¹ã‚¯ãƒªãƒ—ãƒˆã‚¿ã‚¤ãƒ—
     /// </summary>
     public string type;
 }
@@ -67,7 +67,7 @@ public class ProcessStopWatch
     public System.Diagnostics.Stopwatch sw = new();
 }
 
-/// <summary> 64bitƒf[ƒ^‹¤—p‘Ì‚Æ‚µ‚Äg‚¤</summary>
+/// <summary> 64bitãƒ‡ãƒ¼ã‚¿å…±ç”¨ä½“ã¨ã—ã¦ä½¿ã†</summary>
 [StructLayout(LayoutKind.Explicit)]
 public struct uniLongAllData
 {
@@ -178,7 +178,7 @@ public struct uniLongAllData
     public sbyte sbData8;
 }
 /// <summary>
-/// ‹¤’Ê’è‹`
+/// å…±é€šå®šç¾©
 /// </summary>
 public static class CommonDefine
 {

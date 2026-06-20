@@ -1,4 +1,4 @@
-using System.Collections;
+ï»¿using System.Collections;
 using System.Collections.Generic;
 using System.Text.Json;
 using System.Threading;
@@ -8,21 +8,21 @@ using UnityEngine.Networking;
 public class ComMicksApi : ComBaseScript
 {
     /// <summary>
-    /// IPƒAƒhƒŒƒX
+    /// IPã‚¢ãƒ‰ãƒ¬ã‚¹
     /// </summary>
     [SerializeField]
     private string IpAddress = "192.168.3.10";
 
     /*
     /// <summary>
-    /// ƒ|[ƒgİ’è
+    /// ãƒãƒ¼ãƒˆè¨­å®š
     /// </summary>
     [SerializeField]
     private int Port = 5900;
     */
 
     /// <summary>
-    /// API‚ÌURL
+    /// APIã®URL
     /// </summary>
     private string url;
 
@@ -46,7 +46,7 @@ public class ComMicksApi : ComBaseScript
     }
 
     /// <summary>
-    /// API’ÊM
+    /// APIé€šä¿¡
     /// </summary>
     /// <returns></returns>
     private IEnumerator GetData()
@@ -62,7 +62,7 @@ public class ComMicksApi : ComBaseScript
             }
             else if (req.responseCode == 200)
             {
-                // óMˆ—
+                // å—ä¿¡å‡¦ç†
                 var ret = GlobalScript.ApiGetValue32(req.downloadHandler.text);
                 var tmp = new List<GlobalScript.MechInfo>();
                 for (var i = 0; i < ret.Count; i += 4)
@@ -86,7 +86,7 @@ public class ComMicksApi : ComBaseScript
     }
 
     /// <summary>
-    /// ƒpƒ‰ƒ[ƒ^‚ğƒZƒbƒg‚·‚é
+    /// ãƒ‘ãƒ©ãƒ¡ãƒ¼ã‚¿ã‚’ã‚»ãƒƒãƒˆã™ã‚‹
     /// </summary>
     /// <param name="components"></param>
     /// <param name="scriptables"></param>

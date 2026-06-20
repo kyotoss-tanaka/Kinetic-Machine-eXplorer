@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+ï»¿using System.Collections.Generic;
 using System.Linq;
 using TMPro;
 using Unity.VisualScripting;
@@ -28,13 +28,13 @@ public class CanvasMenuTimeScript : CanvasMenuBaseScript
     }
 
     /// <summary>
-    /// ŠJnˆ—
+    /// é–‹å§‹å‡¦ç†
     /// </summary>
     protected override void Awake()
     {
         base.Awake();
 
-        // ƒRƒ“ƒ|ƒlƒ“ƒgæ“¾
+        // ã‚³ãƒ³ãƒãƒãƒ³ãƒˆå–å¾—
         toggle = GetComponentInChildren<Toggle>();
         slider = GetComponentInChildren<Slider>();
         text = GetComponentsInChildren<TextMeshProUGUI>().Where(d => d.name == "ComInnerText").ToList()[0];
@@ -47,13 +47,13 @@ public class CanvasMenuTimeScript : CanvasMenuBaseScript
     }
 
     /// <summary>
-    /// XVˆ—
+    /// æ›´æ–°å‡¦ç†
     /// </summary>
     protected override void Update()
     {
         base.Update();
 
-        // •\¦ƒZƒbƒg
+        // è¡¨ç¤ºã‚»ãƒƒãƒˆ
         if (comInner != null)
         {
             cycle.text = $"Cycle Time : {(comInner.time % comInner.viewCycle)} msec";
@@ -61,7 +61,7 @@ public class CanvasMenuTimeScript : CanvasMenuBaseScript
     }
 
     /// <summary>
-    /// ƒCƒxƒ“ƒg“o˜^
+    /// ã‚¤ãƒ™ãƒ³ãƒˆç™»éŒ²
     /// </summary>
     public override void SetEvents()
     {
@@ -79,7 +79,7 @@ public class CanvasMenuTimeScript : CanvasMenuBaseScript
             buttonNext.onClick.AddListener(buttonNext_onClick);
             inputStep.onValueChanged.AddListener(inputStep_onValueChanged);
 
-            // ‰Šú’lƒZƒbƒg
+            // åˆæœŸå€¤ã‚»ãƒƒãƒˆ
             toggle.isOn = false;
             slider.value = 1;
             slider.maxValue = 5;
@@ -91,7 +91,7 @@ public class CanvasMenuTimeScript : CanvasMenuBaseScript
     }
 
     /// <summary>
-    /// ƒCƒxƒ“ƒg‰ğœ
+    /// ã‚¤ãƒ™ãƒ³ãƒˆè§£é™¤
     /// </summary>
     public override void ResetEvents()
     {
@@ -103,9 +103,9 @@ public class CanvasMenuTimeScript : CanvasMenuBaseScript
         input.onValueChanged.RemoveAllListeners();
     }
 
-    #region ƒCƒxƒ“ƒgˆ—
+    #region ã‚¤ãƒ™ãƒ³ãƒˆå‡¦ç†
     /// <summary>
-    /// ƒgƒOƒ‹•ÏXƒCƒxƒ“ƒg
+    /// ãƒˆã‚°ãƒ«å¤‰æ›´ã‚¤ãƒ™ãƒ³ãƒˆ
     /// </summary>
     /// <param name="value"></param>
     private void toggle_onValueChanged(bool value)
@@ -114,7 +114,7 @@ public class CanvasMenuTimeScript : CanvasMenuBaseScript
     }
 
     /// <summary>
-    /// ƒXƒ‰ƒCƒ_[’l•ÏXƒCƒxƒ“ƒg
+    /// ã‚¹ãƒ©ã‚¤ãƒ€ãƒ¼å€¤å¤‰æ›´ã‚¤ãƒ™ãƒ³ãƒˆ
     /// </summary>
     /// <param name="value"></param>
     private void slider_onValueChanged(float value)
@@ -124,7 +124,7 @@ public class CanvasMenuTimeScript : CanvasMenuBaseScript
     }
 
     /// <summary>
-    /// ƒ{ƒ^ƒ“ƒNƒŠƒbƒNƒCƒxƒ“ƒg
+    /// ãƒœã‚¿ãƒ³ã‚¯ãƒªãƒƒã‚¯ã‚¤ãƒ™ãƒ³ãƒˆ
     /// </summary>
     private void button_onClick()
     {
@@ -132,7 +132,7 @@ public class CanvasMenuTimeScript : CanvasMenuBaseScript
     }
 
     /// <summary>
-    /// ’læ“¾
+    /// å€¤å–å¾—
     /// </summary>
     /// <param name="text"></param>
     private void input_onValueChanged(string text)
@@ -152,7 +152,7 @@ public class CanvasMenuTimeScript : CanvasMenuBaseScript
     }
 
     /// <summary>
-    /// ƒ{ƒ^ƒ“ƒNƒŠƒbƒNƒCƒxƒ“ƒg
+    /// ãƒœã‚¿ãƒ³ã‚¯ãƒªãƒƒã‚¯ã‚¤ãƒ™ãƒ³ãƒˆ
     /// </summary>
     private void buttonPrev_onClick()
     {
@@ -165,7 +165,7 @@ public class CanvasMenuTimeScript : CanvasMenuBaseScript
     }
 
     /// <summary>
-    /// ƒ{ƒ^ƒ“ƒNƒŠƒbƒNƒCƒxƒ“ƒg
+    /// ãƒœã‚¿ãƒ³ã‚¯ãƒªãƒƒã‚¯ã‚¤ãƒ™ãƒ³ãƒˆ
     /// </summary>
     private void buttonNext_onClick()
     {
@@ -178,7 +178,7 @@ public class CanvasMenuTimeScript : CanvasMenuBaseScript
     }
 
     /// <summary>
-    /// ’læ“¾
+    /// å€¤å–å¾—
     /// </summary>
     /// <param name="text"></param>
     private void inputStep_onValueChanged(string text)
@@ -192,5 +192,5 @@ public class CanvasMenuTimeScript : CanvasMenuBaseScript
             }
         }
     }
-    #endregion ƒCƒxƒ“ƒgˆ—
+    #endregion ã‚¤ãƒ™ãƒ³ãƒˆå‡¦ç†
 }

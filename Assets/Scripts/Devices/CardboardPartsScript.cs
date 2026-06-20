@@ -1,4 +1,4 @@
-using Parameters;
+ï»¿using Parameters;
 using System;
 using System.Collections.Generic;
 using System.Drawing;
@@ -6,48 +6,48 @@ using Unity.VisualScripting;
 using UnityEngine;
 
 /// <summary>
-/// ’iƒ{[ƒ‹—pƒXƒNƒŠƒvƒg
+/// æ®µãƒœãƒ¼ãƒ«ç”¨ã‚¹ã‚¯ãƒªãƒ—ãƒˆ
 /// </summary>
 public class CardboardPartsScript: KssBaseScript
 {
     /// <summary>
-    /// ƒtƒ‰ƒbƒv•”•ª
+    /// ãƒ•ãƒ©ãƒƒãƒ—éƒ¨åˆ†
     /// </summary>
     public bool isFlap = false;
 
     /// <summary>
-    /// ƒƒbƒVƒ…ƒRƒ‰ƒCƒ_[
+    /// ãƒ¡ãƒƒã‚·ãƒ¥ã‚³ãƒ©ã‚¤ãƒ€ãƒ¼
     /// </summary>
     public MeshCollider meshCollider;
 
     /// <summary>
-    /// ƒ{ƒbƒNƒXƒRƒ‰ƒCƒ_[
+    /// ãƒœãƒƒã‚¯ã‚¹ã‚³ãƒ©ã‚¤ãƒ€ãƒ¼
     /// </summary>
     public BoxCollider boxCollider;
 
     /// <summary>
-    /// ˆÈ‘O‚Ìe
+    /// ä»¥å‰ã®è¦ª
     /// </summary>
     private GameObject prvParent;
 
     /// <summary>
-    /// ‰ŠúˆÊ’u
+    /// åˆæœŸä½ç½®
     /// </summary>
     private Vector3 initPosition;
 
     /// <summary>
-    /// ŠJnˆ—
+    /// é–‹å§‹å‡¦ç†
     /// </summary>
     protected override void Start()
     {
         base.Start();
 
-        // ‰Šú‰»ˆ—
+        // åˆæœŸåŒ–å‡¦ç†
         Initialize();
     }
 
     /// <summary>
-    /// üŠúˆ—
+    /// å‘¨æœŸå‡¦ç†
     /// </summary>
     protected override void FixedUpdate()
     {
@@ -58,16 +58,16 @@ public class CardboardPartsScript: KssBaseScript
             initPosition = transform.localPosition;
             prvParent = transform.parent.gameObject;
         }
-        // ˆÊ’u‚Í•Ï‚¦‚¸Šp“x‚¾‚¯‚ğ•Ï‚¦‚é
+        // ä½ç½®ã¯å¤‰ãˆãšè§’åº¦ã ã‘ã‚’å¤‰ãˆã‚‹
         this.transform.localPosition = initPosition;
     }
 
     /// <summary>
-    /// ‰Šú‰»ˆ—
+    /// åˆæœŸåŒ–å‡¦ç†
     /// </summary>
     private void Initialize()
     {
-        // Õ“ËŒŸ’m—p
+        // è¡çªæ¤œçŸ¥ç”¨
         var mr = GetComponentInChildren<MeshRenderer>();
         if (mr != null)
         {
@@ -100,7 +100,7 @@ public class CardboardPartsScript: KssBaseScript
     }
 
     /// <summary>
-    /// ƒpƒ‰ƒ[ƒ^ƒZƒbƒg
+    /// ãƒ‘ãƒ©ãƒ¡ãƒ¼ã‚¿ã‚»ãƒƒãƒˆ
     /// </summary>
     /// <param name="unitSetting"></param>
     /// <param name="obj"></param>
@@ -110,7 +110,7 @@ public class CardboardPartsScript: KssBaseScript
     }
 
     /// <summary>
-    /// Õ“Ëˆ—
+    /// è¡çªæ™‚å‡¦ç†
     /// </summary>
     /// <param name="collision"></param>
     protected override void OnCollisionEnter(Collision collision)

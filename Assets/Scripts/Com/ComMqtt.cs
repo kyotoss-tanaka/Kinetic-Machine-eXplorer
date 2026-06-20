@@ -1,4 +1,4 @@
-using Npgsql;
+ï»¿using Npgsql;
 using Parameters;
 using MQTTnet;
 using MQTTnet.Client;
@@ -24,7 +24,7 @@ using System.Diagnostics;
 public class ComMqtt : ComBaseScript
 {
     /// <summary>
-    /// MQTTóMƒf[ƒ^
+    /// MQTTå—ä¿¡ãƒ‡ãƒ¼ã‚¿
     /// </summary>
     public class MqttItem
     {
@@ -34,12 +34,12 @@ public class ComMqtt : ComBaseScript
     }
 
     /// <summary>
-    /// ƒT[ƒo[–¼
+    /// ã‚µãƒ¼ãƒãƒ¼å
     /// </summary>
     public string Name { get { return Server + ":" + Port.ToString(); } }
 
     /// <summary>
-    /// ƒgƒsƒbƒN
+    /// ãƒˆãƒ”ãƒƒã‚¯
     /// </summary>
     [SerializeField]
     public string Topic = "UnityData";
@@ -52,37 +52,37 @@ public class ComMqtt : ComBaseScript
     [SerializeField]
     public double avgRcvCycle = 0;
     /// <summary>
-    /// ŠÔŒv‘ª—p
+    /// æ™‚é–“è¨ˆæ¸¬ç”¨
     /// </summary>
     private Stopwatch swRcv = new Stopwatch();
     /// <summary>
-    /// ƒTƒCƒNƒ‹ŠÔ
+    /// ã‚µã‚¤ã‚¯ãƒ«æ™‚é–“
     /// </summary>
     private List<long> cycleRcvLaps = new List<long>();
 
     /// <summary>
-    /// WebAPIƒAƒNƒZƒX
+    /// WebAPIã‚¢ã‚¯ã‚»ã‚¹
     /// </summary>
     private bool IsWebApi = false;
 
     /// <summary>
-    /// ‘—Mo—ˆ‚È‚©‚Á‚½ƒ^ƒOƒoƒbƒtƒ@(MQTT‚Åƒf[ƒ^\¬‚ªŠm’è‚·‚é‘O‚É‘—M‚µ‚Ä‚¢‚½ƒf[ƒ^)
+    /// é€ä¿¡å‡ºæ¥ãªã‹ã£ãŸã‚¿ã‚°ãƒãƒƒãƒ•ã‚¡(MQTTã§ãƒ‡ãƒ¼ã‚¿æ§‹æˆãŒç¢ºå®šã™ã‚‹å‰ã«é€ä¿¡ã—ã¦ã„ãŸãƒ‡ãƒ¼ã‚¿)
     /// </summary>
     List<TagInfo> tagBuffer = new List<TagInfo>();
 
-    // óMƒf[ƒ^
+    // å—ä¿¡ãƒ‡ãƒ¼ã‚¿
     private volatile Dictionary<string, string> latestRcvDatas = new();
 
-    // ‘—Mƒf[ƒ^
+    // é€ä¿¡ãƒ‡ãƒ¼ã‚¿
     private volatile Dictionary<string, string> latestSndDatas = new();
 
     /// <summary>
-    /// MQTTƒNƒ‰ƒCƒAƒ“ƒg
+    /// MQTTã‚¯ãƒ©ã‚¤ã‚¢ãƒ³ãƒˆ
     /// </summary>
     private IMqttClient mqttClient;
 
     /// <summary>
-    /// WebAPIƒAƒNƒZƒX—pURL
+    /// WebAPIã‚¢ã‚¯ã‚»ã‚¹ç”¨URL
     /// </summary>
     private string url { get { return "http://" + Server + ":1880/api/mqtt/"; } }
 
@@ -91,7 +91,7 @@ public class ComMqtt : ComBaseScript
     {
         if ((Application.platform == RuntimePlatform.Android) || (Application.platform == RuntimePlatform.IPhonePlayer))
         {
-            //’[––‚ªAndroid‚©iOS‚¾‚Á‚½ê‡‚Ìˆ—
+            //ç«¯æœ«ãŒAndroidã‹iOSã ã£ãŸå ´åˆã®å‡¦ç†
             IsWebApi = true;
         }
         if (!GlobalScript.tagDatas.ContainsKey(Name))
@@ -113,21 +113,21 @@ public class ComMqtt : ComBaseScript
         Connect();
     }
     /// <summary>
-    /// Ú‘±
+    /// æ¥ç¶š
     /// </summary>
     private async void Connect()
     {
-        // MQTTƒNƒ‰ƒCƒAƒ“ƒgì¬
+        // MQTTã‚¯ãƒ©ã‚¤ã‚¢ãƒ³ãƒˆä½œæˆ
         mqttClient = new MqttFactory().CreateMqttClient();
         var options = new MqttClientOptionsBuilder()
             .WithTcpServer(Server, Port)
             .WithKeepAlivePeriod(TimeSpan.FromSeconds(90))
             .Build();
 
-        // Ú‘±
+        // æ¥ç¶š
         await mqttClient.ConnectAsync(options);
 
-        // ƒTƒuƒXƒNƒ‰ƒCƒu“o˜^
+        // ã‚µãƒ–ã‚¹ã‚¯ãƒ©ã‚¤ãƒ–ç™»éŒ²
         _ = Task.Run(async () =>
         {
             await mqttClient.SubscribeAsync(new MqttTopicFilterBuilder()
@@ -136,12 +136,12 @@ public class ComMqtt : ComBaseScript
            .Build());
         });
 
-        // ƒf[ƒ^óM
+        // ãƒ‡ãƒ¼ã‚¿å—ä¿¡
         mqttClient.ApplicationMessageReceivedAsync += OnMessageReceived;
     }
 
     /// <summary>
-    /// ÄÚ‘±
+    /// å†æ¥ç¶š
     /// </summary>
     private async void Reconnect()
     {
@@ -155,7 +155,7 @@ public class ComMqtt : ComBaseScript
     }
 
     /// <summary>
-    /// Ø’f
+    /// åˆ‡æ–­
     /// </summary>
     private async void Disconnect()
     {
@@ -165,7 +165,7 @@ public class ComMqtt : ComBaseScript
     }
 
     /// <summary>
-    /// óMŠ„‚è‚İ
+    /// å—ä¿¡å‰²ã‚Šè¾¼ã¿
     /// </summary>
     /// <param name="e"></param>
     /// <returns></returns>
@@ -181,7 +181,7 @@ public class ComMqtt : ComBaseScript
         minRcvCycle = cycleRcvLaps.Min();
         avgRcvCycle = cycleRcvLaps.Average();
         swRcv.Restart();
-        // ƒf[ƒ^óM
+        // ãƒ‡ãƒ¼ã‚¿å—ä¿¡
         var topicLevels = e.ApplicationMessage.Topic.Split('/');
         var isInit = topicLevels.Length == 4;
         if (isInit || (latestRcvDatas[topicLevels[0]] == null))
@@ -192,17 +192,17 @@ public class ComMqtt : ComBaseScript
     }
 
     /// <summary>
-    /// API’ÊM
+    /// APIé€šä¿¡
     /// </summary>
     /// <returns></returns>
     private IEnumerator DataUpdate()
     {
         while (this.enabled)
         {
-            // ƒf[ƒ^ŒğŠ·ˆ—
+            // ãƒ‡ãƒ¼ã‚¿äº¤æ›å‡¦ç†
             DataExchangeProcess();
 
-            // ƒf[ƒ^XVˆ—
+            // ãƒ‡ãƒ¼ã‚¿æ›´æ–°å‡¦ç†
             lock (objLock)
             {
                 RenewData();
@@ -222,7 +222,7 @@ public class ComMqtt : ComBaseScript
     }
 
     /// <summary>
-    /// ƒ^ƒO‚É’l‚ğƒZƒbƒg‚·‚é
+    /// ã‚¿ã‚°ã«å€¤ã‚’ã‚»ãƒƒãƒˆã™ã‚‹
     /// </summary>
     /// <param name="tag"></param>
     /// <param name=""></param>
@@ -230,12 +230,12 @@ public class ComMqtt : ComBaseScript
     {
         if ((Application.platform != RuntimePlatform.Android) && (Application.platform != RuntimePlatform.IPhonePlayer))
         {
-            // ‘—Mƒf[ƒ^ì¬
+            // é€ä¿¡ãƒ‡ãƒ¼ã‚¿ä½œæˆ
             lock (objLock)
             {
                 var datas = new List<TagInfoCom>();
                 var send = new List<TagInfo>();
-                // –¢‘—Mƒf[ƒ^XV
+                // æœªé€ä¿¡ãƒ‡ãƒ¼ã‚¿æ›´æ–°
                 foreach (var tag in tags)
                 {
                     var buff = tagBuffer.Find(d => d.Tag == tag.Tag);
@@ -265,7 +265,7 @@ public class ComMqtt : ComBaseScript
                         }
                     }
                 }
-                // ‘—MÏƒf[ƒ^íœ
+                // é€ä¿¡æ¸ˆãƒ‡ãƒ¼ã‚¿å‰Šé™¤
                 tagBuffer.RemoveAll(d => send.Contains(d));
                 if (datas.Count == 0)
                 {
@@ -288,7 +288,7 @@ public class ComMqtt : ComBaseScript
     }
 
     /// <summary>
-    /// ƒf[ƒ^XV
+    /// ãƒ‡ãƒ¼ã‚¿æ›´æ–°
     /// </summary>
     public override void RenewData()
     {
@@ -302,7 +302,7 @@ public class ComMqtt : ComBaseScript
 #if UNITY_EDITOR
             if (!EditorApplication.isPlaying)
             {
-                // WebAPIƒAƒNƒZƒX
+                // WebAPIã‚¢ã‚¯ã‚»ã‚¹
                 StartCoroutine(RenewDataApi());
             }
 #endif
@@ -313,7 +313,7 @@ public class ComMqtt : ComBaseScript
             sw.Start();
             try
             {
-                // ƒf[ƒ^‘—M
+                // ãƒ‡ãƒ¼ã‚¿é€ä¿¡
                 if (!isClientMode && writeDatas.Count > 0)
                 {
                     var sendDatas = new Dictionary<string, List<MqttItem>>();
@@ -335,7 +335,7 @@ public class ComMqtt : ComBaseScript
                         SendMessage(data.Key, data.Value);
                     }
                 }
-                // ƒf[ƒ^“Ç
+                // ãƒ‡ãƒ¼ã‚¿èª­è¾¼
                 foreach (var payload in latestRcvDatas)
                 {
                     if (latestRcvDatas[payload.Key] != null)
@@ -380,7 +380,7 @@ public class ComMqtt : ComBaseScript
     }
 
     /// <summary>
-    /// API‚Å‚Ìƒf[ƒ^XV
+    /// APIã§ã®ãƒ‡ãƒ¼ã‚¿æ›´æ–°
     /// </summary>
     /// <returns></returns>
     public IEnumerator RenewDataApi()
@@ -398,14 +398,14 @@ public class ComMqtt : ComBaseScript
                 }
                 else if (req.responseCode == 200)
                 {
-                    // óMˆ—
+                    // å—ä¿¡å‡¦ç†
                     var rcvDatas = JsonSerializer.Deserialize<List<LatestData>>(req.downloadHandler.text);
                     foreach (var data in rcvDatas)
                     {
                         var mech = data.mech_id;
                         if (!GlobalScript.tagDatas[Name].ContainsKey(mech))
                         {
-                            // ‹@”Ôì¬
+                            // æ©Ÿç•ªä½œæˆ
                             GlobalScript.tagDatas[Name].Add(mech, new Dictionary<string, TagInfo>());
                         }
                         var tag = data.event_id;
@@ -445,7 +445,7 @@ public class ComMqtt : ComBaseScript
     }
 
     /// <summary>
-    /// ƒf[ƒ^‘—M
+    /// ãƒ‡ãƒ¼ã‚¿é€ä¿¡
     /// </summary>
     /// <param name="mechId"></param>
     /// <param name="topic"></param>
@@ -454,12 +454,12 @@ public class ComMqtt : ComBaseScript
     {
         try
         {
-            // ÄÚ‘±”»’è
+            // å†æ¥ç¶šåˆ¤å®š
             if (!mqttClient.IsConnected)
             {
                 Reconnect();
             }
-            // ƒf[ƒ^‘—M
+            // ãƒ‡ãƒ¼ã‚¿é€ä¿¡
             string json = JsonSerializer.Serialize(datas);
             if (true || latestSndDatas[mechId] != json)
             {
@@ -480,7 +480,7 @@ public class ComMqtt : ComBaseScript
     }
 
     /// <summary>
-    /// ƒpƒ‰ƒ[ƒ^‚ğƒZƒbƒg‚·‚é
+    /// ãƒ‘ãƒ©ãƒ¡ãƒ¼ã‚¿ã‚’ã‚»ãƒƒãƒˆã™ã‚‹
     /// </summary>
     /// <param name="components"></param>
     /// <param name="scriptables"></param>

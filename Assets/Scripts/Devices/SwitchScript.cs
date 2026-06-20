@@ -1,4 +1,4 @@
-using DnsClient.Protocol;
+ï»¿using DnsClient.Protocol;
 using Parameters;
 using System.Collections;
 using System.Collections.Generic;
@@ -8,7 +8,7 @@ using UnityEngine;
 public class SwitchScript : KssBaseScript
 {
     /// <summary>
-    /// ƒXƒCƒbƒ`‚Ì“®ìƒ^ƒCƒv
+    /// ã‚¹ã‚¤ãƒƒãƒã®å‹•ä½œã‚¿ã‚¤ãƒ—
     /// </summary>
     public enum SwitchType
     {
@@ -18,7 +18,7 @@ public class SwitchScript : KssBaseScript
     }
 
     /// <summary>
-    /// ƒXƒCƒbƒ`ƒJƒ‰[
+    /// ã‚¹ã‚¤ãƒƒãƒã‚«ãƒ©ãƒ¼
     /// </summary>
     public enum SwitchColor
     {
@@ -28,77 +28,77 @@ public class SwitchScript : KssBaseScript
     private SwitchSetting sw;
 
     /// <summary>
-    /// ƒIƒuƒWƒFƒNƒgƒNƒŠƒAƒ‚[ƒh
+    /// ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆã‚¯ãƒªã‚¢ãƒ¢ãƒ¼ãƒ‰
     /// </summary>
     [SerializeField]
     private SwitchType switchType = SwitchType.TagOutput;
 
     /// <summary>
-    /// ƒIƒuƒWƒFƒNƒgƒNƒŠƒAƒ‚[ƒh
+    /// ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆã‚¯ãƒªã‚¢ãƒ¢ãƒ¼ãƒ‰
     /// </summary>
     [SerializeField]
     private SwitchColor switchColor = SwitchColor.Red;
 
     /// <summary>
-    /// ƒ^ƒO
+    /// ã‚¿ã‚°
     /// </summary>
     [SerializeField]
     private TagInfo Tag;
 
     /// <summary>
-    /// BÚ“_
+    /// Bæ¥ç‚¹
     /// </summary>
     [SerializeField]
     private bool isB = false;
 
     /// <summary>
-    /// ƒIƒ‹ƒ^ƒl[ƒgƒ‚[ƒh
+    /// ã‚ªãƒ«ã‚¿ãƒãƒ¼ãƒˆãƒ¢ãƒ¼ãƒ‰
     /// </summary>
     [SerializeField]
     private bool isAlternate = false;
 
     /// <summary>
-    /// ƒ^ƒO–¼
+    /// ã‚¿ã‚°å
     /// </summary>
     private string tagName = "";
 
     /// <summary>
-    /// ƒXƒCƒbƒ`‚Ìó‘Ô
+    /// ã‚¹ã‚¤ãƒƒãƒã®çŠ¶æ…‹
     /// </summary>
     private bool isOn = false;
 
     /// <summary>
-    /// ‰‰ñƒtƒ‰ƒO
+    /// åˆå›ãƒ•ãƒ©ã‚°
     /// </summary>
     private bool isFirst = true;
 
     /// <summary>
-    /// •\¦ƒ‚ƒfƒ‹
+    /// è¡¨ç¤ºãƒ¢ãƒ‡ãƒ«
     /// </summary>
     private List<GameObject> lstVisible = new List<GameObject>();
 
     /// <summary>
-    /// ‘€ì‚ğ‚·‚éƒgƒ‰ƒ“ƒXƒtƒH[ƒ€
+    /// æ“ä½œã‚’ã™ã‚‹ãƒˆãƒ©ãƒ³ã‚¹ãƒ•ã‚©ãƒ¼ãƒ 
     /// </summary>
     private Transform switchTransform;
 
     /// <summary>
-    /// ƒƒbƒVƒ…ƒŒƒ“ƒ_ƒ‰[
+    /// ãƒ¡ãƒƒã‚·ãƒ¥ãƒ¬ãƒ³ãƒ€ãƒ©ãƒ¼
     /// </summary>
     private MeshRenderer meshRenderer;
 
     /// <summary>
-    /// ƒ}ƒeƒŠƒAƒ‹
+    /// ãƒãƒ†ãƒªã‚¢ãƒ«
     /// </summary>
     private Material material;
 
     /// <summary>
-    /// ƒ}ƒeƒŠƒAƒ‹ƒJƒ‰[
+    /// ãƒãƒ†ãƒªã‚¢ãƒ«ã‚«ãƒ©ãƒ¼
     /// </summary>
     private Color matColor;
 
     /// <summary>
-    /// VR—pƒJƒƒ‰
+    /// VRç”¨ã‚«ãƒ¡ãƒ©
     /// </summary>
     public Camera vrCamera;
 
@@ -128,10 +128,10 @@ public class SwitchScript : KssBaseScript
         {
             if (isFirst)
             {
-                // ‰‰ñˆ—
+                // åˆå›å‡¦ç†
                 if (switchType == SwitchType.ModelVisible)
                 {
-                    // ƒAƒ“ƒhƒƒCƒh‚Íƒ‚ƒfƒ‹‚ğÁ‚µ‚Ä‚¨‚­
+                    // ã‚¢ãƒ³ãƒ‰ãƒ­ã‚¤ãƒ‰æ™‚ã¯ãƒ¢ãƒ‡ãƒ«ã‚’æ¶ˆã—ã¦ãŠã
                     isOn = ((Application.platform == RuntimePlatform.Android) || (Application.platform == RuntimePlatform.IPhonePlayer));
                 }
                 isOn |= sw.value;
@@ -142,7 +142,7 @@ public class SwitchScript : KssBaseScript
     }
 
     /// <summary>
-    /// è‚Åƒ^ƒbƒv
+    /// æ‰‹ã§ã‚¿ãƒƒãƒ—
     /// </summary>
     /// <param name="other"></param>
     protected override void OnTriggerEnter(Collider other)
@@ -158,7 +158,7 @@ public class SwitchScript : KssBaseScript
     }
 
     /// <summary>
-    /// è‚Åƒ^ƒbƒv
+    /// æ‰‹ã§ã‚¿ãƒƒãƒ—
     /// </summary>
     /// <param name="other"></param>
     protected override void OnTriggerExit(Collider other)
@@ -174,7 +174,7 @@ public class SwitchScript : KssBaseScript
     }
 
     /// <summary>
-    /// ƒ}ƒEƒXƒ_ƒEƒ“
+    /// ãƒã‚¦ã‚¹ãƒ€ã‚¦ãƒ³
     /// </summary>
     public override void OnMouseDown()
     {
@@ -190,7 +190,7 @@ public class SwitchScript : KssBaseScript
     }
 
     /// <summary>
-    /// ƒ}ƒEƒXƒAƒbƒv
+    /// ãƒã‚¦ã‚¹ã‚¢ãƒƒãƒ—
     /// </summary>
     public override void OnMouseUp()
     {
@@ -202,7 +202,7 @@ public class SwitchScript : KssBaseScript
     }
 
     /// <summary>
-    /// ƒ}ƒEƒXŠO‚ê
+    /// ãƒã‚¦ã‚¹å¤–ã‚Œ
     /// </summary>
     public override void OnMouseExit()
     {
@@ -214,7 +214,7 @@ public class SwitchScript : KssBaseScript
     }
 
     /// <summary>
-    /// ƒXƒCƒbƒ`ˆ—
+    /// ã‚¹ã‚¤ãƒƒãƒå‡¦ç†
     /// </summary>
     private void SwitchProcess()
     {
@@ -224,12 +224,12 @@ public class SwitchScript : KssBaseScript
             {
                 if (isB)
                 {
-                    // BÚ“_
+                    // Bæ¥ç‚¹
                     SetTagValue(tagName, ref Tag, isOn ? 0 : 1);
                 }
                 else
                 {
-                    // AÚ“_
+                    // Aæ¥ç‚¹
                     SetTagValue(tagName, ref Tag, isOn ? 1 : 0);
                 }
             }
@@ -252,7 +252,7 @@ public class SwitchScript : KssBaseScript
 
     private void RenewView()
     {
-        // ƒXƒCƒbƒ`‚ÌŒ©‚½–Ú‚ğ•Ï‚¦‚é
+        // ã‚¹ã‚¤ãƒƒãƒã®è¦‹ãŸç›®ã‚’å¤‰ãˆã‚‹
         if (isOn)
         {
             meshRenderer.material.EnableKeyword("_EMISSION");
@@ -271,12 +271,12 @@ public class SwitchScript : KssBaseScript
             z = 0
         };
 
-        // ˆ—
+        // å‡¦ç†
         SwitchProcess();
     }
 
     /// <summary>
-    /// ƒpƒ‰ƒ[ƒ^ƒZƒbƒg
+    /// ãƒ‘ãƒ©ãƒ¡ãƒ¼ã‚¿ã‚»ãƒƒãƒˆ
     /// </summary>
     /// <param name="unitSetting"></param>
     /// <param name="obj"></param>
@@ -332,12 +332,12 @@ public class SwitchScript : KssBaseScript
                 lstVisible = new();
                 if (sw.tag == "")
                 {
-                    // –¢“ü—Í‚Ìê‡‚ÍƒvƒŒƒnƒuƒ‚ƒfƒ‹
+                    // æœªå…¥åŠ›ã®å ´åˆã¯ãƒ—ãƒ¬ãƒãƒ–ãƒ¢ãƒ‡ãƒ«
                     lstVisible.AddRange(GameObject.FindObjectsByType<GameObject>(FindObjectsSortMode.None).Where(d => d.name == "PrefabObjects").ToList());
                 }
                 else
                 {
-                    // ƒJƒ“ƒ}‹æØ‚è‚Å”ñ•\¦ƒ‚ƒfƒ‹‚ğ’è‹`
+                    // ã‚«ãƒ³ãƒåŒºåˆ‡ã‚Šã§éè¡¨ç¤ºãƒ¢ãƒ‡ãƒ«ã‚’å®šç¾©
                     foreach (var name in sw.tag.Split(","))
                     {
                         lstVisible.AddRange(GameObject.FindObjectsByType<GameObject>(FindObjectsSortMode.None).Where(d => d.name == name).ToList());

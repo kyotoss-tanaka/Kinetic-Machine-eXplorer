@@ -1,4 +1,4 @@
-using System.Collections;
+ï»¿using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -9,7 +9,7 @@ public class EdgeDetectionEffect : MonoBehaviour
 
     void Start()
     {
-        // ƒJƒƒ‰‚É–@üƒeƒNƒXƒ`ƒƒ‚ğæ“¾‚³‚¹‚é
+        // ã‚«ãƒ¡ãƒ©ã«æ³•ç·šãƒ†ã‚¯ã‚¹ãƒãƒ£ã‚’å–å¾—ã•ã›ã‚‹
         GetComponent<Camera>().depthTextureMode = DepthTextureMode.DepthNormals;
 
         if (edgeDetectionShader)

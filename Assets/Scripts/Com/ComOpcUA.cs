@@ -1,4 +1,4 @@
-using NUnit;
+ï»¿using NUnit;
 using Opc.Ua;
 using Opc.Ua.Client;
 using Parameters;
@@ -17,17 +17,17 @@ using UnityEngine.Networking;
 public class ComOpcUa : ComProtocolBase
 {
 
-    #region ƒNƒ‰ƒX
-    #endregion ƒNƒ‰ƒX
+    #region ã‚¯ãƒ©ã‚¹
+    #endregion ã‚¯ãƒ©ã‚¹
 
-    #region ’è”
-    #endregion ’è”
+    #region å®šæ•°
+    #endregion å®šæ•°
 
-    #region •Ï”
-    #endregion •Ï”
+    #region å¤‰æ•°
+    #endregion å¤‰æ•°
 
     /// <summary>
-    /// ˆêŠ‡óMƒJƒEƒ“ƒg
+    /// ä¸€æ‹¬å—ä¿¡ã‚«ã‚¦ãƒ³ãƒˆ
     /// </summary>
     public override int BULK_RCV_COUNT
     {
@@ -38,7 +38,7 @@ public class ComOpcUa : ComProtocolBase
     }
 
     /// <summary>
-    /// ŠJnˆ—
+    /// é–‹å§‹å‡¦ç†
     /// </summary>
     protected override void Start()
     {
@@ -51,7 +51,7 @@ public class ComOpcUa : ComProtocolBase
     }
 
     /// <summary>
-    /// óMˆ—
+    /// å—ä¿¡å‡¦ç†
     /// </summary>
     /// <returns></returns>
     protected override bool Recieve()
@@ -62,7 +62,7 @@ public class ComOpcUa : ComProtocolBase
             var nodes = new List<NodeId>();
             DataValueCollection results;
             IList<ServiceResult> errors;
-            // óMƒf[ƒ^ì¬
+            // å—ä¿¡ãƒ‡ãƒ¼ã‚¿ä½œæˆ
             foreach (var tags in dctReadSortedTags1)
             {
                 foreach (var tag in tags.Value)
@@ -78,9 +78,9 @@ public class ComOpcUa : ComProtocolBase
                     }
                 }
             }
-            // ƒf[ƒ^óM
+            // ãƒ‡ãƒ¼ã‚¿å—ä¿¡
             opcua.session.ReadValues(nodes, out results, out errors);
-            // óMƒf[ƒ^Šm”F
+            // å—ä¿¡ãƒ‡ãƒ¼ã‚¿ç¢ºèª
             if ((nodes.Count == results.Count) && (nodes.Count == errors.Count))
             {
                 foreach (var tags in dctReadSortedTags1)
@@ -127,7 +127,7 @@ public class ComOpcUa : ComProtocolBase
             }
             if (isFirst)
             {
-                // ‰‰ñ‚Ì‚İ‘‚«‚İƒf[ƒ^óM
+                // åˆå›ã®ã¿æ›¸ãè¾¼ã¿ãƒ‡ãƒ¼ã‚¿å—ä¿¡
                 foreach (var tags in dctReadSortedTags2)
                 {
                     foreach (var tag in tags.Value)
@@ -153,7 +153,7 @@ public class ComOpcUa : ComProtocolBase
     }
 
     /// <summary>
-    /// ƒ\[ƒgƒf[ƒ^ì¬
+    /// ã‚½ãƒ¼ãƒˆãƒ‡ãƒ¼ã‚¿ä½œæˆ
     /// </summary>
     protected override void CreateSortedData()
     {
@@ -186,12 +186,12 @@ public class ComOpcUa : ComProtocolBase
                 }
                 dctReadTags1[tag.RegisterType].Add((KMXDBSetting)tag.Clone());
             }
-            // DB“o˜^
+            // DBç™»éŒ²
             SetDbData(tag);
         }
         CreateSorted(dctReadTags1, ref dctReadSortedTags1);
         CreateSorted(dctReadTags2, ref dctReadSortedTags2);
-        // ƒ\[ƒg‚³‚ê‚½ƒ^ƒO‚ÉDBƒf[ƒ^‚ğƒZƒbƒg
+        // ã‚½ãƒ¼ãƒˆã•ã‚ŒãŸã‚¿ã‚°ã«DBãƒ‡ãƒ¼ã‚¿ã‚’ã‚»ãƒƒãƒˆ
         foreach (var tags in dctWriteSortedTags)
         {
             foreach (var tag in tags.Value)
