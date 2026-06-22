@@ -55,6 +55,12 @@ public class TagInfo : KssPartsBase
     /// 備考
     /// </summary>
     public string Remarks;
+
+    /// <summary>
+    /// 実行中に一度でも読まれたか（デジタルツインで購読対象を絞るために使用）
+    /// </summary>
+    [NonSerialized]
+    public bool wasRead;
 }
 
 [Serializable]

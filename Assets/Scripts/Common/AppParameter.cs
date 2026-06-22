@@ -1474,6 +1474,52 @@ namespace Parameters
         public List<DeciceArea> devices { get; set; } = new();
     }
 
+    /// <summary>
+    /// hmx-link（デジタルツイン WebSocket）設定。StreamingAssets/Datas/HmxLink.json
+    /// </summary>
+    /// <summary>
+    /// hmx-link subscribe の connection（§5）。HMI と同時接続する場合に必須。
+    /// HMI プロジェクトの projectSettings.connections[0] と同一値にすること（異なると HMI の PLC 接続を巻き込む）。
+    /// </summary>
+    [Serializable]
+    public class HmxConnection
+    {
+        public string host { get; set; } = "";
+        public int port { get; set; } = 0;
+        public string protocol { get; set; } = "";
+        public string transport { get; set; } = "";
+    }
+
+    /// <summary>
+    /// タッチ操作の感度倍率（HmxLink.json の "touch" で起動時設定）。
+    /// 1.0=既定、小さいほど鈍く（動きすぎを抑える）。
+    /// </summary>
+    [Serializable]
+    public class TouchSetting
+    {
+        /// <summary>1本指ドラッグ=カメラ回転 の感度倍率</summary>
+        public float orbit { get; set; } = 1.0f;
+        /// <summary>2本指ドラッグ=パン の感度倍率</summary>
+        public float pan { get; set; } = 1.0f;
+        /// <summary>ピンチ=ズーム の感度倍率</summary>
+        public float pinch { get; set; } = 1.0f;
+    }
+
+    [Serializable]
+    public class HmxLinkSetting
+    {
+        /// <summary>有効化（true で ComHmi が ComInner/native PLC の代わりに動く）</summary>
+        public bool enabled { get; set; } = false;
+        /// <summary>hmx-link の WebSocket URL（例: ws://localhost:8765）</summary>
+        public string wsUrl { get; set; } = "ws://localhost:8765";
+        /// <summary>希望配信周期(ms)</summary>
+        public int interval { get; set; } = 200;
+        /// <summary>PLC接続設定。host が空なら subscribe に含めない（HMI同時接続時は要設定）</summary>
+        public HmxConnection connection { get; set; } = new HmxConnection();
+        /// <summary>タッチ操作の感度倍率（回転/パン/ズーム）。起動時に InputManager へ反映</summary>
+        public TouchSetting touch { get; set; } = new TouchSetting();
+    }
+
     [Serializable]
     public class TimeChartDevice
     {

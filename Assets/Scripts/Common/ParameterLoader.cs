@@ -999,6 +999,11 @@ namespace Parameters
                 {
                     Destroy(obj);
                 }
+                // ComHmi も破棄（重複/WS多重接続を防止）
+                foreach (var obj in globalSetting.GetComponentsInChildren<ComHmi>())
+                {
+                    Destroy(obj);
+                }
                 StartCoroutine(LoadActParameter());
                 GlobalScript.isLoading = false;
                 GlobalScript.isLoaded = true;
@@ -1012,6 +1017,11 @@ namespace Parameters
         private void DeleteObjects()
         {
             foreach (var obj in globalSetting.GetComponentsInChildren<ComBaseScript>())
+            {
+                Destroy(obj);
+            }
+            // ComHmi は ComBaseScript 非継承のため別途破棄（リロードでの重複/WS多重接続を防止）
+            foreach (var obj in globalSetting.GetComponentsInChildren<ComHmi>())
             {
                 Destroy(obj);
             }
@@ -1070,6 +1080,16 @@ namespace Parameters
             GlobalScript.buildConfig = (BuildConfig)await GlobalScript.LoadListJson<BuildConfig>("BuildConfig");
             actionTableDatas = (List<ActionTableData>)await GlobalScript.LoadListJson<List<ActionTableData>>("ActionTableInfo");
             GlobalScript.useDeviceDatas = (List<UseDeviceData>)await GlobalScript.LoadListJson<List<UseDeviceData>>("UseDeviceList");
+            try
+            {
+                // hmx-link（デジタルツイン）設定。無ければ既定(無効)のまま
+                var hmx = await GlobalScript.LoadListJson<HmxLinkSetting>("HmxLink");
+                if (hmx != null)
+                {
+                    GlobalScript.hmxLink = (HmxLinkSetting)hmx;
+                }
+            }
+            catch { }
             GlobalScript.timeChartDatas = (List<TimeChartData>)await GlobalScript.LoadListJson<List<TimeChartData>>("TimeChartDataList");
         }
 
@@ -1514,6 +1534,29 @@ namespace Parameters
         /// </summary>
         private void SetDatabaseSetting()
         {
+            // hmx-link(デジタルツイン)モードの判定:
+            //   WebGL                  → 実PLC接続(ComMcProtocol等)不可のため常に ComHmi を使う（自動 true）
+            //   Windows/Android/Editor → HmxLink.json の enabled 次第（既定 false）。Editorテスト時は true にする
+            bool useHmx;
+#if UNITY_WEBGL
+            useHmx = true;
+#else
+            useHmx = (GlobalScript.hmxLink != null && GlobalScript.hmxLink.enabled);
+#endif
+            if (useHmx)
+            {
+                string wsUrl = GlobalScript.hmxLink != null ? GlobalScript.hmxLink.wsUrl : "ws://localhost:8765";
+                int hmxInterval = GlobalScript.hmxLink != null ? GlobalScript.hmxLink.interval : 200;
+                foreach (var p in postgresSettings)
+                {
+                    if (p.isInner || p.isDirectMode)
+                    {
+                        var hmi = globalSetting.AddComponent<ComHmi>();
+                        hmi.Setup(p.Name, wsUrl, hmxInterval);
+                    }
+                }
+                return;
+            }
 #if UNITY_WEBGL && !UNITY_EDITOR
             // WebGL: 外部通信(PLC/DB)は socket/スレッド非対応のため生成不可。
             // 内部処理 ComInner のみ生成して、機械を内部シミュレーションで動作させる。

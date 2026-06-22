@@ -322,6 +322,11 @@ public static class GlobalScript
     public static List<UseDeviceData> useDeviceDatas { get; set; } = new List<UseDeviceData>();
 
     /// <summary>
+    /// hmx-link（デジタルツイン）設定。HmxLink.json から読み込む（無ければ既定=無効）。
+    /// </summary>
+    public static HmxLinkSetting hmxLink = new HmxLinkSetting();
+
+    /// <summary>
     /// タイムチャーチデータリスト
     /// </summary>
     public static List<TimeChartData> timeChartDatas { get; set; } = new List<TimeChartData>();
@@ -482,7 +487,9 @@ public static class GlobalScript
         {
             if (tagDatas.ContainsKey(database) && tagDatas[database].ContainsKey(mechid) && tagDatas[database][mechid].ContainsKey(tag))
             {
-                return tagDatas[database][mechid][tag];
+                var t = tagDatas[database][mechid][tag];
+                t.wasRead = true;   // デジタルツイン: 読まれたタグを記録（購読対象の絞り込み）
+                return t;
             }
         }
         catch
@@ -539,7 +546,9 @@ public static class GlobalScript
         {
             if (tagDatas.ContainsKey(name) && tagDatas[name].ContainsKey(mechid) && tagDatas[name][mechid].ContainsKey(tag))
             {
-                return tagDatas[name][mechid][tag].Value;
+                var t = tagDatas[name][mechid][tag];
+                t.wasRead = true;   // デジタルツイン: 読まれたタグを記録（購読対象の絞り込み）
+                return t.Value;
             }
         }
         return 0;

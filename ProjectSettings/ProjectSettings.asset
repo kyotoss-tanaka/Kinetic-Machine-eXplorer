@@ -13,7 +13,7 @@ PlayerSettings:
   useOnDemandResources: 0
   accelerometerFrequency: 60
   companyName: Kyoto Seisakusho Co., Ltd.
-  productName: "KMX R8120_\u30EA\u30CB\u30E5\u30FC\u30A2\u30EBKTB\u521D\u53F7\u6A5F"
+  productName: "KMX R0230_\u65B0\u578BKTB-100(\u9006\u52DD\u624B)"
   defaultCursor: {fileID: 0}
   cursorHotspot: {x: 0, y: 0}
   m_SplashScreenBackgroundColor: {r: 0.13725491, g: 0.12156863, b: 0.1254902, a: 1}
@@ -150,7 +150,6 @@ PlayerSettings:
   preloadedAssets:
   - {fileID: 11400000, guid: 7037d252d99e0f34f87d79f8672ef693, type: 2}
   - {fileID: -944628639613478452, guid: 289c1b55c9541489481df5cc06664110, type: 3}
-  - {fileID: 7396949868905321877, guid: a5c3e7f50ff56a843926f87a00c0ab6d, type: 2}
   metroInputSource: 0
   wsaTransparentSwapchain: 0
   m_HolographicPauseOnTrackingLoss: 1
@@ -174,7 +173,7 @@ PlayerSettings:
   applicationIdentifier:
     Android: com.kyotoss.kmx_352_mr
     Standalone: com.kyotoss.kmx-R9830
-    WebGL: com.kyotoss.kmx-R8120
+    WebGL: com.kyotoss.kmx-R0230
   buildNumber:
     Standalone: 0
     VisionOS: 0
@@ -182,7 +181,7 @@ PlayerSettings:
     tvOS: 0
   overrideDefaultApplicationIdentifier: 1
   AndroidBundleVersionCode: 1
-  AndroidMinSdkVersion: 23
+  AndroidMinSdkVersion: 25
   AndroidTargetSdkVersion: 32
   AndroidPreferredInstallLocation: 0
   AndroidPreferredDataLocation: 1
@@ -941,7 +940,8 @@ PlayerSettings:
   scriptingBackend:
     Android: 1
   il2cppCompilerConfiguration: {}
-  il2cppCodeGeneration: {}
+  il2cppCodeGeneration:
+    WebGL: 1
   il2cppStacktraceInformation: {}
   managedStrippingLevel: {}
   incrementalIl2cppBuild: {}

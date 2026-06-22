@@ -125,6 +125,31 @@ public class InputManager : BaseBehaviour
     private bool isInsideScreen;
 
     /// <summary>
+    /// 画面タッチ（タブレット/WebGL）のジェスチャ状態
+    /// </summary>
+    private enum TouchGesture { None, Press, Orbit, PanZoom }
+    private TouchGesture touchGesture = TouchGesture.None;
+    private Vector2 touchStartPos;
+    private float touchStartTime;
+    private Vector2 prvTouchPos;
+    private float prvPinchDist;
+    [SerializeField] private float pinchZoomScale = 0.02f;
+
+    // タッチ感度倍率（HmxLink.json の "touch" で起動時設定。1.0=既定、小さいほど鈍い）
+    private static float TouchOrbitSens => GlobalScript.hmxLink?.touch?.orbit ?? 1f;
+    private static float TouchPanSens => GlobalScript.hmxLink?.touch?.pan ?? 1f;
+    private static float TouchPinchSens => GlobalScript.hmxLink?.touch?.pinch ?? 1f;
+
+    private const float TouchDragThreshold = 12f;
+    private const float TapMaxTime = 0.4f;
+    private float lastTapTime;
+    private Vector2 lastTapPos;
+    private bool panZoomMoved;
+    private float panZoomStartTime;
+    private const float DoubleTapTime = 0.35f;
+    private const float DoubleTapDist = 40f;
+
+    /// <summary>
     /// RayInteractor
     /// </summary>
     private RayInteractor rayHandL;
@@ -138,6 +163,9 @@ public class InputManager : BaseBehaviour
     protected override void Awake()
     {
         base.Awake();
+
+        // タッチ操作（タブレット/WebGL）対応を有効化
+        UnityEngine.InputSystem.EnhancedTouch.EnhancedTouchSupport.Enable();
 
         // 各種RayInteractor取得
         var handRays = FindObjectsByType<RayInteractor>(FindObjectsSortMode.None).Where(d => d.name == "HandRayInteractor");
@@ -194,6 +222,11 @@ public class InputManager : BaseBehaviour
                 // タッチアップデート
                 TouchUpdate();
             }
+            else
+            {
+                // 画面タッチ（タブレット/WebGL）→ マウス操作へ変換
+                ScreenTouchUpdate();
+            }
         }
     }
 
@@ -224,6 +257,18 @@ public class InputManager : BaseBehaviour
     /// </summary>
     private void MouseUpdate()
     {
+        if (Mouse.current == null)
+        {
+            // マウス非搭載（タブレット/タッチ専用）はスキップ。タッチは ScreenTouchUpdate で処理。
+            return;
+        }
+        if (HasActiveTouches())
+        {
+            // タッチ操作中はマウス経路を走らせない。
+            // mousePos が「マウス位置(IsMouseInsideScreen)」と「タッチ点(ScreenTouchUpdate)」で
+            // 交互に書き換わり、mouseDelta が巨大化して回転/パンが暴走するのを防ぐ。
+            return;
+        }
         if (Mouse.current.leftButton.wasPressedThisFrame)
         {
             mouseDownEvents?.Invoke(MouseButton.LeftButton, mousePos);
@@ -443,6 +488,164 @@ public class InputManager : BaseBehaviour
         }
     }
 
+    /// <summary>アクティブなタッチがあるか（指が画面に触れている間 true。終了フレームも含む）</summary>
+    private static bool HasActiveTouches()
+    {
+        return UnityEngine.InputSystem.EnhancedTouch.Touch.activeTouches.Count > 0;
+    }
+
+    /// <summary>
+    /// 画面タッチ（タブレット/WebGL）→ マウス操作へ変換。
+    /// 1本指ドラッグ=回転(右ドラッグ相当) / 2本指ドラッグ=パン(中ドラッグ相当) /
+    /// ピンチ=ズーム(ホイール相当) / 1本指タップ=選択(左クリック) /
+    /// 1本指ダブルタップ=フォーカス(Fキー・再度でトグル) / 2本指タップ=初期位置(Rキー)。
+    /// </summary>
+    private void ScreenTouchUpdate()
+    {
+        var touches = UnityEngine.InputSystem.EnhancedTouch.Touch.activeTouches;
+        int count = 0;
+        Vector2 p0 = Vector2.zero, p1 = Vector2.zero;
+        foreach (var t in touches)
+        {
+            var ph = t.phase;
+            if (ph == UnityEngine.InputSystem.TouchPhase.Began
+                || ph == UnityEngine.InputSystem.TouchPhase.Moved
+                || ph == UnityEngine.InputSystem.TouchPhase.Stationary)
+            {
+                if (count == 0) p0 = t.screenPosition;
+                else if (count == 1) p1 = t.screenPosition;
+                count++;
+            }
+        }
+
+        if (count >= 2)
+        {
+            Vector2 center = (p0 + p1) * 0.5f;
+            float dist = Vector2.Distance(p0, p1);
+            mousePos = center;
+            if (touchGesture != TouchGesture.PanZoom)
+            {
+                EndCurrentTouchGesture(center, false);
+                touchGesture = TouchGesture.PanZoom;
+                prvTouchPos = center;
+                prvPinchDist = dist;
+                panZoomMoved = false;
+                panZoomStartTime = Time.unscaledTime;
+                mouseDownEvents?.Invoke(MouseButton.MiddleButton, center);
+            }
+            else
+            {
+                Vector2 panDelta = center - prvTouchPos;
+                prvTouchPos = center;
+                float pinch = dist - prvPinchDist;
+                prvPinchDist = dist;
+                if (panDelta.magnitude > 1f || Mathf.Abs(pinch) > 1f)
+                {
+                    panZoomMoved = true;
+                }
+                if (panDelta.sqrMagnitude > 0f)
+                {
+                    mouseMoveEvents?.Invoke(center, panDelta * TouchPanSens);
+                }
+                if (Mathf.Abs(pinch) > 0.01f)
+                {
+                    mouseWheelEvents?.Invoke(new Vector2(0f, pinch * pinchZoomScale * TouchPinchSens));
+                }
+            }
+        }
+        else if (count == 1)
+        {
+            mousePos = p0;
+            if (touchGesture == TouchGesture.PanZoom)
+            {
+                // 2本指→1本指：パン/ズーム終了（Rタップ判定はしない）
+                EndCurrentTouchGesture(p0, false);
+            }
+            if (touchGesture == TouchGesture.None)
+            {
+                touchGesture = TouchGesture.Press;
+                touchStartPos = p0;
+                prvTouchPos = p0;
+                touchStartTime = Time.unscaledTime;
+            }
+            else if (touchGesture == TouchGesture.Press)
+            {
+                if ((p0 - touchStartPos).magnitude > TouchDragThreshold)
+                {
+                    touchGesture = TouchGesture.Orbit;
+                    prvTouchPos = p0;
+                    mouseDownEvents?.Invoke(MouseButton.RightButton, p0);
+                }
+            }
+            else if (touchGesture == TouchGesture.Orbit)
+            {
+                Vector2 delta = p0 - prvTouchPos;
+                prvTouchPos = p0;
+                if (delta.sqrMagnitude > 0f)
+                {
+                    mouseMoveEvents?.Invoke(p0, delta * TouchOrbitSens);
+                }
+            }
+        }
+        else
+        {
+            EndCurrentTouchGesture(mousePos, true);
+        }
+    }
+
+    /// <summary>
+    /// タッチジェスチャ終了（指を離した/本数変化時）。allowTap=true のときタップ系操作を発火。
+    /// </summary>
+    private void EndCurrentTouchGesture(Vector2 pos, bool allowTap)
+    {
+        switch (touchGesture)
+        {
+            case TouchGesture.Orbit:
+                mouseUpEvents?.Invoke(MouseButton.RightButton, pos);
+                break;
+            case TouchGesture.PanZoom:
+                mouseUpEvents?.Invoke(MouseButton.MiddleButton, pos);
+                // 2本指タップ（移動なし・短時間）＝カメラ初期位置(Rキー相当)
+                if (allowTap && !panZoomMoved && (Time.unscaledTime - panZoomStartTime < TapMaxTime))
+                {
+                    InvokeKey(Key.R);
+                }
+                break;
+            case TouchGesture.Press:
+                if (allowTap && (Time.unscaledTime - touchStartTime < TapMaxTime))
+                {
+                    // 1本指タップ＝選択（左クリック相当）
+                    mouseDownEvents?.Invoke(MouseButton.LeftButton, touchStartPos);
+                    mouseUpEvents?.Invoke(MouseButton.LeftButton, touchStartPos);
+                    // ダブルタップ＝フォーカス(Fキー相当・再度でトグル)
+                    if ((Time.unscaledTime - lastTapTime < DoubleTapTime)
+                        && ((touchStartPos - lastTapPos).magnitude < DoubleTapDist))
+                    {
+                        InvokeKey(Key.F);
+                        lastTapTime = 0f;
+                    }
+                    else
+                    {
+                        lastTapTime = Time.unscaledTime;
+                        lastTapPos = touchStartPos;
+                    }
+                }
+                break;
+        }
+        touchGesture = TouchGesture.None;
+    }
+
+    /// <summary>
+    /// 登録済みキーアクションをコード側から発火（タッチ操作→既存のキー機能呼び出し用）
+    /// </summary>
+    private void InvokeKey(Key key)
+    {
+        if (keyActions.TryGetValue(key, out var act))
+        {
+            act?.Invoke(key, true, false, false);
+        }
+    }
+
     /// <summary>
     /// 画面内にマウスがあるかチェック
     /// </summary>
@@ -450,7 +653,11 @@ public class InputManager : BaseBehaviour
     private bool IsMouseInsideScreen()
     {
         prvMousePos = mousePos;
-        mousePos = Mouse.current.position.ReadValue();
+        if (Mouse.current != null)
+        {
+            mousePos = Mouse.current.position.ReadValue();
+        }
+        // マウスが無い(タッチ)場合は ScreenTouchUpdate が mousePos を更新する
         return mousePos.x >= 0 && mousePos.x <= Screen.width && mousePos.y >= 0 && mousePos.y <= Screen.height;
     }
 

@@ -325,6 +325,8 @@ public class BuildAndRun
             // WebGL: ローカル/ヘッダ未設定の環境でも読み込めるよう Gzip + 解凍フォールバック
             PlayerSettings.WebGL.compressionFormat = WebGLCompressionFormat.Gzip;
             PlayerSettings.WebGL.decompressionFallback = true;
+            // ビルド時間短縮：IL2CPP コード生成を「Faster (smaller) builds」に
+            PlayerSettings.SetIl2CppCodeGeneration(NamedBuildTarget.WebGL, Il2CppCodeGeneration.OptimizeSize);
         }
 
         EditorUserBuildSettings.androidBuildSystem = AndroidBuildSystem.Gradle;
