@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>{{{ PRODUCT_NAME }}}</title>
+  <style>
+    :root {
+      --bg: #0b0e15;
+      --fg: #e9eef6;
+      --accent: #e8451e;   /* 鳥居色（朱 / vermilion） */
+      --accent2: #ff7a45;  /* 明朱（ハイライト） */
+      --muted: #6b6570;
+      --line: #2a3342;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; background: var(--bg); overflow: hidden; }
+    #unity-container { position: absolute; inset: 0; }
+    #unity-canvas { width: 100%; height: 100%; display: block; background: var(--bg); }
+
+    /* ---- ローディング画面（HMX系デザイン） ---- */
+    #loading {
+      position: absolute; inset: 0; z-index: 10;
+      font-family: "Helvetica Neue", "Segoe UI", "Hiragino Kaku Gothic ProN", "Noto Sans JP", Arial, sans-serif;
+    }
+    /* ---- カーテン分割（§3.2）：背景を上下2枚に分け、退場時に中央の発光ラインから上下へ開く ---- */
+    .sp-half { position: absolute; left: 0; right: 0; height: calc(50% + 1px); background: var(--bg);
+      transition: transform .8s cubic-bezier(.7,0,.25,1); z-index: 1; }
+    .sp-top { top: 0; }  .sp-bot { bottom: 0; }
+    .sp-seam { position: absolute; left: 0; right: 0; top: 50%; height: 2px; transform: translateY(-50%); opacity: 0; z-index: 2;
+      background: linear-gradient(90deg, transparent, #e6f3ff, transparent);   /* 青白い光 */
+      box-shadow: 0 0 14px 2px rgba(130,200,255,.95), 0 0 30px 4px rgba(90,160,255,.5); }
+    .content { position: absolute; inset: 0; z-index: 3;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      transition: opacity .35s ease; }
+    #loading.exit .content { opacity: 0; }
+    #loading.exit .sp-top  { transform: translateY(-100%); }
+    #loading.exit .sp-bot  { transform: translateY(100%); }
+    #loading.exit .sp-seam { animation: seamFlash .9s ease forwards; }
+    @keyframes seamFlash { 0% { opacity: 0; } 25% { opacity: 1; } 100% { opacity: 0; } }
+
+    .logo {
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 200; letter-spacing: 0.30em;
+      font-size: clamp(46px, 9vw, 104px); line-height: 1;
+      color: var(--fg);
+      padding-left: 0.30em; /* レタースペース分の見た目中央寄せ */
+      animation: fadeup .9s ease both;
+    }
+    .logo .accent { color: var(--accent); }
+    .logo .dot {
+      width: .14em; height: .14em; border-radius: 50%; background: var(--accent);
+      margin-left: .20em; transform: translateY(-.18em); transform-origin: center;
+      box-shadow: 0 0 6px rgba(232,69,30,.7);
+      animation: heartbeatDot 1100ms ease-in-out infinite;
+    }
+
+    .divider {
+      width: clamp(190px, 30vw, 380px); height: 2px; margin: 20px 0 18px; border-radius: 2px;
+      background: linear-gradient(90deg, transparent, rgba(232,69,30,.14) 14%, rgba(255,140,95,.98) 50%, rgba(232,69,30,.14) 86%, transparent);
+      box-shadow: 0 0 6px rgba(232,69,30,.9), 0 0 16px rgba(232,69,30,.55), 0 0 30px rgba(232,69,30,.25);
+      transform-origin: center;
+      animation: heartbeatLine 1100ms ease-in-out infinite;
+    }
+
+    .subtitle {
+      font-weight: 300; font-size: clamp(10px, 1.5vw, 14px);
+      letter-spacing: 0.46em; color: var(--muted); text-transform: lowercase;
+      padding-left: 0.46em;
+      animation: fadeup 1.3s ease both;
+    }
+
+    .bar {
+      margin-top: 40px; width: clamp(190px, 30vw, 300px); height: 3px;
+      background: #161d29; border-radius: 3px; overflow: hidden;
+      animation: fadeup 1.5s ease both;
+    }
+    .bar > i {
+      display: block; height: 100%; width: 0%;
+      background: linear-gradient(90deg, #c33b18, var(--accent2));
+      border-radius: 3px; box-shadow: 0 0 8px rgba(232,69,30,.6); transition: width .15s ease;
+    }
+    .pct { margin-top: 12px; font-size: 11px; letter-spacing: 0.2em; color: #6b5750; }
+    .cmt { margin-top: 8px; font-size: 12px; letter-spacing: 0.06em; color: #8a8f99; min-height: 16px;
+           max-width: 80vw; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+    @keyframes fadeup { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+    /* 鼓動（単発・早く始まりゆっくり変化）: 周期1100ms 開始20% ピーク50% 戻り70% 休止0.5 ピーク1.0 拡大1.2 */
+    @keyframes heartbeatDot {
+      0%, 20%   { transform: translateY(-.18em) scale(1);   opacity: .5; }
+      50%       { transform: translateY(-.18em) scale(1.2); opacity: 1;  }
+      70%, 100% { transform: translateY(-.18em) scale(1);   opacity: .5; }
+    }
+    @keyframes heartbeatLine {
+      0%, 20%   { transform: scaleY(1);   opacity: .5; }
+      50%       { transform: scaleY(1.2); opacity: 1;  }
+      70%, 100% { transform: scaleY(1);   opacity: .5; }
+    }
+  </style>
+</head>
+<body>
+  <div id="unity-container">
+    <canvas id="unity-canvas" tabindex="-1"></canvas>
+    <div id="loading">
+      <div class="sp-half sp-top"></div>
+      <div class="sp-half sp-bot"></div>
+      <div class="sp-seam"></div>
+      <div class="content">
+        <div class="logo">
+          <span>K</span><span class="accent">M</span><span>X</span><span class="dot"></span>
+        </div>
+        <div class="divider"></div>
+        <div class="subtitle">kinetic&nbsp;&nbsp;machine&nbsp;&nbsp;explorer</div>
+        <div class="bar"><i id="bar-full"></i></div>
+        <div class="pct" id="pct">0%</div>
+        <div class="cmt" id="cmt"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    var canvas = document.querySelector("#unity-canvas");
+    var loading = document.querySelector("#loading");
+    var barFull = document.querySelector("#bar-full");
+    var pct = document.querySelector("#pct");
+    var cmt = document.querySelector("#cmt");
+
+    // 進捗バーは「エンジン/データDL(0..SPLIT%) → パラメータ読込(SPLIT..100%)」の通し表示（リセットしない）。
+    var SPLIT = 55;
+    var finished = false;
+
+    function setBar(v, label) {
+      v = Math.max(0, Math.min(100, v));
+      barFull.style.width = v + "%";
+      pct.textContent = Math.round(v) + "%";
+      if (typeof label === "string") { cmt.textContent = label; }
+    }
+
+    function hideLoading() {
+      if (finished) { return; }
+      finished = true;
+      setBar(100);
+      // カーテン分割で退場（コンテンツfade→継ぎ目フラッシュ→上下に開く）。約1000ms後に除去。
+      loading.classList.add("exit");
+      setTimeout(function () { loading.style.display = "none"; }, 1000);
+    }
+
+    // Unity(WebGlLoadingBridge.cs) からの呼び出し口。パラメータ読込フェーズを担う。
+    window.KmxLoading = {
+      progress: function (p, label) {   // p: 0..1（パラメータ読込）
+        if (finished) { return; }
+        setBar(SPLIT + p * (100 - SPLIT), label);
+      },
+      done: function () { hideLoading(); }
+    };
+
+    var buildUrl = "Build";
+    var loaderUrl = buildUrl + "/{{{ LOADER_FILENAME }}}";
+    var config = {
+      dataUrl: buildUrl + "/{{{ DATA_FILENAME }}}",
+      frameworkUrl: buildUrl + "/{{{ FRAMEWORK_FILENAME }}}",
+      codeUrl: buildUrl + "/{{{ CODE_FILENAME }}}",
+#if MEMORY_FILENAME
+      memoryUrl: buildUrl + "/{{{ MEMORY_FILENAME }}}",
+#endif
+#if SYMBOLS_FILENAME
+      symbolsUrl: buildUrl + "/{{{ SYMBOLS_FILENAME }}}",
+#endif
+      streamingAssetsUrl: "StreamingAssets",
+      companyName: "{{{ COMPANY_NAME }}}",
+      productName: "{{{ PRODUCT_NAME }}}",
+      productVersion: "{{{ PRODUCT_VERSION }}}",
+      showBanner: function (msg, type) { console.log("[" + type + "] " + msg); }
+    };
+
+    var script = document.createElement("script");
+    script.src = loaderUrl;
+    script.onload = function () {
+      createUnityInstance(canvas, config, function (progress) {   // progress: 0..1（エンジン/データDL）
+        if (finished) { return; }
+        setBar(progress * SPLIT);
+      }).then(function (unityInstance) {
+        // ここでは隠さない。以降のパラメータ読込は Unity 側 window.KmxLoading が制御し、
+        // 完了で done() が呼ばれて初めて隠れる（HTML1枚で通す＝つなぎ目なし）。
+        setBar(SPLIT, "Loading parameters…");
+        // フォールバック：万一 Unity から done が来なくても一定時間で隠す
+        setTimeout(hideLoading, 120000);
+      }).catch(function (message) {
+        pct.textContent = "読み込みエラー";
+        cmt.textContent = "";
+        console.error(message);
+      });
+    };
+    document.body.appendChild(script);
+  </script>
+</body>
+</html>

@@ -226,6 +226,26 @@ public class BuildAndRun
         }
     }
 
+    // Editor で WebGL版機能（JOG/ユニット選択/カメラボタン等）をテスト表示するトグル（チェック付き）。
+    // UnitOperationView.Bootstrap が EditorPrefs "KMX_EditorWebGLMode" を参照して Editor 実行時に有効化する。
+    private const string EditorWebGLModeKey = "KMX_EditorWebGLMode";
+    private const string EditorWebGLModeMenu = "Kyotoss/Editor で WebGL版を起動 (テスト)";
+
+    [MenuItem(EditorWebGLModeMenu, false, 70)]
+    public static void ToggleEditorWebGLMode()
+    {
+        bool v = !EditorPrefs.GetBool(EditorWebGLModeKey, false);
+        EditorPrefs.SetBool(EditorWebGLModeKey, v);
+        Debug.Log($"[KMX] Editor WebGL版起動: {(v ? "ON（次のPlayでWebGL専用UIを表示）" : "OFF")}");
+    }
+
+    [MenuItem(EditorWebGLModeMenu, true)]
+    public static bool ToggleEditorWebGLModeValidate()
+    {
+        Menu.SetChecked(EditorWebGLModeMenu, EditorPrefs.GetBool(EditorWebGLModeKey, false));
+        return true;
+    }
+
     [MenuItem("Kyotoss/Build and Run from KMXTool Config(Debug)", false, 54)]
     public static void DebugAndRunFromConfig()
     {
@@ -327,6 +347,8 @@ public class BuildAndRun
             PlayerSettings.WebGL.decompressionFallback = true;
             // ビルド時間短縮：IL2CPP コード生成を「Faster (smaller) builds」に
             PlayerSettings.SetIl2CppCodeGeneration(NamedBuildTarget.WebGL, Il2CppCodeGeneration.OptimizeSize);
+            // ローディング画面を KMX 専用テンプレート(Assets/WebGLTemplates/KMX)に
+            PlayerSettings.WebGL.template = "PROJECT:KMX";
         }
 
         EditorUserBuildSettings.androidBuildSystem = AndroidBuildSystem.Gradle;

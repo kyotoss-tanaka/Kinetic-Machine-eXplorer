@@ -259,12 +259,7 @@ namespace KyotoSS.TimingChart
 
             UpdateMouseCursor();
 
-            foreach (var r in m_Renderers)
-            {
-                r.ViewStartMs = m_ViewStartMs;
-                r.ViewEndMs = m_ViewEndMs;
-                r.Redraw();
-            }
+            RedrawVisibleRenderers();
 
             UpdateTimeHeader();
             UpdateCursor();
@@ -668,6 +663,47 @@ namespace KyotoSS.TimingChart
             tttRT.offsetMin = new Vector2(4f, 4f);
             tttRT.offsetMax = new Vector2(-4f, -4f);
             m_Tooltip.gameObject.SetActive(false);
+        }
+
+        // ================================================================
+        // 可視行だけ波形描画＋RT確保（メモリ削減：画面外の行はRTを解放）
+        // ================================================================
+        private static readonly Vector3[] s_Corners = new Vector3[4];
+
+        private void RedrawVisibleRenderers()
+        {
+            var viewport = m_VertScroll != null ? m_VertScroll.viewport : null;
+            bool hasVp = viewport != null;
+            Rect vpRect = default;
+            if (hasVp)
+            {
+                vpRect = WorldRect(viewport);
+                float margin = vpRect.height * 0.5f;   // スクロール時のポップ防止の余白
+                vpRect = new Rect(vpRect.x, vpRect.y - margin, vpRect.width, vpRect.height + margin * 2f);
+            }
+            foreach (var r in m_Renderers)
+            {
+                if (r == null) continue;
+                bool vis = r.gameObject.activeInHierarchy
+                           && (!hasVp || WorldRect((RectTransform)r.transform).Overlaps(vpRect));
+                if (vis)
+                {
+                    r.ViewStartMs = m_ViewStartMs;
+                    r.ViewEndMs = m_ViewEndMs;
+                    r.Redraw();   // RT未確保なら内部で再生成
+                }
+                else
+                {
+                    r.ReleaseRT();   // 画面外はRT解放
+                }
+            }
+        }
+
+        private static Rect WorldRect(RectTransform rt)
+        {
+            rt.GetWorldCorners(s_Corners);
+            return new Rect(s_Corners[0].x, s_Corners[0].y,
+                s_Corners[2].x - s_Corners[0].x, s_Corners[2].y - s_Corners[0].y);
         }
 
         // ================================================================

@@ -201,7 +201,7 @@ public class MainProcess : KssBaseScript
                 else
                 {
                     // 選択中のマテリアルをセット
-                    if (isControl)
+                    if (isControl || GlobalScript.touchSelectOverride)
                     {
                         if (GlobalScript.selectedObject == clickedGameObject)
                         {

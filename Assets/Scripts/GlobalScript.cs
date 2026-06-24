@@ -255,6 +255,16 @@ public static class GlobalScript
     public static bool isLoaded = false;
 
     /// <summary>
+    /// ロード進捗(0..1)。ローディング画面(KmxLoadingScreen)が参照。
+    /// </summary>
+    public static float loadProgress = 0f;
+
+    /// <summary>
+    /// ロード中コメント（"Loading Unit : ..." 等）。ローディング画面が参照。
+    /// </summary>
+    public static string loadLabel = "";
+
+    /// <summary>
     /// イベントロード要求
     /// </summary>
     public static bool isReqLoadEvent = false;
@@ -325,6 +335,31 @@ public static class GlobalScript
     /// hmx-link（デジタルツイン）設定。HmxLink.json から読み込む（無ければ既定=無効）。
     /// </summary>
     public static HmxLinkSetting hmxLink = new HmxLinkSetting();
+
+    /// <summary>
+    /// 手動操作(JOG)定義（ManualOpInfo.json）。mechId+name で引く。
+    /// </summary>
+    public static List<ManualOpData> manualOps = new List<ManualOpData>();
+
+    /// <summary>指定ユニットの手動操作定義を取得（無ければ null）</summary>
+    public static ManualOpData GetManualOp(string mechId, string name)
+    {
+        if (manualOps == null)
+        {
+            return null;
+        }
+        foreach (var m in manualOps)
+        {
+            if (m != null && m.mechId == mechId && m.name == name)
+            {
+                return m;
+            }
+        }
+        return null;
+    }
+
+    /// <summary>タッチtap中だけtrue。MainProcessがCtrl無しでもユニット選択するための一時フラグ（タッチ操作機能用）。</summary>
+    public static bool touchSelectOverride = false;
 
     /// <summary>
     /// タイムチャーチデータリスト

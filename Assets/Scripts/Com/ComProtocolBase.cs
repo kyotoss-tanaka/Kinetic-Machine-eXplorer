@@ -1027,7 +1027,9 @@ public class ComProtocolBase : ComBaseScript, ITagCom
 
     private IEnumerator SendPing()
     {
-#if !UNITY_WEBGL || UNITY_EDITOR
+        // UnityEngine.Ping は WebGL 非対応。ビルドターゲットが WebGL のときは Editor でも
+        // 型が参照できず CS0246 になるため、UNITY_EDITOR は含めず WebGL対象では一律スタブにする。
+#if !UNITY_WEBGL
         Ping ping = new Ping(Server);
         float startTime = Time.time;
         // 完了かタイムアウトまで待機

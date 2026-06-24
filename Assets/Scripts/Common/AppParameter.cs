@@ -1518,6 +1518,37 @@ namespace Parameters
         public HmxConnection connection { get; set; } = new HmxConnection();
         /// <summary>タッチ操作の感度倍率（回転/パン/ズーム）。起動時に InputManager へ反映</summary>
         public TouchSetting touch { get; set; } = new TouchSetting();
+        /// <summary>write(JOG手動操作)用の事前共有トークン。空=writer無効。HMXの HMX_WRITE_TOKEN と同一値にする</summary>
+        public string writeToken { get; set; } = "";
+        /// <summary>JOGハートビート間隔(ms)。HMXと同一値（docs/hmx-link_write要求.md §8）</summary>
+        public int jogIntervalMs { get; set; } = 100;
+        /// <summary>JOGデッドマンTout(ms)。HMXの jogTimeoutMs と同一値</summary>
+        public int jogTimeoutMs { get; set; } = 300;
+    }
+
+    /// <summary>手動操作(JOG)1ボタン。軸の向きごとに hmx-link へ write する専用デバイスを定義。</summary>
+    [Serializable]
+    public class ManualOp
+    {
+        public int axis { get; set; }             // 0=X/1=Y/2=Z（ActionInfo.axis と整合）
+        public int dir { get; set; }              // +1/-1（軸のどちら向きか＝ハンドル位置）
+        public string label { get; set; } = "";   // 表示名（前進/後退 等）
+        public string dev { get; set; } = "";     // hmx-link へ write するデバイス（allow対象）
+        public string lamp { get; set; } = "";    // PLCがボタン認識を返すランプ用 読取デバイス（内部IO）。空=ランプ無し（押下即点灯）
+        public string tag { get; set; } = "";     // 参考タグ（内部シム/実PLC直結時）
+        public int onValue { get; set; } = 1;
+        public string mode { get; set; } = "jog"; // jog=押下中ON・デッドマン
+    }
+
+    /// <summary>ユニットごとの手動操作定義（StreamingAssets/Datas/ManualOpInfo.json）。</summary>
+    [Serializable]
+    public class ManualOpData
+    {
+        public string mechId { get; set; } = "";
+        public string name { get; set; } = "";
+        public string group { get; set; } = "";          // 最上位の親（部名）。UnitInfo の parent チェイン最上位
+        public List<string> path { get; set; } = new();  // 最上位→自分の祖先名（階層保持）
+        public List<ManualOp> ops { get; set; } = new();
     }
 
     [Serializable]

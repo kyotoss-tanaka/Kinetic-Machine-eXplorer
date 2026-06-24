@@ -127,7 +127,7 @@ public class InputManager : BaseBehaviour
     /// <summary>
     /// 画面タッチ（タブレット/WebGL）のジェスチャ状態
     /// </summary>
-    private enum TouchGesture { None, Press, Orbit, PanZoom }
+    private enum TouchGesture { None, Press, Orbit, PanZoom, UiBlock }
     private TouchGesture touchGesture = TouchGesture.None;
     private Vector2 touchStartPos;
     private float touchStartTime;
@@ -271,8 +271,11 @@ public class InputManager : BaseBehaviour
         }
         if (Mouse.current.leftButton.wasPressedThisFrame)
         {
-            mouseDownEvents?.Invoke(MouseButton.LeftButton, mousePos);
-            isMouseLeft = true;
+            if (!UnitOperationView.IsPointerOverButton(mousePos))   // オーバーレイボタン上は選択しない
+            {
+                mouseDownEvents?.Invoke(MouseButton.LeftButton, mousePos);
+                isMouseLeft = true;
+            }
         }
         else if (Mouse.current.leftButton.wasReleasedThisFrame || (isMouseLeft && !isInsideScreen))
         {
@@ -563,10 +566,18 @@ public class InputManager : BaseBehaviour
             }
             if (touchGesture == TouchGesture.None)
             {
-                touchGesture = TouchGesture.Press;
-                touchStartPos = p0;
-                prvTouchPos = p0;
-                touchStartTime = Time.unscaledTime;
+                if (UnitOperationView.IsPointerOverButton(p0))
+                {
+                    // JOGボタン上の押下はカメラ操作/選択に使わない（JOGは UnitOperationView が処理）
+                    touchGesture = TouchGesture.UiBlock;
+                }
+                else
+                {
+                    touchGesture = TouchGesture.Press;
+                    touchStartPos = p0;
+                    prvTouchPos = p0;
+                    touchStartTime = Time.unscaledTime;
+                }
             }
             else if (touchGesture == TouchGesture.Press)
             {
@@ -614,9 +625,11 @@ public class InputManager : BaseBehaviour
             case TouchGesture.Press:
                 if (allowTap && (Time.unscaledTime - touchStartTime < TapMaxTime))
                 {
-                    // 1本指タップ＝選択（左クリック相当）
+                    // 1本指タップ＝選択（左クリック相当）。Ctrl無しでも選択させる（タッチ操作機能）
+                    GlobalScript.touchSelectOverride = true;
                     mouseDownEvents?.Invoke(MouseButton.LeftButton, touchStartPos);
                     mouseUpEvents?.Invoke(MouseButton.LeftButton, touchStartPos);
+                    GlobalScript.touchSelectOverride = false;
                     // ダブルタップ＝フォーカス(Fキー相当・再度でトグル)
                     if ((Time.unscaledTime - lastTapTime < DoubleTapTime)
                         && ((touchStartPos - lastTapPos).magnitude < DoubleTapDist))
@@ -644,6 +657,12 @@ public class InputManager : BaseBehaviour
         {
             act?.Invoke(key, true, false, false);
         }
+    }
+
+    /// <summary>UIボタン等から既存キー機能を発火（R=視点リセット / F=フォーカス 等）</summary>
+    public void TriggerKey(Key key)
+    {
+        InvokeKey(key);
     }
 
     /// <summary>

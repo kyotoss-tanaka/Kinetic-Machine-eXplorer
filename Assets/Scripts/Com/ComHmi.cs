@@ -61,6 +61,35 @@ public class ComHmi : MonoBehaviour
     [Tooltip("subscribe/vals の中身をConsoleに出力（受信不具合の切り分け用）")]
     [SerializeField] private bool verboseLog = true;
 
+    [Header("JOG / 手動操作（hmx-link write）")]
+    [SerializeField] private bool writerAuthed = false;
+    [SerializeField] private int activeJogCount = 0;
+
+    // hmx-link write/JOG（docs/hmx-link_write要求.md §3,§8）
+    private static readonly List<ComHmi> instances = new();
+    /// <summary>JOG状態変化通知（dev, isOn）。UI(UnitOperationView 等)が購読してハンドル表示を更新。</summary>
+    public static event Action<string, bool> JogChanged;
+
+    private readonly HashSet<string> writeAllow = new();
+    private bool authSent;
+    // ランプ（PLCがボタン認識を返す読取デバイス）。購読して値を保持し、ボタン点灯に使う。
+    private readonly HashSet<string> lampDevs = new();
+    private readonly Dictionary<string, bool> lampStates = new();
+    private class JogState { public int seq; public float lastSend; public float lastAck; }
+    private readonly Dictionary<string, JogState> jogs = new();
+
+    private static string WriteToken => GlobalScript.hmxLink != null ? (GlobalScript.hmxLink.writeToken ?? "") : "";
+    private static float JogInterval => Mathf.Max(0.02f, (GlobalScript.hmxLink != null ? GlobalScript.hmxLink.jogIntervalMs : 100) / 1000f);
+    private static float JogTimeout => Mathf.Max(0.1f, (GlobalScript.hmxLink != null ? GlobalScript.hmxLink.jogTimeoutMs : 300) / 1000f);
+
+    private void Awake()
+    {
+        if (!instances.Contains(this))
+        {
+            instances.Add(this);
+        }
+    }
+
     /// <summary>ファクトリからの初期化</summary>
     public void Setup(string database, string wsUrl, int interval)
     {
@@ -146,7 +175,7 @@ public class ComHmi : MonoBehaviour
         ws.OnOpen += HandleOpen;
         ws.OnMessage += OnMessage;
         ws.OnError += (e) => Debug.LogWarning($"[ComHmi] error: {e}");
-        ws.OnClose += () => { state = "Closed"; };
+        ws.OnClose += () => { state = "Closed"; OnWsClosed(); };
         state = "Connecting";
         ws.Connect();
     }
@@ -156,12 +185,14 @@ public class ComHmi : MonoBehaviour
         state = "Open";
         reconnectDelay = 2f;
         subscribedDevs.Clear();   // 再接続時は購読をやり直す
+        ResetWriteState();        // 認証/JOGは接続ごとにやり直し（安全側）
         Debug.Log($"[ComHmi] connected: {wsUrl}");
     }
 
     private void Update()
     {
         ws?.DispatchMessageQueue();
+        ProcessJogs();   // JOGハートビート送信＋ack途絶ウォッチドッグ（毎フレーム）
 
         if (ws != null && ws.State == KmxWebSocket.WsState.Open)
         {
@@ -236,6 +267,11 @@ public class ComHmi : MonoBehaviour
 
     private void SendSubscribe()
     {
+        // ランプ読取デバイスは常に購読対象に含める（再接続後も復帰）
+        foreach (var d in lampDevs)
+        {
+            subscribedDevs.Add(d);
+        }
         var sb = new StringBuilder();
         // KMX側実装要求 M4: 必ず readOnly:true を付ける / M5: connection は絶対に送らない
         // （read-only でも実 connection を送ると hmx-link が PLC ドライバを切替＝HMI接続が切れる）
@@ -274,6 +310,7 @@ public class ComHmi : MonoBehaviour
                     ws.Send("{\"type\":\"hello_ack\"}");
                     needSubscribe = true;
                     subscribeTimer = 1f;   // 次フレームで即 subscribe
+                    TrySendAuth();         // writer権限を要求（writeToken設定時のみ）
                     break;
                 case "subscribed":
                     // M6: subscribed.readOnly===true を確認（read-only受理確認）
@@ -292,6 +329,15 @@ public class ComHmi : MonoBehaviour
                     {
                         ApplyVals(vals);
                     }
+                    break;
+                case "auth_ack":
+                    HandleAuthAck(root);
+                    break;
+                case "jog_ack":
+                    HandleJogAck(root);
+                    break;
+                case "jog_timeout":
+                    HandleJogTimeout(root);
                     break;
                 case "pong":
                 case "status":
@@ -317,6 +363,14 @@ public class ComHmi : MonoBehaviour
         foreach (var kv in vals.EnumerateObject())
         {
             total++;
+            // ランプ（PLCのボタン認識返し）。UseDeviceListに無い内部IOなのでここで先に拾う。
+            if (lampDevs.Contains(kv.Name))
+            {
+                double lv = kv.Value.ValueKind == JsonValueKind.Number ? kv.Value.GetDouble() : 0;
+                lampStates[kv.Name] = lv != 0;
+                matched++;
+                continue;
+            }
             if (!devToBinding.TryGetValue(kv.Name, out var b))
             {
                 // UseDeviceList に無い／アドレス書式が異なる dev
@@ -367,7 +421,311 @@ public class ComHmi : MonoBehaviour
 
     private void OnDestroy()
     {
+        EndAllJogs();
+        instances.Remove(this);
         wantConnected = false;
         ws?.Close();
+    }
+
+    // ===== JOG / 手動操作（hmx-link write, docs/hmx-link_write要求.md §8） =====
+
+    /// <summary>このユニットの dev を JOG 可能か（認証済み・allow内・接続中・記録再生中でない）</summary>
+    public bool CanJog(string dev)
+    {
+        return writerAuthed
+            && !string.IsNullOrEmpty(dev)
+            && writeAllow.Contains(dev)
+            && ws != null && ws.State == KmxWebSocket.WsState.Open
+            && !GlobalScript.isSystemRecorder;
+    }
+
+    // --- 静的ルーティング（dev を扱えるインスタンスへ委譲。UI からはこちらを呼ぶ） ---
+
+    /// <summary>いずれかの ComHmi が dev を JOG 可能か</summary>
+    public static bool CanJogAny(string dev)
+    {
+        foreach (var c in instances)
+        {
+            if (c != null && c.CanJog(dev))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /// <summary>ランプ（PLCのボタン認識返し）読取デバイスを購読登録（全インスタンス）。</summary>
+    public static void RegisterLamp(string lampDev)
+    {
+        if (string.IsNullOrEmpty(lampDev))
+        {
+            return;
+        }
+        foreach (var c in instances)
+        {
+            if (c != null && c.lampDevs.Add(lampDev))
+            {
+                c.subscribedDevs.Add(lampDev);
+                c.needSubscribe = true;
+            }
+        }
+    }
+
+    /// <summary>ランプが ON か（PLCがボタン認識を返している）。いずれかのインスタンスがONなら true。</summary>
+    public static bool IsLampOn(string lampDev)
+    {
+        if (string.IsNullOrEmpty(lampDev))
+        {
+            return false;
+        }
+        foreach (var c in instances)
+        {
+            if (c != null && c.lampStates.TryGetValue(lampDev, out var on) && on)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /// <summary>JOG開始（押下）。成功で true。</summary>
+    public static bool BeginJog(string dev)
+    {
+        foreach (var c in instances)
+        {
+            if (c != null && c.CanJog(dev))
+            {
+                return c.BeginJogInternal(dev);
+            }
+        }
+        return false;
+    }
+
+    /// <summary>JOG終了（離す）。全インスタンスに対し安全側で OFF。</summary>
+    public static void EndJog(string dev)
+    {
+        foreach (var c in instances)
+        {
+            if (c != null)
+            {
+                c.EndJogInternal(dev);
+            }
+        }
+    }
+
+    private bool BeginJogInternal(string dev)
+    {
+        if (!CanJog(dev))
+        {
+            return false;
+        }
+        if (jogs.ContainsKey(dev))
+        {
+            return true;
+        }
+        float now = Time.unscaledTime;
+        jogs[dev] = new JogState { seq = 1, lastSend = now, lastAck = now };
+        ws.Send($"{{\"type\":\"jog\",\"dev\":\"{dev}\",\"val\":1,\"hold\":true,\"seq\":1}}");
+        Debug.Log($"[ComHmi] JOG ON: {dev}");
+        JogChanged?.Invoke(dev, true);
+        return true;
+    }
+
+    private void EndJogInternal(string dev)
+    {
+        if (!jogs.TryGetValue(dev, out var st))
+        {
+            return;
+        }
+        jogs.Remove(dev);
+        // 解除は即OFF送信（接続中のみ）。サーバ側ウォッチドッグもバックアップ。
+        if (ws != null && ws.State == KmxWebSocket.WsState.Open)
+        {
+            ws.Send($"{{\"type\":\"jog\",\"dev\":\"{dev}\",\"val\":0,\"hold\":false,\"seq\":{++st.seq}}}");
+        }
+        Debug.Log($"[ComHmi] JOG OFF: {dev}");
+        JogChanged?.Invoke(dev, false);
+    }
+
+    /// <summary>サーバが既にOFF済（jog_timeout等）。送信せずローカル停止＋通知。</summary>
+    private void StopJogLocal(string dev)
+    {
+        if (jogs.Remove(dev))
+        {
+            JogChanged?.Invoke(dev, false);
+        }
+    }
+
+    private void EndAllJogs()
+    {
+        if (jogs.Count == 0)
+        {
+            return;
+        }
+        var devs = new List<string>(jogs.Keys);
+        foreach (var dev in devs)
+        {
+            EndJogInternal(dev);
+        }
+    }
+
+    /// <summary>JOGハートビート(100ms)送信＋ack途絶ウォッチドッグ(Tout)。途絶で即OFF（§8.2 KMX側）。</summary>
+    private void ProcessJogs()
+    {
+        if (jogs.Count == 0)
+        {
+            activeJogCount = 0;
+            return;
+        }
+        float now = Time.unscaledTime;
+        float interval = JogInterval, tout = JogTimeout;
+        List<string> toStop = null;
+        foreach (var kv in jogs)
+        {
+            var dev = kv.Key;
+            var st = kv.Value;
+            if (now - st.lastAck > tout)
+            {
+                // jog_ack 途絶 → ハートビート停止（サーバ側ウォッチドッグも作動しOFF）
+                (toStop ??= new List<string>()).Add(dev);
+                continue;
+            }
+            if (ws != null && ws.State == KmxWebSocket.WsState.Open && now - st.lastSend >= interval)
+            {
+                st.seq++;
+                ws.Send($"{{\"type\":\"jog\",\"dev\":\"{dev}\",\"val\":1,\"hold\":true,\"seq\":{st.seq}}}");
+                st.lastSend = now;
+            }
+        }
+        if (toStop != null)
+        {
+            foreach (var dev in toStop)
+            {
+                Debug.LogWarning($"[ComHmi] JOG watchdog: ack 途絶 → OFF ({dev})");
+                EndJogInternal(dev);
+            }
+        }
+        activeJogCount = jogs.Count;
+    }
+
+    // --- 認証（writer role） ---
+
+    private void TrySendAuth()
+    {
+        if (authSent)
+        {
+            return;
+        }
+        if (ws == null || ws.State != KmxWebSocket.WsState.Open)
+        {
+            return;
+        }
+        // 接続要求 §2.2: writer 認証は token 空運用でよい（token:"" でも auth を送る）。
+        // 送らないと auth_ack(allow) が来ず、常に「writer未認証/allow外」になる。
+        string token = WriteToken ?? "";
+        ws.Send($"{{\"type\":\"auth\",\"role\":\"writer\",\"token\":\"{token}\"}}");
+        authSent = true;
+    }
+
+    private void HandleAuthAck(JsonElement root)
+    {
+        bool ok = root.TryGetProperty("ok", out var okEl) && okEl.ValueKind == JsonValueKind.True;
+        writeAllow.Clear();
+        writerAuthed = ok;
+        if (ok && root.TryGetProperty("allow", out var allowEl) && allowEl.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var a in allowEl.EnumerateArray())
+            {
+                var s = a.GetString();
+                if (!string.IsNullOrEmpty(s))
+                {
+                    writeAllow.Add(s);
+                }
+            }
+            Debug.Log($"[ComHmi] writer auth OK (allow={writeAllow.Count})");
+        }
+        else
+        {
+            string msg = root.TryGetProperty("msg", out var m) ? m.GetString() : "";
+            Debug.LogWarning($"[ComHmi] writer auth NG: {msg}");
+        }
+    }
+
+    private void HandleJogAck(JsonElement root)
+    {
+        if (!root.TryGetProperty("dev", out var devEl))
+        {
+            return;
+        }
+        string dev = devEl.GetString();
+        if (dev == null || !jogs.TryGetValue(dev, out var st))
+        {
+            return;
+        }
+        bool ok = !root.TryGetProperty("ok", out var okEl) || okEl.ValueKind != JsonValueKind.False;
+        if (ok)
+        {
+            st.lastAck = Time.unscaledTime;   // ウォッチドッグ再武装
+        }
+        else
+        {
+            string msg = root.TryGetProperty("msg", out var m) ? m.GetString() : "";
+            Debug.LogWarning($"[ComHmi] jog denied ({dev}): {msg} → OFF");
+            EndJogInternal(dev);
+        }
+    }
+
+    private void HandleJogTimeout(JsonElement root)
+    {
+        if (!root.TryGetProperty("dev", out var devEl))
+        {
+            return;
+        }
+        string dev = devEl.GetString();
+        if (dev != null && jogs.ContainsKey(dev))
+        {
+            Debug.LogWarning($"[ComHmi] jog_timeout（サーバ自動OFF）: {dev}");
+            StopJogLocal(dev);
+        }
+    }
+
+    private void ResetWriteState()
+    {
+        EndAllJogs();
+        writerAuthed = false;
+        authSent = false;
+        writeAllow.Clear();
+    }
+
+    private void OnWsClosed()
+    {
+        // 切断時: サーバ側ウォッチドッグがデバイスをOFFにする。ローカルJOGは停止＋通知（送信はしない）。
+        if (jogs.Count > 0)
+        {
+            var devs = new List<string>(jogs.Keys);
+            jogs.Clear();
+            foreach (var dev in devs)
+            {
+                JogChanged?.Invoke(dev, false);
+            }
+        }
+        writerAuthed = false;
+        authSent = false;
+    }
+
+    private void OnApplicationFocus(bool focus)
+    {
+        if (!focus)
+        {
+            EndAllJogs();   // §8.3 フォーカス喪失で即OFF（runInBackground=trueでも動き続けるため必須）
+        }
+    }
+
+    private void OnApplicationPause(bool paused)
+    {
+        if (paused)
+        {
+            EndAllJogs();
+        }
     }
 }

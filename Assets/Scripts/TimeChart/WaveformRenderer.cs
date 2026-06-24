@@ -28,7 +28,9 @@ namespace KyotoSS.TimingChart
         {
             Channel = ch;
             m_Image = GetComponent<RawImage>();
-            CreateRT(width, height);
+            // RT は初回 Redraw（＝可視行になった時）に生成する。画面外の行は確保しない（メモリ削減）。
+            m_LastWidth = -1;
+            m_LastHeight = -1;
             CreateMaterial();
         }
 
@@ -64,13 +66,13 @@ namespace KyotoSS.TimingChart
         // ---- 毎フレーム再描画 ----
         public void Redraw()
         {
-            if (Channel == null || m_RT == null) return;
+            if (Channel == null) return;
 
-            // RectTransform サイズ変化に追従
+            // RectTransform サイズ変化に追従。RT未確保（画面外で解放済み）なら生成。
             var rt = GetComponent<RectTransform>();
             int w = Mathf.Max(1, Mathf.RoundToInt(rt.rect.width));
             int h = Mathf.Max(1, Mathf.RoundToInt(rt.rect.height));
-            if (w != m_LastWidth || h != m_LastHeight) CreateRT(w, h);
+            if (m_RT == null || w != m_LastWidth || h != m_LastHeight) CreateRT(w, h);
 
             var prev = RenderTexture.active;
             RenderTexture.active = m_RT;
@@ -245,6 +247,19 @@ namespace KyotoSS.TimingChart
             for (int i = 0; i < s.Count; i++)
                 if (s[i].TimeMs >= t) return Mathf.Min(s.Count - 1, i + 1);
             return s.Count - 1;
+        }
+
+        /// <summary>画面外になった行の RenderTexture を解放（メモリ削減）。再表示時に Redraw が再生成する。</summary>
+        public void ReleaseRT()
+        {
+            if (m_RT != null)
+            {
+                m_RT.Release();
+                Destroy(m_RT);
+                m_RT = null;
+            }
+            if (m_Image != null) m_Image.texture = null;
+            m_LastWidth = m_LastHeight = -1;
         }
 
         private void OnDestroy()

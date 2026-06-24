@@ -1090,6 +1090,24 @@ namespace Parameters
                 }
             }
             catch { }
+            // プラットフォームで enabled を自動上書き（WebGLビルド=有効 / Windows・Androidビルド=無効 / Editor=JSONのまま）
+#if !UNITY_EDITOR
+#if UNITY_WEBGL
+            if (GlobalScript.hmxLink != null) { GlobalScript.hmxLink.enabled = true; }
+#else
+            if (GlobalScript.hmxLink != null) { GlobalScript.hmxLink.enabled = false; }
+#endif
+#endif
+            try
+            {
+                // 手動操作(JOG)定義。無ければ空のまま（手動操作なし）
+                var mo = await GlobalScript.LoadListJson<List<ManualOpData>>("ManualOpInfo");
+                if (mo != null)
+                {
+                    GlobalScript.manualOps = (List<ManualOpData>)mo;
+                }
+            }
+            catch { }
             GlobalScript.timeChartDatas = (List<TimeChartData>)await GlobalScript.LoadListJson<List<TimeChartData>>("TimeChartDataList");
         }
 
@@ -1228,6 +1246,7 @@ namespace Parameters
                 uiInfoMenu = Instantiate(menu[0]);
                 uiInfoMenu.transform.SetParent(canvaObj.transform, false);
                 menuInfoScript = uiInfoMenu.AddComponent<CanvasMenuInfoScript>();
+                uiInfoMenu.AddComponent<WebGlHide>();   // WebGLビルドでは左下メニュー(InfoMenu)を自動非表示
             }
 
             // Prefab表示
@@ -1255,6 +1274,8 @@ namespace Parameters
                 value = (index + value) / max;
             }
 
+            GlobalScript.loadProgress = value;   // ローディング画面(KmxLoadingScreen)へ進捗共有
+
             uiProgress.SetActive(value < 1);
             if (Math.Abs(prgSlider.value - value) * 100 > 3)
             {
@@ -1271,6 +1292,7 @@ namespace Parameters
         private void SetProgressLabel(string text)
         {
             prgText2.text = text;
+            GlobalScript.loadLabel = text;   // ローディング画面(KmxLoadingScreen)へコメント共有
         }
 
         /// <summary>
