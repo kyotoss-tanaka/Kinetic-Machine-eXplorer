@@ -48,9 +48,14 @@ public class ComHmi : MonoBehaviour
     private float reconnectTimer;
     private float reconnectDelay = 2f;
     private bool wantConnected = true;
+    private float statusTimer;        // 定期ステータスログ用
+    private float lastValsLogTime;    // vals ログの間引き用（絶対時刻）
+    private float authRetryTimer;     // writer未認証時の再auth再送用
 
     [Header("状態（読み取り専用）")]
+#pragma warning disable 0414   // Inspector表示用（コードからは読まないが接続状態の確認に使う）
     [SerializeField] private string state = "Closed";
+#pragma warning restore 0414
     [SerializeField] private int registeredTags = 0;
     [SerializeField] private int subscribedCount = 0;
     [SerializeField] private int valsMsgCount = 0;
@@ -58,8 +63,8 @@ public class ComHmi : MonoBehaviour
     [SerializeField] private int lastValsTotal = 0;     // 直近 vals に含まれたデバイス数
 
     [Header("診断")]
-    [Tooltip("subscribe/vals の中身をConsoleに出力（受信不具合の切り分け用）")]
-    [SerializeField] private bool verboseLog = true;
+    [Tooltip("subscribe/vals/状態/ハンドシェイクをConsoleに出力（受信不具合の切り分け用）。実機は既定OFF、調査時にONにする")]
+    [SerializeField] private bool verboseLog = false;
 
     [Header("JOG / 手動操作（hmx-link write）")]
     [SerializeField] private bool writerAuthed = false;
@@ -75,6 +80,9 @@ public class ComHmi : MonoBehaviour
     // ランプ（PLCがボタン認識を返す読取デバイス）。購読して値を保持し、ボタン点灯に使う。
     private readonly HashSet<string> lampDevs = new();
     private readonly Dictionary<string, bool> lampStates = new();
+    // インターロック（HMX側の操作許可の読取デバイス）。購読して値を保持。OFF/不明=操作不可（ボタン灰色・§5）。
+    private readonly HashSet<string> interlockDevs = new();
+    private readonly Dictionary<string, bool> interlockStates = new();
     private class JogState { public int seq; public float lastSend; public float lastAck; }
     private readonly Dictionary<string, JogState> jogs = new();
 
@@ -194,6 +202,17 @@ public class ComHmi : MonoBehaviour
         ws?.DispatchMessageQueue();
         ProcessJogs();   // JOGハートビート送信＋ack途絶ウォッチドッグ（毎フレーム）
 
+        // 定期ステータス（接続/認証/購読/受信を一目で確認・3秒ごと）
+        if (verboseLog)
+        {
+            statusTimer += Time.unscaledDeltaTime;
+            if (statusTimer >= 3f)
+            {
+                statusTimer = 0f;
+                Debug.Log($"[ComHmi] 状態 db={database} state={state} writer={writerAuthed} allow={writeAllow.Count} 購読={subscribedDevs.Count} vals受信={valsMsgCount} 直近反映={lastValsApplied}/{lastValsTotal}");
+            }
+        }
+
         if (ws != null && ws.State == KmxWebSocket.WsState.Open)
         {
             // 読まれたタグ→dev を購読集合へ（0.5秒ごと）
@@ -219,6 +238,19 @@ public class ComHmi : MonoBehaviour
             {
                 pingTimer = 0f;
                 ws.Send("{\"type\":\"ping\"}");
+            }
+
+            // writer 未認証なら定期的に再auth（hello取りこぼし/auth_ack欠落/HMX側writer失効に追従）。
+            // auth{role:writer} を 3秒ごとに再送し、auth_ack ok を受けるまで繰り返す。
+            if (!writerAuthed)
+            {
+                authRetryTimer += Time.unscaledDeltaTime;
+                if (authRetryTimer >= 3f)
+                {
+                    authRetryTimer = 0f;
+                    authSent = false;   // 再送許可
+                    TrySendAuth();
+                }
             }
         }
         else if (wantConnected && (ws == null || ws.State == KmxWebSocket.WsState.Closed))
@@ -267,15 +299,20 @@ public class ComHmi : MonoBehaviour
 
     private void SendSubscribe()
     {
-        // ランプ読取デバイスは常に購読対象に含める（再接続後も復帰）
+        // ランプ・インターロック読取デバイスは常に購読対象に含める（再接続後も復帰）
         foreach (var d in lampDevs)
+        {
+            subscribedDevs.Add(d);
+        }
+        foreach (var d in interlockDevs)
         {
             subscribedDevs.Add(d);
         }
         var sb = new StringBuilder();
         // KMX側実装要求 M4: 必ず readOnly:true を付ける / M5: connection は絶対に送らない
         // （read-only でも実 connection を送ると hmx-link が PLC ドライバを切替＝HMI接続が切れる）
-        sb.Append("{\"type\":\"subscribe\",\"readOnly\":true,\"devices\":[");
+        // §7.7: clientType:"kmx" を付与（Studio の Link ステータスで接続元を明示・View誤判定防止）
+        sb.Append("{\"type\":\"subscribe\",\"clientType\":\"kmx\",\"readOnly\":true,\"devices\":[");
         bool first = true;
         foreach (var dev in subscribedDevs)
         {
@@ -291,7 +328,46 @@ public class ComHmi : MonoBehaviour
         if (verboseLog)
         {
             Debug.Log($"[ComHmi] subscribe payload: {payload}");
+            LogTagDiagnostics();
         }
+    }
+
+    /// <summary>購読中タグ名と「登録済みだが未読(=購読対象にならない)タグ名」を出力（位置/動作指令タグの購読確認用）。</summary>
+    private void LogTagDiagnostics()
+    {
+        if (!GlobalScript.tagDatas.ContainsKey(database))
+        {
+            return;
+        }
+        // 購読中の dev → タグ名（mechId.tag）に解決
+        var subTags = new HashSet<string>();
+        foreach (var dev in subscribedDevs)
+        {
+            if (devToBinding.TryGetValue(dev, out var b))
+            {
+                subTags.Add(b.mechId + "." + b.tag);
+            }
+        }
+        // 登録済みだが未読（wasRead=false）＝モーションが読んでいない＝購読されないタグ
+        var notRead = new StringBuilder();
+        int notReadCount = 0;
+        foreach (var mech in GlobalScript.tagDatas[database])
+        {
+            foreach (var kv in mech.Value)
+            {
+                var ti = kv.Value;
+                if (ti != null && !ti.wasRead)
+                {
+                    notReadCount++;
+                    if (notRead.Length < 500)
+                    {
+                        notRead.Append(ti.MechId).Append('.').Append(ti.Tag).Append(' ');
+                    }
+                }
+            }
+        }
+        Debug.Log($"[ComHmi] 購読中タグ({subTags.Count}): {string.Join(" ", subTags)}");
+        Debug.Log($"[ComHmi] 登録済みだが未読(購読されない)タグ({notReadCount}): {notRead}");
     }
 
     private void OnMessage(string json)
@@ -307,6 +383,7 @@ public class ComHmi : MonoBehaviour
             switch (typeEl.GetString())
             {
                 case "hello":
+                    if (verboseLog) Debug.Log("[ComHmi] hello受信 → hello_ack送信＋subscribe予約＋auth要求");
                     ws.Send("{\"type\":\"hello_ack\"}");
                     needSubscribe = true;
                     subscribeTimer = 1f;   // 次フレームで即 subscribe
@@ -371,6 +448,14 @@ public class ComHmi : MonoBehaviour
                 matched++;
                 continue;
             }
+            // インターロック（HMX側の操作許可）。同じく UseDeviceList に無い内部IO。
+            if (interlockDevs.Contains(kv.Name))
+            {
+                double iv = kv.Value.ValueKind == JsonValueKind.Number ? kv.Value.GetDouble() : 0;
+                interlockStates[kv.Name] = iv != 0;
+                matched++;
+                continue;
+            }
             if (!devToBinding.TryGetValue(kv.Name, out var b))
             {
                 // UseDeviceList に無い／アドレス書式が異なる dev
@@ -409,12 +494,21 @@ public class ComHmi : MonoBehaviour
         }
         lastValsTotal = total;
         lastValsApplied = matched;
-        if (verboseLog)
+        // vals は周期受信（〜5/秒）なので 1 秒に1回だけログ（実値サンプル付き）
+        if (verboseLog && Time.unscaledTime - lastValsLogTime >= 1f)
         {
-            Debug.Log($"[ComHmi] vals#{valsMsgCount}: {matched}/{total} applied (subscribed={subscribedDevs.Count})");
+            lastValsLogTime = Time.unscaledTime;
+            var sample = new StringBuilder();
+            int n = 0;
+            foreach (var kv in vals.EnumerateObject())
+            {
+                if (n++ >= 6) { break; }
+                sample.Append(kv.Name).Append('=').Append(kv.Value).Append(' ');
+            }
+            Debug.Log($"[ComHmi] vals#{valsMsgCount}: 反映 {matched}/{total}（購読={subscribedDevs.Count}）例: {sample}");
             if (unmatched != null)
             {
-                Debug.LogWarning($"[ComHmi] vals に購読外/書式違いの dev: {unmatched}");
+                Debug.LogWarning($"[ComHmi] vals 未一致(購読外/書式違いの dev): {unmatched}");
             }
         }
     }
@@ -454,6 +548,30 @@ public class ComHmi : MonoBehaviour
         return false;
     }
 
+    /// <summary>dev が JOG 不可な「具体的理由」を返す（操作可なら ""）。UI の灰色理由表示用に切り分ける。</summary>
+    public static string JogBlockReason(string dev)
+    {
+        if (GlobalScript.isSystemRecorder)
+        {
+            return "レコーダ中";
+        }
+        bool anyOpen = false, anyWriter = false, anyAllow = false;
+        foreach (var c in instances)
+        {
+            if (c == null)
+            {
+                continue;
+            }
+            if (c.ws != null && c.ws.State == KmxWebSocket.WsState.Open) anyOpen = true;
+            if (c.writerAuthed) anyWriter = true;
+            if (!string.IsNullOrEmpty(dev) && c.writeAllow.Contains(dev)) anyAllow = true;
+        }
+        if (!anyOpen) return "通信切断";
+        if (!anyWriter) return "writer未認証";
+        if (!anyAllow) return "allow外(HMX未割付)";
+        return "";   // CanJog 的には可（残るはインターロック側）
+    }
+
     /// <summary>ランプ（PLCのボタン認識返し）読取デバイスを購読登録（全インスタンス）。</summary>
     public static void RegisterLamp(string lampDev)
     {
@@ -486,6 +604,41 @@ public class ComHmi : MonoBehaviour
             }
         }
         return false;
+    }
+
+    /// <summary>インターロック読取デバイスを購読登録（全インスタンス）。</summary>
+    public static void RegisterInterlock(string ilDev)
+    {
+        if (string.IsNullOrEmpty(ilDev))
+        {
+            return;
+        }
+        foreach (var c in instances)
+        {
+            if (c != null && c.interlockDevs.Add(ilDev))
+            {
+                c.subscribedDevs.Add(ilDev);
+                c.needSubscribe = true;
+            }
+        }
+    }
+
+    /// <summary>インターロック成立（操作許可）か。値ON を受信しているインスタンスがあれば true。
+    /// 空=制約なし＝true。値未受信(不明)/OFF は false＝安全側で操作不可（§5）。</summary>
+    public static bool IsInterlockOn(string ilDev)
+    {
+        if (string.IsNullOrEmpty(ilDev))
+        {
+            return true;   // インターロック未定義＝制約なし
+        }
+        foreach (var c in instances)
+        {
+            if (c != null && c.interlockStates.TryGetValue(ilDev, out var on) && on)
+            {
+                return true;
+            }
+        }
+        return false;   // 不明/OFF＝安全側で拒否（ボタン灰色）
     }
 
     /// <summary>JOG開始（押下）。成功で true。</summary>
@@ -625,6 +778,7 @@ public class ComHmi : MonoBehaviour
         string token = WriteToken ?? "";
         ws.Send($"{{\"type\":\"auth\",\"role\":\"writer\",\"token\":\"{token}\"}}");
         authSent = true;
+        if (verboseLog) Debug.Log($"[ComHmi] auth送信 (role=writer, token={(string.IsNullOrEmpty(token) ? "空" : "設定あり")})");
     }
 
     private void HandleAuthAck(JsonElement root)
@@ -642,12 +796,21 @@ public class ComHmi : MonoBehaviour
                     writeAllow.Add(s);
                 }
             }
-            Debug.Log($"[ComHmi] writer auth OK (allow={writeAllow.Count})");
+            if (writeAllow.Count == 0)
+            {
+                // ok:true でも allow が空＝書込許可IOが0。JOGは全て灰色になる。
+                // 多くは「HMX側で writer 権限が付与されていない」(token要設定 or 単一writer排他で他が保持) のサイン。
+                Debug.LogWarning("[ComHmi] auth_ack ok だが allow が空（書込IO=0）。HMX側で writer 権限未付与の可能性（HmxLink.json の writeToken 設定 or 単一writer排他を確認）。JOGは灰色のまま。");
+            }
+            else
+            {
+                Debug.Log($"[ComHmi] writer auth OK (allow={writeAllow.Count})");
+            }
         }
         else
         {
             string msg = root.TryGetProperty("msg", out var m) ? m.GetString() : "";
-            Debug.LogWarning($"[ComHmi] writer auth NG: {msg}");
+            Debug.LogWarning($"[ComHmi] writer auth NG: {msg}（auth拒否。token設定/role確認）");
         }
     }
 
@@ -711,6 +874,9 @@ public class ComHmi : MonoBehaviour
         }
         writerAuthed = false;
         authSent = false;
+        // ランプ/インターロックの保持値を破棄（切断中＝不明＝安全側。再接続後の vals で再確認するまでグレー）
+        lampStates.Clear();
+        interlockStates.Clear();
     }
 
     private void OnApplicationFocus(bool focus)

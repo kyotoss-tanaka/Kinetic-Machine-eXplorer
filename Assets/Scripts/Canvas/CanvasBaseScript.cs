@@ -10,7 +10,8 @@ public class CanvasBaseScript : BaseBehaviour
     protected override void Update()
     {
         base.Update();
-        transform.rotation = Camera.main.transform.rotation;
+        var c = CommonFunction.MainCamera;   // Camera.main キャッシュ（ビルボード：毎フレーム×全Canvas）
+        if (c != null) transform.rotation = c.transform.rotation;
     }
 
     public virtual void SetUnitSetting(UnitSetting unitSetting)

@@ -1535,6 +1535,7 @@ namespace Parameters
         public string label { get; set; } = "";   // 表示名（前進/後退 等）
         public string dev { get; set; } = "";     // hmx-link へ write するデバイス（allow対象）
         public string lamp { get; set; } = "";    // PLCがボタン認識を返すランプ用 読取デバイス（内部IO）。空=ランプ無し（押下即点灯）
+        public string interlock { get; set; } = ""; // HMX側操作許可の読取デバイス（内部IO）。OFF/不明=操作不可（ボタン灰色）。空=制約なし
         public string tag { get; set; } = "";     // 参考タグ（内部シム/実PLC直結時）
         public int onValue { get; set; } = 1;
         public string mode { get; set; } = "jog"; // jog=押下中ON・デッドマン

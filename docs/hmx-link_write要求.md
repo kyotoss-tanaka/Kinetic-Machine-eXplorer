@@ -233,3 +233,16 @@ KMX は接続後、書込権限を要求する。
   3. ランプは read のみ（KMX は write しない・JOG とは独立）。allow には不要（点灯判定は vals の値のみ）。
 - **KMX 側実装（対応済 2026-06-24）**：`ManualOp.lamp` 追加、`ComHmi.RegisterLamp/IsLampOn`（ランプ内部IOを購読し vals で状態保持）、`UnitOperationView` のボタン点灯を **ランプ読み戻し**で決定（押下中ランプOFF=「PLC確認待ち（くすんだ朱）」/ランプON=点灯）。`lamp` 未定義は従来の押下即点灯。生成器が `lamp=JOG+200` を自動採番。
 - **HMX 側予約（更新）**：`IB9600-9799` JOG(write) ＋ **`IB9800-9999` ランプ(read)・200点（新規）**。
+
+### 9.7 インターロック読取（操作可否の事前グレー表示）追加要求（2026-06-24）
+
+JOG ボタンを**押す前から操作可否を見せたい**（インターロック不成立＝灰色で押せない）。§5 の HMX 側拒否(`jog_ack msg:"mode"`)に加え、**インターロック読取(read)デバイス**を追加し KMX 側でも事前に灰色化する。
+
+- **内部IO範囲（追加）**：インターロック用 **`IB10000〜10199`（= JOG内部IO + 400。例 `jog=IB9608 → interlock=IB10008`）**。`ManualOpInfo.json` の各 op に `interlock` を採番（`ManualOpInfoGenerator` が自動付与）。
+- **HMX への要求**：
+  1. `manualOpMap` にインターロック列を追加し、各インターロック内部IO に **その動作を許可してよい時 ON になる実デバイス**（運転モード/安全条件/インターロック成立信号）を機械別に割り付ける。
+  2. KMX が**読取専用購読**（`subscribe readOnly` に `IB10000+` を含める）したら、その割付先実デバイス値を **`vals` で内部IOキーのまま返す**（例 `{"type":"vals","vals":{"IB10008":1}}`）。ランプ購読(§9.6)・インターロック(§5)と同方式。
+  3. インターロックは read のみ（KMX は write しない・JOG とは独立）。
+  4. ⚠ **割付が無い／値が来ないと KMX は常に灰色**（OFF/不明=安全側で拒否）。必ず実デバイス（または常時ONダミー）を割り付けること。
+- **KMX 側実装（対応済 2026-06-24）**：`ManualOp.interlock` 追加、`ComHmi.RegisterInterlock/IsInterlockOn`（インターロック内部IOを購読し vals で状態保持）、`UnitOperationView` の操作可否を `CanJogAny && IsInterlockOn` に変更（OFF/不明=ボタン灰色・押下不可）。`interlock` 未定義は制約なし。生成器が `interlock=JOG+400` を自動採番。
+- **HMX 側予約（更新）**：`IB9600-9799` JOG(write) ＋ `IB9800-9999` ランプ(read) ＋ **`IB10000-10199` インターロック(read)・200点（新規）**。

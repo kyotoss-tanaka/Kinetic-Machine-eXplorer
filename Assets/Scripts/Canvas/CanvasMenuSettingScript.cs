@@ -20,6 +20,7 @@ public class CanvasMenuSettingScript : CanvasMenuBaseScript
     private Toggle useColliderToggle;
     private List<float> times = new();
     private List<float> fpss = new();
+    private float fpsRefreshTimer;   // FPS表示の更新間引き用
 
     #region 初期化処理
     /// <summary>
@@ -73,15 +74,37 @@ public class CanvasMenuSettingScript : CanvasMenuBaseScript
     protected override void Update()
     {
         base.Update();
-        fpss.Add(1f / Time.deltaTime);
-        times.Add(Time.deltaTime * 1000f);
+        float dt = Time.deltaTime;
+        fpss.Add(1f / dt);
+        times.Add(dt * 1000f);
         if (fpss.Count > 100)
         {
             fpss.RemoveAt(0);
             times.RemoveAt(0);
         }
-        fpsText.text = fpss.Average().ToString("0");
-        timeText.text = "(" + times.Average().ToString("0") + "msec)";
+        // 表示更新は間引き（毎フレームのTMP再生成＋LINQ Average を避ける。平均は手動合計）
+        fpsRefreshTimer += dt;
+        if (fpsRefreshTimer >= 0.25f)
+        {
+            fpsRefreshTimer = 0f;
+            fpsText.text = Avg(fpss).ToString("0");
+            timeText.text = "(" + Avg(times).ToString("0") + "msec)";
+        }
+    }
+
+    /// <summary>List の平均（LINQ Average を使わずアロケーション回避）。</summary>
+    private static float Avg(List<float> v)
+    {
+        if (v.Count == 0)
+        {
+            return 0f;
+        }
+        float s = 0f;
+        for (int i = 0; i < v.Count; i++)
+        {
+            s += v[i];
+        }
+        return s / v.Count;
     }
 
     /// <summary>

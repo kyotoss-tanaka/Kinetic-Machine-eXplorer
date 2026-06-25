@@ -200,21 +200,34 @@ public class MainProcess : KssBaseScript
                 }
                 else
                 {
-                    // 選択中のマテリアルをセット
+                    // 非ユニット（親に KssBaseScript を持たない背景/フレーム/床等）の判定
+                    bool clickedIsUnitPart = clickedGameObject.GetComponentInParent<KssBaseScript>() != null;
+                    bool unitOpMode = GlobalScript.touchSelectOverride || UnitOperationView.IsActive;   // WebGL/エディタWebGLテスト or タッチ
+                    // ユニット選択中に非ユニットをクリックしてもフォーカス(回転中心)を選択ユニットに留める。
+                    // ※Ctrlなしの左ドラッグ回転でも効くよう、選択判定(isControl/touch)の外で上書きする。
+                    if (unitOpMode && !clickedIsUnitPart && GlobalScript.selectedObject != null)
+                    {
+                        rotateCenter = GlobalScript.selectedObject.transform.position;
+                    }
+                    // 選択処理（Ctrl または タッチ時のみ）。ユニット操作モードでは非ユニットは選択しない。
                     if (isControl || GlobalScript.touchSelectOverride)
                     {
-                        if (GlobalScript.selectedObject == clickedGameObject)
+                        if (unitOpMode && !clickedIsUnitPart)
+                        {
+                            // 非ユニットは選択しない（現在の選択を維持・フォーカスは上で維持済み）
+                        }
+                        else if (GlobalScript.selectedObject == clickedGameObject)
                         {
                             // 既に選択済みなのでマテリアルを解除
                             EventManager.Instance.ProcessObjectSelect(null);
+                            Debug.Log($"選択解除: {clickedGameObject.name}");
                         }
                         else
                         {
                             EventManager.Instance.ProcessObjectSelect(clickedGameObject);
+                            Debug.Log($"選択: {clickedGameObject.name}");
                         }
                     }
-                    // ゲームオブジェクトの名前を出力
-                    Debug.Log(clickedGameObject.name);
                 }
             }
             raycastHits.Clear();

@@ -5,6 +5,21 @@ using UnityEngine;
 
 public static class CommonFunction
 {
+    // Camera.main は内部で FindGameObjectWithTag を呼ぶため毎フレーム使用は重い。キャッシュして使う。
+    private static UnityEngine.Camera s_mainCamera;
+    /// <summary>Camera.main のキャッシュ。破棄/無効化時のみ再取得（実行時のカメラ切替にも追従）。</summary>
+    public static UnityEngine.Camera MainCamera
+    {
+        get
+        {
+            if (s_mainCamera == null || !s_mainCamera.isActiveAndEnabled)
+            {
+                s_mainCamera = UnityEngine.Camera.main;
+            }
+            return s_mainCamera;
+        }
+    }
+
     #region 解の公式
     /// <summary>
     /// 解の公式における判別式b^2 - 4acを計算する

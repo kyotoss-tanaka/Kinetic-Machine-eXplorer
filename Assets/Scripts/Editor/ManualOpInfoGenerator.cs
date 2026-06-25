@@ -15,9 +15,10 @@ using UnityEngine;
 /// 対象: ActionInfo の mode 0-3（直線/回転/外部直線/外部回転）＋ RobotInfo（各軸）。
 /// JOGデバイス(write): 各ユニットの軸方向に HMX 手動操作用 内部IO(IB9600〜IB9799) を割り当てる。
 /// ランプデバイス(read): JOG内部IO + 200（IB9800〜IB9999）。PLCがボタン認識を返す→KMXが購読して読みボタンを点灯。
-///   ※ IB9500+ は HMX 認可領域と衝突するため不可。手動操作専用は IB9600-9999（JOG=9600-9799 / ランプ=9800-9999）。
+/// インターロックデバイス(read): JOG内部IO + 400（IB10000〜IB10199）。HMX側の操作許可。OFF/不明→KMXが購読してボタンを灰色(操作不可)に。
+///   ※ IB9500+ は HMX 認可領域と衝突するため不可。手動操作専用は IB9600-10199（JOG=9600-9799 / ランプ=9800-9999 / インターロック=10000-10199）。
 ///   ※ 内部IO ↔ 実デバイス/インターロック/ランプ の紐づけは HMIプロジェクト側(manualOpMap)で機械別に定義。
-///   ※ 生成された ManualOpInfo.json は「ユニット/軸 → 内部IO(JOG/ランプ)」対応表として HMX と共有する。
+///   ※ 生成された ManualOpInfo.json は「ユニット/軸 → 内部IO(JOG/ランプ/インターロック)」対応表として HMX と共有する。
 ///
 /// 採番は安定（同一ユニット/同一軸方向＝常に同じ内部IO）。
 ///   既存 ManualOpInfo.json の IB 割当を引き継ぎ、新規キーだけ未使用の最小IBを割り当てる。
@@ -30,6 +31,7 @@ public static class ManualOpInfoGenerator
     private const int IbStart = 9600;        // 手動操作 JOG(write) 内部IO 開始（IB9600〜）
     private const int IbEnd = 9799;          // 〃 終了（手動操作予約 IB9600-9799 = 200個）
     private const int LampOffset = 200;      // ランプ(read) 内部IO = JOG内部IO + 200（IB9800-9999）
+    private const int InterlockOffset = 400; // インターロック(read) 内部IO = JOG内部IO + 400（IB10000-10199）。OFF/不明=操作不可(灰色)
     private const string IbPrefix = "IB";
 
     [MenuItem("Kyotoss/Generate ManualOpInfo (内部IO割当)")]
@@ -132,7 +134,7 @@ public static class ManualOpInfoGenerator
             {
                 opCount += u.ops.Count;
             }
-            Debug.Log($"[ManualOpInfo] 生成: {result.Count}ユニット / {opCount}op (JOG IB{IbStart}-{IbEnd} / ランプ IB{IbStart + LampOffset}-{IbEnd + LampOffset})");
+            Debug.Log($"[ManualOpInfo] 生成: {result.Count}ユニット / {opCount}op (JOG IB{IbStart}-{IbEnd} / ランプ IB{IbStart + LampOffset}-{IbEnd + LampOffset} / インターロック IB{IbStart + InterlockOffset}-{IbEnd + InterlockOffset})");
             if (exhausted > 0)
             {
                 Debug.LogError($"[ManualOpInfo] 内部IO({IbStart}-{IbEnd}={IbEnd - IbStart + 1}個)を超過し {exhausted}件 未割当(dev空)。範囲拡張をHMXと協議要。");
@@ -143,6 +145,12 @@ public static class ManualOpInfoGenerator
     private static void AddOp(ManualOpData data, string mechId, string name, int axis, int dir, string label,
         Dictionary<string, string> keyToDev, HashSet<int> usedNums, ref int exhausted)
     {
+        // 同一ユニットで (axis, dir) が既にあれば追加しない。
+        // 同じ軸の ActionInfo を複数持つユニットで JOGボタンが二重生成されるのを防ぐ（1軸方向＝1内部IO＝1ボタン）。
+        if (data.ops.Exists(o => o.axis == axis && o.dir == dir))
+        {
+            return;
+        }
         string key = Key(mechId, name, axis, dir);
         if (!keyToDev.TryGetValue(key, out string dev))
         {
@@ -159,7 +167,7 @@ public static class ManualOpInfoGenerator
                 keyToDev[key] = dev;
             }
         }
-        data.ops.Add(new ManualOp { axis = axis, dir = dir, label = label, dev = dev, lamp = LampFor(dev), tag = "", onValue = 1, mode = "jog" });
+        data.ops.Add(new ManualOp { axis = axis, dir = dir, label = label, dev = dev, lamp = LampFor(dev), interlock = InterlockFor(dev), tag = "", onValue = 1, mode = "jog" });
     }
 
     /// <summary>各ユニットに group(最上位の論理親)と path(最上位→自分) を付与。
@@ -213,6 +221,17 @@ public static class ManualOpInfoGenerator
             return "";
         }
         return IbPrefix + (n + LampOffset);
+    }
+
+    /// <summary>インターロック読取デバイス＝JOG内部IO+InterlockOffset（IB10000-10199）。dev が範囲外/空なら空。</summary>
+    private static string InterlockFor(string jogDev)
+    {
+        int n = ParseIb(jogDev);
+        if (n < IbStart || n > IbEnd)
+        {
+            return "";
+        }
+        return IbPrefix + (n + InterlockOffset);
     }
 
     private static int NextFree(HashSet<int> used)

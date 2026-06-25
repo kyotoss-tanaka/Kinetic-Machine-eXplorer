@@ -329,7 +329,7 @@ public class BuildAndRun
         // 新形式 API
         PlayerSettings.SetScriptingBackend(NamedBuildTarget.Android, ScriptingImplementation.IL2CPP);
         PlayerSettings.Android.targetArchitectures = AndroidArchitecture.ARM64;
-        PlayerSettings.Android.minSdkVersion = AndroidSdkVersions.AndroidApiLevel23;
+        PlayerSettings.Android.minSdkVersion = AndroidSdkVersions.AndroidApiLevel25;
 
         BuildPlayerOptions options = new BuildPlayerOptions
         {

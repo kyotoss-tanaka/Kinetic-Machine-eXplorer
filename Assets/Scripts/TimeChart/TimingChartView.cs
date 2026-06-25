@@ -141,7 +141,6 @@ namespace KyotoSS.TimingChart
         private RectTransform m_UnitListContent;
         private Dictionary<string, Toggle> m_UnitToggles = new();
         private bool m_RebuildingUnitList = false;  // 無限ループ防止フラグ
-        private bool m_LastHandCursor = false;    // 前フレームのカーソル状態キャッシュ
         // 自動計測
         private enum AutoMeasureMode { Off, Relative, Absolute }
         private AutoMeasureMode m_AutoMeasureMode = AutoMeasureMode.Off;
@@ -1080,7 +1079,7 @@ namespace KyotoSS.TimingChart
             nameLbl.alignment = TextAlignmentOptions.MidlineLeft;
             nameLbl.fontStyle = FontStyles.Bold;
             nameLbl.overflowMode = TextOverflowModes.Ellipsis;
-            nameLbl.enableWordWrapping = false;
+            nameLbl.textWrappingMode = TextWrappingModes.NoWrap;
             var nameRT = nameLbl.rectTransform;
             nameRT.anchorMin = new Vector2(0f, 0f);
             nameRT.anchorMax = new Vector2(0f, 1f);
@@ -2210,7 +2209,6 @@ namespace KyotoSS.TimingChart
 #if UNITY_STANDALONE_WIN || UNITY_EDITOR_WIN
                     // 通常カーソルに戻す
                     SetCursor(LoadCursor(System.IntPtr.Zero, 32512));
-                    m_LastHandCursor = false;
 #endif
                 }
             });

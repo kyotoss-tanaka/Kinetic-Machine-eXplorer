@@ -284,22 +284,28 @@ namespace Parameters
                             unitSetting.Database = db.Name;
                         }
                     }
-                    // 全てのオブジェクト取得
-                    List<GameObject> allObjects = FindObjectsByType<GameObject>(FindObjectsSortMode.None).ToList();
+                    // 全オブジェクト名を一度だけ取得（ToList(275k)＋per設定の Find(.name) を回避）
+                    var existingNames = new HashSet<string>();
+                    foreach (var g in FindObjectsByType<GameObject>(FindObjectsSortMode.None))
+                    {
+                        existingNames.Add(g.name);
+                    }
 
                     // ユニットオブジェクト先に生成しておく
                     CreateUnitObject();
 
                     // 存在しないスイッチモデル生成
-                    CreateSwitchModel(allObjects);
+                    CreateSwitchModel(existingNames);
 
                     // 存在しないシグナルタワーモデル生成
-                    CreateSinalTowerModel(allObjects);
+                    CreateSinalTowerModel(existingNames);
 
                     // 親モデルに動作スクリプトを付与
                     CommonFunction.DebugLog($"***** Load Units *****", true);
+                    int ui = -1;
                     foreach (var unitSetting in unitSettings)
                     {
+                        ui++;   // 進捗用インデックス（unitSettings.IndexOf の O(N²) を回避）
                         if (prefabs.Count == 0)
                         {
                             continue;
@@ -549,7 +555,7 @@ namespace Parameters
                             //                        yield return null; // 1フレーム待
                         }
                         // プログレスバー設定
-                        if (SetProgress(2, devMax, (float)unitSettings.IndexOf(unitSetting) / unitSettings.Count))
+                        if (SetProgress(2, devMax, (float)ui / unitSettings.Count))
                         {
                             yield return null; // 1フレーム待
                         }
@@ -559,37 +565,55 @@ namespace Parameters
                     CommonFunction.DebugLog($"***** Organize Units *****", true);
                     yield return null; // 1フレーム待(下のオブジェクト取得時にNULLにならないようにするために必要)
                     // 使い勝手向上のため動作可能オブジェクトを移動
-                    var allMobableObjs = FindObjectsByType<GameObject>(FindObjectsSortMode.None).ToList().FindAll(d => d.name.Contains(movableName + "_"));
+                    // 全GameObjectを ToList せず単一パスで抽出（275k要素のList二重確保を回避）
+                    string movablePrefix = movableName + "_";
+                    var allMobableObjs = new List<GameObject>();
+                    foreach (var g in FindObjectsByType<GameObject>(FindObjectsSortMode.None))
+                    {
+                        if (g.name.Contains(movablePrefix))
+                        {
+                            allMobableObjs.Add(g);
+                        }
+                    }
                     // 名前順にソート
                     allMobableObjs.Sort((a, b) => a.transform.parent.name.CompareTo(b.transform.parent.name));
                     var moveObjs = new List<GameObject>();
-                    foreach (var obj in allMobableObjs)
+                    for (int mi = 0; mi < allMobableObjs.Count; mi++)   // IndexOf(O(N²)) 回避
                     {
+                        var obj = allMobableObjs[mi];
                         if (obj.IsDestroyed())
                         {
-                            var index = allMobableObjs.IndexOf(obj);
                             continue;
                         }
-                        // 親子関係を切らないように検索
-                        var parents = obj.transform.parent.GetComponentsInParent<Transform>().Where(d => d.parent != null).ToList();
-                        parents.Remove(obj.transform.parent);
-                        var isFind = false;
-                        foreach (var p in parents)
+                        // 祖先のいずれかが movable な直下の子を持つなら、このobjは最上流ではない
+                        // （元: GetComponentsInChildren(全子孫)+Where+ToList → 早期exitのforeach＋直下の子のみ走査）
+                        var selfParent = obj.transform.parent;
+                        bool isFind = false;
+                        foreach (var p in selfParent.GetComponentsInParent<Transform>())
                         {
-                            var tmp = p.GetComponentsInChildren<Transform>().Where(d => (d.parent.transform == p.transform) && d.name.Contains(movableName + "_")).ToList();
-                            if (tmp.Count > 0)
+                            if (p.parent == null || p == selfParent)
                             {
-                                isFind = true;
+                                continue;   // ルート/自分の親は除外（元の Where(parent!=null)+Remove(self) と等価）
+                            }
+                            foreach (var d in p.GetComponentsInChildren<Transform>())
+                            {
+                                if (d.parent == p && d.name.Contains(movablePrefix))
+                                {
+                                    isFind = true;
+                                    break;
+                                }
+                            }
+                            if (isFind)
+                            {
                                 break;
                             }
                         }
                         if (!isFind)
                         {
-                            // 最上流の動作可能親オブジェクト
-                            moveObjs.Add(obj);
+                            moveObjs.Add(obj);   // 最上流の動作可能親オブジェクト
                         }
                         SetProgressLabel($"Organize Unit : {obj.transform.parent.name}");
-                        if (SetProgress(3, devMax, (float)allMobableObjs.IndexOf(obj) / (allMobableObjs.Count)))
+                        if (SetProgress(3, devMax, (float)mi / allMobableObjs.Count))
                         {
                             yield return null; // 1フレーム待
                         }
@@ -1090,13 +1114,17 @@ namespace Parameters
                 }
             }
             catch { }
-            // プラットフォームで enabled を自動上書き（WebGLビルド=有効 / Windows・Androidビルド=無効 / Editor=JSONのまま）
-#if !UNITY_EDITOR
-#if UNITY_WEBGL
-            if (GlobalScript.hmxLink != null) { GlobalScript.hmxLink.enabled = true; }
+            // プラットフォームで enabled を上書き。WebGL以外は HmxLink.json の enabled を無視（＝無効）。
+#if UNITY_WEBGL && !UNITY_EDITOR
+            if (GlobalScript.hmxLink != null) { GlobalScript.hmxLink.enabled = true; }   // 実WebGL=有効
+#elif UNITY_EDITOR
+            // Editor は WebGLテストトグル(KMX_EditorWebGLMode)に追従。OFF＝WebGL以外なので enabled 無視（無効）。
+            if (GlobalScript.hmxLink != null)
+            {
+                GlobalScript.hmxLink.enabled = UnityEditor.EditorPrefs.GetBool("KMX_EditorWebGLMode", false);
+            }
 #else
-            if (GlobalScript.hmxLink != null) { GlobalScript.hmxLink.enabled = false; }
-#endif
+            if (GlobalScript.hmxLink != null) { GlobalScript.hmxLink.enabled = false; }  // Windows/Android=無効
 #endif
             try
             {
@@ -1559,12 +1587,8 @@ namespace Parameters
             // hmx-link(デジタルツイン)モードの判定:
             //   WebGL                  → 実PLC接続(ComMcProtocol等)不可のため常に ComHmi を使う（自動 true）
             //   Windows/Android/Editor → HmxLink.json の enabled 次第（既定 false）。Editorテスト時は true にする
-            bool useHmx;
-#if UNITY_WEBGL
-            useHmx = true;
-#else
-            useHmx = (GlobalScript.hmxLink != null && GlobalScript.hmxLink.enabled);
-#endif
+            // enabled は LoadParameterFiles でプラットフォーム/Editorトグルにより設定済み（WebGL以外は無効）
+            bool useHmx = GlobalScript.hmxLink != null && GlobalScript.hmxLink.enabled;
             if (useHmx)
             {
                 string wsUrl = GlobalScript.hmxLink != null ? GlobalScript.hmxLink.wsUrl : "ws://localhost:8765";
@@ -1664,58 +1688,36 @@ namespace Parameters
         private void RenewHiddenObjs()
         {
             hiddenObjs.Clear();
+            // 全GameObjectと名前を一度だけ取得（設定毎・mode毎の FindObjectsByType+ToList+.name の繰り返しを回避）
+            var allObjs = FindObjectsByType<GameObject>(FindObjectsSortMode.None);
+            var names = new string[allObjs.Length];
+            for (int i = 0; i < allObjs.Length; i++)
+            {
+                names[i] = allObjs[i].name;   // .name は毎回string確保 → 1パスにまとめる
+            }
             foreach (var m in hiddenSettings)
             {
-                if (m.isEnable)
+                if (!m.isEnable)
                 {
-                    if (m.mode == 0)
+                    continue;
+                }
+                for (int i = 0; i < allObjs.Length; i++)
+                {
+                    string nm = names[i];
+                    bool match =
+                        m.mode == 0 ? nm == m.name :          // 一致
+                        m.mode == 1 ? nm.StartsWith(m.name) :  // 前方一致
+                        m.mode == 2 ? nm.EndsWith(m.name) :    // 後方一致
+                        m.mode == 3 ? nm.Contains(m.name) :    // 含まれている
+                        false;
+                    if (!match)
                     {
-                        // 一致
-                        foreach (var o in FindObjectsByType<GameObject>(FindObjectsSortMode.None).ToList().FindAll(d => d.name == m.name))
-                        {
-                            if ((m.parent == null) || (m.parent == "") || CommonFunction.GetScenePath(o).Contains(m.parent))
-                            {
-                                //                                        o.SetActive(false);
-                                hiddenObjs.Add(o);
-                            }
-                        }
+                        continue;
                     }
-                    else if (m.mode == 1)
+                    var o = allObjs[i];
+                    if ((m.parent == null) || (m.parent == "") || CommonFunction.GetScenePath(o).Contains(m.parent))
                     {
-                        // 前方一致
-                        foreach (var o in FindObjectsByType<GameObject>(FindObjectsSortMode.None).ToList().FindAll(d => d.name.StartsWith(m.name)))
-                        {
-                            if ((m.parent == null) || (m.parent == "") || CommonFunction.GetScenePath(o).Contains(m.parent))
-                            {
-                                //                                        o.SetActive(false);
-                                hiddenObjs.Add(o);
-                            }
-                        }
-                    }
-                    else if (m.mode == 2)
-                    {
-                        // 後方一致
-                        foreach (var o in FindObjectsByType<GameObject>(FindObjectsSortMode.None).ToList().FindAll(d => d.name.EndsWith(m.name)))
-                        {
-                            if ((m.parent == null) || (m.parent == "") || CommonFunction.GetScenePath(o).Contains(m.parent))
-                            {
-                                //                                        o.SetActive(false);
-                                hiddenObjs.Add(o);
-
-                            }
-                        }
-                    }
-                    else if (m.mode == 3)
-                    {
-                        // 含まれている
-                        foreach (var o in FindObjectsByType<GameObject>(FindObjectsSortMode.None).ToList().FindAll(d => d.name.Contains(m.name)))
-                        {
-                            if ((m.parent == null) || (m.parent == "") || CommonFunction.GetScenePath(o).Contains(m.parent))
-                            {
-                                //o.SetActive(false);
-                                hiddenObjs.Add(o);
-                            }
-                        }
+                        hiddenObjs.Add(o);
                     }
                 }
             }
@@ -1728,21 +1730,39 @@ namespace Parameters
         {
             multiObjectFactory.DeleteSetting();
 
+            // 名前→最初の1個を一度だけ辞書化（ループ毎の FindObjectsByType+ToList を回避）
+            var byName = BuildNameLookup();
             foreach (var wk in wkSettings)
             {
-                var work = FindObjectsByType<GameObject>(FindObjectsSortMode.None).ToList().FindAll(d => d.name == wk.work);
-                if (work.Count > 0)
+                if (byName.TryGetValue(wk.work, out var src))
                 {
                     var w = works.Find(d => d.key == wk.work);
                     if (w == null)
                     {
                         w = new ObjEntry { key = wk.work };
                         works.Add(w);
-                        w.obj = Instantiate(work[0].gameObject);
+                        w.obj = Instantiate(src);
                         w.obj.SetActive(false);
                     }
                 }
             }
+        }
+
+        /// <summary>
+        /// シーン内 GameObject を 名前→最初の1個 で辞書化する。
+        /// 元コードの FindObjectsByType().FindAll(d=>d.name==X)[0] と等価（出現順の先頭を保持）。
+        /// </summary>
+        private Dictionary<string, GameObject> BuildNameLookup()
+        {
+            var byName = new Dictionary<string, GameObject>();
+            foreach (var g in FindObjectsByType<GameObject>(FindObjectsSortMode.None))
+            {
+                if (!byName.ContainsKey(g.name))
+                {
+                    byName[g.name] = g;
+                }
+            }
+            return byName;
         }
         
         /// <summary>
@@ -1750,26 +1770,24 @@ namespace Parameters
         /// </summary>
         private void CreateCardboard()
         {
+            // 名前→最初の1個を一度だけ辞書化（ループ毎の FindObjectsByType+ToList を回避）
+            var byName = BuildNameLookup();
             // 生成用段ボール保持
             foreach (var cb in cardboardSettings)
             {
                 var unit = unitSettings.Find(d => (d.mechId == cb.mechId) && (d.name == cb.name));
-                if (unit != null)
+                if (unit != null && byName.TryGetValue(unit.parent, out var cardboard))
                 {
-                    var cardboard = FindObjectsByType<GameObject>(FindObjectsSortMode.None).ToList().FindAll(d => d.name == unit.parent);
-                    if (cardboard.Count > 0)
+                    var c = works.Find(d => d.key == cb.name);
+                    if (c == null)
                     {
-                        var c = works.Find(d => d.key == cb.name);
-                        if (c == null)
-                        {
-                            cardboard[0].transform.parent = prefabObj.transform;
-                            c = new ObjEntry { key = cb.name };
-                            works.Add(c);
-                            c.obj = Instantiate(cardboard[0].gameObject);
-                            var cbs = c.obj.AddComponent<CardboardScript>();
-                            cbs.SetParameter(unit, cb);
-                            c.obj.SetActive(false);
-                        }
+                        cardboard.transform.parent = prefabObj.transform;
+                        c = new ObjEntry { key = cb.name };
+                        works.Add(c);
+                        c.obj = Instantiate(cardboard);
+                        var cbs = c.obj.AddComponent<CardboardScript>();
+                        cbs.SetParameter(unit, cb);
+                        c.obj.SetActive(false);
                     }
                 }
             }
@@ -1898,8 +1916,8 @@ namespace Parameters
         /// <summary>
         /// スイッチモデル作成
         /// </summary>
-        /// <param name="allObjects"></param>
-        private void CreateSwitchModel(List<GameObject> allObjects)
+        /// <param name="existingNames">シーンに既存の GameObject 名の集合</param>
+        private void CreateSwitchModel(HashSet<string> existingNames)
         {
             switchModel.Clear();
             if (switchPrefabs.Count > 0)
@@ -1910,7 +1928,7 @@ namespace Parameters
                     if ((unit != null) && ((unit.group == null) || (unit.group == "")))
                     {
                         unit.parent = unit.parent == "" ? "_switch" + (switchSettings.IndexOf(sw) + 1) : unit.parent;
-                        if (allObjects.Find(d => d.name == unit.parent) == null)
+                        if (!existingNames.Contains(unit.parent))
                         {
                             // モデルが存在しないので作成
                             var obj = Instantiate(switchPrefabs[0]);
@@ -1930,8 +1948,8 @@ namespace Parameters
         /// <summary>
         /// シグナルタワー作成
         /// </summary>
-        /// <param name="allObjects"></param>
-        private void CreateSinalTowerModel(List<GameObject> allObjects)
+        /// <param name="existingNames">シーンに既存の GameObject 名の集合</param>
+        private void CreateSinalTowerModel(HashSet<string> existingNames)
         {
             towerModel.Clear();
             if (towerPrefabs.Count > 0)
@@ -1942,7 +1960,7 @@ namespace Parameters
                     if ((unit != null) && ((unit.group == null) || (unit.group == "")))
                     {
                         unit.parent = unit.parent == "" ? "_signalTower" + (towerSettings.IndexOf(st) + 1) : unit.parent;
-                        if (allObjects.Find(d => d.name == unit.parent) == null)
+                        if (!existingNames.Contains(unit.parent))
                         {
                             // モデルが存在しないので作成
                             var obj = Instantiate(towerPrefabs[st.type]);

@@ -203,6 +203,12 @@ public class InputManager : BaseBehaviour
     /// </summary>
     protected override void Update()
     {
+        // EnhancedTouch が未有効だと activeTouches が例外（ロード順/ドメインリロード対策で毎フレーム保証・有効なら即スキップ）。
+        if (!UnityEngine.InputSystem.EnhancedTouch.EnhancedTouchSupport.enabled)
+        {
+            UnityEngine.InputSystem.EnhancedTouch.EnhancedTouchSupport.Enable();
+        }
+
         // スクリーン内かチェック
         isInsideScreen = IsMouseInsideScreen();
 

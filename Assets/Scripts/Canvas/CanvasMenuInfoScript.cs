@@ -107,6 +107,7 @@ public class CanvasMenuInfoScript : KssBaseScript
     /// 軸表示用
     /// </summary>
     private GameObject axis;
+    private LineRenderer[] axisLines;   // 軸のLineRendererをキャッシュ（毎フレームのGetComponentsInChildren回避）
     private bool isAxisVisible = true;
 
     #region 初期化処理
@@ -558,6 +559,7 @@ public class CanvasMenuInfoScript : KssBaseScript
             CreateAxis(axis, Vector3.right, Color.red);
             CreateAxis(axis, Vector3.up, Color.green);
             CreateAxis(axis, Vector3.forward, Color.blue);
+            axisLines = axis.GetComponentsInChildren<LineRenderer>();   // 生成時に1回だけ取得しキャッシュ
         }
         if ((GlobalScript.selectedObject == null) || !isAxisVisible)
         {
@@ -582,14 +584,16 @@ public class CanvasMenuInfoScript : KssBaseScript
             float width = Mathf.Lerp(0.0005f, 0.01f, t);
             float length = Mathf.Lerp(0.02f, 0.4f, t);
 
-            // 全軸に適用
-            var index = 0;
-            foreach (var lr in axis.GetComponentsInChildren<LineRenderer>())
+            // 全軸に適用（キャッシュ済みLineRendererを使用＝毎フレームのGetComponentsInChildren回避）
+            if (axisLines != null)
             {
-                lr.startWidth = width;
-                lr.endWidth = width;
-                lr.SetPosition(1, (index == 0 ? Vector3.right : (index == 1 ? Vector3.up : Vector3.forward)) * length);
-                index++;
+                for (int i = 0; i < axisLines.Length; i++)
+                {
+                    var lr = axisLines[i];
+                    lr.startWidth = width;
+                    lr.endWidth = width;
+                    lr.SetPosition(1, (i == 0 ? Vector3.right : (i == 1 ? Vector3.up : Vector3.forward)) * length);
+                }
             }
         }
     }

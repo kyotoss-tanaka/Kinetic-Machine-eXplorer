@@ -26,6 +26,10 @@ using UnityEngine.UI;
 public class UnitOperationView : MonoBehaviour
 {
     private static UnitOperationView instance;
+
+    /// <summary>ユニット操作オーバーレイ（WebGL／エディタWebGLテスト）が有効か。
+    /// MainProcess がこのモードでは非ユニットをクリック選択しないために参照。</summary>
+    public static bool IsActive => instance != null;
 #if UNITY_EDITOR
     private const bool debugInEditor = false;   // true にすると Editor でもプレビュー表示
 #endif
@@ -104,13 +108,15 @@ public class UnitOperationView : MonoBehaviour
         public bool wasDown;
     }
     private readonly List<CamButton> camButtons = new();
+    private CamButton deselectBtn;   // 選択解除（選択中のみ・フォーカスの下）
     private int uiTries;
-    private const float CamW = 156f, CamH = 58f, CamGap = 12f;
+    private const float CamW = 156f, CamH = BtnH, CamGap = 12f;   // 高さはJOGボタン(BtnH)に統一（タッチ用）
 
-    // 親子ユニットの選択チェイン（深い順 deepest→root）＋上下ナビボタン
-    private readonly List<KssBaseScript> chain = new();
-    private int chainIndex;
+    // 親子ユニットの論理ナビ（UnitInfo の children 由来）＋上下ボタン
     private CamButton upBtn, downBtn;
+    private bool curHasParent, curHasChildren;            // 選択中ユニットに論理親/子があるか（↑↓表示判定）
+    private Dictionary<string, string> childToParent;     // mechId|子ユニット名 → 親ユニット名（論理）
+    private readonly List<UfEntry> scratchLevel = new();  // 子数算出の作業用
 
     // ユニット選択ドリルダウンパネル（group/path ベース）
     private struct UfEntry { public bool isGroup; public bool isSelf; public string name; public ManualOpData unit; }
@@ -123,9 +129,8 @@ public class UnitOperationView : MonoBehaviour
     private Image ufPanelBg;
     private TextMeshProUGUI ufTitle;
     private Dictionary<string, KssBaseScript> unitLookup;
-    private const int UfPerPage = 8;
-    private const float UfPanelX = 10f, UfPanelY = 64f, UfPanelW = 380f;
-    private const float UfRowH = 52f, UfRowGap = 6f;
+    private const float UfPanelX = 10f, UfPanelY = 124f, UfPanelW = 380f;   // 開くボタンが高くなったぶんパネルを下げる
+    private const float UfRowH = BtnH, UfRowGap = 6f;   // ユニット名(エントリ)もタッチ用に JOGボタン高(BtnH)
 
     // タップ判定（JOG以外のボタンは「離した瞬間」で発火＝トリガ。押下中に別ボタンが出ても誤発火しない）
     private bool ptrDownNow, ptrWasDown, pressConsumed, tapReleasedThisFrame;
@@ -194,31 +199,33 @@ public class UnitOperationView : MonoBehaviour
         ClearSelection();
         EnsureUi();
 
-        chain.Clear();
-        chain.AddRange(GetUnitChain(go));
-        if (chain.Count == 0)
+        var unit = ResolveDeepestUnit(go);
+        if (unit == null || unit.unitSetting == null)
         {
             current = null;
             selInfo = go != null ? $"非ユニット: {go.name}" : "";
+            curHasParent = false;
+            curHasChildren = false;
             ApplyButtons();
             return;
         }
-        chainIndex = 0;   // 最初は最も内側（子）ユニットを選択
-        BuildSelection();
+        SelectUnit(unit);
     }
 
-    /// <summary>選択チェインの chain[chainIndex] を選択状態として構築（ハイライト・操作ボタン・情報）。</summary>
-    private void BuildSelection()
+    /// <summary>指定ユニットを選択状態に（ハイライト・操作ボタン・情報・親子有無）。</summary>
+    private void SelectUnit(KssBaseScript unit)
     {
         EndAllPressed();
         ops.Clear();
         pressed = null;
         ClearHighlight();
-        current = (chainIndex >= 0 && chainIndex < chain.Count) ? chain[chainIndex] : null;
+        current = unit;
         if (current == null || current.unitSetting == null)
         {
             anchor = null;
             selInfo = "";
+            curHasParent = false;
+            curHasChildren = false;
             ApplyButtons();
             return;
         }
@@ -230,37 +237,39 @@ public class UnitOperationView : MonoBehaviour
         {
             foreach (var op in mo.ops)
             {
-                if (op != null)
+                if (op == null)
                 {
-                    ops.Add(op);
-                    if (!string.IsNullOrEmpty(op.lamp))
-                    {
-                        ComHmi.RegisterLamp(op.lamp);   // PLCのボタン認識返し（ランプ）を購読
-                    }
+                    continue;
+                }
+                // 同一 (axis, dir) は1つだけ（生成器の重複や旧JSONで JOGボタンが二重に出るのを防ぐ）
+                if (ops.Exists(o => o.axis == op.axis && o.dir == op.dir))
+                {
+                    continue;
+                }
+                ops.Add(op);
+                if (!string.IsNullOrEmpty(op.lamp))
+                {
+                    ComHmi.RegisterLamp(op.lamp);   // PLCのボタン認識返し（ランプ）を購読
+                }
+                if (!string.IsNullOrEmpty(op.interlock))
+                {
+                    ComHmi.RegisterInterlock(op.interlock);   // HMX側の操作許可（インターロック）を購読
                 }
             }
         }
         pressed = new bool[ops.Count];
-        // 所属グループ（path の祖先＝自分を除く）をパンくずで上段に出して分かりやすく
-        string crumb = "";
-        if (mo != null && mo.path != null && mo.path.Count > 1)
-        {
-            crumb = string.Join(" ＞ ", mo.path.GetRange(0, mo.path.Count - 1));
-        }
+        // 所属グループ（論理 children 由来の祖先）をパンくずで上段に（表示は従来どおり）
+        var crumbPath = PathFromRoot(current);
+        string crumb = crumbPath.Count > 1 ? string.Join(" ＞ ", crumbPath.GetRange(0, crumbPath.Count - 1)) : "";
         selInfo = (string.IsNullOrEmpty(crumb) ? "" : $"<size=58%><color=#8a8f99>{crumb}</color></size>\n")
                 + $"<size=135%>{u.name}</size>　<size=62%><color=#7f8a9a>{u.mechId}</color></size>";
+        // 親/子の有無（↑↓表示判定。選択時に算出してキャッシュ）
+        string pName = LogicalParentName(current);
+        curHasParent = !string.IsNullOrEmpty(pName) && FindUnit(u.mechId, pName) != null;
+        // 子↓の有無のみ ManualOpData.path 基準（パネルと同じ）で判定（PathFromRoot は group 不一致で子↓が出なかった）
+        BuildLevel(UnitPath(current), scratchLevel, false);
+        curHasChildren = scratchLevel.Count >= 1;
         ApplyButtons();
-    }
-
-    /// <summary>親子チェインの index 番目を選択（親ユニット↑/子ユニット↓ ボタンから）。</summary>
-    private void SelectChainIndex(int i)
-    {
-        if (chain.Count == 0)
-        {
-            return;
-        }
-        chainIndex = Mathf.Clamp(i, 0, chain.Count - 1);
-        BuildSelection();
     }
 
     private void ClearSelection()
@@ -270,36 +279,184 @@ public class UnitOperationView : MonoBehaviour
         pressed = null;
         anchor = null;
         current = null;
-        chain.Clear();
-        chainIndex = 0;
+        curHasParent = false;
+        curHasChildren = false;
         ClearHighlight();
         ApplyButtons();   // 全ボタン非表示
     }
 
-    /// <summary>clicked go から KssBaseScript の祖先チェインを deepest→root の順で取得（親子ユニット選択用）。</summary>
-    private static List<KssBaseScript> GetUnitChain(GameObject go)
+    /// <summary>clicked go の最も内側（直近）ユニットを取得。</summary>
+    private static KssBaseScript ResolveDeepestUnit(GameObject go)
     {
-        var list = new List<KssBaseScript>();
         if (go == null)
         {
-            return list;
+            return null;
         }
         var k = go.GetComponentInParent<KssBaseScript>();
         if (k == null)
         {
             k = go.GetComponentInChildren<KssBaseScript>();
         }
-        int guard = 0;
-        while (k != null && guard++ < 32)
+        return k;
+    }
+
+    /// <summary>論理親ユニット名（UnitInfo children 由来。プレハブの transform.parent は使わない）。</summary>
+    private string LogicalParentName(KssBaseScript u)
+    {
+        if (u == null || u.unitSetting == null)
         {
-            if (k.unitSetting != null && !list.Contains(k))
+            return "";
+        }
+        EnsureLookups();
+        childToParent.TryGetValue(u.unitSetting.mechId + "|" + u.unitSetting.name, out var p);
+        return p ?? "";
+    }
+
+    /// <summary>選択ユニットの ManualOpData.path（ドリルダウンパネルと同じ group 始まりの論理パス）。
+    /// パネルの BuildLevel/ComputeLevel は ManualOpData.path 基準なので、↑↓判定も同じ表現に揃える
+    /// （PathFromRoot は children 由来で group を含まず不一致＝子ユニット↓が出ない不具合の原因だった）。</summary>
+    private List<string> UnitPath(KssBaseScript u)
+    {
+        if (u != null && u.unitSetting != null)
+        {
+            var mo = GlobalScript.GetManualOp(u.unitSetting.mechId, u.unitSetting.name);
+            if (mo != null && mo.path != null && mo.path.Count > 0)
             {
-                list.Add(k);
+                return mo.path;
             }
-            var pt = k.transform.parent;
-            k = pt != null ? pt.GetComponentInParent<KssBaseScript>() : null;
+        }
+        return PathFromRoot(u);   // ManualOpData が無い場合のフォールバック
+    }
+
+    /// <summary>指定パス（group始まり）に厳密一致する JOG可能ユニットを返す（無ければ null）。</summary>
+    private ManualOpData FindUnitByPath(List<string> path)
+    {
+        var ops = GlobalScript.manualOps;
+        if (ops == null || path == null)
+        {
+            return null;
+        }
+        foreach (var u in ops)
+        {
+            if (!IsJoggable(u))
+            {
+                continue;
+            }
+            var p = PathOf(u);
+            if (p.Count == path.Count && StartsWith(p, path, path.Count))
+            {
+                return u;
+            }
+        }
+        return null;
+    }
+
+    /// <summary>最上位→自分 の論理パス（children 由来）。</summary>
+    private List<string> PathFromRoot(KssBaseScript u)
+    {
+        var list = new List<string>();
+        if (u == null || u.unitSetting == null)
+        {
+            return list;
+        }
+        EnsureLookups();
+        string mech = u.unitSetting.mechId;
+        string cur = u.unitSetting.name;
+        var seen = new HashSet<string>();
+        int guard = 0;
+        while (!string.IsNullOrEmpty(cur) && guard++ < 64 && seen.Add(cur))
+        {
+            list.Insert(0, cur);
+            childToParent.TryGetValue(mech + "|" + cur, out cur);
         }
         return list;
+    }
+
+    /// <summary>親ユニット↑：論理親へ選択を移す。</summary>
+    private void SelectParent()
+    {
+        if (current == null || current.unitSetting == null)
+        {
+            return;
+        }
+        string pName = LogicalParentName(current);
+        if (!string.IsNullOrEmpty(pName))
+        {
+            NavigateToUnit(current.unitSetting.mechId, pName);
+        }
+    }
+
+    /// <summary>子ユニット↓：同一階層の子が1つ（孫以下は数えない）ならその子ユニットをそのまま選択、
+    /// 2つ以上ならその階層をユニット選択リスト（パネル）で表示。</summary>
+    private void DrillToChildren()
+    {
+        if (current == null)
+        {
+            return;
+        }
+        var path = UnitPath(current);   // group始まりの論理パス（パネルと同基準）
+        BuildLevel(path, scratchLevel, false);   // 直下の階層のみ（孫はグループ1件に畳まれカウントされない）
+        if (scratchLevel.Count == 1)
+        {
+            // 同一階層に子が1つだけ → その子ユニットをそのまま選択（孫がいる中間ユニットでも選択）
+            var e = scratchLevel[0];
+            var u = e.unit ?? FindUnitByPath(new List<string>(path) { e.name });
+            if (u != null)
+            {
+                SelectFromList(u);
+                return;
+            }
+            // ユニットの無い純グループのみ：その階層をリスト表示にフォールバック
+        }
+        if (scratchLevel.Count >= 1)
+        {
+            // 2つ以上 → その階層をユニット選択リスト（パネル）で表示
+            drillPrefix.Clear();
+            drillPrefix.AddRange(path);
+            drillPage = 0;
+            unitPanelOpen = true;
+            RefreshEntries();
+        }
+    }
+
+    /// <summary>mechId|name のユニットをグローバル選択（ハイライト＋操作ボタン発火）。</summary>
+    private void NavigateToUnit(string mechId, string name)
+    {
+        var k = FindUnit(mechId, name);
+        if (k != null && EventManager.Instance != null)
+        {
+            EventManager.Instance.ProcessObjectSelect(k.gameObject);
+        }
+    }
+
+    /// <summary>ユニット検索＆子→親マップを構築（mechId|name→KssBaseScript / mechId|子名→親名）。</summary>
+    private void EnsureLookups(bool force = false)
+    {
+        if (!force && unitLookup != null && childToParent != null)
+        {
+            return;
+        }
+        unitLookup = new Dictionary<string, KssBaseScript>();
+        childToParent = new Dictionary<string, string>();
+        foreach (var k in FindObjectsByType<KssBaseScript>(FindObjectsSortMode.None))
+        {
+            var us = k != null ? k.unitSetting : null;
+            if (us == null || string.IsNullOrEmpty(us.name))
+            {
+                continue;
+            }
+            unitLookup[us.mechId + "|" + us.name] = k;
+            if (us.children != null)
+            {
+                foreach (var c in us.children)
+                {
+                    if (c != null && !string.IsNullOrEmpty(c.name))
+                    {
+                        childToParent[us.mechId + "|" + c.name] = us.name;
+                    }
+                }
+            }
+        }
     }
 
     private static Transform ResolveAnchor(UnitSetting u)
@@ -389,8 +546,8 @@ public class UnitOperationView : MonoBehaviour
                 {
                     continue;
                 }
-                // 操作不可（writer未認証/allow外）のボタンは押下を受け付けない（ONにもしない）
-                bool held = ComHmi.CanJogAny(op.dev) && AnyPointerInRect(ButtonRect(i, ops.Count));
+                // 操作不可（writer未認証/allow外/インターロックOFF）のボタンは押下を受け付けない（ONにもしない）
+                bool held = ComHmi.CanJogAny(op.dev) && ComHmi.IsInterlockOn(op.interlock) && AnyPointerInRect(ButtonRect(i, ops.Count));
                 if (held && !pressed[i])
                 {
                     pressed[i] = true;
@@ -483,10 +640,13 @@ public class UnitOperationView : MonoBehaviour
         // カメラ操作ボタン（常時表示・左中央）。既存キー機能(R/F)を発火。
         camButtons.Add(MakeCamButton("視点リセット", () => FireKey(UnityEngine.InputSystem.Key.R)));
         camButtons.Add(MakeCamButton("フォーカス", () => FireKey(UnityEngine.InputSystem.Key.F)));
+        // 選択解除（選択中のみ表示・フォーカスの下）。タップで現在の選択を解除。
+        deselectBtn = MakeCamButton("選択解除", DeselectByUser);
+        deselectBtn.rt.gameObject.SetActive(false);
 
         // 親子ユニットの階層ナビ（親が居る/子が居るときだけ表示・左上）
-        upBtn = MakeCamButton("親ユニット ↑", () => SelectChainIndex(chainIndex + 1));
-        downBtn = MakeCamButton("子ユニット ↓", () => SelectChainIndex(chainIndex - 1));
+        upBtn = MakeCamButton("親ユニット ↑", SelectParent);
+        downBtn = MakeCamButton("子ユニット ↓", DrillToChildren);
         upBtn.rt.gameObject.SetActive(false);
         downBtn.rt.gameObject.SetActive(false);
 
@@ -561,6 +721,29 @@ public class UnitOperationView : MonoBehaviour
         {
             TapButton(camButtons[i], CamButtonRect(i, camButtons.Count));   // タップ(離した瞬間)で発火
         }
+        // 選択解除はユニット選択中のみ「フォーカスの下」に表示（タップで解除）
+        HierButton(deselectBtn, current != null, DeselectRect());
+    }
+
+    /// <summary>選択解除ボタンの矩形（カメラボタン最下段＝フォーカスの下）。</summary>
+    private Rect DeselectRect()
+    {
+        int n = Mathf.Max(1, camButtons.Count);
+        Rect below = CamButtonRect(n - 1, n);   // 最下段のカメラボタン（フォーカス）
+        return new Rect(below.x, below.yMax + CamGap, CamW, CamH);
+    }
+
+    /// <summary>選択解除：現在の選択を解除（全リスナ＝JOG/情報/軸 とグローバル選択をクリア）。</summary>
+    private void DeselectByUser()
+    {
+        if (EventManager.Instance != null)
+        {
+            EventManager.Instance.ProcessObjectSelect(null);   // GlobalScript.selectedObject=null＋全リスナ解除
+        }
+        else
+        {
+            ClearSelection();
+        }
     }
 
     private static Rect CamButtonRect(int i, int n)
@@ -571,21 +754,37 @@ public class UnitOperationView : MonoBehaviour
         return new Rect(x, y0 + i * (CamH + CamGap), CamW, CamH);
     }
 
-    // ユニット名（中央上部）の下に、中央寄せで配置（被らないよう y=92）
-    private static Rect HierUpRect() { return new Rect(Screen.width * 0.5f - 162f, 92f, 158f, 44f); }
-    private static Rect HierDownRect() { return new Rect(Screen.width * 0.5f + 4f, 92f, 158f, 44f); }
+    // ユニット名（中央上部）の下に、中央寄せで配置（被らないよう）。タッチ用に高さ=JOGボタン(BtnH)。
+    private static Rect HierUpRect() { return new Rect(Screen.width * 0.5f - 162f, 92f, 158f, BtnH); }
+    private static Rect HierDownRect() { return new Rect(Screen.width * 0.5f + 4f, 92f, 158f, BtnH); }
 
     // ===== ユニット選択ドリルダウンパネル（group/path ベース） =====
+    // すべてのボタン・ユニット名(エントリ)はタッチ用に高さ=JOGボタン(BtnH)。
 
-    private static Rect UfOpenRect() { return new Rect(10f, 12f, 180f, 44f); }   // 画面左上
-    private static float UfPanelH() { return Mathf.Max(300f, Screen.height - UfPanelY - 20f); }
+    private const float UfPad = 10f;       // パネル内余白
+    private const float UfTitleH = 30f;    // タイトル(ラベル)高
+    private static float UfHeaderTop() { return UfPanelY + UfPad; }                  // 戻る/閉じる 行
+    private static float UfTitleTop() { return UfHeaderTop() + BtnH + UfPad; }       // タイトル行
+    private static float UfEntriesTop() { return UfTitleTop() + UfTitleH + UfPad; }  // 先頭エントリ
+    private static Rect UfOpenRect() { return new Rect(10f, 12f, 180f, BtnH); }   // 画面左上
+    private static float UfPanelH() { return Mathf.Max(300f, Screen.height - UfPanelY - 16f); }
     private static Rect UfPanelRect() { return new Rect(UfPanelX, UfPanelY, UfPanelW, UfPanelH()); }
-    private static Rect UfBackRect() { return new Rect(UfPanelX + 10f, UfPanelY + 10f, 110f, 40f); }
-    private static Rect UfCloseRect() { return new Rect(UfPanelX + UfPanelW - 120f, UfPanelY + 10f, 110f, 40f); }
-    private static Rect UfTitleRect() { return new Rect(UfPanelX + 12f, UfPanelY + 56f, UfPanelW - 24f, 28f); }
-    private static Rect UfEntryRect(int i) { return new Rect(UfPanelX + 12f, UfPanelY + 92f + i * (UfRowH + UfRowGap), UfPanelW - 24f, UfRowH); }
-    private static Rect UfPrevRect() { float y = UfPanelY + 92f + UfPerPage * (UfRowH + UfRowGap) + 6f; return new Rect(UfPanelX + 12f, y, (UfPanelW - 30f) * 0.5f, 40f); }
+    private static Rect UfBackRect() { return new Rect(UfPanelX + 10f, UfHeaderTop(), 110f, BtnH); }
+    private static Rect UfCloseRect() { return new Rect(UfPanelX + UfPanelW - 120f, UfHeaderTop(), 110f, BtnH); }
+    private static Rect UfTitleRect() { return new Rect(UfPanelX + 12f, UfTitleTop(), UfPanelW - 24f, UfTitleH); }
+    private static Rect UfEntryRect(int i) { return new Rect(UfPanelX + 12f, UfEntriesTop() + i * (UfRowH + UfRowGap), UfPanelW - 24f, UfRowH); }
+    private static Rect UfPrevRect() { float y = UfEntriesTop() + UfPerPageNow() * (UfRowH + UfRowGap) + UfPad; return new Rect(UfPanelX + 12f, y, (UfPanelW - 30f) * 0.5f, BtnH); }
     private static Rect UfNextRect() { var p = UfPrevRect(); return new Rect(p.xMax + 6f, p.y, p.width, p.height); }
+
+    /// <summary>パネル高に収まるエントリ数（行高=BtnH なので画面高に応じて動的）。</summary>
+    private static int UfPerPageNow()
+    {
+        float top = UfEntriesTop();
+        float bottomReserve = BtnH + UfPad + 8f;   // 前へ/次へ 行＋下余白
+        float avail = (UfPanelY + UfPanelH()) - top - bottomReserve;
+        int n = Mathf.FloorToInt((avail + UfRowGap) / (UfRowH + UfRowGap));
+        return Mathf.Clamp(n, 1, 12);
+    }
 
     private void ToggleUnitPanel()
     {
@@ -594,7 +793,11 @@ public class UnitOperationView : MonoBehaviour
         {
             drillPrefix.Clear();
             drillPage = 0;
-            RefreshEntries();
+            RefreshEntries();   // 内部で LayoutPanel（配置→表示）
+        }
+        else
+        {
+            LayoutPanel();      // 非表示も即反映
         }
     }
 
@@ -602,16 +805,21 @@ public class UnitOperationView : MonoBehaviour
     /// JOG可能ユニット（devあり）のみ対象。中間の操作可能ユニットはドリルイン先で「このユニット」として選択可。</summary>
     private void ComputeLevel()
     {
-        ufLevel.Clear();
+        BuildLevel(drillPrefix, ufLevel, true);
+    }
+
+    /// <summary>prefix 配下のエントリを dst へ。最上位＝グループ、構造は UnitInfo の親子(path)。
+    /// JOG可能ユニット（devあり）のみ対象。includeSelf=true で prefix 自身が操作ユニットなら「このユニット」を先頭に。</summary>
+    private void BuildLevel(List<string> prefix, List<UfEntry> dst, bool includeSelf)
+    {
+        dst.Clear();
         var ops = GlobalScript.manualOps;
         if (ops == null)
         {
             return;
         }
-        int pc = drillPrefix.Count;
-
-        // この階層(prefix)自身が JOG可能ユニットなら「このユニット」を先頭に（中間ユニットも選択可）
-        if (pc > 0)
+        int pc = prefix.Count;
+        if (includeSelf && pc > 0)
         {
             foreach (var u in ops)
             {
@@ -620,9 +828,9 @@ public class UnitOperationView : MonoBehaviour
                     continue;
                 }
                 var path = PathOf(u);
-                if (path.Count == pc && PathHasPrefix(path, pc))
+                if (path.Count == pc && StartsWith(path, prefix, pc))
                 {
-                    ufLevel.Add(new UfEntry { isGroup = false, isSelf = true, name = u.name, unit = u });
+                    dst.Add(new UfEntry { isGroup = false, isSelf = true, name = u.name, unit = u });
                     break;
                 }
             }
@@ -640,7 +848,7 @@ public class UnitOperationView : MonoBehaviour
                 continue;
             }
             var path = PathOf(u);
-            if (path.Count <= pc || !PathHasPrefix(path, pc))
+            if (path.Count <= pc || !StartsWith(path, prefix, pc))
             {
                 continue;
             }
@@ -663,13 +871,25 @@ public class UnitOperationView : MonoBehaviour
         {
             if (hasDeeper.Contains(seg))
             {
-                ufLevel.Add(new UfEntry { isGroup = true, isSelf = false, name = seg, unit = null });
+                dst.Add(new UfEntry { isGroup = true, isSelf = false, name = seg, unit = null });
             }
             else if (unitAt.TryGetValue(seg, out var u))
             {
-                ufLevel.Add(new UfEntry { isGroup = false, isSelf = false, name = seg, unit = u });
+                dst.Add(new UfEntry { isGroup = false, isSelf = false, name = seg, unit = u });
             }
         }
+    }
+
+    private static bool StartsWith(List<string> path, List<string> prefix, int n)
+    {
+        for (int i = 0; i < n; i++)
+        {
+            if (i >= path.Count || path[i] != prefix[i])
+            {
+                return false;
+            }
+        }
+        return true;
     }
 
     /// <summary>JOG可能（dev が割り当たった op を1つ以上持つ）ユニットか。</summary>
@@ -694,50 +914,28 @@ public class UnitOperationView : MonoBehaviour
         return (u.path != null && u.path.Count > 0) ? u.path : new List<string> { u.name };
     }
 
-    private bool PathHasPrefix(List<string> path, int n)
-    {
-        for (int i = 0; i < n; i++)
-        {
-            if (i >= path.Count || path[i] != drillPrefix[i])
-            {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    /// <summary>現在レベル＋ページのエントリボタンを構築（ラベル/アクション/表示）。</summary>
+    /// <summary>現在レベル＋ページのエントリのラベルを設定し、レイアウト（配置→表示）する。</summary>
     private void RefreshEntries()
     {
         ComputeLevel();
-        int pages = Mathf.Max(1, Mathf.CeilToInt(ufLevel.Count / (float)UfPerPage));
+        int per = UfPerPageNow();
+        int pages = Mathf.Max(1, Mathf.CeilToInt(ufLevel.Count / (float)per));
         drillPage = Mathf.Clamp(drillPage, 0, pages - 1);
-        if (ufTitle != null)
-        {
-            ufTitle.text = drillPrefix.Count == 0 ? "ユニット一覧" : string.Join(" ＞ ", drillPrefix);
-        }
-        for (int i = 0; i < UfPerPage; i++)
+        for (int i = 0; i < per; i++)
         {
             if (i >= ufEntries.Count)
             {
                 ufEntries.Add(MakeEntryButton());
             }
-            var cb = ufEntries[i];
-            int idx = drillPage * UfPerPage + i;
-            if (unitPanelOpen && idx < ufLevel.Count)
+            int idx = drillPage * per + i;
+            if (idx < ufLevel.Count)
             {
                 var e = ufLevel[idx];
-                cb.tmp.text = e.isGroup ? Trunc(e.name) + "　＞"
+                ufEntries[i].tmp.text = e.isGroup ? Trunc(e.name) + "　＞"
                             : (e.isSelf ? Trunc(e.name) + "（このユニット）" : Trunc(e.name));
-                cb.action = () => OnEntryTap(e);
-                cb.wasDown = false;
-                cb.rt.gameObject.SetActive(true);
-            }
-            else
-            {
-                cb.rt.gameObject.SetActive(false);
             }
         }
+        LayoutPanel();   // 位置設定→表示（開いた瞬間/階層移動でフラッシュしない）
     }
 
     private void OnEntryTap(UfEntry e)
@@ -770,21 +968,14 @@ public class UnitOperationView : MonoBehaviour
         unitPanelOpen = false;
     }
 
-    /// <summary>mechId|name から KssBaseScript を取得（キャッシュ。未ヒット時は再構築）。</summary>
+    /// <summary>mechId|name から KssBaseScript を取得（EnsureLookups のキャッシュ。未ヒットは再構築）。</summary>
     private KssBaseScript FindUnit(string mechId, string name)
     {
         string key = mechId + "|" + name;
-        if (unitLookup == null || !unitLookup.ContainsKey(key))
+        EnsureLookups();
+        if (!unitLookup.ContainsKey(key))
         {
-            unitLookup = new Dictionary<string, KssBaseScript>();
-            foreach (var k in FindObjectsByType<KssBaseScript>(FindObjectsSortMode.None))
-            {
-                var us = k != null ? k.unitSetting : null;
-                if (us != null && !string.IsNullOrEmpty(us.name))
-                {
-                    unitLookup[us.mechId + "|" + us.name] = k;
-                }
-            }
+            EnsureLookups(true);   // 未ヒットなら再構築（ロード後に増えた分を取り込む）
         }
         unitLookup.TryGetValue(key, out var kss);
         return kss;
@@ -832,100 +1023,147 @@ public class UnitOperationView : MonoBehaviour
         return false;
     }
 
-    private static void SetActiveCam(CamButton cb, bool on)
+    /// <summary>位置を設定してから表示（フラッシュ防止）＋押下色。</summary>
+    private void PlaceButton(CamButton cb, Rect r, bool show)
     {
         if (cb == null || cb.rt == null)
         {
             return;
         }
-        if (cb.rt.gameObject.activeSelf != on)
+        if (show)
         {
-            cb.rt.gameObject.SetActive(on);
+            cb.rt.anchoredPosition = new Vector2(r.x, -r.y);   // 先に配置
+            cb.rt.sizeDelta = new Vector2(r.width, r.height);
+            bool over = ptrDownNow && r.Contains(curGui);
+            cb.bg.color = over ? BtnOn : BtnIdle;
+            if (cb.outline != null)
+            {
+                cb.outline.effectColor = over ? EdgeOn : EdgeIdle;
+            }
+            cb.tmp.color = over ? Color.white : TxtIdle;
         }
-        if (!on)
+        var go = cb.rt.gameObject;
+        if (go.activeSelf != show)
         {
-            cb.wasDown = false;
+            go.SetActive(show);   // 配置後に表示
+            if (!show) cb.wasDown = false;
         }
     }
 
-    /// <summary>ユニット選択ドリルダウンパネルの処理（開くボタンは常時／パネルは開時のみ）。</summary>
-    private void ProcessUnitPanel()
+    private static void SetRect(RectTransform rt, Rect r)
+    {
+        rt.anchoredPosition = new Vector2(r.x, -r.y);
+        rt.sizeDelta = new Vector2(r.width, r.height);
+    }
+
+    private static void SetGoActive(GameObject go, bool on)
+    {
+        if (go != null && go.activeSelf != on)
+        {
+            go.SetActive(on);
+        }
+    }
+
+    /// <summary>パネル全要素の配置＋表示切替（位置を設定してから表示＝フラッシュ防止）。タップ判定はしない。</summary>
+    private void LayoutPanel()
     {
         if (ufOpenBtn == null)
         {
             return;
         }
         ufOpenBtn.tmp.text = unitPanelOpen ? "閉じる" : "ユニット選択";
-        if (TapButton(ufOpenBtn, UfOpenRect()))
-        {
-            return;
-        }
+        PlaceButton(ufOpenBtn, UfOpenRect(), true);   // 開くボタンは常時
 
         bool open = unitPanelOpen;
-        if (ufPanelBg != null && ufPanelBg.gameObject.activeSelf != open)
-        {
-            ufPanelBg.gameObject.SetActive(open);
-        }
-        if (ufTitle != null && ufTitle.gameObject.activeSelf != open)
-        {
-            ufTitle.gameObject.SetActive(open);
-        }
-        if (!open)
-        {
-            SetActiveCam(ufBackBtn, false);
-            SetActiveCam(ufCloseBtn, false);
-            SetActiveCam(ufPrevBtn, false);
-            SetActiveCam(ufNextBtn, false);
-            for (int i = 0; i < ufEntries.Count; i++)
-            {
-                SetActiveCam(ufEntries[i], false);
-            }
-            return;
-        }
-
         if (ufPanelBg != null)
         {
-            Rect pr = UfPanelRect();
-            ufPanelBg.rectTransform.anchoredPosition = new Vector2(pr.x, -pr.y);
-            ufPanelBg.rectTransform.sizeDelta = new Vector2(pr.width, pr.height);
+            if (open) SetRect(ufPanelBg.rectTransform, UfPanelRect());
+            SetGoActive(ufPanelBg.gameObject, open);
         }
         if (ufTitle != null)
         {
-            Rect tr = UfTitleRect();
-            ufTitle.rectTransform.anchoredPosition = new Vector2(tr.x, -tr.y);
-            ufTitle.rectTransform.sizeDelta = new Vector2(tr.width, tr.height);
+            if (open)
+            {
+                SetRect(ufTitle.rectTransform, UfTitleRect());
+                ufTitle.text = drillPrefix.Count == 0 ? "ユニット一覧" : string.Join(" ＞ ", drillPrefix);
+            }
+            SetGoActive(ufTitle.gameObject, open);
         }
-
-        bool canBack = drillPrefix.Count > 0;
-        SetActiveCam(ufBackBtn, canBack);
-        SetActiveCam(ufCloseBtn, true);
-        if (canBack && TapButton(ufBackBtn, UfBackRect()))
-        {
-            return;
-        }
-        if (TapButton(ufCloseBtn, UfCloseRect()))
-        {
-            return;
-        }
-
-        int pages = Mathf.Max(1, Mathf.CeilToInt(ufLevel.Count / (float)UfPerPage));
-        bool hasPrev = drillPage > 0, hasNext = drillPage < pages - 1;
-        SetActiveCam(ufPrevBtn, hasPrev);
-        SetActiveCam(ufNextBtn, hasNext);
-        if (hasPrev && TapButton(ufPrevBtn, UfPrevRect()))
-        {
-            return;
-        }
-        if (hasNext && TapButton(ufNextBtn, UfNextRect()))
-        {
-            return;
-        }
-
+        int per = UfPerPageNow();
+        int pages = Mathf.Max(1, Mathf.CeilToInt(ufLevel.Count / (float)per));
+        PlaceButton(ufBackBtn, UfBackRect(), open && drillPrefix.Count > 0);
+        PlaceButton(ufCloseBtn, UfCloseRect(), open);
+        PlaceButton(ufPrevBtn, UfPrevRect(), open && drillPage > 0);
+        PlaceButton(ufNextBtn, UfNextRect(), open && drillPage < pages - 1);
         for (int i = 0; i < ufEntries.Count; i++)
         {
-            var cb = ufEntries[i];
-            if (cb.rt.gameObject.activeSelf && TapButton(cb, UfEntryRect(i)))
+            int idx = drillPage * per + i;
+            PlaceButton(ufEntries[i], UfEntryRect(i), open && i < per && idx < ufLevel.Count);
+        }
+    }
+
+    /// <summary>離した瞬間のタップ判定（押下開始も離した位置も rect 内・1押下1ボタン）。発火で true。</summary>
+    private bool TapAt(Rect r)
+    {
+        if (tapReleasedThisFrame && !pressConsumed && r.Contains(pressStartGui) && r.Contains(releaseGui))
+        {
+            pressConsumed = true;
+            return true;
+        }
+        return false;
+    }
+
+    /// <summary>ユニット選択ドリルダウンパネル：配置→表示（LayoutPanel）してからタップ判定。</summary>
+    private void ProcessUnitPanel()
+    {
+        if (ufOpenBtn == null)
+        {
+            return;
+        }
+        LayoutPanel();   // 先に配置・表示（フラッシュ防止）
+
+        if (TapAt(UfOpenRect()))
+        {
+            ToggleUnitPanel();
+            return;
+        }
+        if (!unitPanelOpen)
+        {
+            return;
+        }
+        if (drillPrefix.Count > 0 && TapAt(UfBackRect()))
+        {
+            drillPrefix.RemoveAt(drillPrefix.Count - 1);
+            drillPage = 0;
+            RefreshEntries();
+            return;
+        }
+        if (TapAt(UfCloseRect()))
+        {
+            unitPanelOpen = false;
+            LayoutPanel();
+            return;
+        }
+        int per = UfPerPageNow();
+        int pages = Mathf.Max(1, Mathf.CeilToInt(ufLevel.Count / (float)per));
+        if (drillPage > 0 && TapAt(UfPrevRect()))
+        {
+            drillPage--;
+            RefreshEntries();
+            return;
+        }
+        if (drillPage < pages - 1 && TapAt(UfNextRect()))
+        {
+            drillPage++;
+            RefreshEntries();
+            return;
+        }
+        for (int i = 0; i < ufEntries.Count; i++)
+        {
+            int idx = drillPage * per + i;
+            if (idx < ufLevel.Count && ufEntries[i].rt != null && ufEntries[i].rt.gameObject.activeSelf && TapAt(UfEntryRect(i)))
             {
+                OnEntryTap(ufLevel[idx]);
                 return;
             }
         }
@@ -934,9 +1172,8 @@ public class UnitOperationView : MonoBehaviour
     /// <summary>親子ユニット階層ナビ（左上）。親が居れば↑、子が居れば↓を表示。</summary>
     private void ProcessHierarchyButtons()
     {
-        bool hasChain = current != null && chain.Count > 1;
-        HierButton(upBtn, hasChain && chainIndex < chain.Count - 1, HierUpRect());
-        HierButton(downBtn, hasChain && chainIndex > 0, HierDownRect());
+        HierButton(upBtn, current != null && curHasParent, HierUpRect());     // 論理親があれば↑
+        HierButton(downBtn, current != null && curHasChildren, HierDownRect()); // 論理子があれば↓
     }
 
     private void HierButton(CamButton cb, bool show, Rect r)
@@ -1064,6 +1301,7 @@ public class UnitOperationView : MonoBehaviour
     private void UpdateButtonVisuals()
     {
         bool anyDisabled = false;
+        string disableReason = "";   // 最初の不可ボタンの具体理由（インターロックOFF / allow外 / 未認証 / 切断）
         for (int i = 0; i < ops.Count && i < pool.Count; i++)
         {
             var op = ops[i];
@@ -1072,17 +1310,38 @@ public class UnitOperationView : MonoBehaviour
             b.rt.anchoredPosition = new Vector2(r.x, -r.y);
             b.rt.sizeDelta = new Vector2(r.width, r.height);
 
-            bool canJog = ComHmi.CanJogAny(op.dev);
-            if (!canJog) anyDisabled = true;
+            // 操作可否＝認証/allow/接続/レコーダ（CanJogAny）＋ インターロック成立（IsInterlockOn）。
+            // インターロックOFF/不明は安全側で操作不可＝ボタン灰色（§5）。
+            bool ilOk = ComHmi.IsInterlockOn(op.interlock);
+            bool canJog = ComHmi.CanJogAny(op.dev) && ilOk;
+            if (!canJog)
+            {
+                anyDisabled = true;
+                if (disableReason == "")
+                {
+                    // インターロックOFF を優先、それ以外は具体理由（allow外/未認証/切断/レコーダ）
+                    disableReason = !ilOk ? "インターロックOFF" : ComHmi.JogBlockReason(op.dev);
+                    if (string.IsNullOrEmpty(disableReason)) disableReason = "操作不可";
+                }
+            }
             bool pressedNow = pressed != null && i < pressed.Length && pressed[i];
             bool hasLamp = !string.IsNullOrEmpty(op.lamp);
             // 点灯はPLCのランプ読み戻しで決定（PLCがボタン認識→ON）。ランプ未定義は従来の押下即点灯。
             bool lit = hasLamp ? ComHmi.IsLampOn(op.lamp) : pressedNow;
             bool pending = hasLamp && pressedNow && !lit;   // 押下済みだがPLC未確認（ランプ待ち）
 
-            // 状態別の配色（暗ガラス→PLC確認待ちはくすんだ朱→点灯で朱フィル＋明朱グロー）
+            // 状態別の配色。操作不可（未認証/allow外/インターロックOFF）は最優先で灰色＝
+            // ランプ点灯より優先（押せない状態を朱で見せない）。操作可のとき 暗ガラス→PLC確認待ち→点灯。
             Color iconCol;
-            if (lit)
+            if (!canJog)
+            {
+                b.bg.color = BtnDisabled;
+                if (b.outline != null) b.outline.effectColor = EdgeDisabled;
+                b.tmp.color = TxtDisabled;
+                iconCol = IconDisabled;
+                b.rt.localScale = Vector3.one;
+            }
+            else if (lit)
             {
                 b.bg.color = BtnOn;
                 if (b.outline != null) b.outline.effectColor = EdgeOn;
@@ -1097,20 +1356,13 @@ public class UnitOperationView : MonoBehaviour
                 iconCol = IconIdle;
                 b.rt.localScale = Vector3.one;
             }
-            else if (canJog)
+            else
             {
+                // 操作可・非点灯＝待機（暗ガラス）
                 b.bg.color = BtnIdle;
                 if (b.outline != null) b.outline.effectColor = EdgeIdle;
                 b.tmp.color = TxtIdle;
                 iconCol = IconIdle;
-                b.rt.localScale = Vector3.one;
-            }
-            else
-            {
-                b.bg.color = BtnDisabled;
-                if (b.outline != null) b.outline.effectColor = EdgeDisabled;
-                b.tmp.color = TxtDisabled;
-                iconCol = IconDisabled;
                 b.rt.localScale = Vector3.one;
             }
 
@@ -1122,7 +1374,7 @@ public class UnitOperationView : MonoBehaviour
         if (infoLabel != null)
         {
             infoLabel.text = (anyDisabled && ops.Count > 0)
-                ? selInfo + "　<size=66%><color=#c8805e>JOG操作不可（writer未認証/allow外）</color></size>"
+                ? selInfo + $"　<size=66%><color=#c8805e>JOG操作不可（{disableReason}）</color></size>"
                 : selInfo;
         }
         FitInfoBg();
@@ -1194,7 +1446,7 @@ public class UnitOperationView : MonoBehaviour
     private bool IsDirectionExpressible(ManualOp op, out bool towardCamera)
     {
         towardCamera = false;
-        var cam = Camera.main;
+        var cam = CommonFunction.MainCamera;   // Camera.main キャッシュ（毎フレーム×ボタン数で呼ぶため）
         if (cam == null || anchor == null)
         {
             return true;   // 判定不能時は従来通り矢印表示
@@ -1235,7 +1487,7 @@ public class UnitOperationView : MonoBehaviour
     /// <summary>直線動作の画面投影方向（度）。+x=0°、反時計回り正。アイコン回転に使用。</summary>
     private float ScreenAngleDeg(ManualOp op)
     {
-        var cam = Camera.main;
+        var cam = CommonFunction.MainCamera;   // Camera.main キャッシュ（毎フレーム×ボタン数で呼ぶため）
         if (cam == null || anchor == null)
         {
             return op.dir >= 0 ? 0f : 180f;
@@ -1510,6 +1762,11 @@ public class UnitOperationView : MonoBehaviour
     private static bool TryPointer(out Vector2 gui)
     {
         gui = default;
+        // EnhancedTouch が未有効だと activeTouches が例外。ロード順に依存しないよう使用直前に保証。
+        if (!UnityEngine.InputSystem.EnhancedTouch.EnhancedTouchSupport.enabled)
+        {
+            UnityEngine.InputSystem.EnhancedTouch.EnhancedTouchSupport.Enable();
+        }
         var touches = UnityEngine.InputSystem.EnhancedTouch.Touch.activeTouches;
         foreach (var t in touches)
         {
@@ -1536,6 +1793,10 @@ public class UnitOperationView : MonoBehaviour
     /// <summary>押下中ポインタ(タッチ/マウス)が GUI rect(上原点) 内にあるか（JOGのhold判定用）</summary>
     private static bool AnyPointerInRect(Rect guiRect)
     {
+        if (!UnityEngine.InputSystem.EnhancedTouch.EnhancedTouchSupport.enabled)
+        {
+            UnityEngine.InputSystem.EnhancedTouch.EnhancedTouchSupport.Enable();
+        }
         var touches = UnityEngine.InputSystem.EnhancedTouch.Touch.activeTouches;
         foreach (var t in touches)
         {

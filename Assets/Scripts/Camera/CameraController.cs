@@ -213,7 +213,7 @@ public class CameraController : MonoBehaviour
         }
         if (isMouseMiddle)
         {
-            Vector3 pos = Camera.main.WorldToScreenPoint(targetPosition);
+            Vector3 pos = CommonFunction.MainCamera.WorldToScreenPoint(targetPosition);
             transform.Translate(-moveDelta * 0.01f * moveSpeed * pos.z / 5);
         }
         else if (isMouseRight)
@@ -390,7 +390,7 @@ public class CameraController : MonoBehaviour
         {
             if (Mouse.current.middleButton.isPressed)
             {
-                Vector3 pos = Camera.main.WorldToScreenPoint(targetPosition);
+                Vector3 pos = CommonFunction.MainCamera.WorldToScreenPoint(targetPosition);
                 transform.Translate(-diff * 0.01f * moveSpeed * pos.z / 5);
             }
             else if (Mouse.current.rightButton.isPressed)
