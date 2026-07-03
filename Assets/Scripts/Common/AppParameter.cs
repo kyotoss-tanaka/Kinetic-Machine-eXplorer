@@ -768,6 +768,7 @@ namespace Parameters
             public int spd { get; set; }
             public int count { get; set; }
             public int wait { get; set; }
+            public int pitch { get; set; }
         }
         [Serializable]
         public class SpdInfo

@@ -2024,9 +2024,13 @@ public class MotionLinear : AxisMotionBase
                 // 複数通過なら1
                 count = 1;
             }
+            // このポイントの整列ピッチ：PPのみ points[i].pitch(mm) が全体ピッチより大きければ採用（BUFF等は従来どおり moverPitch）
+            var alignPitch = (point.type == PointType.PP)
+                ? Mathf.Max(moverPitch, points[i].pitch / 1000f)
+                : moverPitch;
             for (var j = 0; j < count; j++)
             {
-                var pos = point.type == PointType.TP ? point.pos : (totalLength + (point.pos - moverPitch * j)) % totalLength;
+                var pos = point.type == PointType.TP ? point.pos : (totalLength + (point.pos - alignPitch * j)) % totalLength;
                 point.stopPoints.Add(new StopPoint
                 {
                     pointId = this.points.Count,
