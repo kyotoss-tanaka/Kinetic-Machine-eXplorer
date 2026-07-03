@@ -333,14 +333,14 @@ public class SwitchScript : KssBaseScript
                 if (sw.tag == "")
                 {
                     // 未入力の場合はプレハブモデル
-                    lstVisible.AddRange(GameObject.FindObjectsByType<GameObject>(FindObjectsSortMode.None).Where(d => d.name == "PrefabObjects").ToList());
+                    lstVisible.AddRange(GameObject.FindObjectsByType<GameObject>(FindObjectsInactive.Include, FindObjectsSortMode.None).Where(d => d.name == "PrefabObjects").ToList());
                 }
                 else
                 {
                     // カンマ区切りで非表示モデルを定義
                     foreach (var name in sw.tag.Split(","))
                     {
-                        lstVisible.AddRange(GameObject.FindObjectsByType<GameObject>(FindObjectsSortMode.None).Where(d => d.name == name).ToList());
+                        lstVisible.AddRange(GameObject.FindObjectsByType<GameObject>(FindObjectsInactive.Include, FindObjectsSortMode.None).Where(d => d.name == name).ToList());
                     }
                 }
             }

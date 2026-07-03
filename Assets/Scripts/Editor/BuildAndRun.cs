@@ -226,6 +226,75 @@ public class BuildAndRun
         }
     }
 
+    // 注意: MenuItem名の "/" はサブメニュー区切りになるため使用不可（中黒で表記）
+    [MenuItem("Kyotoss/Android(VR・MR) Build and Run from KMXTool Config", false, 57)]
+    public static void ReleaseBuildAndRunFromConfigAndroid()
+    {
+        bool switchedToXr = false;   // VR/MR構成へ切り替えたか（切り替えた時だけ後始末でNormalへ戻す）
+        try
+        {
+            // XRモード選択（VR / MR / キャンセル）。DisplayDialogComplex: 戻り値 0=ok(VR) / 1=cancel / 2=alt(MR)
+            int choice = EditorUtility.DisplayDialogComplex(
+                "Androidビルド対象",
+                "ビルドするXRモードを選択してください。",
+                "VR",          // 0
+                "キャンセル",  // 1
+                "MR");         // 2
+            if (choice == 1)
+            {
+                Debug.Log("Androidビルドをキャンセルしました。");
+                return;
+            }
+            bool isMR = (choice == 2);
+
+            if (EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo())
+            {
+                Debug.Log("シーンを保存しました。");
+            }
+
+            string configPath = Path.Combine("Assets/StreamingAssets/Datas", "BuildConfig.json");
+            if (!File.Exists(configPath))
+            {
+                Debug.LogError("設定ファイルが見つかりません: " + configPath);
+                return;
+            }
+
+            string json = File.ReadAllText(configPath, Encoding.UTF8);
+            Parameters.BuildConfig build = JsonSerializer.Deserialize<Parameters.BuildConfig>(json);
+            // 選択したXRモードを強制（Android判定は isVR||isMR。WebGL版が isVR=false を強制するのと対）。
+            build.isVR = !isMR;
+            build.isMR = isMR;
+
+            build.isRelease = true;
+            // シーンをXR構成へ切り替え（VR/MRカメラ生成＋XR自動起動）。手動の「Switch to VR/MR Config」を内包しワンクリック化。
+            SwitchBuild(build);
+            switchedToXr = true;
+            var folderPath = BuildAndRunProcess(build, true, true, false);   // isProd = true, isWeb = false → Android(.apk)
+            if (folderPath != "")
+            {
+                // Androidは出力が .apk 単ファイルで folderPath ディレクトリが無い場合があるため、無ければ親を開く
+                var openPath = Directory.Exists(folderPath) ? folderPath : Path.GetDirectoryName(folderPath);
+                System.Diagnostics.Process.Start("explorer.exe", openPath);
+                EditorUtility.DisplayDialog("情報", $"Android({(isMR ? "MR" : "VR")})ビルドが完了しました。", "OK");
+            }
+        }
+        catch (Exception e)
+        {
+            // Android(IL2CPP/XR)は詰まりやすいので失敗内容をログに出す
+            Debug.LogError($"Androidビルド失敗: {e}");
+        }
+        finally
+        {
+            // ビルド後は作業シーンをNormal構成へ自動で戻す（成功/失敗どちらでも。キャンセル時=未切替なら戻さない）。
+            // ※シーン構成のみ戻す。ビルドターゲット(Android)は据え置き＝Windowsビルド時に各コマンドが切替える。
+            if (switchedToXr)
+            {
+                SwitchBuild(new Parameters.BuildConfig { });   // = Switch to Normal Config
+                Debug.Log("[Build] Androidビルド後、シーンをNormal Configへ戻しました。");
+            }
+        }
+    }
+
     // Editor で WebGL版機能（JOG/ユニット選択/カメラボタン等）をテスト表示するトグル（チェック付き）。
     // UnitOperationView.Bootstrap が EditorPrefs "KMX_EditorWebGLMode" を参照して Editor 実行時に有効化する。
     private const string EditorWebGLModeKey = "KMX_EditorWebGLMode";
@@ -342,9 +411,11 @@ public class BuildAndRun
 
         if (isWeb)
         {
-            // WebGL: ローカル/ヘッダ未設定の環境でも読み込めるよう Gzip + 解凍フォールバック
-            PlayerSettings.WebGL.compressionFormat = WebGLCompressionFormat.Gzip;
-            PlayerSettings.WebGL.decompressionFallback = true;
+            // WebGL: HMX埋め込み(file:///ヘッダ無し配信)では Gzip+fallback だと JS解凍が単一スレッドで激遅
+            // になるため、無圧縮にして解凍処理自体を無くす（ローカル/埋め込み配信なら転送サイズ増は許容）。
+            // ※HTTPサーバが Content-Encoding を付けられる環境に戻すなら Gzip/Brotli + fallback を再検討。
+            PlayerSettings.WebGL.compressionFormat = WebGLCompressionFormat.Disabled;
+            PlayerSettings.WebGL.decompressionFallback = false;
             // ビルド時間短縮：IL2CPP コード生成を「Faster (smaller) builds」に
             PlayerSettings.SetIl2CppCodeGeneration(NamedBuildTarget.WebGL, Il2CppCodeGeneration.OptimizeSize);
             // ローディング画面を KMX 専用テンプレート(Assets/WebGLTemplates/KMX)に

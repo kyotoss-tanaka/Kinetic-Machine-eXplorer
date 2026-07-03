@@ -717,6 +717,13 @@ public class UnitOperationView : MonoBehaviour
     /// <summary>カメラ操作ボタン（常時）。押下立ち上がりでアクション発火、押下中は朱表示。</summary>
     private void ProcessCamButtons()
     {
+        // ユニット選択パネル表示中は、その背後にあるカメラ系ボタン（視点リセット/フォーカス/選択解除）の
+        // タップ処理をスキップ＝反応させない（パネルを貫通して押される誤動作を防止）。
+        // パネル背景(0.97α)が視覚的に覆うので非表示にはしない（閉じれば即復帰）。
+        if (unitPanelOpen)
+        {
+            return;
+        }
         for (int i = 0; i < camButtons.Count; i++)
         {
             TapButton(camButtons[i], CamButtonRect(i, camButtons.Count));   // タップ(離した瞬間)で発火

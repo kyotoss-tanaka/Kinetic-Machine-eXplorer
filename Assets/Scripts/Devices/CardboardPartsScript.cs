@@ -94,8 +94,13 @@ public class CardboardPartsScript: KssBaseScript
             {
                 Destroy(boxCollider);
             }
-            meshCollider = mr.gameObject.AddComponent<MeshCollider>();
-            meshCollider.convex = true;
+            // 線/点トポロジのメッシュは MeshCollider(convex) を焼けない（PhysXがエラー多発・abort誘因）→スキップ
+            var cbMesh = mr.GetComponent<MeshFilter>();
+            if (cbMesh != null && MeshColliderUtil.IsCookable(cbMesh.sharedMesh))
+            {
+                meshCollider = mr.gameObject.AddComponent<MeshCollider>();
+                meshCollider.convex = true;
+            }
         }
     }
 

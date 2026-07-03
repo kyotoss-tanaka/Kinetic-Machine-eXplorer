@@ -129,6 +129,7 @@
     // 進捗バーは「エンジン/データDL(0..SPLIT%) → パラメータ読込(SPLIT..100%)」の通し表示（リセットしない）。
     var SPLIT = 55;
     var finished = false;
+    var reloadMode = false;   // F5等の再読込時 true（DLフェーズ無し＝バー全域0..100をパラメータ読込に使う）
 
     function setBar(v, label) {
       v = Math.max(0, Math.min(100, v));
@@ -150,9 +151,17 @@
     window.KmxLoading = {
       progress: function (p, label) {   // p: 0..1（パラメータ読込）
         if (finished) { return; }
-        setBar(SPLIT + p * (100 - SPLIT), label);
+        // 初回: DL(0..SPLIT)後にparam(SPLIT..100)。F5再読込: DL無しなのでparam単独で 0..100。
+        setBar(reloadMode ? (p * 100) : (SPLIT + p * (100 - SPLIT)), label);
       },
-      done: function () { hideLoading(); }
+      done: function () { hideLoading(); },
+      show: function () {                // F5等の再読込でスプラッシュを再表示
+        finished = false;
+        reloadMode = true;
+        loading.style.display = "";      // hideLoading の display:none を解除
+        loading.classList.remove("exit"); // カーテンを閉じ状態へ戻す
+        setBar(0);
+      }
     };
 
     var buildUrl = "Build";

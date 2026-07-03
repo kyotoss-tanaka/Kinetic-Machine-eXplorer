@@ -451,6 +451,16 @@ public class PrefabImporter
     [MenuItem("Kyotoss/Create Prefab Files(VR)", false, 2)]
     public static void ImportFolderVR()
     {
+        // VR用はテッセレーション品質を選択して面数(頂点)を調整（Quest向け軽量化）。低いほど三角形が減る。
+        // Maximum(忠実表示)が要るなら通常「Create Prefab Files」(PCVR/デスクトップ用)を使用。
+        int q = EditorUtility.DisplayDialogComplex(
+            "VRプレハブ メッシュ品質",
+            "テッセレーション品質を選択してください（低いほど三角形が減りQuestで軽くなります）。",
+            "Medium（中・推奨）",   // 0=ok
+            "Low（低・最軽量）",     // 1=cancel
+            "High（高・面数多）");   // 2=alt
+        Quality quality = (q == 2) ? Quality.High : (q == 1) ? Quality.Low : Quality.Medium;
+
         isProcessing = true;
         // ダイアログを開いて、OK時にコールバックで処理を行う
         InputDialogWindow.Show("Prefab Creator", "インポート元フォルダ(ファイル)を入力してください：", @"H:\data", (string input) =>
@@ -468,7 +478,7 @@ public class PrefabImporter
             {
                 m_Settings = ScriptableObject.CreateInstance<KssImporterScriptableObject>();
             }
-            m_Settings.MeshQuality = Quality.Maximum;
+            m_Settings.MeshQuality = quality;
             m_Settings.ImportPatchBoundaries = false;
             m_Settings.ImportLines = false;
             isVR = true;
@@ -1010,6 +1020,9 @@ public class PrefabImporter
                 isProcessing = false;
                 return;
             }
+            // 以降は例外が出ても必ず isProcessing を戻す（メニューが固着して消えるのを防ぐ）
+            try
+            {
             var saveFiles = new List<string>();
             if (File.Exists(folder))
             {
@@ -1074,7 +1087,15 @@ public class PrefabImporter
                 // タイトル、メッセージ、ボタン名
                 EditorUtility.DisplayDialog("情報", "Prefab作成処理に失敗しました。", "OK");
             }
-            isProcessing = false;
+            }
+            catch (System.Exception ex)
+            {
+                Debug.LogError($"Prefab作成中に例外が発生しました: {ex}");
+            }
+            finally
+            {
+                isProcessing = false;   // 例外でも必ずメニューを再有効化（固着防止）
+            }
         }
 
         /// <summary>

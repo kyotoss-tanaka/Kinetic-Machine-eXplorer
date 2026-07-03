@@ -336,6 +336,9 @@ public static class GlobalScript
     /// </summary>
     public static HmxLinkSetting hmxLink = new HmxLinkSetting();
 
+    /// <summary>WebGL 専用設定（WebGlSetting.json）。無ければ既定値。</summary>
+    public static WebGlSetting webGlSetting = new WebGlSetting();
+
     /// <summary>
     /// 手動操作(JOG)定義（ManualOpInfo.json）。mechId+name で引く。
     /// </summary>

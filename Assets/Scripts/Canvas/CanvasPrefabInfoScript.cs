@@ -66,8 +66,8 @@ public class CanvasPrefabInfoScript : KssBaseScript
     private void Initialize()
     {
         // 設定
-        globalSetting = GameObject.FindObjectsByType<GameObject>(FindObjectsSortMode.None).Where(d => d.name == "GlobalSetting").ToList()[0];
-        allPrefab = GameObject.FindObjectsByType<GameObject>(FindObjectsSortMode.None).Where(d => d.name == "PrefabObjects").ToList()[0];
+        globalSetting = GameObject.FindObjectsByType<GameObject>(FindObjectsInactive.Include, FindObjectsSortMode.None).Where(d => d.name == "GlobalSetting").ToList()[0];
+        allPrefab = GameObject.FindObjectsByType<GameObject>(FindObjectsInactive.Include, FindObjectsSortMode.None).Where(d => d.name == "PrefabObjects").ToList()[0];
         btnPrefab = GetComponentsInChildren<Button>(true).ToList().Find(d => d.name == "BtnPrefab");
 
         // イベント削除

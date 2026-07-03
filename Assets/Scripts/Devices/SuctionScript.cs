@@ -216,6 +216,11 @@ public class SuctionScript : UseTagBaseScript
                 {
                     if (mesh.GetComponentInChildren<Collider>() == null)
                     {
+                        // 線/点トポロジのメッシュは MeshCollider(convex) を焼けない（PhysXがエラー多発・abort誘因）→スキップ
+                        if (!MeshColliderUtil.IsCookable(mesh.sharedMesh))
+                        {
+                            continue;
+                        }
                         var col = mesh.AddComponent<MeshCollider>();
                         col.convex = true;
                         col.isTrigger = false;

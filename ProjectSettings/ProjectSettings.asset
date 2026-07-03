@@ -13,7 +13,7 @@ PlayerSettings:
   useOnDemandResources: 0
   accelerometerFrequency: 60
   companyName: Kyoto Seisakusho Co., Ltd.
-  productName: "KMX R0230_\u65B0\u578BKTB-100(\u9006\u52DD\u624B)"
+  productName: "KMX R0230_\u65B0\u578BKTB-100(\u9006\u52DD\u624B)(VR)"
   defaultCursor: {fileID: 0}
   cursorHotspot: {x: 0, y: 0}
   m_SplashScreenBackgroundColor: {r: 0.13725491, g: 0.12156863, b: 0.1254902, a: 1}
@@ -42,7 +42,7 @@ PlayerSettings:
   m_SplashScreenLogos:
   - logo: {fileID: 21300000, guid: da3c2decdf0b120408fb24e00c1bdfd4, type: 3}
     duration: 2
-  m_VirtualRealitySplashScreen: {fileID: 2800000, guid: da3c2decdf0b120408fb24e00c1bdfd4, type: 3}
+  m_VirtualRealitySplashScreen: {fileID: 2800000, guid: c7a1b2d3e4f5061728394a5b6c7d8e9f, type: 3}
   m_HolographicTrackingLossScreen: {fileID: 0}
   defaultScreenWidth: 1920
   defaultScreenHeight: 1080
@@ -171,7 +171,7 @@ PlayerSettings:
   androidMaxAspectRatio: 2.4
   androidMinAspectRatio: 1
   applicationIdentifier:
-    Android: com.kyotoss.kmx_352_mr
+    Android: com.kyotoss.kmx_R0230_vr
     Standalone: com.kyotoss.kmx-R0230
     WebGL: com.kyotoss.kmx-R0230
   buildNumber:
@@ -575,7 +575,7 @@ PlayerSettings:
   - m_BuildTarget: LuminSupport
     m_GraphicsJobs: 0
   - m_BuildTarget: AndroidPlayer
-    m_GraphicsJobs: 0
+    m_GraphicsJobs: 1
   - m_BuildTarget: WebGLSupport
     m_GraphicsJobs: 0
   m_BuildTargetGraphicsJobMode:
@@ -584,6 +584,8 @@ PlayerSettings:
   - m_BuildTarget: XboxOnePlayer
     m_GraphicsJobMode: 0
   - m_BuildTarget: WindowsStandaloneSupport
+    m_GraphicsJobMode: 1
+  - m_BuildTarget: AndroidPlayer
     m_GraphicsJobMode: 1
   m_BuildTargetGraphicsAPIs:
   - m_BuildTarget: AndroidPlayer
@@ -899,11 +901,11 @@ PlayerSettings:
   webGLTemplate: PROJECT:KMX
   webGLAnalyzeBuildSize: 0
   webGLUseEmbeddedResources: 0
-  webGLCompressionFormat: 1
+  webGLCompressionFormat: 2
   webGLWasmArithmeticExceptions: 0
   webGLLinkerTarget: 1
   webGLThreadsSupport: 0
-  webGLDecompressionFallback: 1
+  webGLDecompressionFallback: 0
   webGLInitialMemorySize: 32
   webGLMaximumMemorySize: 2048
   webGLMemoryGrowthMode: 2

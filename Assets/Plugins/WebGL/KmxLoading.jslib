@@ -10,5 +10,10 @@ mergeInto(LibraryManager.library, {
     if (typeof window !== "undefined" && window.KmxLoading && window.KmxLoading.done) {
       window.KmxLoading.done();
     }
+  },
+  KmxLoadingShow: function () {
+    if (typeof window !== "undefined" && window.KmxLoading && window.KmxLoading.show) {
+      window.KmxLoading.show();
+    }
   }
 });

@@ -322,7 +322,7 @@ public static class SysRecReader
                             {
                                 offsetDatas.Add(data.DataOffset, allOffset[data.DataOffset]);
                                 // DiffCompareUnit単位のデータもセット
-                                var no = data.IsBit ? (int)(data.BitDevNo / (16 * collection.DiffCompareUnit)) * (16 * collection.DiffCompareUnit) : (int)(data.No / (collection.DiffCompareUnit / 2)) * (collection.DiffCompareUnit / 2);
+                                var no = data.IsBit ? (int)(data.BitDevNo / (16 * collection.DiffCompareUnit / 2)) * (16 * collection.DiffCompareUnit / 2) : (int)(data.No / (collection.DiffCompareUnit / 2)) * (collection.DiffCompareUnit / 2);
                                 var data2 = deviceDates.Where(d => (data.Name == d.Value.Name)  && (data.IsBit == d.Value.IsBit) && (data.IsBit ? 
                                     no == d.Value.BitDevNo : 
                                     no == d.Value.No)).ToList();

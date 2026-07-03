@@ -48,6 +48,12 @@ public class MainProcess : KssBaseScript
             Application.targetFrameRate = 120;
             // VR時
             // camera.gameObject.SetActive(false);
+#if UNITY_ANDROID && !UNITY_EDITOR
+            // Fixed Foveated Rendering: 周辺視野の塗り(フラグメント)を間引いてGPU負荷を下げる（Quest実機のみ）。
+            // 動的FFR＝GPU負荷に応じて Off..HighTop を自動調整。重いプレハブ表示時の塗り律速を軽減する狙い。
+            OVRManager.fixedFoveatedRenderingLevel = OVRManager.FixedFoveatedRenderingLevel.HighTop;
+            OVRManager.useDynamicFoveatedRendering = true;
+#endif
         }
         else
         {

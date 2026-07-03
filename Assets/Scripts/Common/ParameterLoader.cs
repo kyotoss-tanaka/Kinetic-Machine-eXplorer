@@ -200,6 +200,17 @@ namespace Parameters
             CommonFunction.DebugLog($"***** Load Start *****", true);
             SetProgress(0, devMax, 0);
             SetProgressLabel("Loading Prefab Files");
+            // ロード中はフレームレートを下げる（WebGL/Windows 両方・F5も同様）：重いシーンの毎フレーム描画が
+            // 単一スレッドのロード処理とCPUを取り合うため、描画を抑えるとロードが大幅に速くなる。完了後に戻す。
+            {
+                int loadFps = (GlobalScript.webGlSetting != null) ? GlobalScript.webGlSetting.loadFrameRate : 1;
+                if (loadFps > 0)
+                {
+                    QualitySettings.vSyncCount = 0;   // vSync有効だと targetFrameRate が無視される
+                    Application.targetFrameRate = loadFps;
+                }
+                Debug.Log($"[FrameRate] ロード中 targetFrameRate={Application.targetFrameRate} (loadFrameRate設定={loadFps})");
+            }
 
             // データ削除
             yield return null; // 1フレーム待
@@ -302,6 +313,11 @@ namespace Parameters
 
                     // 親モデルに動作スクリプトを付与
                     CommonFunction.DebugLog($"***** Load Units *****", true);
+                    // Unit/Organize ループは実処理が軽く、フレーム待ち(yield)が主体（各～8回）。
+                    // 極低fps(loadFrameRate=1)のままだと 1yield≒1秒 になり極端に遅くなるため、この区間だけ
+                    // 描画の自然速度(上限30fps)に戻し yield を安価にする。重いInstantiateは既に完了しており低fpsの恩恵はない。
+                    Application.targetFrameRate = 30;
+                    Debug.Log($"[FrameRate] Unit整理中は yield多のため targetFrameRate=30 に一時変更");
                     int ui = -1;
                     foreach (var unitSetting in unitSettings)
                     {
@@ -618,6 +634,12 @@ namespace Parameters
                             yield return null; // 1フレーム待
                         }
                     }
+                    // 以降は重い同期処理（再親子付け/多数Destroy/コライダー生成）に戻るため、再び低fpsへ復帰。
+                    {
+                        int loadFps = (GlobalScript.webGlSetting != null) ? GlobalScript.webGlSetting.loadFrameRate : 1;
+                        if (loadFps > 0) { Application.targetFrameRate = loadFps; }
+                        Debug.Log($"[FrameRate] Unit整理完了、低fpsへ復帰 targetFrameRate={Application.targetFrameRate}");
+                    }
                     foreach (var m in moveObjs)
                     {
                         var mechId = m.name.Split('_')[1]!;
@@ -764,6 +786,25 @@ namespace Parameters
 
             GlobalScript.isLoading = false;
             GlobalScript.isLoaded = true;
+            // ロード完了後、実行時フレームレートに戻す。WebGLモード(実機 or EditorのWebGLテストトグルON)は
+            // WebGlSetting.targetFrameRate(既定30)、それ以外(Windows/Android/通常Editor)は120。
+#if UNITY_WEBGL && !UNITY_EDITOR
+            bool webglMode = true;
+#elif UNITY_EDITOR
+            bool webglMode = UnityEditor.EditorPrefs.GetBool("KMX_EditorWebGLMode", false);
+#else
+            bool webglMode = false;
+#endif
+            if (webglMode)
+            {
+                int runFps = (GlobalScript.webGlSetting != null) ? GlobalScript.webGlSetting.targetFrameRate : 30;
+                Application.targetFrameRate = runFps > 0 ? runFps : 120;
+            }
+            else
+            {
+                Application.targetFrameRate = 120;
+            }
+            Debug.Log($"[FrameRate] 実行時 targetFrameRate={Application.targetFrameRate} (webglMode={webglMode})");
             CommonFunction.DebugLog($"***** Load Finished *****", true);
         }
 
@@ -1076,41 +1117,86 @@ namespace Parameters
         /// </summary>
         private async Task LoadParameterFiles()
         {
-            postgresSettings = (List<PostgresSetting>)await GlobalScript.LoadListJson<List<PostgresSetting>>("Postgres");
-            dataExSettings = (List<DataExchangeSetting>)await GlobalScript.LoadListJson<List<DataExchangeSetting>>("DataExchangeInfo");
-            unitSettings = (List<UnitSetting>)await GlobalScript.LoadListJson<List<UnitSetting>>("UnitInfo");
-            actionSettings = (List<UnitActionSetting>)await GlobalScript.LoadListJson<List<UnitActionSetting>>("ActionInfo");
-            innerSettings = (List<InnerProcessSetting>)await GlobalScript.LoadListJson<List<InnerProcessSetting>>("InnerProcess");
-            hiddenSettings = (List<HiddenUnit>)await GlobalScript.LoadListJson<List<HiddenUnit>>("HiddenUnitInfo");
-            chuckUnitSettings = (List<ChuckUnitSetting>)await GlobalScript.LoadListJson<List<ChuckUnitSetting>>("ChuckUnitInfo");
-            robotSettings = (List<RobotSetting>)await GlobalScript.LoadListJson<List<RobotSetting>>("RobotInfo");
-            pmSettings = (List<PlanarMotorSetting>)await GlobalScript.LoadListJson<List<PlanarMotorSetting>>("PlanarMotorInfo");
-            cvSettings = (List<ConveyerSetting>)await GlobalScript.LoadListJson<List<ConveyerSetting>>("ConveyerInfo");
-            wkSettings = (List<WorkCreateSetting>)await GlobalScript.LoadListJson<List<WorkCreateSetting>>("WorkCreateInfo");
-            wkDeleteSettings = (List<WorkDeleteSetting>)await GlobalScript.LoadListJson<List<WorkDeleteSetting>>("WorkDeleteInfo");
-            sensorSettings = (List<SensorSetting>)await GlobalScript.LoadListJson<List<SensorSetting>>("SensorInfo");
-            suctionSettings = (List<SuctionSetting>)await GlobalScript.LoadListJson<List<SuctionSetting>>("SuctionInfo");
-            shapeSettings = (List<ShapeSetting>)await GlobalScript.LoadListJson<List<ShapeSetting>>("ShapeInfo");
-            exMechSettings = (List<ExMechSetting>)await GlobalScript.LoadListJson<List<ExMechSetting>>("ExMechInfo");
-            backetSettings = (List<BacketSetting>)await GlobalScript.LoadListJson<List<BacketSetting>>("BacketInfo");
-            linearSettings = (List<LinearSetting>)await GlobalScript.LoadListJson<List<LinearSetting>>("LinearInfo");
-            switchSettings = (List<SwitchSetting>)await GlobalScript.LoadListJson<List<SwitchSetting>>("SwitchInfo");
-            towerSettings = (List<SignalTowerSetting>)await GlobalScript.LoadListJson<List<SignalTowerSetting>>("SignalTowerInfo");
-            ledSettings = (List<LedSetting>)await GlobalScript.LoadListJson<List<LedSetting>>("LedInfo");
-            prefabSettings = (List<PrefabSetting>)await GlobalScript.LoadListJson<List<PrefabSetting>>("PrefabInfo");
-            cardboardSettings = (List<CardboardSetting>)await GlobalScript.LoadListJson<List<CardboardSetting>>("CardboardInfo");
-            changeOverSettings = (List<ChangeOverSetting>)await GlobalScript.LoadListJson<List<ChangeOverSetting>>("ChangeOverInfo");
-            debugSettings = (List<DebugSetting>)await GlobalScript.LoadListJson<List<DebugSetting>>("DebugInfo");
-            GlobalScript.buildConfig = (BuildConfig)await GlobalScript.LoadListJson<BuildConfig>("BuildConfig");
-            actionTableDatas = (List<ActionTableData>)await GlobalScript.LoadListJson<List<ActionTableData>>("ActionTableInfo");
-            GlobalScript.useDeviceDatas = (List<UseDeviceData>)await GlobalScript.LoadListJson<List<UseDeviceData>>("UseDeviceList");
+            // 全JSONを並列ロード（WebGLは各 await が HTTP往復＝逐次だと初回が遅い→同時発行でブラウザが並行fetch）。
+            // ※非WebGLは同期読込なので実質逐次（害なし）。ファイル間に依存は無いので並列で安全。
+            var tPostgres = GlobalScript.LoadListJson<List<PostgresSetting>>("Postgres");
+            var tDataEx = GlobalScript.LoadListJson<List<DataExchangeSetting>>("DataExchangeInfo");
+            var tUnit = GlobalScript.LoadListJson<List<UnitSetting>>("UnitInfo");
+            var tAction = GlobalScript.LoadListJson<List<UnitActionSetting>>("ActionInfo");
+            var tInner = GlobalScript.LoadListJson<List<InnerProcessSetting>>("InnerProcess");
+            var tHidden = GlobalScript.LoadListJson<List<HiddenUnit>>("HiddenUnitInfo");
+            var tChuck = GlobalScript.LoadListJson<List<ChuckUnitSetting>>("ChuckUnitInfo");
+            var tRobot = GlobalScript.LoadListJson<List<RobotSetting>>("RobotInfo");
+            var tPm = GlobalScript.LoadListJson<List<PlanarMotorSetting>>("PlanarMotorInfo");
+            var tCv = GlobalScript.LoadListJson<List<ConveyerSetting>>("ConveyerInfo");
+            var tWk = GlobalScript.LoadListJson<List<WorkCreateSetting>>("WorkCreateInfo");
+            var tWkDel = GlobalScript.LoadListJson<List<WorkDeleteSetting>>("WorkDeleteInfo");
+            var tSensor = GlobalScript.LoadListJson<List<SensorSetting>>("SensorInfo");
+            var tSuction = GlobalScript.LoadListJson<List<SuctionSetting>>("SuctionInfo");
+            var tShape = GlobalScript.LoadListJson<List<ShapeSetting>>("ShapeInfo");
+            var tExMech = GlobalScript.LoadListJson<List<ExMechSetting>>("ExMechInfo");
+            var tBacket = GlobalScript.LoadListJson<List<BacketSetting>>("BacketInfo");
+            var tLinear = GlobalScript.LoadListJson<List<LinearSetting>>("LinearInfo");
+            var tSwitch = GlobalScript.LoadListJson<List<SwitchSetting>>("SwitchInfo");
+            var tTower = GlobalScript.LoadListJson<List<SignalTowerSetting>>("SignalTowerInfo");
+            var tLed = GlobalScript.LoadListJson<List<LedSetting>>("LedInfo");
+            var tPrefab = GlobalScript.LoadListJson<List<PrefabSetting>>("PrefabInfo");
+            var tCardboard = GlobalScript.LoadListJson<List<CardboardSetting>>("CardboardInfo");
+            var tChangeOver = GlobalScript.LoadListJson<List<ChangeOverSetting>>("ChangeOverInfo");
+            var tDebug = GlobalScript.LoadListJson<List<DebugSetting>>("DebugInfo");
+            var tBuildConfig = GlobalScript.LoadListJson<BuildConfig>("BuildConfig");
+            var tActionTable = GlobalScript.LoadListJson<List<ActionTableData>>("ActionTableInfo");
+            var tUseDevice = GlobalScript.LoadListJson<List<UseDeviceData>>("UseDeviceList");
+            var tHmx = GlobalScript.LoadListJson<HmxLinkSetting>("HmxLink");
+            var tMo = GlobalScript.LoadListJson<List<ManualOpData>>("ManualOpInfo");
+            var tTimeChart = GlobalScript.LoadListJson<List<TimeChartData>>("TimeChartDataList");
+            var tWebGl = GlobalScript.LoadListJson<WebGlSetting>("WebGlSetting");
+
+            postgresSettings = (List<PostgresSetting>)await tPostgres;
+            dataExSettings = (List<DataExchangeSetting>)await tDataEx;
+            unitSettings = (List<UnitSetting>)await tUnit;
+            actionSettings = (List<UnitActionSetting>)await tAction;
+            innerSettings = (List<InnerProcessSetting>)await tInner;
+            hiddenSettings = (List<HiddenUnit>)await tHidden;
+            chuckUnitSettings = (List<ChuckUnitSetting>)await tChuck;
+            robotSettings = (List<RobotSetting>)await tRobot;
+            pmSettings = (List<PlanarMotorSetting>)await tPm;
+            cvSettings = (List<ConveyerSetting>)await tCv;
+            wkSettings = (List<WorkCreateSetting>)await tWk;
+            wkDeleteSettings = (List<WorkDeleteSetting>)await tWkDel;
+            sensorSettings = (List<SensorSetting>)await tSensor;
+            suctionSettings = (List<SuctionSetting>)await tSuction;
+            shapeSettings = (List<ShapeSetting>)await tShape;
+            exMechSettings = (List<ExMechSetting>)await tExMech;
+            backetSettings = (List<BacketSetting>)await tBacket;
+            linearSettings = (List<LinearSetting>)await tLinear;
+            switchSettings = (List<SwitchSetting>)await tSwitch;
+            towerSettings = (List<SignalTowerSetting>)await tTower;
+            ledSettings = (List<LedSetting>)await tLed;
+            prefabSettings = (List<PrefabSetting>)await tPrefab;
+            cardboardSettings = (List<CardboardSetting>)await tCardboard;
+            changeOverSettings = (List<ChangeOverSetting>)await tChangeOver;
+            debugSettings = (List<DebugSetting>)await tDebug;
+            GlobalScript.buildConfig = (BuildConfig)await tBuildConfig;
+            actionTableDatas = (List<ActionTableData>)await tActionTable;
+            GlobalScript.useDeviceDatas = (List<UseDeviceData>)await tUseDevice;
             try
             {
                 // hmx-link（デジタルツイン）設定。無ければ既定(無効)のまま
-                var hmx = await GlobalScript.LoadListJson<HmxLinkSetting>("HmxLink");
+                var hmx = await tHmx;
                 if (hmx != null)
                 {
                     GlobalScript.hmxLink = (HmxLinkSetting)hmx;
+                }
+            }
+            catch { }
+            try
+            {
+                // WebGL 専用設定（フレームレート等）。無ければ既定値のまま。
+                var wg = await tWebGl;
+                if (wg != null)
+                {
+                    GlobalScript.webGlSetting = (WebGlSetting)wg;
                 }
             }
             catch { }
@@ -1129,14 +1215,14 @@ namespace Parameters
             try
             {
                 // 手動操作(JOG)定義。無ければ空のまま（手動操作なし）
-                var mo = await GlobalScript.LoadListJson<List<ManualOpData>>("ManualOpInfo");
+                var mo = await tMo;
                 if (mo != null)
                 {
                     GlobalScript.manualOps = (List<ManualOpData>)mo;
                 }
             }
             catch { }
-            GlobalScript.timeChartDatas = (List<TimeChartData>)await GlobalScript.LoadListJson<List<TimeChartData>>("TimeChartDataList");
+            GlobalScript.timeChartDatas = (List<TimeChartData>)await tTimeChart;
         }
 
         /// <summary>

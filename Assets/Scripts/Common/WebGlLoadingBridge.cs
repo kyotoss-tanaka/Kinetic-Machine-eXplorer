@@ -16,6 +16,7 @@ public class WebGlLoadingBridge : MonoBehaviour
 #if UNITY_WEBGL && !UNITY_EDITOR
     [DllImport("__Internal")] private static extern void KmxLoadingProgress(float p, string label);
     [DllImport("__Internal")] private static extern void KmxLoadingDone();
+    [DllImport("__Internal")] private static extern void KmxLoadingShow();
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     private static void Bootstrap()
@@ -29,6 +30,13 @@ public class WebGlLoadingBridge : MonoBehaviour
 
     private void Update()
     {
+        // 再読込(F5)検知：完了後に再び読込中(isLoaded=false)になったらスプラッシュを再表示する。
+        // done で Update を止めっぱなしにすると、F5でHTMLスプラッシュが二度と出ない不具合になる。
+        if (done && !GlobalScript.isLoaded)
+        {
+            done = false;
+            try { KmxLoadingShow(); } catch { }
+        }
         if (done)
         {
             return;
