@@ -33,8 +33,8 @@ from sensor_msgs.msg import JointState
 from shape_msgs.msg import SolidPrimitive
 from moveit_msgs.action import MoveGroup
 from moveit_msgs.msg import (MotionPlanRequest, Constraints, JointConstraint, RobotState,
-                             PlanningScene, CollisionObject)
-from moveit_msgs.srv import ApplyPlanningScene
+                             PlanningScene, PlanningSceneComponents, CollisionObject)
+from moveit_msgs.srv import ApplyPlanningScene, GetPlanningScene
 
 from kmx_msgs.msg import PlanRequest
 # Obstacles は kmx_msgs に後から追加したメッセージ。CMakeLists 登録＋ビルドが済むまでは
@@ -66,6 +66,7 @@ class KmxPlannerNode(Node):
         # 障害物 → planning scene 反映用
         self.declare_parameter('obstacles_topic', '/kmx/obstacles')
         self.declare_parameter('apply_scene_service', '/apply_planning_scene')
+        self.declare_parameter('get_scene_service', '/get_planning_scene')
         self.declare_parameter('planning_scene_topic', '/planning_scene')
         self.declare_parameter('allowed_planning_time', 5.0)
         self.declare_parameter('vel_scale', 0.1)
@@ -84,8 +85,6 @@ class KmxPlannerNode(Node):
         self.pub = self.create_publisher(JointTrajectory, traj_topic, 10)
 
         self._ac = None
-        self._pending_out_names = []
-        self._pending_moveit_names = []
         if self.use_moveit:
             self._ac = ActionClient(self, MoveGroup, self.get_parameter('move_action').value)
 
@@ -93,6 +92,8 @@ class KmxPlannerNode(Node):
         # /kmx/obstacles を購読し、CollisionObject 化して move_group の planning scene に反映する。
         # 反映後は plan_only（/kmx/plan_request）が障害物を回避した軌道を返す。
         self._obstacle_ids = set()   # 前回反映した id 集合（消し込み用）
+        self._scene_cli = None
+        self._get_scene_cli = None
         obs_topic = self.get_parameter('obstacles_topic').value
         if _OBSTACLES_MSG_AVAILABLE:
             self.obs_sub = self.create_subscription(Obstacles, obs_topic, self.on_obstacles, 10)
@@ -104,6 +105,15 @@ class KmxPlannerNode(Node):
                 PlanningScene, self.get_parameter('planning_scene_topic').value, scene_qos)
             self._scene_cli = self.create_client(
                 ApplyPlanningScene, self.get_parameter('apply_scene_service').value)
+            # D2: 起動時に既存 planning scene の collision object id を取り込む。プロセス再起動時、
+            # 前インスタンスが move_group に残した障害物を初回受信で正しく REMOVE できるようにする
+            # （_obstacle_ids が空のままだと消し込み差分が出ず、古い箱が残る）。move_group 未起動なら
+            # サービス未準備なので、タイマーで数回リトライしてから諦める（非ブロック）。
+            self._get_scene_cli = self.create_client(
+                GetPlanningScene, self.get_parameter('get_scene_service').value)
+            self._synced_existing = False
+            self._sync_tries = 0
+            self._sync_timer = self.create_timer(2.0, self._sync_existing_ids)
         else:
             self.get_logger().warn(
                 "kmx_msgs/Obstacles 未登録のため障害物連携は無効。"
@@ -198,6 +208,43 @@ class KmxPlannerNode(Node):
             self.get_logger().error(
                 f"apply_planning_scene 呼び出し失敗: {e}（_obstacle_ids は据え置き）")
 
+    # ------------------------------------------- 起動時 planning scene 同期（D2）
+    def _sync_existing_ids(self):
+        """起動時に既存 scene の collision object id を _obstacle_ids へ取り込む（1回だけ）。
+
+        move_group 未起動だとサービス未準備なので、準備できるまでタイマーで再試行し、
+        上限回数で諦める（単一 executor をブロックしないよう非ブロックで確認・async 発行）。
+        """
+        if self._synced_existing:
+            return
+        self._sync_tries += 1
+        if self._get_scene_cli is None or not self._get_scene_cli.service_is_ready():
+            if self._sync_tries >= 5:
+                self.get_logger().warn(
+                    "get_planning_scene 未準備のため起動時 scene 同期を諦めます"
+                    "（move_group 未起動？）。再起動直後は古い障害物が残る場合があります。")
+                self._sync_timer.cancel()
+                self._synced_existing = True
+            return
+        req = GetPlanningScene.Request()
+        req.components.components = PlanningSceneComponents.WORLD_OBJECT_NAMES
+        self._get_scene_cli.call_async(req).add_done_callback(self._on_scene_fetched)
+        self._synced_existing = True   # 発行は1回だけ
+        self._sync_timer.cancel()
+
+    def _on_scene_fetched(self, future):
+        try:
+            res = future.result()
+            ids = {co.id for co in res.scene.world.collision_objects}
+            # 取得までに Send Obstacles で追加された分を消さないよう、まだ空のときだけ取り込む。
+            if not self._obstacle_ids and ids:
+                self._obstacle_ids = ids
+            self.get_logger().info(
+                f"起動時 planning scene 同期: existing ids={sorted(ids)} "
+                f"→ active_ids={sorted(self._obstacle_ids)}")
+        except Exception as e:   # noqa: BLE001
+            self.get_logger().warn(f"GetPlanningScene 失敗（scene 同期スキップ）: {e}")
+
     # -------------------------------------------------- 補間モード（MoveIt不要）
     def plan_interpolate(self, names, start_deg, goal_deg):
         """関節空間の線形補間（度のまま）。smoothstep で加減速っぽく。障害物回避なし。"""
@@ -223,9 +270,13 @@ class KmxPlannerNode(Node):
         if self._ac is None:
             self.get_logger().error("ActionClient 未初期化。")
             return
-        if not self._ac.wait_for_server(timeout_sec=3.0):
+        # 単一 executor をブロックしないよう、可用性は非ブロックで確認する。
+        # wait_for_server(3s) はこのコールバック実行中に他のコールバック（障害物受信・別の
+        # plan 要求）まで最大3秒止めてしまうため使わない。move_group は endpoint と同時起動され
+        # Unity 接続時には準備できている前提。
+        if not self._ac.server_is_ready():
             self.get_logger().error(
-                f"move_group アクション '{self.get_parameter('move_action').value}' に接続できません。"
+                f"move_group アクション '{self.get_parameter('move_action').value}' が未準備です。"
                 "move_group を起動していますか？"
                 "（例: ros2 launch moveit_resources_fanuc_moveit_config demo.launch.py）")
             return
@@ -268,28 +319,32 @@ class KmxPlannerNode(Node):
         goal.request = req
         goal.planning_options.plan_only = True   # 計画のみ（実行しない。Unityが再生する）
 
-        # 出力を J1..J6 順へ戻すための対応を保持
-        self._pending_out_names = list(kmx_names[:n])
-        self._pending_moveit_names = list(mj)
+        # 出力を J1..J6 順へ戻すための対応は「この要求のコールバック」に閉じて持ち回る。
+        # インスタンス変数(self._pending_*)だと、並行要求が来たとき後発の要求で上書きされ、
+        # 先発の結果を誤ったマッピングで変換してしまう（並行安全化）。
+        out_names = list(kmx_names[:n])
+        moveit_names = list(mj)
 
         self.get_logger().info("move_group へ plan_only 要求を送信…")
-        self._ac.send_goal_async(goal).add_done_callback(self._on_goal_response)
+        self._ac.send_goal_async(goal).add_done_callback(
+            lambda fut: self._on_goal_response(fut, out_names, moveit_names))
 
-    def _on_goal_response(self, future):
+    def _on_goal_response(self, future, out_names, moveit_names):
         goal_handle = future.result()
         if not goal_handle.accepted:
             self.get_logger().error("move_group がゴールを拒否しました。")
             return
-        goal_handle.get_result_async().add_done_callback(self._on_result)
+        goal_handle.get_result_async().add_done_callback(
+            lambda fut: self._on_result(fut, out_names, moveit_names))
 
-    def _on_result(self, future):
+    def _on_result(self, future, out_names, moveit_names):
         result = future.result().result
         # moveit_msgs/MoveItErrorCodes.SUCCESS == 1
         if result.error_code.val != 1:
             self.get_logger().error(f"MoveIt 計画失敗: error_code={result.error_code.val}")
             return
         jt_rad = result.planned_trajectory.joint_trajectory   # rad, URDF順
-        traj = self._convert_result(jt_rad, self._pending_out_names, self._pending_moveit_names)
+        traj = self._convert_result(jt_rad, out_names, moveit_names)
         if traj is None:
             return   # 関節名不一致 → 発行しない（全零軌道でロボを飛ばさない）
         self.pub.publish(traj)

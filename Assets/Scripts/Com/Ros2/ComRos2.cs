@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.Concurrent;
 using System.IO;
+using System.Linq;
 using UnityEngine;
 
 /// <summary>
@@ -198,12 +199,21 @@ public class ComRos2 : MonoBehaviour, ITagCom
         transport.Publish(setting.publishTopic, names, values);
     }
 
+    /// <summary>受信キューの上限。ロード完了前は Update がドレインしないため、無制限蓄積を防ぐ。</summary>
+    private const int InboxMax = 4096;
+
     /// <summary>ROS2 → キュー（別スレッドの可能性があるためここではキューイングのみ）</summary>
     private void OnRosMessage(string[] names, double[] values)
     {
         if (destroyed || names == null || values == null)
         {
             return;   // 破棄済み（購読解除前にコールバックが来ても死んだ inbox に溜めない）
+        }
+        // ロード完了（targetsResolved）まで Update はドレインしない。その間に受信が続くと
+        // inbox が無制限に膨らむため、上限超過ぶんは古いものから捨てる（最新のコマンドを優先）。
+        while (inbox.Count >= InboxMax)
+        {
+            inbox.TryDequeue(out _);
         }
         int n = Math.Min(names.Length, values.Length);
         for (int i = 0; i < n; i++)
@@ -222,7 +232,9 @@ public class ComRos2 : MonoBehaviour, ITagCom
             && tags.TryGetValue(m.tag, out var info) && info != null)
         {
             info.wasRead = true;
-            return m.isFloat ? info.fValue : info.Value;
+            // タグ自身の isFloat を正とする（GetTagValueF と同じ判定）。
+            // WriteTag がマップ宣言型を info.isFloat に反映するので読み書きが一貫する。
+            return info.isFloat ? info.fValue : info.Value;
         }
         return 0d;
     }
@@ -251,10 +263,17 @@ public class ComRos2 : MonoBehaviour, ITagCom
             tags[m.tag] = t;
         }
         var info = tags[m.tag];
+        // ROS マップが宣言した型(isFloat)をタグに一貫適用する。
+        // 旧実装は m.isFloat=true のときだけ info.isFloat=true にする「一方向」だったため、
+        //   ・float 宣言タグ → 既存 int タグの解釈を反転（他サブシステムが誤読）
+        //   ・int 宣言タグ  → float だった info.isFloat が残り、書いた Value を読まず古い fValue を読む
+        // という非対称バグがあった。両方向で isFloat を確定し、対応するフィールドへ書く。
+        // 例: d_robo_a はローダーが型未設定(isFloat=false 既定)だが、Ros2Info.json で isFloat=true と
+        //     宣言することで float として扱われ、度の小数が保持される（GetTagValueF は info.isFloat で読む）。
+        info.isFloat = m.isFloat;
         if (m.isFloat)
         {
             info.fValue = (float)value;
-            info.isFloat = true;
         }
         else
         {
@@ -355,23 +374,26 @@ public class ComRos2 : MonoBehaviour, ITagCom
                 }
             }
 
-            // ③ まだ database が決まらなければ tagDatas を走査（mechId 指定があれば一致優先）
+            // ③ まだ database が決まらなければ tagDatas を走査（mechId 指定があれば一致優先）。
+            //    Dictionary の列挙順は不定なので、同名タグが複数 DB/機番に在っても結果が決定的に
+            //    なるよう、キーを序数ソートしてから走査する（非決定的な解決先を避ける）。
             if (string.IsNullOrEmpty(m.database))
             {
-                foreach (var kvDb in GlobalScript.tagDatas)
+                foreach (var dbKey in GlobalScript.tagDatas.Keys.OrderBy(k => k, StringComparer.Ordinal))
                 {
-                    foreach (var kvMech in kvDb.Value)
+                    var mechs = GlobalScript.tagDatas[dbKey];
+                    foreach (var mechKey in mechs.Keys.OrderBy(k => k, StringComparer.Ordinal))
                     {
-                        if (!string.IsNullOrEmpty(m.mechId) && kvMech.Key != m.mechId)
+                        if (!string.IsNullOrEmpty(m.mechId) && mechKey != m.mechId)
                         {
                             continue;
                         }
-                        if (kvMech.Value.ContainsKey(m.tag))
+                        if (mechs[mechKey].ContainsKey(m.tag))
                         {
-                            m.database = kvDb.Key;
+                            m.database = dbKey;
                             if (string.IsNullOrEmpty(m.mechId))
                             {
-                                m.mechId = kvMech.Key;
+                                m.mechId = mechKey;
                             }
                             break;
                         }

@@ -60,10 +60,26 @@ ObstaclePrimitive[] items
 - `/kmx/plan_request`(PlanRequest) → MoveGroupアクション `plan_only` は実装済み。障害物は同じ move_group の planning scene に効くので、**このノードで planning scene を更新しておけば plan 時に自動で回避**される。
 - Unity送信側: `ComRos2Obstacles`（半径内Collider収集→primitive化→送信、ContextMenu「Send Obstacles」）。
 
-## 6. レビュー修正（2026-07-04・planner_node.py 済／WSLへ要sync）
-リポジトリ正本 `kmx_ros2/kmx_planner/kmx_planner/planner_node.py` に以下を反映済み。WSL側は `sync.sh`→colcon で取り込むこと（WSLで別途編集していれば要マージ）:
+## 6. planner 実装・修正（2026-07-04・sync/build/検証まで完了）
+正本 `kmx_ros2/kmx_planner/kmx_planner/planner_node.py` に実装済み。WSL(`~/ros2_ws`)へ `sync.sh`→`colcon build --symlink-install --packages-select kmx_msgs kmx_planner` で取り込み済み・**ROS2側で動作検証済**（WSLで別途編集していれば `sync.sh` 取り込み時に要マージ）。
+
+### 6.1 実装本体（§1・§2 の要望を反映）
+- `/kmx/obstacles`(kmx_msgs/Obstacles) を購読 → 各 `item` を `moveit_msgs/CollisionObject` 化（`SolidPrimitive{type, dimensions}` + `primitive_poses=[item.pose]`, `operation=ADD`, `header.frame_id=msg.frame_id`）。
+- **`/apply_planning_scene`(ApplyPlanningScene) サービスで反映**（service優先＝確実）。未準備時は `/planning_scene`(reliable/transient_local) への publish で fallback。
+- 更新規約: 受信のたびに**全置換**。今回分は id で ADD（同一id置換）、前回あって今回無い id は REMOVE。
+- kmx_msgs 追加: `Obstacles.msg` / `ObstaclePrimitive.msg`（CMakeLists に登録＋`geometry_msgs` 依存追加、package.xml も）。`sync.sh` も両 .msg を同期対象に追加済み（Unityミラー→WSL）。
+- 新パラメータ: `obstacles_topic`(=/kmx/obstacles), `apply_scene_service`(=/apply_planning_scene), `planning_scene_topic`(=/planning_scene)。
+
+### 6.2 レビュー修正
 - `from kmx_msgs.msg import Obstacles` を **try/except で保護**（未登録でもノード全体は起動＝PlanRequest経路を巻き添えにしない）。障害物購読は登録時のみ有効化。
 - `_convert_result`: 受信軌道に無い関節名があれば **0埋めせず None を返し発行中止**（全零軌道でロボを飛ばさない）＋エラーログ。
 - 既定 `moveit_joint_names` を **`J1..J6`**（実CRX）へ。fanuc代役は `-p` で `joint_1..6` 上書き。
 - `_obstacle_ids` は **apply 成功後に確定**（service成功時のみ更新、失敗時は据え置き＝次回REMOVE差分が正しく出る）。publish fallback はベストエフォート更新。
-- 既知の残: `wait_for_server(3s)` が単一executorをブロック（move_group不在時に要求毎3s停止）／プロセス再起動時の scene 乖離（起動時 GetPlanningScene で同期が理想）。必要なら対応。
+
+### 6.3 検証結果（ROS2側・CLIで Unity の「Send Obstacles」を模擬）
+- 箱1個送信 → ノードログ `obstacles received: 1 items` → `planning scene 更新: success=True`。`get_planning_scene`(components=24) に `CollisionObject(id, SolidPrimitive type=1=BOX, dimensions)` を確認。frame は `base_link → world`(planning frame) へ MoveIt が変換して配置。
+- planning scene が計画をゲートすることを確認: ①小箱(遠方)→計画成功(74点) / ②ロボットを囲む大箱(3m³)→計画失敗(衝突, error_code≠1) / ③クリア(items空)→再成功。全置換(id消し込み: test_box→big_box→[])も動作。
+
+### 6.4 残（対応任意）
+- **Unity側**: `Robotics > Generate ROS Messages` で kmx_msgs 再生成（geometry_msgs も要）→ `ComRos2Obstacles` の `Send Obstacles` で実データ送信 → まず1個の箱で座標確認（§4）。ズレたら Unity側 `unitScale`/基部Transform か本ノードで補正。
+- 既知: `wait_for_server(3s)` が単一executorをブロック（move_group不在時に要求毎3s停止）／プロセス再起動時の scene 乖離（起動時 `GetPlanningScene` で同期が理想）。必要なら対応。

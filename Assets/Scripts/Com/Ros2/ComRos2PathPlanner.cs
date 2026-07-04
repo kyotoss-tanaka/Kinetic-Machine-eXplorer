@@ -37,6 +37,7 @@ public class ComRos2PathPlanner : MonoBehaviour
     private Ros2Trajectory traj;
     private double playT;
     private bool playing;
+    private bool warnedMappingThisTraj;   // 軌道1本につきマップ失敗警告は1回だけ（毎フレーム spam 防止）
 
     private void Start()
     {
@@ -116,14 +117,31 @@ public class ComRos2PathPlanner : MonoBehaviour
         {
             return;   // リロードで破棄済み（購読コールバックの残留対策）
         }
-        if (t == null || t.positions == null || t.positions.Length == 0 || t.timesSec == null)
+        if (t == null || t.positions == null || t.positions.Length == 0 || t.timesSec == null
+            || t.timesSec.Length != t.positions.Length)
         {
-            Debug.LogWarning("[ComRos2PathPlanner] 空/不正な軌道を受信しました。");
+            Debug.LogWarning("[ComRos2PathPlanner] 空/不正な軌道を受信しました（点数と時刻数の不一致含む）。");
             return;
+        }
+        // 軌道の関節名を検証しておく（無音で軸を取り違えないように）。名前が有る場合は
+        // 1点あたりの位置数と本数が一致しているべき。無い場合は設定 jointNames の順で index 対応する。
+        int firstLen = t.positions[0] != null ? t.positions[0].Length : 0;
+        if (t.jointNames != null && t.jointNames.Length > 0)
+        {
+            if (t.jointNames.Length != firstLen)
+            {
+                Debug.LogWarning($"[ComRos2PathPlanner] 軌道の関節名数({t.jointNames.Length})と位置数({firstLen})が不一致。"
+                    + $"名前対応でずれる可能性があります: [{string.Join(",", t.jointNames)}]");
+            }
+        }
+        else
+        {
+            Debug.Log("[ComRos2PathPlanner] 軌道に関節名が無いため、設定 jointNames の順で index 対応します。");
         }
         traj = t;
         playT = 0d;
         playing = true;
+        warnedMappingThisTraj = false;
         double dur = t.timesSec[t.timesSec.Length - 1];
         Debug.Log($"[ComRos2PathPlanner] 軌道受信: {t.positions.Length}点 / {(t.jointNames != null ? t.jointNames.Length : 0)}軸 / 所要 {dur:F2}s");
     }
@@ -169,6 +187,9 @@ public class ComRos2PathPlanner : MonoBehaviour
             double t0 = times[i];
             double t1 = times[i + 1];
             double a = (t1 > t0) ? (playT - t0) / (t1 - t0) : 0d;
+            // playT が times[0] より前（開始時刻が非0の軌道など）だと a が負になり、
+            // 始点より手前へ外挿してしまう。区間内比率として [0,1] にクランプする。
+            a = a < 0d ? 0d : (a > 1d ? 1d : a);
             double[] p0 = traj.positions[i];
             double[] p1 = traj.positions[i + 1];
             pos = new double[p0.Length];
@@ -188,12 +209,29 @@ public class ComRos2PathPlanner : MonoBehaviour
         {
             return;
         }
+        var names = traj.jointNames;
+        bool haveNames = names != null && names.Length > 0;
         for (int j = 0; j < pos.Length; j++)
         {
-            // 受信軌道の関節名を優先。無ければ設定の jointNames[j]（インデックス対応）。
-            string name = (traj.jointNames != null && j < traj.jointNames.Length) ? traj.jointNames[j] : null;
-            if (string.IsNullOrEmpty(name) || !com.ApplyValue(name, pos[j]))
+            if (haveNames)
             {
+                // 軌道に関節名が有るなら「名前で厳密に」対応させる。名前が範囲外/未マップでも
+                // 設定 jointNames[j] への index フォールバックはしない（軌道の並びが設定と違うと
+                // 別の軸へ pos[j] を誤適用＝軸取り違えになるため）。失敗は警告して読み飛ばす。
+                string name = j < names.Length ? names[j] : null;
+                if (string.IsNullOrEmpty(name) || !com.ApplyValue(name, pos[j]))
+                {
+                    if (!warnedMappingThisTraj)
+                    {
+                        Debug.LogWarning($"[ComRos2PathPlanner] 軌道の関節 '{name}' をタグへマップできません"
+                            + "（Ros2Info.json の name と不一致）。この軸は適用しません。");
+                        warnedMappingThisTraj = true;
+                    }
+                }
+            }
+            else
+            {
+                // 軌道に名前が無い場合のみ、設定 jointNames[j] へ index 対応で適用する。
                 if (j < jointNames.Length)
                 {
                     com.ApplyValue(jointNames[j], pos[j]);
