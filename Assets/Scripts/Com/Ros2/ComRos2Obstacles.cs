@@ -177,8 +177,8 @@ public class ComRos2Obstacles : MonoBehaviour
             worldRot = Quaternion.identity;   // AABB は世界軸整列
         }
 
-        // 基部相対へ（トランスポートで ROS系・メートルへ変換）
-        ob.position = baseT.InverseTransformPoint(worldCenter);
+        // 基部相対へ（トランスポートで ROS系へ軸変換）。位置も unitScale でメートル化（寸法と同じ扱い）。
+        ob.position = baseT.InverseTransformPoint(worldCenter) * unitScale;
         ob.rotation = Quaternion.Inverse(baseT.rotation) * worldRot;
         return ob;
     }

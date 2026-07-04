@@ -14,6 +14,9 @@
   <!-- MoveIt モード（use_moveit:=true）で move_group にアクションを投げるのに必要。 -->
   <exec_depend>moveit_msgs</exec_depend>
   <exec_depend>sensor_msgs</exec_depend>
+  <!-- 障害物 → planning scene（CollisionObject の SolidPrimitive / Pose）で必要。 -->
+  <exec_depend>shape_msgs</exec_depend>
+  <exec_depend>geometry_msgs</exec_depend>
 
   <test_depend>ament_copyright</test_depend>
   <test_depend>ament_flake8</test_depend>

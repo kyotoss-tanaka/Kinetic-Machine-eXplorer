@@ -20,10 +20,15 @@ mkdir -p "$WS/kmx_planner"
 rsync -a --delete --exclude '__pycache__/' --exclude '*.pyc' \
   "$REPO/kmx_planner/" "$WS/kmx_planner/"
 
-# kmx_msgs は WSL側が正本（CMakeLists等はWSLで管理）。正本リポにある PlanRequest.msg だけ反映する。
+# kmx_msgs は WSL側が正本（CMakeLists等はWSLで管理）。Unity側で定義する .msg だけ反映する。
+# （新規 .msg を足したら CMakeLists.txt / package.xml への登録は WSL側で手動。ここはコピーのみ）
 if [ -d "$WS/kmx_msgs/msg" ]; then
-  echo "[sync] PlanRequest.msg -> $WS/kmx_msgs/msg/"
-  cp "$REPO/kmx_msgs/msg/PlanRequest.msg" "$WS/kmx_msgs/msg/PlanRequest.msg"
+  for m in PlanRequest.msg ObstaclePrimitive.msg Obstacles.msg; do
+    if [ -f "$REPO/kmx_msgs/msg/$m" ]; then
+      echo "[sync] $m -> $WS/kmx_msgs/msg/"
+      cp "$REPO/kmx_msgs/msg/$m" "$WS/kmx_msgs/msg/$m"
+    fi
+  done
 fi
 
 echo "[sync] 完了。次:"

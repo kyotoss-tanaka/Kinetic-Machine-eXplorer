@@ -79,6 +79,8 @@ ros2 run kmx_planner kmx_planner --ros-args -p use_moveit:=true -p planning_grou
 - **検証済**: 直接駆動 / 補間経路 / MoveIt(実CRX-30iA config) すべて実機Unityで動作。
 - **未検証（あなたが最初に確認）**: 統合launch `kmx_bringup.launch.py` と `sync.sh`（今回追加分）。まず `use_moveit:=false` で起動確認 → 次に MoveIt。
 - 任意: FANUC URDF のゼロ点/符号が Unity(d_robo_a) と食い違えば `_convert_result` に補正。/kmx/state の `ros2 topic echo` 確認。
+- **コードレビュー修正(2026-07-04)を planner_node.py に反映済**（詳細は `OBSTACLES_ROS2_SPEC.md` §6）: Obstacles import を try/except 保護／`_convert_result` は関節名不一致で発行中止（0埋め廃止）／既定 `moveit_joint_names`=J1..J6／`_obstacle_ids` は apply 成功後に確定。WSLで別途編集していれば `sync.sh` 取り込み時に要マージ。
+- 既知の残(任意対応): `wait_for_server(3s)` が単一executorをブロック／planner再起動時の planning scene 乖離。
 
 ## 10. Unity側（参考・別VSCode担当。ここは触らない）
 - C#: `Assets/Scripts/Com/Ros2/`（ComRos2 / RosTcpConnectorTransport / ComRos2PathPlanner）。`GlobalScript`, `ParameterLoader`, `BuildAndRun` にも変更。

@@ -69,6 +69,8 @@ public class ComRos2PathPlanner : MonoBehaviour
     private void OnDestroy()
     {
         destroyed = true;
+        // /kmx/trajectory の購読を解除（常駐 ROSConnection にコールバックが残らないよう）。
+        try { transport?.Disconnect(); } catch { /* ignore */ }
     }
 
     #region 要求

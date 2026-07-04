@@ -57,6 +57,12 @@ public class ComRos2 : MonoBehaviour, ITagCom
     [Serializable]
     public class Ros2Setting
     {
+        /// <summary>
+        /// ROS2連携を有効にするか（既定 false）。ビルド(Standalone)では ParameterLoader がこの値で
+        /// アタッチ可否を最終判定する（顧客/デモ用ビルドで誤って ROS 接続しないよう既定OFF）。
+        /// Editor では Kyotoss メニューのトグル(EditorPrefs)が優先。
+        /// </summary>
+        public bool enabled = false;
         public string ip = "127.0.0.1";
         public int port = 10000;                 // ros_tcp_endpoint の待受ポート
         public string publishTopic = "/kmx/state";
@@ -84,6 +90,7 @@ public class ComRos2 : MonoBehaviour, ITagCom
     private float pubTimer;
     private float sinceStart;   // 起動からの経過（発行トピック登録がendpointに伝わるまでの猶予に使用）
     private bool started;
+    private bool destroyed;         // 破棄後に購読コールバックが残留しても処理しないためのガード
     private bool targetsResolved;   // database/mechId をユニット名等から解決済みか（ロード完了後に1回）
 
     /// <summary>ITagCom：接続先名（tagDatas のキーにも使用可）</summary>
@@ -123,6 +130,9 @@ public class ComRos2 : MonoBehaviour, ITagCom
 
     private void OnDestroy()
     {
+        destroyed = true;
+        // Disconnect で購読解除（ROSConnection は常駐シングルトンのため、解除しないと
+        // 破棄済みインスタンスのコールバックが残留し inbox に溜まり続ける＝リロード毎にリーク）。
         try { transport?.Disconnect(); } catch { /* ignore */ }
     }
 
@@ -191,9 +201,9 @@ public class ComRos2 : MonoBehaviour, ITagCom
     /// <summary>ROS2 → キュー（別スレッドの可能性があるためここではキューイングのみ）</summary>
     private void OnRosMessage(string[] names, double[] values)
     {
-        if (names == null || values == null)
+        if (destroyed || names == null || values == null)
         {
-            return;
+            return;   // 破棄済み（購読解除前にコールバックが来ても死んだ inbox に溜めない）
         }
         int n = Math.Min(names.Length, values.Length);
         for (int i = 0; i < n; i++)

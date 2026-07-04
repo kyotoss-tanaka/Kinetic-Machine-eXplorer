@@ -16,22 +16,35 @@ Unity 側（ComRos2PathPlanner）は /kmx/trajectory を時間補間しながら
 MoveIt モードの前提:
   別プロセスで move_group を起動しておくこと（例: fanuc チュートリアル config）。
     ros2 launch moveit_resources_fanuc_moveit_config demo.launch.py
-  planning_group / moveit_joint_names は使う config に合わせる（既定は fanuc: manipulator / joint_1..6）。
-  Unity 側の関節名 J1..J6 と MoveIt 側 joint_1..6 は「インデックス対応」で紐づける。
+  planning_group / moveit_joint_names は使う config に合わせる（既定は 実CRX: manipulator / J1..J6）。
+  fanucチュートリアル代役を使う時は -p moveit_joint_names:="[joint_1,...,joint_6]" で上書き。
+  Unity 側の関節名（J1..J6）と MoveIt 側の関節名は moveit_joint_names の「インデックス対応」で紐づける。
 """
 import math
 
 import rclpy
 from rclpy.node import Node
 from rclpy.action import ActionClient
+from rclpy.qos import QoSProfile, ReliabilityPolicy, DurabilityPolicy
 
 from builtin_interfaces.msg import Duration
 from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
 from sensor_msgs.msg import JointState
+from shape_msgs.msg import SolidPrimitive
 from moveit_msgs.action import MoveGroup
-from moveit_msgs.msg import MotionPlanRequest, Constraints, JointConstraint, RobotState
+from moveit_msgs.msg import (MotionPlanRequest, Constraints, JointConstraint, RobotState,
+                             PlanningScene, CollisionObject)
+from moveit_msgs.srv import ApplyPlanningScene
 
 from kmx_msgs.msg import PlanRequest
+# Obstacles は kmx_msgs に後から追加したメッセージ。CMakeLists 登録＋ビルドが済むまでは
+# import できないことがある。ここで失敗してもノード全体（PlanRequest→trajectory）は動かす。
+try:
+    from kmx_msgs.msg import Obstacles
+    _OBSTACLES_MSG_AVAILABLE = True
+except ImportError:
+    Obstacles = None
+    _OBSTACLES_MSG_AVAILABLE = False
 
 
 class KmxPlannerNode(Node):
@@ -43,11 +56,17 @@ class KmxPlannerNode(Node):
         # Unity 側の関節名（/kmx 上の名前）。start/goal・出力軌道の並び順。
         self.declare_parameter('joint_names', ['J1', 'J2', 'J3', 'J4', 'J5', 'J6'])
         # MoveIt(URDF) 側の関節名。joint_names とインデックス対応させる。
+        # 既定は実CRX-30iA(FANUC公式 fanuc_moveit_config)の J1..J6。fanucチュートリアル代役
+        # (moveit_resources_fanuc_moveit_config, joint_1..6)を使う時は -p で上書きすること。
         self.declare_parameter('moveit_joint_names',
-                               ['joint_1', 'joint_2', 'joint_3', 'joint_4', 'joint_5', 'joint_6'])
+                               ['J1', 'J2', 'J3', 'J4', 'J5', 'J6'])
         self.declare_parameter('request_topic', '/kmx/plan_request')
         self.declare_parameter('trajectory_topic', '/kmx/trajectory')
         self.declare_parameter('move_action', '/move_action')
+        # 障害物 → planning scene 反映用
+        self.declare_parameter('obstacles_topic', '/kmx/obstacles')
+        self.declare_parameter('apply_scene_service', '/apply_planning_scene')
+        self.declare_parameter('planning_scene_topic', '/planning_scene')
         self.declare_parameter('allowed_planning_time', 5.0)
         self.declare_parameter('vel_scale', 0.1)
         self.declare_parameter('acc_scale', 0.1)
@@ -70,8 +89,29 @@ class KmxPlannerNode(Node):
         if self.use_moveit:
             self._ac = ActionClient(self, MoveGroup, self.get_parameter('move_action').value)
 
+        # ---- 障害物 → planning scene ----
+        # /kmx/obstacles を購読し、CollisionObject 化して move_group の planning scene に反映する。
+        # 反映後は plan_only（/kmx/plan_request）が障害物を回避した軌道を返す。
+        self._obstacle_ids = set()   # 前回反映した id 集合（消し込み用）
+        obs_topic = self.get_parameter('obstacles_topic').value
+        if _OBSTACLES_MSG_AVAILABLE:
+            self.obs_sub = self.create_subscription(Obstacles, obs_topic, self.on_obstacles, 10)
+            # service 優先で反映（確実）。未準備時は /planning_scene への publish で fallback。
+            scene_qos = QoSProfile(depth=1,
+                                   reliability=ReliabilityPolicy.RELIABLE,
+                                   durability=DurabilityPolicy.TRANSIENT_LOCAL)
+            self._scene_pub = self.create_publisher(
+                PlanningScene, self.get_parameter('planning_scene_topic').value, scene_qos)
+            self._scene_cli = self.create_client(
+                ApplyPlanningScene, self.get_parameter('apply_scene_service').value)
+        else:
+            self.get_logger().warn(
+                "kmx_msgs/Obstacles 未登録のため障害物連携は無効。"
+                "kmx_msgs に Obstacles/ObstaclePrimitive を追加し colcon build してください。")
+
         self.get_logger().info(
-            f"kmx_planner ready: sub='{req_topic}' pub='{traj_topic}' use_moveit={self.use_moveit}")
+            f"kmx_planner ready: sub='{req_topic}' pub='{traj_topic}' "
+            f"obstacles={'on' if _OBSTACLES_MSG_AVAILABLE else 'off'} use_moveit={self.use_moveit}")
 
     # ---------------------------------------------------------------- 要求受信
     def on_request(self, msg: PlanRequest):
@@ -90,6 +130,73 @@ class KmxPlannerNode(Node):
             traj = self.plan_interpolate(names, start, goal)
             self.pub.publish(traj)
             self.get_logger().info(f"published trajectory: {len(traj.points)} points (interpolate)")
+
+    # ---------------------------------------------- 障害物受信 → planning scene
+    def on_obstacles(self, msg: Obstacles):
+        """/kmx/obstacles を CollisionObject 化し、move_group の planning scene に反映する。
+
+        更新規約（静的運用）: 受信のたびに全置換。今回分は id で ADD（同一 id は置換）、
+        前回あって今回無い id は REMOVE。frame_id は Unity が送る base_link 相対。
+        """
+        frame = msg.frame_id if msg.frame_id else 'base_link'
+        self.get_logger().info(
+            f"obstacles received: {len(msg.items)} items, frame_id='{frame}'")
+
+        scene = PlanningScene()
+        scene.is_diff = True
+
+        new_ids = set()
+        for item in msg.items:
+            new_ids.add(item.id)
+            co = CollisionObject()
+            co.header.frame_id = frame
+            co.id = item.id
+            sp = SolidPrimitive()
+            sp.type = int(item.type)            # 1=BOX,2=SPHERE,3=CYLINDER
+            sp.dimensions = [float(d) for d in item.dimensions]
+            co.primitives.append(sp)
+            co.primitive_poses.append(item.pose)
+            co.operation = CollisionObject.ADD
+            scene.world.collision_objects.append(co)
+
+        # 前回あって今回無い障害物は消す
+        for old_id in (self._obstacle_ids - new_ids):
+            co = CollisionObject()
+            co.header.frame_id = frame
+            co.id = old_id
+            co.operation = CollisionObject.REMOVE
+            scene.world.collision_objects.append(co)
+
+        # _obstacle_ids は「反映に成功したら」更新する（失敗時に据え置くことで、
+        # 次回の REMOVE 差分を最後に成功した状態基準で正しく計算できる）。
+        self._apply_scene(scene, new_ids)
+
+    def _apply_scene(self, scene: PlanningScene, new_ids):
+        """planning scene diff を反映。service 優先、未準備なら topic publish で fallback。"""
+        if self._scene_cli is not None and self._scene_cli.service_is_ready():
+            req = ApplyPlanningScene.Request()
+            req.scene = scene
+            self._scene_cli.call_async(req).add_done_callback(
+                lambda fut: self._on_scene_applied(fut, new_ids))
+        else:
+            # publish は成否不明のためベストエフォートで更新（service が使えない環境向け）。
+            self._scene_pub.publish(scene)
+            self._obstacle_ids = new_ids
+            self.get_logger().warn(
+                "apply_planning_scene 未準備 → /planning_scene へ publish で反映（fallback・成否不明）。"
+                "move_group は起動していますか？")
+
+    def _on_scene_applied(self, future, new_ids):
+        try:
+            res = future.result()
+            ok = getattr(res, 'success', True)
+            if ok:
+                self._obstacle_ids = new_ids   # 成功時のみ確定
+            self.get_logger().info(
+                f"planning scene 更新: success={ok} active_ids={sorted(self._obstacle_ids)}")
+        except Exception as e:   # noqa: BLE001
+            self.get_logger().error(
+                f"apply_planning_scene 呼び出し失敗: {e}（_obstacle_ids は据え置き）")
 
     # -------------------------------------------------- 補間モード（MoveIt不要）
     def plan_interpolate(self, names, start_deg, goal_deg):
@@ -183,20 +290,27 @@ class KmxPlannerNode(Node):
             return
         jt_rad = result.planned_trajectory.joint_trajectory   # rad, URDF順
         traj = self._convert_result(jt_rad, self._pending_out_names, self._pending_moveit_names)
+        if traj is None:
+            return   # 関節名不一致 → 発行しない（全零軌道でロボを飛ばさない）
         self.pub.publish(traj)
         self.get_logger().info(f"published trajectory: {len(traj.points)} points (moveit)")
 
-    def _convert_result(self, jt_rad: JointTrajectory, out_names, moveit_names) -> JointTrajectory:
-        """MoveIt の JointTrajectory(rad) を、度＋out_names(J1..J6)順 に変換する。"""
+    def _convert_result(self, jt_rad: JointTrajectory, out_names, moveit_names):
+        """MoveIt の JointTrajectory(rad) を、度＋out_names(J1..J6)順 に変換する。
+        moveit_names が受信軌道に無い場合は 0埋めせず None を返す（発行中止）。"""
         idx = {nm: i for i, nm in enumerate(jt_rad.joint_names)}
+        missing = [mn for mn in moveit_names if mn not in idx]
+        if missing:
+            self.get_logger().error(
+                f"軌道の関節名が一致しません: 未対応={missing} / 受信={list(jt_rad.joint_names)} / "
+                f"期待(moveit_joint_names)={list(moveit_names)}。"
+                "moveit_joint_names パラメータを config に合わせてください。発行を中止します。")
+            return None
         out = JointTrajectory()
         out.joint_names = list(out_names)
         for p in jt_rad.points:
             q = JointTrajectoryPoint()
-            q.positions = [
-                math.degrees(p.positions[idx[mn]]) if (mn in idx and idx[mn] < len(p.positions)) else 0.0
-                for mn in moveit_names
-            ]
+            q.positions = [math.degrees(p.positions[idx[mn]]) for mn in moveit_names]
             q.time_from_start = p.time_from_start
             out.points.append(q)
         return out

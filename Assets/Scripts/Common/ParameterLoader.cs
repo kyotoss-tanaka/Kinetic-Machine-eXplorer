@@ -1704,9 +1704,20 @@ namespace Parameters
             //   タグは Ros2Info.json 駆動。DB/機番はユニット名から実行時解決される（可搬）。
             bool useRos2 = false;
 #if UNITY_EDITOR
+            // Editor は開発用トグル(EditorPrefs)で判定（dev利便性）。
             useRos2 = UnityEditor.EditorPrefs.GetBool("KMX_UseRos2", false);
 #elif KMX_ROS2
-            useRos2 = true;
+            // ビルド(Standalone)は Ros2Info.json の enabled で最終ゲート。
+            // 顧客/デモ用ビルド（Ros2Info.json 無し or enabled:false）では ROS 接続を一切行わない。
+            try
+            {
+                var ros2Cfg = GlobalScript.LoadJson<ComRos2.Ros2Setting>("Ros2Info") as ComRos2.Ros2Setting;
+                useRos2 = ros2Cfg != null && ros2Cfg.enabled;
+            }
+            catch
+            {
+                useRos2 = false;   // Ros2Info.json が無ければ無効
+            }
 #endif
             if (useRos2)
             {

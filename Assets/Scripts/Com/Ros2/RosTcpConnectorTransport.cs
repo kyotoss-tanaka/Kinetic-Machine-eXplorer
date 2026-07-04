@@ -25,6 +25,9 @@ public sealed class RosTcpConnectorTransport : IRos2Transport
 {
     private ROSConnection ros;
     private bool publisherRegistered;
+    // このトランスポートが購読したトピック。Disconnect で解除する（常駐シングルトン ROSConnection に
+    // コールバックが残留し、リロード毎に多重購読＋破棄済みインスタンスへの配送が起きるのを防ぐ）。
+    private readonly List<string> subscribedTopics = new();
 
     public bool IsConnected => ros != null;
 
@@ -38,7 +41,15 @@ public sealed class RosTcpConnectorTransport : IRos2Transport
 
     public void Disconnect()
     {
-        // ROSConnection は常駐インスタンス。必要なら購読解除やスレッド停止をここで。
+        // ROSConnection は常駐シングルトン。購読を明示解除しないとコールバックが残り続ける。
+        if (ros != null)
+        {
+            foreach (var topic in subscribedTopics)
+            {
+                try { ros.Unsubscribe(topic); } catch { /* ignore */ }
+            }
+        }
+        subscribedTopics.Clear();
     }
 
     public void RegisterPublisher(string topic)
@@ -73,6 +84,7 @@ public sealed class RosTcpConnectorTransport : IRos2Transport
             ros = ROSConnection.GetOrCreateInstance();
         }
         ros.Subscribe<TagArrayMsg>(topic, m => onMessage(m.names, m.values));
+        subscribedTopics.Add(topic);
     }
 
     private bool planReqRegistered;
@@ -124,27 +136,23 @@ public sealed class RosTcpConnectorTransport : IRos2Transport
             }
             onTrajectory(traj);
         });
+        subscribedTopics.Add(topic);
     }
 
-#if KMX_ROS2_OBSTACLES
     private bool obstaclesRegistered;
-#endif
 
     public void RegisterObstaclesPublisher(string topic)
     {
-#if KMX_ROS2_OBSTACLES
         if (ros == null)
         {
             ros = ROSConnection.GetOrCreateInstance();
         }
         ros.RegisterPublisher<ObstaclesMsg>(topic);
         obstaclesRegistered = true;
-#endif
     }
 
     public void PublishObstacles(string topic, string frameId, List<Ros2Obstacle> obstacles)
     {
-#if KMX_ROS2_OBSTACLES
         if (ros == null)
         {
             ros = ROSConnection.GetOrCreateInstance();
@@ -180,10 +188,6 @@ public sealed class RosTcpConnectorTransport : IRos2Transport
             };
         }
         ros.Publish(topic, msg);
-#else
-        // kmx_msgs/Obstacles 未生成のため無効。ROS2側でメッセージ追加→Unityで再生成→
-        // Scripting Define(Standalone) に KMX_ROS2_OBSTACLES を追加すると有効化される。
-#endif
     }
 }
 #endif

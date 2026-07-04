@@ -27,7 +27,7 @@ ObstaclePrimitive[] items
 - `package.xml`: `<depend>geometry_msgs</depend>` を追加（無ければ）。
 - ビルド: `colcon build --packages-select kmx_msgs && source install/setup.bash`
 - **Unity側も** `Robotics > Generate ROS Messages` で kmx_msgs 再生成（geometry_msgs も要）。
-- **Unity有効化**: 生成後、Scripting Define(Standalone) に **`KMX_ROS2_OBSTACLES`** を追加する（`RosTcpConnectorTransport.PublishObstacles` は未生成時コンパイルを守るため同defineでガード済み。生成前は no-op）。
+- **Unity有効化**: 生成済みメッセージ(`Assets/RosMessages/Kmx/msg/ObstaclesMsg.cs` 等)をコミット済み。障害物送信は **`KMX_ROS2` のみで有効**（旧 `KMX_ROS2_OBSTACLES` の二段defineは廃止した）。
 
 ## 2. ノード実装（`kmx_planner` に追記でOK）
 - **購読**: `/kmx/obstacles` (kmx_msgs/Obstacles)
@@ -53,7 +53,17 @@ ObstaclePrimitive[] items
 - Unity側は「**ロボット基部(base_link)相対・ROS(FLU)右手Z-up・メートル**」で送る（ROSGeometry `To<FLU>()` 使用、`frame_id=base_link`）。
 - ただし **Unityモデル基部の向き/スケール ↔ URDF base_link** が食い違うと箱の位置/向きがズレる。**まず1個の箱で位置確認**し、ズレたら Unity側 `unitScale`/基部Transform、または本ノードで補正。
 - BOX の `dimensions` は Unity(x,y,z)→ROS(FLU)軸順で `[z,x,y]` に並べ替えて送っている。回転と合わせて要検証。
+- `unitScale` は寸法だけでなく**位置にも適用**するよう修正済み（≠1 の非メートルシーンで位置がズレないように）。
+- ⚠ Unity側の既定 `layerMask=~0` は床/機械フレームの MeshCollider まで拾い、巨大AABBが base_link を包含して **START_STATE_IN_COLLISION(-10)** を招き得る。まずは対象を絞る（レイヤー/明示リスト）こと。CapsuleCollider は direction=X/Z 未対応（Yのみ正）。
 
 ## 5. 参考（既存）
 - `/kmx/plan_request`(PlanRequest) → MoveGroupアクション `plan_only` は実装済み。障害物は同じ move_group の planning scene に効くので、**このノードで planning scene を更新しておけば plan 時に自動で回避**される。
 - Unity送信側: `ComRos2Obstacles`（半径内Collider収集→primitive化→送信、ContextMenu「Send Obstacles」）。
+
+## 6. レビュー修正（2026-07-04・planner_node.py 済／WSLへ要sync）
+リポジトリ正本 `kmx_ros2/kmx_planner/kmx_planner/planner_node.py` に以下を反映済み。WSL側は `sync.sh`→colcon で取り込むこと（WSLで別途編集していれば要マージ）:
+- `from kmx_msgs.msg import Obstacles` を **try/except で保護**（未登録でもノード全体は起動＝PlanRequest経路を巻き添えにしない）。障害物購読は登録時のみ有効化。
+- `_convert_result`: 受信軌道に無い関節名があれば **0埋めせず None を返し発行中止**（全零軌道でロボを飛ばさない）＋エラーログ。
+- 既定 `moveit_joint_names` を **`J1..J6`**（実CRX）へ。fanuc代役は `-p` で `joint_1..6` 上書き。
+- `_obstacle_ids` は **apply 成功後に確定**（service成功時のみ更新、失敗時は据え置き＝次回REMOVE差分が正しく出る）。publish fallback はベストエフォート更新。
+- 既知の残: `wait_for_server(3s)` が単一executorをブロック（move_group不在時に要求毎3s停止）／プロセス再起動時の scene 乖離（起動時 GetPlanningScene で同期が理想）。必要なら対応。

@@ -1,0 +1,4 @@
+# ROS2(WSL)側のファイルは常に LF で管理する。
+# （autocrlf 環境で CRLF が混ざると WSL で sh/python の shebang・`set -euo pipefail` が壊れるため）
+kmx_ros2/** text eol=lf
+*.sh text eol=lf
