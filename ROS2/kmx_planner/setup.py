@@ -1,0 +1,26 @@
+from setuptools import find_packages, setup
+
+package_name = 'kmx_planner'
+
+setup(
+    name=package_name,
+    version='0.1.0',
+    packages=find_packages(exclude=['test']),
+    data_files=[
+        ('share/ament_index/resource_index/packages',
+            ['resource/' + package_name]),
+        ('share/' + package_name, ['package.xml']),
+    ],
+    install_requires=['setuptools'],
+    zip_safe=True,
+    maintainer='Kyotoss',
+    maintainer_email='a-tanaka@kyotoss.co.jp',
+    description='KMX 経路生成ノード（Unity から始点/終点→MoveIt/補間→軌道）',
+    license='Proprietary',
+    tests_require=['pytest'],
+    entry_points={
+        'console_scripts': [
+            'kmx_planner = kmx_planner.planner_node:main',
+        ],
+    },
+)

@@ -173,6 +173,33 @@ public static class GlobalScript
     public static Dictionary<string, Dictionary<string, Dictionary<string, TagInfo>>> tagDatas = new Dictionary<string, Dictionary<string, Dictionary<string, TagInfo>>>();
 
     /// <summary>
+    /// ロード済みユニット設定（ParameterLoader が設定）。ユニット名→DB/機番 の解決に使用。
+    /// </summary>
+    public static List<UnitSetting> unitSettings = new List<UnitSetting>();
+
+    /// <summary>
+    /// ユニット名から (database, mechId) を解決する。ROS2 連携等の可搬性用。
+    /// ※ここで使う名前は「内部の完全一致」だけ（ROS メッセージには載せない）なので、日本語ユニット名でも安全。
+    /// </summary>
+    public static bool TryResolveUnitDb(string unitName, out string database, out string mechId)
+    {
+        database = "";
+        mechId = "";
+        if (string.IsNullOrEmpty(unitName) || unitSettings == null)
+        {
+            return false;
+        }
+        var u = unitSettings.Find(d => d != null && d.name == unitName);
+        if (u == null)
+        {
+            return false;
+        }
+        database = u.Database;
+        mechId = u.mechId;
+        return true;
+    }
+
+    /// <summary>
     /// Postgres
     /// </summary>
     // ↓ 各通信コンポーネントの登録先。Com 具象型ではなく ITagCom で保持し、

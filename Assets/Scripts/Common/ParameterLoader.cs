@@ -1069,6 +1069,15 @@ namespace Parameters
                 {
                     Destroy(obj);
                 }
+                // ComRos2 / 経路生成 も破棄（ComBaseScript 非継承。リロードでの重複接続・古いDB解決の残留を防止）
+                foreach (var obj in globalSetting.GetComponentsInChildren<ComRos2PathPlanner>())
+                {
+                    Destroy(obj);
+                }
+                foreach (var obj in globalSetting.GetComponentsInChildren<ComRos2>())
+                {
+                    Destroy(obj);
+                }
                 StartCoroutine(LoadActParameter());
                 GlobalScript.isLoading = false;
                 GlobalScript.isLoaded = true;
@@ -1087,6 +1096,16 @@ namespace Parameters
             }
             // ComHmi は ComBaseScript 非継承のため別途破棄（リロードでの重複/WS多重接続を防止）
             foreach (var obj in globalSetting.GetComponentsInChildren<ComHmi>())
+            {
+                Destroy(obj);
+            }
+            // ComRos2 / 経路生成 も ComBaseScript 非継承のため別途破棄（重複接続・古いDB解決の残留を防止）
+            // ※ ComRos2PathPlanner は RequireComponent(ComRos2) なので ComRos2 より先に破棄すること。
+            foreach (var obj in globalSetting.GetComponentsInChildren<ComRos2PathPlanner>())
+            {
+                Destroy(obj);
+            }
+            foreach (var obj in globalSetting.GetComponentsInChildren<ComRos2>())
             {
                 Destroy(obj);
             }
@@ -1155,6 +1174,8 @@ namespace Parameters
             postgresSettings = (List<PostgresSetting>)await tPostgres;
             dataExSettings = (List<DataExchangeSetting>)await tDataEx;
             unitSettings = (List<UnitSetting>)await tUnit;
+            // ユニット名→DB/機番 の解決用に公開（ComRos2 等の可搬な連携で使用）。Database は後段(295行付近)で充填。
+            GlobalScript.unitSettings = unitSettings;
             actionSettings = (List<UnitActionSetting>)await tAction;
             innerSettings = (List<InnerProcessSetting>)await tInner;
             hiddenSettings = (List<HiddenUnit>)await tHidden;
@@ -1670,6 +1691,28 @@ namespace Parameters
         /// </summary>
         private void SetDatabaseSetting()
         {
+            // ROS2 連携: トグル(Editor)/define(ビルド)が ON なら ComRos2 を自動アタッチ。
+            //   Standalone のみ実通信（ComRos2 が WebGL/Android では自身を無効化）。
+            //   タグは Ros2Info.json 駆動。DB/機番はユニット名から実行時解決される（可搬）。
+            bool useRos2 = false;
+#if UNITY_EDITOR
+            useRos2 = UnityEditor.EditorPrefs.GetBool("KMX_UseRos2", false);
+#elif KMX_ROS2
+            useRos2 = true;
+#endif
+            if (useRos2)
+            {
+                if (globalSetting.GetComponent<ComRos2>() == null)
+                {
+                    globalSetting.AddComponent<ComRos2>();
+                }
+                // 経路生成（始点/終点→MoveIt→軌道再生）。ComRos2 のマッピング/解決を再利用する。
+                if (globalSetting.GetComponent<ComRos2PathPlanner>() == null)
+                {
+                    globalSetting.AddComponent<ComRos2PathPlanner>();
+                }
+            }
+
             // hmx-link(デジタルツイン)モードの判定:
             //   WebGL                  → 実PLC接続(ComMcProtocol等)不可のため常に ComHmi を使う（自動 true）
             //   Windows/Android/Editor → HmxLink.json の enabled 次第（既定 false）。Editorテスト時は true にする

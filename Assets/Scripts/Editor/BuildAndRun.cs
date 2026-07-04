@@ -315,6 +315,53 @@ public class BuildAndRun
         return true;
     }
 
+    // ROS2 連携トグル（チェック付き）。
+    //   ON  : Standalone に KMX_ROS2 define を付与（実トランスポート=ROS-TCP-Connector を有効化）＋
+    //         ParameterLoader が起動時に ComRos2 を GlobalSetting へ自動アタッチ（EditorPrefs 参照）。
+    //   OFF : define を除去＋自動アタッチしない。
+    // ※タグの DB/機番は Ros2Info.json の unit 名から実行時解決されるため、機械を切替えても JSON 修正不要。
+    private const string UseRos2Key = "KMX_UseRos2";
+    private const string UseRos2Menu = "Kyotoss/ROS2連携を有効化";
+    private const string Ros2Define = "KMX_ROS2";
+
+    [MenuItem(UseRos2Menu, false, 71)]
+    public static void ToggleUseRos2()
+    {
+        bool v = !EditorPrefs.GetBool(UseRos2Key, false);
+        EditorPrefs.SetBool(UseRos2Key, v);
+        SetScriptingDefine(NamedBuildTarget.Standalone, Ros2Define, v);
+        Debug.Log($"[KMX] ROS2連携: {(v ? "ON（KMX_ROS2 define付与＋次のPlayでComRos2自動アタッチ）" : "OFF")}");
+    }
+
+    [MenuItem(UseRos2Menu, true)]
+    public static bool ToggleUseRos2Validate()
+    {
+        Menu.SetChecked(UseRos2Menu, EditorPrefs.GetBool(UseRos2Key, false));
+        return true;
+    }
+
+    /// <summary>指定ビルドターゲットの Scripting Define Symbols に define を付与/除去する。</summary>
+    private static void SetScriptingDefine(NamedBuildTarget target, string define, bool enable)
+    {
+        PlayerSettings.GetScriptingDefineSymbols(target, out string[] current);
+        var set = new List<string>(current);
+        bool changed = false;
+        if (enable && !set.Contains(define))
+        {
+            set.Add(define);
+            changed = true;
+        }
+        else if (!enable && set.Contains(define))
+        {
+            set.RemoveAll(d => d == define);
+            changed = true;
+        }
+        if (changed)
+        {
+            PlayerSettings.SetScriptingDefineSymbols(target, set.ToArray());
+        }
+    }
+
     [MenuItem("Kyotoss/Build and Run from KMXTool Config(Debug)", false, 54)]
     public static void DebugAndRunFromConfig()
     {
