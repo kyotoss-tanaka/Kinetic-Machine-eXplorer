@@ -1,11 +1,32 @@
 # KMX ⇄ ROS2 起動手順（次回用クイックスタート）
 
-WSL2（例: `kyotoss@LEP3-014`）での毎回の起動コマンド集。
+WSL2（例: `kyotoss@LEP3-014`）での起動コマンド集。
 - endpoint = `~/colcon_ws`（ROS-TCP-Endpoint, `main-ros2` ブランチ）
-- kmx_msgs / kmx_planner = `~/ros2_ws`
+- kmx_msgs / kmx_planner / fanuc_* = `~/ros2_ws`
 - Unity リポジトリ（WSLから）= `/mnt/c/Users/gi-guest/source/repos/Kinetic Machine eXplorer`
 
+## 開発環境（推奨）
+- **ROS2側は Remote-WSL の別VSCodeで** `~/ros2_ws` を開く（統合ターミナル＝WSLシェルで `colcon`/`ros2 launch` を直接実行）。Unity は Windows側VSCode。
+- ROS2コードの**正本は Unityリポの `kmx_ros2/`**（git管理）。WSLへは `bash kmx_ros2/sync.sh` で反映（rsync）→ ビルド。
+- `~/.bashrc` に下の source 2行を入れておくと、新端末で即 `ros2 launch` できる。
+
+## ★ 統合起動（1コマンド・推奨）
+source 済みなら**これだけ**（3プロセスを1端末で起動、Ctrl+Cで一括停止）:
+```bash
+ros2 launch kmx_planner kmx_bringup.launch.py                    # endpoint + move_group(CRX-30iA) + planner（MoveIt）
+ros2 launch kmx_planner kmx_bringup.launch.py use_moveit:=false  # 軽量: endpoint + planner(補間)のみ（move_group/RVizなし）
+```
+その後 Unity を Play（ROS2トグルON）→ `ComRos2PathPlanner` で `Test Plan`。
+※ MoveItモードは RViz も開くが**触らなくてOK**（可視化はUnity）。
+
+## コード更新時（正本→WSL反映→再ビルド）
+```bash
+bash "/mnt/c/Users/gi-guest/source/repos/Kinetic Machine eXplorer/kmx_ros2/sync.sh"
+cd ~/ros2_ws && colcon build --symlink-install --packages-select kmx_planner && source install/setup.bash
+```
+
 ---
+以下は**個別起動（内訳・デバッグ用）**。通常は上の統合起動でよい。
 
 ## 0. 各ターミナルで source（新しい端末を開くたび）
 ```bash
@@ -71,7 +92,7 @@ cd ~/ros2_ws && colcon build --packages-select kmx_msgs && source install/setup.
 cd ~/ros2_ws && colcon build --packages-select kmx_planner && source install/setup.bash
 
 # リポジトリの最新ノードを WSL へ再コピー（スペース含むパスは要クォート）
-cp -r "/mnt/c/Users/gi-guest/source/repos/Kinetic Machine eXplorer/ROS2/kmx_planner" ~/ros2_ws/src/
+cp -r "/mnt/c/Users/gi-guest/source/repos/Kinetic Machine eXplorer/kmx_ros2/kmx_planner" ~/ros2_ws/src/
 ```
 
 ## トピック / 型 / 単位（早見）

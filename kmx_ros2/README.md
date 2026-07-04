@@ -23,7 +23,7 @@ Unity: 軌道を時間補間しながら d_robo_a1..a6 に再生（既存 ComRos
 - endpoint 起動: 両ws source 後 `ros2 run ros_tcp_endpoint default_server_endpoint --ros-args -p ROS_IP:=0.0.0.0`
 
 ## A. kmx_msgs に PlanRequest を追加
-1. `ROS2/kmx_msgs/msg/PlanRequest.msg` を `~/ros2_ws/src/kmx_msgs/msg/PlanRequest.msg` へコピー。
+1. `kmx_ros2/kmx_msgs/msg/PlanRequest.msg` を `~/ros2_ws/src/kmx_msgs/msg/PlanRequest.msg` へコピー。
 2. `kmx_msgs/CMakeLists.txt` の `rosidl_generate_interfaces(...)` に追加:
    ```cmake
    rosidl_generate_interfaces(${PROJECT_NAME}
@@ -46,7 +46,7 @@ Unity: 軌道を時間補間しながら d_robo_a1..a6 に再生（既存 ComRos
 
 ## C. kmx_planner ノードをビルド
 ```bash
-cp -r ROS2/kmx_planner ~/ros2_ws/src/     # このフォルダをws/srcへ
+cp -r kmx_ros2/kmx_planner ~/ros2_ws/src/     # このフォルダをws/srcへ
 cd ~/ros2_ws && colcon build --packages-select kmx_planner && source install/setup.bash
 ```
 

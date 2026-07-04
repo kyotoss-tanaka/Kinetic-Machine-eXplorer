@@ -431,6 +431,19 @@ public class Ros2Trajectory
 }
 
 /// <summary>
+/// 障害物プリミティブ1個（ROS 型に依存しないプレーンな受け渡し用）。姿勢は Unity 座標・ロボット基部相対。
+/// トランスポート実装側で ROS 系(FLU)・メートルへ変換して kmx_msgs/Obstacles にする。
+/// </summary>
+public class Ros2Obstacle
+{
+    public string id;
+    public int type;              // 1=BOX, 2=SPHERE, 3=CYLINDER（shape_msgs/SolidPrimitive 準拠）
+    public float[] dimensions;    // メートル。BOX:[x,y,z](ROS軸順) / SPHERE:[r] / CYLINDER:[h,r]
+    public Vector3 position;      // Unity・ロボット基部相対
+    public Quaternion rotation;   // Unity・ロボット基部相対
+}
+
+/// <summary>
 /// ROS2 トランスポート抽象。名前配列＋値配列の「数値バス」を publish/subscribe する。
 /// 実装を差し替えることで ROS-TCP-Connector / rosbridge(WebSocket) / native DDS を選択できる。
 /// </summary>
@@ -450,6 +463,12 @@ public interface IRos2Transport
     void PublishPlanRequest(string topic, string[] names, double[] startDeg, double[] goalDeg);
     /// <summary>trajectory_msgs/JointTrajectory を購読し Ros2Trajectory(度) に変換して渡す。</summary>
     void SubscribeTrajectory(string topic, Action<Ros2Trajectory> onTrajectory);
+
+    // --- 障害物（Unity→ROS2 で planning scene へ）---
+    /// <summary>障害物 publisher を事前登録する（初回publishの "Not registered" レース回避）。</summary>
+    void RegisterObstaclesPublisher(string topic);
+    /// <summary>障害物群を kmx_msgs/Obstacles で発行する（姿勢は ROS系・メートルへ変換して送る）。</summary>
+    void PublishObstacles(string topic, string frameId, List<Ros2Obstacle> obstacles);
 }
 
 /// <summary>
@@ -468,6 +487,8 @@ public sealed class NullRos2Transport : IRos2Transport
     public void RegisterPlanRequestPublisher(string topic) { }
     public void PublishPlanRequest(string topic, string[] names, double[] startDeg, double[] goalDeg) { }
     public void SubscribeTrajectory(string topic, Action<Ros2Trajectory> onTrajectory) { }
+    public void RegisterObstaclesPublisher(string topic) { }
+    public void PublishObstacles(string topic, string frameId, List<Ros2Obstacle> obstacles) { }
 }
 
 /// <summary>使用するトランスポートを選ぶファクトリ。差替えはここ一箇所。</summary>

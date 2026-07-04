@@ -1069,8 +1069,12 @@ namespace Parameters
                 {
                     Destroy(obj);
                 }
-                // ComRos2 / 経路生成 も破棄（ComBaseScript 非継承。リロードでの重複接続・古いDB解決の残留を防止）
+                // ComRos2 / 経路生成 / 障害物 も破棄（ComBaseScript 非継承。リロードでの重複接続・古いDB解決の残留を防止）
                 foreach (var obj in globalSetting.GetComponentsInChildren<ComRos2PathPlanner>())
+                {
+                    Destroy(obj);
+                }
+                foreach (var obj in globalSetting.GetComponentsInChildren<ComRos2Obstacles>())
                 {
                     Destroy(obj);
                 }
@@ -1099,9 +1103,13 @@ namespace Parameters
             {
                 Destroy(obj);
             }
-            // ComRos2 / 経路生成 も ComBaseScript 非継承のため別途破棄（重複接続・古いDB解決の残留を防止）
+            // ComRos2 / 経路生成 / 障害物 も ComBaseScript 非継承のため別途破棄（重複接続・古いDB解決の残留を防止）
             // ※ ComRos2PathPlanner は RequireComponent(ComRos2) なので ComRos2 より先に破棄すること。
             foreach (var obj in globalSetting.GetComponentsInChildren<ComRos2PathPlanner>())
+            {
+                Destroy(obj);
+            }
+            foreach (var obj in globalSetting.GetComponentsInChildren<ComRos2Obstacles>())
             {
                 Destroy(obj);
             }
@@ -1710,6 +1718,11 @@ namespace Parameters
                 if (globalSetting.GetComponent<ComRos2PathPlanner>() == null)
                 {
                     globalSetting.AddComponent<ComRos2PathPlanner>();
+                }
+                // 障害物送信（周辺Collider→MoveIt planning scene）。
+                if (globalSetting.GetComponent<ComRos2Obstacles>() == null)
+                {
+                    globalSetting.AddComponent<ComRos2Obstacles>();
                 }
             }
 
