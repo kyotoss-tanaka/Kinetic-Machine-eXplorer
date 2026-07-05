@@ -282,6 +282,13 @@ public static class GlobalScript
     public static bool isLoaded = false;
 
     /// <summary>
+    /// ROS2 連携が有効か（ParameterLoader が判定して設定）。
+    /// 実機(OPC UA/Postgres)とROSで関節値の規約が異なる場合の場合分けに使う。
+    /// 例: CRX-30iA の3軸目は実機=連成値(J2+J3)だが ROS=純粋な関節角なので arm3 の式を切替える。
+    /// </summary>
+    public static bool useRos2 = false;
+
+    /// <summary>
     /// ロード進捗(0..1)。ローディング画面(KmxLoadingScreen)が参照。
     /// </summary>
     public static float loadProgress = 0f;

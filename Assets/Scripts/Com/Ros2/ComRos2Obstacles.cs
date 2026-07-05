@@ -44,6 +44,23 @@ public class ComRos2Obstacles : MonoBehaviour
         + "水平面をヨー-90°して base_link(X=前,Y=左,Z=上)へ合わせる。向きが違う構成では調整")]
     [SerializeField] private Vector3 baseCalibrationEuler = new Vector3(0f, -90f, 0f);
 
+    [Header("ヘッド(ツール) → MoveIt へ attach（方式B）")]
+    [Tooltip("ヘッド(ツール)を AttachedCollisionObject としてフランジに attach 送信する")]
+    [SerializeField] private bool sendHead = false;
+    [Tooltip("attach 用トピック（障害物と同じ ObstaclesMsg を流用。frame_id=attachLinkName）")]
+    [SerializeField] private string attachedTopic = "/kmx/attached";
+    [Tooltip("attach 先の URDF リンク名（例 flange / tool0 / link_6）。SRDF で確認")]
+    [SerializeField] private string attachLinkName = "flange";
+    // ★ヘッドの座標補正は ROS2 側 `head_calibration_rpy`(ros2 param・ライブ調整可) に一本化。
+    //   Unity は「生(raw)のフランジ相対」で送る（二重補正防止）。認識合わせ: HANDOFF.md §4.1。
+    [Tooltip("6軸目フランジのオブジェクト名（部分/完全一致・大小無視）。未指定なら HeadObject の親を使用")]
+    [SerializeField] private string flangeNameContains = "J6FLANGE";
+    [Tooltip("ヘッド(ツール)ルート。未割当なら Kinematics6D.HeadObject を使用")]
+    [SerializeField] private Transform headRoot;
+    [Tooltip("ヘッドを全Collider合成の1個のAABBで送る（true=軽い・粗い/false=個別・正確だが多数）。"
+        + "CADヘッドはCollider数が多くMoveItが重くなるので、把持開口が不要なら true 推奨")]
+    [SerializeField] private bool headAsSingleBox = false;
+
     private IRos2Transport transport;
     private bool started;
     private bool destroyed;
@@ -64,8 +81,11 @@ public class ComRos2Obstacles : MonoBehaviour
             return;
         }
         transport = Ros2TransportFactory.Create();
-        // publisher 事前登録（初回送信で "Not registered" レース回避）
+        // publisher 事前登録（初回送信で "Not registered" レース回避）。
+        // ヘッド(方式B)も同じ ObstaclesMsg を別トピックに流すので、TestPlan 等から SendHead を
+        // 呼べるよう sendHead に関わらず両トピックを登録しておく（登録はトピック単位で冪等）。
         transport.RegisterObstaclesPublisher(topic);
+        transport.RegisterObstaclesPublisher(attachedTopic);
         started = true;
         Debug.Log($"[ComRos2Obstacles] start topic='{topic}' frame='{frameId}' radius={radius} transport={transport.GetType().Name}");
 #endif
@@ -93,6 +113,10 @@ public class ComRos2Obstacles : MonoBehaviour
                 autoTries++;
                 if (SendObstacles())
                 {
+                    if (sendHead)
+                    {
+                        SendHead();
+                    }
                     sentOnce = true;
                 }
                 else if (autoTries >= AutoTryMax)
@@ -149,7 +173,7 @@ public class ComRos2Obstacles : MonoBehaviour
                 skipped++;
                 continue;
             }
-            var ob = ToObstacle(col, baseT);
+            var ob = ToObstacle(col, baseT, baseCalibrationEuler);
             if (ob != null)
             {
                 list.Add(ob);
@@ -168,6 +192,126 @@ public class ComRos2Obstacles : MonoBehaviour
         transport.PublishObstacles(topic, frameId, list);
         Debug.Log($"[ComRos2Obstacles] {list.Count} obstacles 送信 (frame='{frameId}', radius={radius}, 除外={skipped} 巨大/基部包含)");
         return true;
+    }
+
+    /// <summary>
+    /// ヘッド(ツール)を AttachedCollisionObject 用に送る（方式B）。
+    /// 障害物と同じ ObstaclesMsg を別トピック attachedTopic に流し、frame_id に attach 先リンク名を入れる。
+    /// ROS2 側は frame_id を attach 先として AttachedCollisionObject 化する（HEAD_TOOL_ROS2_SPEC.md 方式B）。
+    /// ヘッド配下の Collider は isTrigger の有無を問わず全て対象にする。成功で true。
+    /// </summary>
+    [ContextMenu("Send Head (ツールを attach 送信)")]
+    public bool SendHead()
+    {
+        if (!started || transport == null)
+        {
+            return false;
+        }
+        var head = ResolveHead();
+        if (head == null)
+        {
+            Debug.LogWarning("[ComRos2Obstacles] ヘッド(HeadObject)が見つかりません。headRoot を割当てるか Kinematics6D.HeadObject を確認してください。");
+            return false;
+        }
+        // 参照フレーム＝フランジ。名前指定を優先し、無ければヘッドの親（arm6 に parent 済み）を使う。
+        var flange = FindTransformByName(flangeNameContains);
+        if (flange == null)
+        {
+            flange = head.parent;
+        }
+        if (flange == null)
+        {
+            Debug.LogWarning($"[ComRos2Obstacles] フランジが見つかりません（flangeNameContains='{flangeNameContains}'）。");
+            return false;
+        }
+
+        if (debugPose)
+        {
+            Debug.Log($"[ComRos2Obstacles] head flange='{flange.name}' worldPos={flange.position.ToString("F3")} "
+                + $"euler={flange.rotation.eulerAngles.ToString("F1")} （補正は ROS2 head_calibration_rpy）");
+        }
+
+        // ヘッド配下の Collider を isTrigger の有無を問わず全て収集（ツール形状として送る）。
+        // 補正は掛けず「生(raw)のフランジ相対」で送る（ROS2 側 head_calibration_rpy で補正）。
+        // ★姿勢不変化: col.bounds(world AABB) はフランジが回ると膨らみ・姿勢で変動するので使わず、
+        //   コライダーの「ローカル bounds」からフランジ相対 AABB を作る（剛体ツールなので姿勢に依らず一定）。
+        var cols = head.GetComponentsInChildren<Collider>();
+        var list = new List<Ros2Obstacle>();
+        bool mergeHas = false;
+        Vector3 mergeMin = Vector3.zero, mergeMax = Vector3.zero;
+        foreach (var col in cols)
+        {
+            if (!TryHeadLocalAabb(col, flange, out var c, out var s))
+            {
+                continue;
+            }
+            if (headAsSingleBox)
+            {
+                Vector3 mn = c - s * 0.5f, mx = c + s * 0.5f;
+                if (!mergeHas) { mergeMin = mn; mergeMax = mx; mergeHas = true; }
+                else { mergeMin = Vector3.Min(mergeMin, mn); mergeMax = Vector3.Max(mergeMax, mx); }
+            }
+            else
+            {
+                list.Add(BoxFromFlangeLocal(StableId(col), c, s));
+            }
+        }
+        if (headAsSingleBox && mergeHas)
+        {
+            list.Add(BoxFromFlangeLocal(head.name + "#headbox", (mergeMin + mergeMax) * 0.5f, mergeMax - mergeMin));
+        }
+        if (debugPose)
+        {
+            foreach (var ob in list)
+            {
+                Vector3 p = ob.position;
+                Vector3 rosPos = new Vector3(p.z, -p.x, p.y);   // To<FLU> 相当
+                Debug.Log($"[ComRos2Obstacles]   head '{ob.id}' "
+                    + $"flange相対Unity(m)={p.ToString("F3")} → ROS(x,y,z)={rosPos.ToString("F3")} "
+                    + $"dims(ROS順xyz)=[{string.Join(",", System.Array.ConvertAll(ob.dimensions, x => x.ToString("F3")))}]");
+            }
+        }
+        // frame_id に attach 先リンク名を載せる（ROS2側が AttachedCollisionObject の link に使う）。
+        transport.PublishObstacles(attachedTopic, attachLinkName, list);
+        Debug.Log($"[ComRos2Obstacles] head {list.Count}/{cols.Length} 個を attach 送信 "
+            + $"(topic='{attachedTopic}' link='{attachLinkName}' flange='{flange.name}' head='{head.name}')");
+        return true;
+    }
+
+    /// <summary>
+    /// 障害物・ヘッドを全消しする（両トピックに空配列を送る）。ROS2側の全置換で古い分が消える。
+    /// テストで planning scene をリセットしたい時に使う。
+    /// </summary>
+    [ContextMenu("Clear Scene (障害物/ヘッドを全消し)")]
+    public void ClearScene()
+    {
+        if (!started || transport == null)
+        {
+            return;
+        }
+        var empty = new List<Ros2Obstacle>();
+        transport.PublishObstacles(topic, frameId, empty);
+        transport.PublishObstacles(attachedTopic, attachLinkName, empty);
+        Debug.Log("[ComRos2Obstacles] Clear Scene 送信（障害物/ヘッド 空）");
+    }
+
+    /// <summary>ヘッド(ツール)ルートを解決。headRoot 明示 &gt; Kinematics6D.HeadObject。</summary>
+    private Transform ResolveHead()
+    {
+        if (headRoot != null)
+        {
+            return headRoot;
+        }
+        foreach (var k in FindObjectsByType<Kinematics6D>(FindObjectsSortMode.None))
+        {
+            var h = k.GetHeadObject();
+            if (h != null)
+            {
+                headRoot = h.transform;   // キャッシュ
+                return headRoot;
+            }
+        }
+        return null;
     }
 
     private Transform ResolveBase()
@@ -204,6 +348,82 @@ public class ComRos2Obstacles : MonoBehaviour
     }
 
     /// <summary>
+    /// 世代をまたいでも安定な障害物ID（階層パス＋兄弟index）。
+    /// GetInstanceID はセッション毎に変わり、move_group を起動したまま Play し直すと
+    /// planning scene に古いIDが残留して累積する（＝重なる）。パスなら同じオブジェクトは同じID。
+    /// </summary>
+    private static string StableId(Collider col)
+    {
+        var t = col.transform;
+        string id = t.name + "#" + t.GetSiblingIndex();
+        var p = t.parent;
+        int guard = 0;
+        while (p != null && guard++ < 6)
+        {
+            id = p.name + "/" + id;
+            p = p.parent;
+        }
+        return id;
+    }
+
+    /// <summary>名前で Transform を探す（完全一致=大小無視 を優先、無ければ部分一致）。</summary>
+    private static Transform FindTransformByName(string nameKey)
+    {
+        if (string.IsNullOrEmpty(nameKey))
+        {
+            return null;
+        }
+        Transform contains = null;
+        foreach (var t in FindObjectsByType<Transform>(FindObjectsSortMode.None))
+        {
+            if (string.Equals(t.name, nameKey, StringComparison.OrdinalIgnoreCase))
+            {
+                return t;
+            }
+            if (contains == null && t.name.IndexOf(nameKey, StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                contains = t;
+            }
+        }
+        return contains;
+    }
+
+    /// <summary>
+    /// ヘッド(ツール)の寸法と、6軸フランジからの取付オフセットをログ出力する。
+    /// URDF にツールを固定リンクとして足すときの box size / origin xyz の目安に使う（静的方式）。
+    /// ※ フランジのローカル軸(Unity)と URDF リンク軸のずれ分は、base_link と同様に別途微調整が要る場合あり。
+    /// </summary>
+    [ContextMenu("Measure Head (ツール寸法をログ)")]
+    private void MeasureHead()
+    {
+        var flange = FindTransformByName(flangeNameContains);
+        if (flange == null)
+        {
+            Debug.LogWarning($"[ComRos2Obstacles] フランジ '{flangeNameContains}' が見つかりません。flangeNameContains を確認してください。");
+            return;
+        }
+        var head = headRoot != null ? headRoot : flange;
+        var cols = head.GetComponentsInChildren<Collider>();
+        if (cols.Length == 0)
+        {
+            Debug.LogWarning($"[ComRos2Obstacles] '{head.name}' 配下に Collider がありません（ヘッドにコライダーを付けるか headRoot を割当ててください）。");
+            return;
+        }
+        Bounds wb = cols[0].bounds;
+        foreach (var c in cols)
+        {
+            wb.Encapsulate(c.bounds);   // 世界AABB を統合
+        }
+        Vector3 sizeM = wb.size * unitScale;                                   // box size(m)
+        Vector3 localCenter = (Quaternion.Inverse(flange.rotation) * (wb.center - flange.position)) * unitScale; // Unityローカル(m)
+        Vector3 rosCenter = new Vector3(localCenter.z, -localCenter.x, localCenter.y);   // ROS(FLU) 目安
+        Debug.Log($"[ComRos2Obstacles] Head計測: flange='{flange.name}' head='{head.name}' colliders={cols.Length}\n"
+            + $"  ★URDF box size(m) 目安 = {sizeM.ToString("F3")}\n"
+            + $"  ★URDF origin xyz(m) 目安 = flange相対 Unity {localCenter.ToString("F3")} → ROS(FLU) {rosCenter.ToString("F3")}\n"
+            + $"  （rpy は 0 起点で、実機と合わなければ base_link と同様に微調整。詳細は kmx_ros2/HEAD_TOOL_ROS2_SPEC.md）");
+    }
+
+    /// <summary>
     /// Collider → Ros2Obstacle。球以外は「基部フレームに軸整列した世界AABB(BOX)」で送る。
     ///
     /// なぜ AABB（向きを持たせない）か：対象が CAD 由来の B-rep コライダーだと、コライダーのローカル軸が
@@ -211,16 +431,16 @@ public class ComRos2Obstacles : MonoBehaviour
     /// 箱が倒れる／隣接コライダーが分離する／上下が反転する。障害物回避の用途では軸整列AABBで十分・安全
     /// （やや大きめになるだけ）。姿勢は基部相対・メートル。
     /// </summary>
-    private Ros2Obstacle ToObstacle(Collider col, Transform baseT)
+    private Ros2Obstacle ToObstacle(Collider col, Transform refT, Vector3 calEuler)
     {
-        var ob = new Ros2Obstacle { id = col.gameObject.name + "_" + col.GetInstanceID() };
-        Quaternion invBase = Quaternion.Inverse(baseT.rotation);
-        // 基部フレーム→base_link の補正回転（既定 (0,-90,0)）。位置・寸法に一貫適用。
-        Quaternion cal = Quaternion.Euler(baseCalibrationEuler);
+        var ob = new Ros2Obstacle { id = StableId(col) };
+        Quaternion invRef = Quaternion.Inverse(refT.rotation);
+        // 参照フレーム(基部 or フランジ)→ ROS リンク の補正回転。位置・寸法に一貫適用。
+        Quaternion cal = Quaternion.Euler(calEuler);
 
         // 球は向きに依らないので中心＋半径のまま。
-        // ⚠ InverseTransformPoint は baseT の lossyScale で割ってしまい寸法(world サイズ)と単位が食い違う
-        //   ので使わない。回転のみで基部フレームへ入れ、world オフセットのまま unitScale でメートル化する。
+        // ⚠ InverseTransformPoint は refT の lossyScale で割ってしまい寸法(world サイズ)と単位が食い違う
+        //   ので使わない。回転のみで参照フレームへ入れ、world オフセットのまま unitScale でメートル化する。
         if (col is SphereCollider sc)
         {
             var ls = col.transform.lossyScale;
@@ -228,7 +448,7 @@ public class ComRos2Obstacles : MonoBehaviour
             ob.type = 2; // SPHERE
             ob.dimensions = new float[] { sc.radius * m * unitScale };
             Vector3 wc = col.transform.TransformPoint(sc.center);
-            ob.position = (cal * (invBase * (wc - baseT.position))) * unitScale;
+            ob.position = (cal * (invRef * (wc - refT.position))) * unitScale;
             ob.rotation = Quaternion.identity;
             return ob;
         }
@@ -238,27 +458,94 @@ public class ComRos2Obstacles : MonoBehaviour
         {
             return null;
         }
-        var b = col.bounds;                     // world 軸AABB（中心・寸法とも world 軸整列）
-        Vector3 worldCenter = b.center;
-        Vector3 worldSize = b.size;
+        var b = col.bounds;   // world 軸AABB
+        return BoxFromWorldAabb(StableId(col), b.center, b.size, refT, calEuler);
+    }
 
-        ob.type = 1; // BOX
-        ob.position = (cal * (invBase * (worldCenter - baseT.position))) * unitScale;
-        // 向きは持たせない＝base_link 軸整列（To<FLU>(identity)=identity）。倒れ/相対上下反転を防ぐ。
-        ob.rotation = Quaternion.identity;
-
-        // 寸法: world AABB を (cal*invBase) で基部フレームへ回した後の AABB 寸法。
-        // 任意回転で正しい式: newSize_i = Σ_j |R_ij| * size_j。最後に FLU 並べ替え [z,x,y]。
-        Quaternion rot = cal * invBase;
-        Vector3 rx = rot * Vector3.right;       // R 列0
-        Vector3 ry = rot * Vector3.up;          // R 列1
-        Vector3 rz = rot * Vector3.forward;     // R 列2
+    /// <summary>
+    /// 世界AABB(中心・寸法) → 参照フレーム軸整列の BOX Ros2Obstacle。
+    /// 位置は回転のみ（lossyScale で割らない）、寸法は任意回転で正しい AABB 式＋FLU 並べ替え。
+    /// </summary>
+    private Ros2Obstacle BoxFromWorldAabb(string id, Vector3 worldCenter, Vector3 worldSize, Transform refT, Vector3 calEuler)
+    {
+        var ob = new Ros2Obstacle { id = id, type = 1, rotation = Quaternion.identity };
+        Quaternion invRef = Quaternion.Inverse(refT.rotation);
+        Quaternion cal = Quaternion.Euler(calEuler);
+        ob.position = (cal * (invRef * (worldCenter - refT.position))) * unitScale;
+        // 寸法: newSize_i = Σ_j |R_ij| * size_j（R=cal*invRef）→ FLU 並べ替え [z,x,y]。
+        Quaternion rot = cal * invRef;
+        Vector3 rx = rot * Vector3.right;
+        Vector3 ry = rot * Vector3.up;
+        Vector3 rz = rot * Vector3.forward;
         Vector3 aabb = new Vector3(
             Mathf.Abs(rx.x) * worldSize.x + Mathf.Abs(ry.x) * worldSize.y + Mathf.Abs(rz.x) * worldSize.z,
             Mathf.Abs(rx.y) * worldSize.x + Mathf.Abs(ry.y) * worldSize.y + Mathf.Abs(rz.y) * worldSize.z,
             Mathf.Abs(rx.z) * worldSize.x + Mathf.Abs(ry.z) * worldSize.y + Mathf.Abs(rz.z) * worldSize.z)
             * unitScale;
-        ob.dimensions = new float[] { aabb.z, aabb.x, aabb.y };   // Unity(x,y,z)→ROS(FLU)軸順
+        ob.dimensions = new float[] { aabb.z, aabb.x, aabb.y };
         return ob;
+    }
+
+    /// <summary>
+    /// コライダーの「姿勢不変なフランジ相対 AABB」を返す（Unity flange-local の center/size, unitScale前）。
+    /// col.bounds(world AABB) と違い、ローカル bounds をフランジ相対の回転で AABB 化するので、
+    /// ロボット姿勢に依らず一定（剛体ツール向け）。かつ world→再AABB の二重膨張が無く小さい。
+    /// </summary>
+    private static bool TryHeadLocalAabb(Collider col, Transform refT, out Vector3 center, out Vector3 size)
+    {
+        center = Vector3.zero;
+        size = Vector3.zero;
+        if (!TryLocalBounds(col, out var lb))
+        {
+            return false;
+        }
+        var lossy = col.transform.lossyScale;
+        Vector3 half = new Vector3(
+            Mathf.Abs(lb.extents.x * lossy.x),
+            Mathf.Abs(lb.extents.y * lossy.y),
+            Mathf.Abs(lb.extents.z * lossy.z));
+        Quaternion invRef = Quaternion.Inverse(refT.rotation);
+        Vector3 worldCenter = col.transform.TransformPoint(lb.center);
+        center = invRef * (worldCenter - refT.position);           // 姿勢不変のフランジ相対中心
+        Quaternion R = invRef * col.transform.rotation;           // フランジ相対のコライダー回転（姿勢不変）
+        Vector3 rx = R * Vector3.right, ry = R * Vector3.up, rz = R * Vector3.forward;
+        size = new Vector3(
+            (Mathf.Abs(rx.x) * half.x + Mathf.Abs(ry.x) * half.y + Mathf.Abs(rz.x) * half.z) * 2f,
+            (Mathf.Abs(rx.y) * half.x + Mathf.Abs(ry.y) * half.y + Mathf.Abs(rz.y) * half.z) * 2f,
+            (Mathf.Abs(rx.z) * half.x + Mathf.Abs(ry.z) * half.y + Mathf.Abs(rz.z) * half.z) * 2f);
+        return true;
+    }
+
+    /// <summary>コライダーのローカル bounds（center/size, スケール前）。対応外は false。</summary>
+    private static bool TryLocalBounds(Collider col, out Bounds lb)
+    {
+        if (col is BoxCollider bc) { lb = new Bounds(bc.center, bc.size); return true; }
+        if (col is SphereCollider sc) { lb = new Bounds(sc.center, Vector3.one * (sc.radius * 2f)); return true; }
+        if (col is CapsuleCollider cc)
+        {
+            float d = cc.radius * 2f;
+            Vector3 sz = new Vector3(d, d, d);
+            if (cc.direction == 0) { sz.x = Mathf.Max(cc.height, d); }
+            else if (cc.direction == 1) { sz.y = Mathf.Max(cc.height, d); }
+            else { sz.z = Mathf.Max(cc.height, d); }
+            lb = new Bounds(cc.center, sz);
+            return true;
+        }
+        if (col is MeshCollider mc && mc.sharedMesh != null) { lb = mc.sharedMesh.bounds; return true; }
+        lb = default;
+        return false;
+    }
+
+    /// <summary>Unity flange-local の center/size(スケール前) → Ros2Obstacle（FLU並べ替え・unitScale適用）。</summary>
+    private Ros2Obstacle BoxFromFlangeLocal(string id, Vector3 center, Vector3 size)
+    {
+        return new Ros2Obstacle
+        {
+            id = id,
+            type = 1,
+            rotation = Quaternion.identity,
+            position = center * unitScale,
+            dimensions = new float[] { size.z * unitScale, size.x * unitScale, size.y * unitScale },
+        };
     }
 }

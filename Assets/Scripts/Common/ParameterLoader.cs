@@ -1719,6 +1719,8 @@ namespace Parameters
                 useRos2 = false;   // Ros2Info.json が無ければ無効
             }
 #endif
+            // 実機とROSで関節値の規約が異なる場合の場合分け用に公開（例: CRX-30iA arm3）。
+            GlobalScript.useRos2 = useRos2;
             if (useRos2)
             {
                 if (globalSetting.GetComponent<ComRos2>() == null)

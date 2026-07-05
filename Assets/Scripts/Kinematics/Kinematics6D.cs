@@ -82,6 +82,15 @@ public class Kinematics6D : Kinematics3D
     }
 
     /// <summary>
+    /// ヘッド(ツール)オブジェクト。6軸目(arm6)の子として付く。
+    /// ROS2 連携でツール形状を planning scene へ attach するために取得する。
+    /// </summary>
+    public GameObject GetHeadObject()
+    {
+        return HeadObject;
+    }
+
+    /// <summary>
     /// 目標位置セット
     /// </summary>
     /// <param name="target"></param>

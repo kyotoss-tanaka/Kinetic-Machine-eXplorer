@@ -38,10 +38,30 @@ Unity ⇄ ros_tcp_endpoint ⇄ (DDS) ⇄ kmx_planner / move_group
 | `/kmx/state` | kmx_msgs/TagArray | ROS2→Unity | 現在角度(度) |
 | `/kmx/plan_request` | kmx_msgs/PlanRequest (names,start,goal) | Unity→ROS2 | 経路要求(度) |
 | `/kmx/trajectory` | trajectory_msgs/JointTrajectory | ROS2→Unity | 生成軌道(度) |
-| `/kmx/obstacles` | kmx_msgs/Obstacles (frame_id,items[]) | Unity→ROS2 | 障害物→planning scene（**メートル**・base_link相対） |
+| `/kmx/obstacles` | kmx_msgs/Obstacles (frame_id,items[]) | Unity→ROS2 | 障害物→planning scene（**メートル**・base_link相対・**世界CollisionObject**） |
+| `/kmx/attached` | **kmx_msgs/Obstacles（同型を流用）** | Unity→ROS2 | ヘッド(ツール)→**AttachedCollisionObject**（**メートル**・**frame_id=attach先リンク**相対） |
 
 - CRX-30iA: MoveIt **group=`manipulator`**, **joint=`J1..J6`**（Unity /kmx と同名）。ノードが MoveItへ deg→rad、戻り rad→deg 変換。
-- ⚠ **単位の例外**: 関節系(`command`/`state`/`plan_request`/`trajectory`)は「度」だが、`/kmx/obstacles` だけは **メートル**（幾何プリミティブ）。
+- ⚠ **単位の例外**: 関節系(`command`/`state`/`plan_request`/`trajectory`)は「度」だが、`/kmx/obstacles`・`/kmx/attached` は **メートル**（幾何プリミティブ）。
+
+### 4.1 障害物 / ヘッド の契約（★ROS2側と認識合わせ・2026-07-05）
+- **`/kmx/obstacles`（世界障害物）**: `Obstacles{frame_id, items[]}`。`frame_id`=`base_link`。各 item は
+  `ObstaclePrimitive{id, type, dimensions[], pose}`。**現状 Unity は全て type=1(BOX)・軸整列AABB・pose.orientation=単位**で送る
+  （CAD由来コライダーの向き問題を避けるため向きは持たせない）。id は**階層パスの安定ID**（GetInstanceID廃止＝Play跨ぎで残留しない）。
+- **`/kmx/attached`（ヘッド=ツール）**: 型は `Obstacles` を流用。**`frame_id` に attach 先の URDF リンク名**（例 `flange`/`tool0`）を入れる。
+  ROS2 側は各 item を **`AttachedCollisionObject{ link_name=frame_id, object=CollisionObject(items), touch_links=<param> }`** 化して
+  `robot_state.attached_collision_objects` に反映。**touch_links は最低 attach リンク自身が必須**（無いと自己衝突で計画不能）。
+- **更新規約（両トピック共通）＝全置換**: 受信のたびに、今回 id を ADD（同一 id 置換）／前回あって今回無い id を REMOVE。
+  **world と attached は別集合で管理**すること（`_obstacle_ids` と別に `_attached_ids`）。空配列受信＝全消し。
+- **タイミング**: Unity は TestPlan 前に obstacles/attached を送り **約0.4s 待ってから** `/kmx/plan_request` を出す
+  （`ComRos2PathPlanner.sceneSettleSec`）。ROS2 側の scene 反映（service）がこの猶予で間に合う前提。間に合わなければ猶予を延ばす。
+- **座標補正の所在（★認識合わせの肝・二重補正禁止）**: Unity は「基準リンク相対・ROS(FLU)・メートル」で送る。
+  基準リンクの Unity 軸 ↔ URDF リンク軸のズレは **ストリームごとに1か所だけ**で吸収する:
+  - **`/kmx/obstacles`（base_link）→ Unity 側 `baseCalibrationEuler`=(0,-90,0)**（検証済）。ROS2 は obstacles を補正しない。
+  - **`/kmx/attached`（flange）→ ROS2 側 `head_calibration_rpy`（ros2 param・ライブ調整可）**。Unity は**生(raw)で送る**
+    （`ComRos2Obstacles` の Unity 側ヘッド補正は撤去済）。**両方を同時に掛けない**こと。
+    **★CRX-30iA FANUCヘッドの確定値 = `[0,90,90]`（実機確認 2026-07-05）→ planner_node.py の param 既定に焼込済。**
+- **arm3 の注意（Unity表示側の話）**: 実機(OPC UA)は3軸目が J2連成値だが、**ROS/`/kmx` は純粋な関節角(度)で統一**。ノードは従来どおり純粋角で扱えばよい。
 
 ## 5. ビルド/実行（統合launch＝1コマンド）
 ```bash
@@ -89,6 +109,17 @@ ros2 run kmx_planner kmx_planner --ros-args -p use_moveit:=true -p planning_grou
   - #14 plan結果のマッピング(out_names/moveit_names)を **コールバック閉包で持ち回り**（`_pending_*` 廃止＝並行要求で上書きされない）。`wait_for_server(3s)` → `server_is_ready()` の**非ブロック確認**へ（executorを止めない）。
   - D2 起動時に `GetPlanningScene`(WORLD_OBJECT_NAMES) で既存 collision object id を `_obstacle_ids` に取り込み（再起動時に前プロセス残置を初回受信で REMOVE 可能に）。新パラメータ `get_scene_service`(=/get_planning_scene)。サービス未準備は 2s×5 回リトライ→諦め（非ブロック）。
   - 残項目の全体像は正本 `kmx_ros2/REVIEW_TODO.md`（A検証待ち/B中位=対応済/Cクリーンアップ/D機能）を参照。
+- **★ヘッド=ツール attach（方式B）＝ROS2側 実装済(2026-07-05・WSL)**（詳細 `HEAD_TOOL_ROS2_SPEC.md`・契約 §4.1）:
+  `/kmx/attached`(型=既存 Obstacles) 購読→`AttachedCollisionObject`(link=frame_id, touch_links=`attached_touch_links`)→
+  全置換(`_attached_ids` 別集合)→`robot_state.attached_collision_objects` に反映。**ヘッド向き補正は ROS2 の
+  `head_calibration_rpy`(param・ライブ調整)** で行う（Unity は生送り）。実装済・`py_compile` OK。
+- **★ヘッド位置キャリブレーション＝確定(2026-07-05)**: `head_calibration_rpy=[0,90,90]`（実機確認）→ param 既定へ焼込済。
+- **★残＝ヘッドの Collider 数（性能）**: CADヘッドは 150個超の Collider を attach するため MoveIt が重い懸念。
+  Unity 側 `ComRos2Obstacles.headAsSingleBox`(既定false) を true にすると**全体を1個のAABB**で送れる（把持開口が要らなければ推奨）。
+  把持開口が要る運用なら個別のまま or 数個へ間引きを別途検討。
+- **認識合わせ 未確定（要ROS2側回答）**: ①attach 先リンク名（SRDF: `flange`/`tool0`/`J6_link`? 既定は `flange`／
+  `attached_touch_links` の手首側リンク名も実在名に）②scene 反映レイテンシは Unity 待ち 0.4s で足りるか
+  ③world 障害物は現状**全て軸整列BOX(向き無し)** で来る前提でよいか。
 
 ## 10. Unity側（参考・別VSCode担当。ここは触らない）
 - C#: `Assets/Scripts/Com/Ros2/`（ComRos2 / RosTcpConnectorTransport / ComRos2PathPlanner）。`GlobalScript`, `ParameterLoader`, `BuildAndRun` にも変更。

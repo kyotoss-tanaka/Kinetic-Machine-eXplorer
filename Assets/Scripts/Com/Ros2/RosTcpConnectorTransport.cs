@@ -139,7 +139,9 @@ public sealed class RosTcpConnectorTransport : IRos2Transport
         subscribedTopics.Add(topic);
     }
 
-    private bool obstaclesRegistered;
+    // ObstaclesMsg を登録済みのトピック集合（障害物 /kmx/obstacles と ヘッド /kmx/attached など複数）。
+    // 単一フラグだと2つ目のトピックが未登録のまま publish され "Not registered" になるため集合で管理。
+    private readonly HashSet<string> registeredObstacleTopics = new();
 
     public void RegisterObstaclesPublisher(string topic)
     {
@@ -147,8 +149,10 @@ public sealed class RosTcpConnectorTransport : IRos2Transport
         {
             ros = ROSConnection.GetOrCreateInstance();
         }
-        ros.RegisterPublisher<ObstaclesMsg>(topic);
-        obstaclesRegistered = true;
+        if (registeredObstacleTopics.Add(topic))
+        {
+            ros.RegisterPublisher<ObstaclesMsg>(topic);
+        }
     }
 
     public void PublishObstacles(string topic, string frameId, List<Ros2Obstacle> obstacles)
@@ -157,10 +161,7 @@ public sealed class RosTcpConnectorTransport : IRos2Transport
         {
             ros = ROSConnection.GetOrCreateInstance();
         }
-        if (!obstaclesRegistered)
-        {
-            RegisterObstaclesPublisher(topic);
-        }
+        RegisterObstaclesPublisher(topic);   // トピック単位で冪等に登録
         var msg = new ObstaclesMsg
         {
             frame_id = frameId,

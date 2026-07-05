@@ -33,7 +33,8 @@ from sensor_msgs.msg import JointState
 from shape_msgs.msg import SolidPrimitive
 from moveit_msgs.action import MoveGroup
 from moveit_msgs.msg import (MotionPlanRequest, Constraints, JointConstraint, RobotState,
-                             PlanningScene, PlanningSceneComponents, CollisionObject)
+                             PlanningScene, PlanningSceneComponents, CollisionObject,
+                             AttachedCollisionObject)
 from moveit_msgs.srv import ApplyPlanningScene, GetPlanningScene
 
 from kmx_msgs.msg import PlanRequest
@@ -45,6 +46,40 @@ try:
 except ImportError:
     Obstacles = None
     _OBSTACLES_MSG_AVAILABLE = False
+
+
+# --- クォータニオン小道具（ヘッド向き補正用。外部依存を避け純Python実装） ---
+def _quat_from_rpy(roll, pitch, yaw):
+    """RPY(rad, ZYX順) → quaternion (x,y,z,w)。"""
+    cr, sr = math.cos(roll / 2), math.sin(roll / 2)
+    cp, sp = math.cos(pitch / 2), math.sin(pitch / 2)
+    cy, sy = math.cos(yaw / 2), math.sin(yaw / 2)
+    return (sr * cp * cy - cr * sp * sy,
+            cr * sp * cy + sr * cp * sy,
+            cr * cp * sy - sr * sp * cy,
+            cr * cp * cy + sr * sp * sy)
+
+
+def _quat_mul(a, b):
+    """quaternion 積 a⊗b（各 (x,y,z,w)）。"""
+    ax, ay, az, aw = a
+    bx, by, bz, bw = b
+    return (aw * bx + ax * bw + ay * bz - az * by,
+            aw * by - ax * bz + ay * bw + az * bx,
+            aw * bz + ax * by - ay * bx + az * bw,
+            aw * bw - ax * bx - ay * by - az * bz)
+
+
+def _quat_rotate_vec(q, v):
+    """ベクトル v=(x,y,z) を quaternion q=(x,y,z,w) で回転。"""
+    x, y, z, w = q
+    vx, vy, vz = v
+    tx = 2.0 * (y * vz - z * vy)
+    ty = 2.0 * (z * vx - x * vz)
+    tz = 2.0 * (x * vy - y * vx)
+    return (vx + w * tx + (y * tz - z * ty),
+            vy + w * ty + (z * tx - x * tz),
+            vz + w * tz + (x * ty - y * tx))
 
 
 class KmxPlannerNode(Node):
@@ -68,6 +103,18 @@ class KmxPlannerNode(Node):
         self.declare_parameter('apply_scene_service', '/apply_planning_scene')
         self.declare_parameter('get_scene_service', '/get_planning_scene')
         self.declare_parameter('planning_scene_topic', '/planning_scene')
+        # ヘッド(ツール) → AttachedCollisionObject 反映用（方式B）
+        self.declare_parameter('attached_topic', '/kmx/attached')
+        # attach 先リンク（msg.frame_id 未指定時の既定）。CRX-30iA は manipulator の tip_link=flange。
+        self.declare_parameter('attach_link', 'flange')
+        # ツールが接触して当然のリンク（self-collision 許可）。無いと即自己衝突で計画不能。
+        self.declare_parameter('attached_touch_links',
+                               ['flange', 'fanuc_flange', 'end_effector', 'J6_link', 'J5_link'])
+        # ヘッド向き補正（度・RPY）。Unityフランジ軸とURDF attachリンク軸のズレを ROS2 側で吸収。
+        # attach リンク原点まわりに各 item.pose を回転。Unity 側は生送り（headCalibrationEuler 撤去済＝二重補正なし）。
+        # ros2 param set /kmx_planner head_calibration_rpy "[r,p,y]" で live 調整可（次の Send Head で反映）。
+        # ★CRX-30iA の FANUCヘッド は [0,90,90] で実機確認済（2026-07-05）。別ツール/構成なら再調整。
+        self.declare_parameter('head_calibration_rpy', [0.0, 90.0, 90.0])
         self.declare_parameter('allowed_planning_time', 5.0)
         self.declare_parameter('vel_scale', 0.1)
         self.declare_parameter('acc_scale', 0.1)
@@ -91,12 +138,18 @@ class KmxPlannerNode(Node):
         # ---- 障害物 → planning scene ----
         # /kmx/obstacles を購読し、CollisionObject 化して move_group の planning scene に反映する。
         # 反映後は plan_only（/kmx/plan_request）が障害物を回避した軌道を返す。
-        self._obstacle_ids = set()   # 前回反映した id 集合（消し込み用）
+        self._obstacle_ids = set()   # 前回反映した world 障害物 id 集合（消し込み用）
+        self._attached_ids = set()   # 前回反映した attached(ツール) id 集合
+        self.attach_link = self.get_parameter('attach_link').value
+        self.attached_touch_links = list(self.get_parameter('attached_touch_links').value)
         self._scene_cli = None
         self._get_scene_cli = None
         obs_topic = self.get_parameter('obstacles_topic').value
+        att_topic = self.get_parameter('attached_topic').value
         if _OBSTACLES_MSG_AVAILABLE:
             self.obs_sub = self.create_subscription(Obstacles, obs_topic, self.on_obstacles, 10)
+            # ヘッド(ツール) 用。型は障害物と同じ Obstacles、トピックだけ別（frame_id=attachリンク）。
+            self.att_sub = self.create_subscription(Obstacles, att_topic, self.on_attached, 10)
             # service 優先で反映（確実）。未準備時は /planning_scene への publish で fallback。
             scene_qos = QoSProfile(depth=1,
                                    reliability=ReliabilityPolicy.RELIABLE,
@@ -121,7 +174,9 @@ class KmxPlannerNode(Node):
 
         self.get_logger().info(
             f"kmx_planner ready: sub='{req_topic}' pub='{traj_topic}' "
-            f"obstacles={'on' if _OBSTACLES_MSG_AVAILABLE else 'off'} use_moveit={self.use_moveit}")
+            f"obstacles={'on' if _OBSTACLES_MSG_AVAILABLE else 'off'} "
+            f"attached={'on(' + att_topic + ')' if _OBSTACLES_MSG_AVAILABLE else 'off'} "
+            f"use_moveit={self.use_moveit}")
 
     # ---------------------------------------------------------------- 要求受信
     def on_request(self, msg: PlanRequest):
@@ -177,36 +232,118 @@ class KmxPlannerNode(Node):
             co.operation = CollisionObject.REMOVE
             scene.world.collision_objects.append(co)
 
-        # _obstacle_ids は「反映に成功したら」更新する（失敗時に据え置くことで、
+        # id 集合は「反映に成功したら」更新する（失敗時に据え置くことで、
         # 次回の REMOVE 差分を最後に成功した状態基準で正しく計算できる）。
-        self._apply_scene(scene, new_ids)
+        self._apply_scene(scene, '_obstacle_ids', new_ids, '障害物')
 
-    def _apply_scene(self, scene: PlanningScene, new_ids):
-        """planning scene diff を反映。service 優先、未準備なら topic publish で fallback。"""
+    # ------------------------------------- ヘッド(ツール)受信 → AttachedCollisionObject
+    def on_attached(self, msg: Obstacles):
+        """/kmx/attached をロボットに付いたツール(AttachedCollisionObject)として反映する（方式B）。
+
+        障害物(/kmx/obstacles)と型は同じ Obstacles だが、world ではなく attach リンクに付ける点が違う。
+        - frame_id = attach 先リンク名（例 flange）。空なら attach_link パラメータの既定。
+        - items[] の pose は attach リンク相対。
+        - touch_links(=attached_touch_links) でツールと接触して当然のリンクの自己干渉を許可。
+        - 受信のたび全置換（今回分 ADD／前回あって今回無い id は REMOVE）。world 障害物とは id 集合を分離。
+        反映後は plan_only がツール形状も含めて障害物を回避する。
+        """
+        link = msg.frame_id if msg.frame_id else self.attach_link
+        self.get_logger().info(
+            f"attached(head) received: {len(msg.items)} items, link='{link}'")
+
+        scene = PlanningScene()
+        scene.is_diff = True
+        scene.robot_state.is_diff = True
+
+        # ヘッド向き補正（attachリンク原点まわりの回転）。live 読み（param set で次回反映）。
+        rpy = list(self.get_parameter('head_calibration_rpy').value)
+        cal_active = any(abs(float(a)) > 1e-9 for a in rpy)
+        qc = _quat_from_rpy(math.radians(rpy[0]), math.radians(rpy[1]),
+                            math.radians(rpy[2])) if cal_active else None
+        if cal_active:
+            self.get_logger().info(f"  head_calibration_rpy(deg)={rpy} を適用")
+
+        # ★attached は「前回分を全部 REMOVE してから今回分を ADD」する（REMOVE 先行）。
+        #   world 障害物は同一id ADD で置換されるが、attached は同一id 再ADDでも綺麗に置換されず
+        #   毎回積み増さる（プランのたびにヘッドが増える）挙動があるため、差分ではなく全消し先行にする。
+        new_ids = set(item.id for item in msg.items)
+
+        # 1) 前回 attached を全て外す（同一idを含め全部）。REMOVE を先に積む。
+        #    ★重要: MoveIt は attached を REMOVE すると「削除」せず world へ detach（戻す）ため、
+        #      放置すると full-replace の度に古いヘッドが world collision object として蓄積する
+        #      （RViz に残り重なって見える）。よって同 id を world からも REMOVE する。
+        #      PlanningScene diff は robot_state(attached) → world の順に処理されるので、
+        #      同一 diff 内で「detach→world REMOVE」が正しく消える。
+        for old_id in self._attached_ids:
+            co = CollisionObject()
+            co.header.frame_id = link
+            co.id = old_id
+            co.operation = CollisionObject.REMOVE
+            aco = AttachedCollisionObject()
+            aco.link_name = link
+            aco.object = co
+            scene.robot_state.attached_collision_objects.append(aco)
+            # detach 先の world コピーも消す
+            wco = CollisionObject()
+            wco.id = old_id
+            wco.operation = CollisionObject.REMOVE
+            scene.world.collision_objects.append(wco)
+
+        # 2) 今回分を付ける（ADD）。
+        for item in msg.items:
+            co = CollisionObject()
+            co.header.frame_id = link
+            co.id = item.id
+            sp = SolidPrimitive()
+            sp.type = int(item.type)
+            sp.dimensions = [float(d) for d in item.dimensions]
+            co.primitives.append(sp)
+            pose = item.pose
+            if cal_active:
+                p = pose.position
+                p.x, p.y, p.z = _quat_rotate_vec(qc, (p.x, p.y, p.z))
+                o = pose.orientation
+                o.x, o.y, o.z, o.w = _quat_mul(qc, (o.x, o.y, o.z, o.w))
+            co.primitive_poses.append(pose)
+            co.operation = CollisionObject.ADD
+            aco = AttachedCollisionObject()
+            aco.link_name = link
+            aco.object = co
+            aco.touch_links = list(self.attached_touch_links)
+            scene.robot_state.attached_collision_objects.append(aco)
+
+        self._apply_scene(scene, '_attached_ids', new_ids, 'ツール(attached)')
+
+    def _apply_scene(self, scene: PlanningScene, target_attr, new_ids, label):
+        """planning scene diff を反映。service 優先、未準備なら topic publish で fallback。
+
+        target_attr: 反映確定時に new_ids を書き込む属性名（'_obstacle_ids' or '_attached_ids'）。
+        label: ログ用ラベル。world障害物と attached(ツール) で共用する。
+        """
         if self._scene_cli is not None and self._scene_cli.service_is_ready():
             req = ApplyPlanningScene.Request()
             req.scene = scene
             self._scene_cli.call_async(req).add_done_callback(
-                lambda fut: self._on_scene_applied(fut, new_ids))
+                lambda fut: self._on_scene_applied(fut, target_attr, new_ids, label))
         else:
             # publish は成否不明のためベストエフォートで更新（service が使えない環境向け）。
             self._scene_pub.publish(scene)
-            self._obstacle_ids = new_ids
+            setattr(self, target_attr, new_ids)
             self.get_logger().warn(
-                "apply_planning_scene 未準備 → /planning_scene へ publish で反映（fallback・成否不明）。"
+                f"apply_planning_scene 未準備 → /planning_scene へ publish で反映（{label}・fallback・成否不明）。"
                 "move_group は起動していますか？")
 
-    def _on_scene_applied(self, future, new_ids):
+    def _on_scene_applied(self, future, target_attr, new_ids, label):
         try:
             res = future.result()
             ok = getattr(res, 'success', True)
             if ok:
-                self._obstacle_ids = new_ids   # 成功時のみ確定
+                setattr(self, target_attr, new_ids)   # 成功時のみ確定
             self.get_logger().info(
-                f"planning scene 更新: success={ok} active_ids={sorted(self._obstacle_ids)}")
+                f"planning scene 更新({label}): success={ok} active_ids={sorted(new_ids)}")
         except Exception as e:   # noqa: BLE001
             self.get_logger().error(
-                f"apply_planning_scene 呼び出し失敗: {e}（_obstacle_ids は据え置き）")
+                f"apply_planning_scene 呼び出し失敗({label}): {e}（{target_attr} は据え置き）")
 
     # ------------------------------------------- 起動時 planning scene 同期（D2）
     def _sync_existing_ids(self):
@@ -294,13 +431,16 @@ class KmxPlannerNode(Node):
         req.max_velocity_scaling_factor = float(self.get_parameter('vel_scale').value)
         req.max_acceleration_scaling_factor = float(self.get_parameter('acc_scale').value)
 
-        # 始点（絶対指定）
+        # 始点（関節は絶対指定。is_diff=True でも joint_state の値は絶対値として適用される）
+        # is_diff=False だと MoveIt がシーン現在状態の attached body を全消去した状態で計画し、
+        # attached（ヘッド/ツール）が world 障害物と衝突判定されなくなる
+        # （moveit_core/robot_state/conversions.cpp: !is_diff → clearAttachedBodies()）。
         start_state = RobotState()
         js = JointState()
         js.name = mj
         js.position = start_rad
         start_state.joint_state = js
-        start_state.is_diff = False
+        start_state.is_diff = True
         req.start_state = start_state
 
         # 終点（各 joint の関節制約）

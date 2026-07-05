@@ -62,6 +62,18 @@
 
 ---
 
+## 検証中に判明した追加対応（2026-07-05）
+- [~] **CRX-30iA arm3 の実機↔ROS 規約差**: 実機(OPC UA)の3軸目は J2連成値(`arm3=y+z`)だが ROS は純粋関節角
+      (`arm3=z`)。`GlobalScript.useRos2`（ParameterLoader が判定時に設定）で場合分け。放置すると ROS で
+      `y+z` が J2 と打ち消し合い arm3 が動かない。**未コミット**（GlobalScript/ParameterLoader/CRX-30iA.cs）→ 要ROS実機で -30°確認。
+- [~] **ヘッド(ツール)を MoveIt に反映（方式B）**: Unity 送信＋ROS2 受信とも実装済（未コミット/要sync）。
+      - Unity: `ComRos2Obstacles.SendHead()`／ContextMenu「Send Head」。既存 `Obstacles` を `/kmx/attached` に流用
+        (`frame_id`=attach先リンク)。`Kinematics6D.HeadObject` 配下 Collider を isTrigger 問わず全て AABB 化。**生送り**。
+      - ROS2: `on_attached`→`AttachedCollisionObject`(全置換 `_attached_ids`, touch_links)。**補正は ROS2 `head_calibration_rpy`**。
+      - **認識合わせ決定**: ヘッド補正は ROS2 一本（Unity headCalibrationEuler 撤去）。base 補正は Unity のまま。二重補正禁止（HANDOFF §4.1）。
+      - **確定(2026-07-05)**: attach_link=`flange`(SRDF tip)・touch_links 既定は実在名でOK。`head_calibration_rpy=[0,90,90]` 実機確認→param既定へ焼込。安定id＋Clear Scene で累積対策。
+      - **残(性能)**: ヘッドが 150+ Collider で重い→ `headAsSingleBox`(既定false) で1個AABB化可（把持開口不要なら推奨）。要検証。
+
 ## 次バッチ候補（C クリーンアップ）
 バグではないので B/D と分離。着手時は別コミット推奨（検証済みコードへの広い差分を混ぜない）。
 - C1 リロード掃除（`Ros2TransportFactory.Create`＋`destroyed`＋`OnDestroy`→`Disconnect`）が 3 コンポで重複 → 基底 or ヘルパー

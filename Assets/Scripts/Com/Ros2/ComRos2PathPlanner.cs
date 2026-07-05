@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using UnityEngine;
 
 /// <summary>
@@ -28,8 +29,15 @@ public class ComRos2PathPlanner : MonoBehaviour
     [SerializeField] private double[] testStartDeg = new double[6];
     [SerializeField] private double[] testGoalDeg = new double[6];
 
+    [Header("plan前に planning scene を更新")]
+    [Tooltip("plan要求の前に障害物とヘッドを送って planning scene を更新する")]
+    [SerializeField] private bool sendSceneBeforePlan = true;
+    [Tooltip("障害物/ヘッド送信から plan要求までの待ち(秒)。scene反映が非同期なので少し待つ")]
+    [SerializeField] private float sceneSettleSec = 0.4f;
+
     private IRos2Transport transport;
     private ComRos2 com;
+    private ComRos2Obstacles obstacles;   // 同一GameObject。plan前の scene 更新に使う
     private bool started;
     private bool destroyed;
 
@@ -57,6 +65,7 @@ public class ComRos2PathPlanner : MonoBehaviour
             enabled = false;
             return;
         }
+        obstacles = GetComponent<ComRos2Obstacles>();   // plan前の scene 更新用（無くても可）
         // ROSConnection はシングルトンなので ComRos2 と同じ接続を共有する（Connect は ComRos2 が実施済み）。
         transport = Ros2TransportFactory.Create();
         transport.SubscribeTrajectory(trajectoryTopic, OnTrajectory);
@@ -96,6 +105,37 @@ public class ComRos2PathPlanner : MonoBehaviour
     public void RequestPlanFromCurrent(double[] goalDeg)
     {
         RequestPlan(ReadCurrentDeg(), goalDeg);
+    }
+
+    /// <summary>
+    /// planning scene（障害物＋ヘッド）を先に送ってから経路生成を要求する。
+    /// scene 反映は非同期（ROS2側が service で適用）なので、送信→少し待ち→plan の順にする。
+    /// sendSceneBeforePlan=false や障害物コンポ非在時は通常の RequestPlan と同じ。
+    /// </summary>
+    public void RequestPlanWithScene(double[] startDeg, double[] goalDeg)
+    {
+        if (sendSceneBeforePlan && obstacles != null && isActiveAndEnabled)
+        {
+            StartCoroutine(SendSceneThenPlan(startDeg, goalDeg));
+        }
+        else
+        {
+            RequestPlan(startDeg, goalDeg);
+        }
+    }
+
+    private IEnumerator SendSceneThenPlan(double[] startDeg, double[] goalDeg)
+    {
+        // 障害物とヘッド(ツール)を送って planning scene を更新。
+        obstacles.SendObstacles();
+        obstacles.SendHead();
+        Debug.Log($"[ComRos2PathPlanner] scene(障害物+ヘッド)送信 → {sceneSettleSec:F2}s 待って plan要求");
+        yield return new WaitForSeconds(sceneSettleSec);
+        if (destroyed)
+        {
+            yield break;
+        }
+        RequestPlan(startDeg, goalDeg);
     }
 
     /// <summary>現在の関節角（度）を ComRos2 経由で読む。読めない軸は 0。</summary>
@@ -242,16 +282,24 @@ public class ComRos2PathPlanner : MonoBehaviour
     #endregion 受信 / 再生
 
     #region テスト用
+    // 既定でシーン(障害物+ヘッド)を送ってから plan する（sendSceneBeforePlan で切替）。
     [ContextMenu("Test Plan (start→goal)")]
     private void TestPlanStartGoal()
     {
-        RequestPlan(testStartDeg, testGoalDeg);
+        RequestPlanWithScene(testStartDeg, testGoalDeg);
     }
 
     [ContextMenu("Test Plan (current→goal)")]
     private void TestPlanCurrentGoal()
     {
-        RequestPlanFromCurrent(testGoalDeg);
+        RequestPlanWithScene(ReadCurrentDeg(), testGoalDeg);
+    }
+
+    // シーンを送らず plan だけ投げたい時用（従来動作）。
+    [ContextMenu("Test Plan (start→goal, plan only)")]
+    private void TestPlanStartGoalOnly()
+    {
+        RequestPlan(testStartDeg, testGoalDeg);
     }
     #endregion テスト用
 }

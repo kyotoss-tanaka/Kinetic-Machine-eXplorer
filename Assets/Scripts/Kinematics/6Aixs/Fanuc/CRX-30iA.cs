@@ -58,7 +58,10 @@ public class CRX_30iA: Kinematics6D
     {
         arm1.localEulerAngles = new Vector3(ang1.x, 0, x);
         arm2.localEulerAngles = new Vector3(0, -y, 0);
-        arm3.localEulerAngles = new Vector3(0, y + z, 0);
+        // 3軸目はデータソースで規約が異なる:
+        //  ・実機(OPC UA/Postgres): 3軸目の値は J2 と連成した値のため arm3 は y + z が必要。
+        //  ・ROS(/kmx): 純粋な関節角(J3)を送るため arm3 は z のみが正しい。
+        arm3.localEulerAngles = new Vector3(0, GlobalScript.useRos2 ? z : (y + z), 0);
         arm4.localEulerAngles = new Vector3(rx, 0, 0);
         arm5.localEulerAngles = new Vector3(0, ry, 0);
         arm6.localEulerAngles = new Vector3(rz, 0, 0);
