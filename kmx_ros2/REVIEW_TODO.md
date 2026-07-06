@@ -93,6 +93,14 @@
       **残**: ①ROS2側 `/kmx/plan_status` publish（`PLAN_STATUS_ROS2_SPEC.md`）②Unity std_msgs 生成（未生成ならコンパイル要対応）
       ③**専用パネル(uGUI)**＝中核検証後に載せる（ボタン→Approve/Cancel、`StateChanged`で表示更新）。
 
+- [~] **計画パネル（実行時UI）Stage1**（未コミット・要検証）: `ComRos2PlanPanel`（新規、ParameterLoader 自動アタッチ）。
+      Screen-space overlay・英数ラベル。J1-J6 スライダーでゴール姿勢設定（`Set Goal`→`Kinematics6D.SetManual/SetManualJointsDeg`
+      で isManual 表示）→`Plan`(current→goal, scene送信)→`Planning… 残りX秒`/成否→Preview で `OK`(ApprovePlan)/`NG`(CancelPlan)。
+      Kinematics6D に SetManual/SetManualJointsDeg/IsManual、PathPlanner に PlanTimeBudget/PlanElapsedSec/ReadCurrentDeg(public) 追加。
+      **残 Stage2**: ①プレビューを**ゴースト(半透明複製)再生**に（今は青線）②UIを**ロボット近傍のワールド空間**へ③日本語化(TMP+JPフォント)。
+- [ ] **ヘッド粒度の間引き**（ROS2は12個超で1箱自動統合＝§B-1.1）: 開口を残すなら Unity で本体1+爪2 等 ≤12箱に間引いて送る。
+      現状 headAsSingleBox=false は約395箱→ROS2で1箱化。`headAsSingleBox`/間引きロジックを詰める。
+
 ## 次バッチ候補（C クリーンアップ）
 バグではないので B/D と分離。着手時は別コミット推奨（検証済みコードへの広い差分を混ぜない）。
 - C1 リロード掃除（`Ros2TransportFactory.Create`＋`destroyed`＋`OnDestroy`→`Disconnect`）が 3 コンポで重複 → 基底 or ヘルパー

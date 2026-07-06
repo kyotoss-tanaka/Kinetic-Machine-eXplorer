@@ -81,6 +81,18 @@ Unity は **既存 `kmx_msgs/Obstacles` を別トピック `/kmx/attached` に p
   Collider を **isTrigger の有無を問わず全て** AABB 化して送る。`attachLinkName` が frame_id になる。
 - **kmx_msgs の追加は不要**（Obstacles/ObstaclePrimitive は障害物対応で導入済み）。新トピックだけ。
 
+#### B-1.1 ★ヘッド形状の粒度＝間引き対応（2026-07-06・Unity側だけで切替可）
+- ROS2 は受信 item 数が `attached_merge_over`(既定 **12**) を**超えたら union AABB 1箱に自動統合**（安全弁）、
+  **12個以下はそのまま個別 attach**（把持開口を残せる）。＝**形状の粒度は Unity が送る箱数だけで決まる**。
+- **Unity 側の想定運用**（`ComRos2Obstacles.headAsSingleBox`）:
+  - `true` → **1箱**（全体を1個の AABB）。開口不要・最軽量。
+  - `false` → **間引き数箱**（例：本体1箱＋爪2箱で**把持開口を残す**・**合計 ≤12 個**）。
+    ※ 旧実装の「全 Collider を AABB 化して数百個(実測395)送る」は、そのまま送っても ROS2 安全弁で1箱化されるだけ
+    （＝開口は出ない）。開口を活かすには **数個へ間引いて送る**こと。
+- ROS2側 検証済（2026-07-06）: 3箱→個別保持／15箱→1箱統合。閾値は `ros2 param set /kmx_planner attached_merge_over N`。
+- **touch_links 注意**: 現状 `attached_touch_links` に `J4_link` を含む（旧 union箱が手首後方へ膨らみ J4 と常時接触するため）。
+  間引き形状が J4 に膨らまない設計なら `J4_link` は外す方が実 J4 衝突を隠さず正確。**Unity の間引き箱の配置が決まったら ROS2 側で調整**。
+
 ### B-2. ノード実装（`kmx_planner` に追記）
 - **購読**: `/kmx/attached` (kmx_msgs/Obstacles) ← 型は障害物と同じ、トピックだけ別。
 - **変換**: 各 `item` → `moveit_msgs/CollisionObject`（`header.frame_id = msg.frame_id`(=attachリンク)、`SolidPrimitive` +

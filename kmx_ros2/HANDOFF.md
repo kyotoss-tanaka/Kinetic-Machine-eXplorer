@@ -89,7 +89,7 @@ ros2 run kmx_planner kmx_planner --ros-args -p use_moveit:=true -p planning_grou
 - **経路短縮（発行前・RRT*-Smart の Path Optimization 相当）**: `path_shortcut`=true のとき、採用経路の**非隣接ウェイポイント間を直結できる（直線補間が衝突しない）なら中間点を捨てて**うねりを除去。衝突判定は `/check_state_validity` を経路上だけに使う（attachヘッド＋障害物込み・`is_diff=True`）。`shortcut_step_deg`/`shortcut_output_step_deg` で刻み調整。ログ `cost A→B, 直線=D [N倍]` で効果確認。
 - **計画バックエンド `planner_backend`**: `moveit`（既定＝OMPL RRTConnect＋上記retry/shortcut）/ `rrtstar_smart`（**Python実装のRRT*-Smart**・実験的。関節空間RRT*＋近傍リワイヤ＋Intelligent Sampling＋shortcut、時間予算内で最良）。RRT*-Smart は衝突判定が `check_state_validity`(サービス)経由でスループット低め＝狭所発見は弱い。関節可動域は `/robot_description` から自動取得。本番最適性は C++ OMPL プラグイン化が本筋。
 - **地面（床）は Unity が `/kmx/obstacles` で送る**（例 `kmx_ground_plane` 4×4×0.1m を base_link下 z≈-0.9 等）。ROS2 側でハードコード地面は持たない（一度実装したが撤去）。※ Unity の巨大床(scale 1000)は `ComRos2Obstacles` の `maxObstacleSize` 安全弁で除外され得るので、適正サイズで送るか安全弁を調整。
-- params（`ros2 param set /kmx_planner …` でライブ調整可）: `use_moveit`, `planning_group`(=manipulator), `moveit_joint_names`(=[J1..J6]), `duration_sec`, `num_points`, `allowed_planning_time`(=1.0), `vel_scale`/`acc_scale`(=0.3), `planner_id`(=RRTConnect), `num_planning_attempts`, `planning_pipeline`, **`plan_retries`(=20)**, **`plan_time_budget_sec`(=10)**, **`plan_good_ratio`(=2.0)**, **`path_shortcut`**, `shortcut_step_deg`, `shortcut_output_step_deg`, **`planner_backend`**, `rrt_*`（RRT*-Smart用）, `head_calibration_rpy`(=[0,90,90]), `attach_link`(=flange), `attached_touch_links`, `obstacles_topic`, `apply_scene_service`, `get_scene_service`, `planning_scene_topic`。
+- params（`ros2 param set /kmx_planner …` でライブ調整可）: `use_moveit`, `planning_group`(=manipulator), `moveit_joint_names`(=[J1..J6]), `duration_sec`, `num_points`, `allowed_planning_time`(=1.0), `vel_scale`/`acc_scale`(=0.3), `planner_id`(=RRTConnect), `num_planning_attempts`, `planning_pipeline`, **`plan_retries`(=20)**, **`plan_time_budget_sec`(=10)**, **`plan_good_ratio`(=2.0)**, **`path_shortcut`**, `shortcut_step_deg`, `shortcut_output_step_deg`, **`planner_backend`**, `rrt_*`（RRT*-Smart用）, `head_calibration_rpy`(=[0,90,90]), `attach_link`(=flange), `attached_touch_links`, **`attached_merge_aabb`(=true)**, **`attached_merge_over`(=12・この数超で union1箱に安全弁統合／以下は個別attach＝間引き)**, `obstacles_topic`, `apply_scene_service`, `get_scene_service`, `planning_scene_topic`, **`plan_status_topic`(=/kmx/plan_status)**。
 - メッセージ: `PlanRequest`(names,start,goal,**time_budget,good_ratio**) / `Obstacles` / `ObstaclePrimitive` は `kmx_msgs`（障害物系は `geometry_msgs` 依存）。`JointTrajectory` は **ROS-TCP-Connector 同梱**（Unity側は生成不要）。**PlanRequest にフィールド追加したので Unity は `Generate ROS Messages` 再生成が必要**。
 - 堅牢化: `Obstacles` import は try/except で保護（未ビルドでも PlanRequest 経路は起動）。`_convert_result` は関節名不一致時に発行中止（0埋め廃止）。実行モデルは **MultiThreadedExecutor**（shortcut の同期 `check_state_validity` 呼び出しをコールバック内から行うため。sv クライアントは別コールバックグループ）。
 
@@ -120,9 +120,13 @@ ros2 run kmx_planner kmx_planner --ros-args -p use_moveit:=true -p planning_grou
   全置換(`_attached_ids` 別集合)→`robot_state.attached_collision_objects` に反映。**ヘッド向き補正は ROS2 の
   `head_calibration_rpy`(param・ライブ調整)** で行う（Unity は生送り）。実装済・`py_compile` OK。
 - **★ヘッド位置キャリブレーション＝確定(2026-07-05)**: `head_calibration_rpy=[0,90,90]`（実機確認）→ param 既定へ焼込済。
-- **★残＝ヘッドの Collider 数（性能）**: CADヘッドは 150個超の Collider を attach するため MoveIt が重い懸念。
-  Unity 側 `ComRos2Obstacles.headAsSingleBox`(既定false) を true にすると**全体を1個のAABB**で送れる（把持開口が要らなければ推奨）。
-  把持開口が要る運用なら個別のまま or 数個へ間引きを別途検討。
+- **★ヘッドの Collider 数（性能）＝間引き対応済(2026-07-06)**: CADヘッドは実測395個の Collider があり全attachは
+  MoveIt が激重。ROS2 は `attached_merge_over`(=12) を**超える** item 数を受けたら **union AABB 1箱に自動統合**（安全弁）、
+  **12個以下はそのまま個別 attach**（＝間引きで把持開口を残せる）。→ **形状切替は Unity 側だけで完結**：
+  `ComRos2Obstacles.headAsSingleBox=true`→1箱／`false`→間引き数箱（本体＋爪等・**≤12個**）を送る。移行期に旧来の395個を
+  送っても安全弁で1箱化＝性能退行なし。ROS2側検証済：**3箱→個別保持／15箱→1箱統合**。
+  **注意**：`attached_touch_links` の `J4_link` は旧 union箱（手首後方に膨らむ）前提。間引き形状が J4 に膨らまないなら
+  `J4_link` を外す方が実 J4 衝突を隠さず正確（Unity 間引き形状が確定したら調整）。完全に統合断つなら `attached_merge_aabb=false`。
 - **★地面(ground plane)対応＝ROS2側 新規実装 不要(2026-07-05)**: Unity が **基部の真下・床の高さ**に
   **可動範囲サイズの薄い板(既定 4×4×0.1m)** を `id="kmx_ground_plane"` で **`/kmx/obstacles` の世界障害物**として送る
   （`ComRos2Obstacles.sendGroundPlane`＝既定 true。床の高さは `groundNameContains="Floor"` の Collider 上面から取得）。

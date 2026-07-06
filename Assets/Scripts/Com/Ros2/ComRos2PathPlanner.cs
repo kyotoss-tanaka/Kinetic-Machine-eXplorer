@@ -62,6 +62,13 @@ public class ComRos2PathPlanner : MonoBehaviour
     /// <summary>状態が変わったとき (state, message) を通知する。UI パネルが購読する。</summary>
     public event Action<PlanState, string> StateChanged;
 
+    /// <summary>計画の時間予算(秒)。0=ROS2既定。UIから設定でき、残り時間表示にも使う。</summary>
+    public double PlanTimeBudget { get => planTimeBudget; set => planTimeBudget = value; }
+    /// <summary>計画中の経過秒（Planning 以外は 0）。UI の残り時間表示用。</summary>
+    public float PlanElapsedSec => (State == PlanState.Planning) ? Time.time - planStartTime : 0f;
+    /// <summary>だんまり保険の timeout 秒（UI の残り時間上限にも使える）。</summary>
+    public float PlanTimeoutSec => planTimeoutSec;
+
     private IRos2Transport transport;
     private ComRos2 com;
     private ComRos2Obstacles obstacles;   // 同一GameObject。plan前の scene 更新に使う
@@ -180,8 +187,8 @@ public class ComRos2PathPlanner : MonoBehaviour
         RequestPlan(startDeg, goalDeg);
     }
 
-    /// <summary>現在の関節角（度）を ComRos2 経由で読む。読めない軸は 0。</summary>
-    private double[] ReadCurrentDeg()
+    /// <summary>現在の関節角（度）を ComRos2 経由で読む。読めない軸は 0。UI がゴール初期値/start に使う。</summary>
+    public double[] ReadCurrentDeg()
     {
         var a = new double[jointNames.Length];
         for (int j = 0; j < jointNames.Length; j++)

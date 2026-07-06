@@ -100,6 +100,26 @@ public class Kinematics6D : Kinematics3D
         outWorld.Clear();
     }
 
+    /// <summary>手動モードか（true=上位指令を無視して target/rotate で表示）。</summary>
+    public bool IsManual => isManual;
+
+    /// <summary>手動モードの ON/OFF（ゴール姿勢を画面で作るときに ON）。</summary>
+    public void SetManual(bool on)
+    {
+        isManual = on;
+    }
+
+    /// <summary>手動姿勢を J1..J6(度) で設定（isManual 時に表示へ反映）。rates=1 前提の素の度。</summary>
+    public void SetManualJointsDeg(double[] j)
+    {
+        if (j == null || j.Length < 6)
+        {
+            return;
+        }
+        target = new Vector3((float)j[0], (float)j[1], (float)j[2]);
+        rotate = new Vector3((float)j[3], (float)j[4], (float)j[5]);
+    }
+
     /// <summary>
     /// 目標位置セット
     /// </summary>

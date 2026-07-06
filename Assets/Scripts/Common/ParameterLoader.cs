@@ -1069,7 +1069,12 @@ namespace Parameters
                 {
                     Destroy(obj);
                 }
-                // ComRos2 / 経路生成 / 障害物 も破棄（ComBaseScript 非継承。リロードでの重複接続・古いDB解決の残留を防止）
+                // ComRos2 / 経路生成 / 障害物 / 計画UI も破棄（ComBaseScript 非継承。リロードでの重複接続・古いDB解決の残留を防止）
+                // ※ 計画UI(ComRos2PlanPanel) は RequireComponent(ComRos2PathPlanner) なので PathPlanner より先に破棄。
+                foreach (var obj in globalSetting.GetComponentsInChildren<ComRos2PlanPanel>())
+                {
+                    Destroy(obj);
+                }
                 foreach (var obj in globalSetting.GetComponentsInChildren<ComRos2PathPlanner>())
                 {
                     Destroy(obj);
@@ -1103,8 +1108,12 @@ namespace Parameters
             {
                 Destroy(obj);
             }
-            // ComRos2 / 経路生成 / 障害物 も ComBaseScript 非継承のため別途破棄（重複接続・古いDB解決の残留を防止）
-            // ※ ComRos2PathPlanner は RequireComponent(ComRos2) なので ComRos2 より先に破棄すること。
+            // ComRos2 / 経路生成 / 障害物 / 計画UI も ComBaseScript 非継承のため別途破棄（重複接続・古いDB解決の残留を防止）
+            // ※ 破棄順: 計画UI(PlanPanel) → PathPlanner → ComRos2（RequireComponent の依存を後ろから解く）。
+            foreach (var obj in globalSetting.GetComponentsInChildren<ComRos2PlanPanel>())
+            {
+                Destroy(obj);
+            }
             foreach (var obj in globalSetting.GetComponentsInChildren<ComRos2PathPlanner>())
             {
                 Destroy(obj);
@@ -1736,6 +1745,11 @@ namespace Parameters
                 if (globalSetting.GetComponent<ComRos2Obstacles>() == null)
                 {
                     globalSetting.AddComponent<ComRos2Obstacles>();
+                }
+                // 経路計画の実行時UI（ゴール設定/計画/計画中/成否/OK・NG）。ComRos2PathPlanner を使う。
+                if (globalSetting.GetComponent<ComRos2PlanPanel>() == null)
+                {
+                    globalSetting.AddComponent<ComRos2PlanPanel>();
                 }
             }
 
