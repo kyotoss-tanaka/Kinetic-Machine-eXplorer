@@ -68,6 +68,37 @@ public class CRX_30iA: Kinematics6D
     }
 
     /// <summary>
+    /// 経路プレビュー用: 関節角セット列(度・J1..J6)で先端(ツール/フランジ)の世界位置列を返す。
+    /// 現在の腕姿勢を保存→各点で SetTarget→先端 world 位置を記録→復元（1コール完結でロボは動いて見えない）。
+    /// </summary>
+    public override void SampleTipWorld(IReadOnlyList<double[]> jointsDeg, List<Vector3> outWorld)
+    {
+        outWorld.Clear();
+        if (jointsDeg == null || arm1 == null || arm2 == null || arm3 == null
+            || arm4 == null || arm5 == null || arm6 == null)
+        {
+            return;
+        }
+        var tip = HeadObject != null ? HeadObject.transform : arm6;
+        // 現在姿勢を保存
+        Vector3 s1 = arm1.localEulerAngles, s2 = arm2.localEulerAngles, s3 = arm3.localEulerAngles;
+        Vector3 s4 = arm4.localEulerAngles, s5 = arm5.localEulerAngles, s6 = arm6.localEulerAngles;
+        foreach (var j in jointsDeg)
+        {
+            if (j == null || j.Length < 6)
+            {
+                continue;
+            }
+            // SetTarget は useRos2 のとき arm3=z（純粋関節角）＝ROS軌道の規約と一致。
+            SetTarget((float)j[0], (float)j[1], (float)j[2], (float)j[3], (float)j[4], (float)j[5]);
+            outWorld.Add(tip.position);   // 子の .position 取得で world 行列は即再計算される
+        }
+        // 復元
+        arm1.localEulerAngles = s1; arm2.localEulerAngles = s2; arm3.localEulerAngles = s3;
+        arm4.localEulerAngles = s4; arm5.localEulerAngles = s5; arm6.localEulerAngles = s6;
+    }
+
+    /// <summary>
     /// モデル再構築
     /// </summary>
     /// <param name="instance"></param>

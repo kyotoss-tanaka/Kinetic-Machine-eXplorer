@@ -491,10 +491,16 @@ public interface IRos2Transport
     // --- 経路生成（Unity→ROS2 でプラン要求、ROS2→Unity で軌道受信）---
     /// <summary>plan要求 publisher を事前登録する（初回publishの "Not registered" レース回避）。</summary>
     void RegisterPlanRequestPublisher(string topic);
-    /// <summary>始点/終点(度)を kmx_msgs/PlanRequest で発行する。</summary>
-    void PublishPlanRequest(string topic, string[] names, double[] startDeg, double[] goalDeg);
+    /// <summary>
+    /// 始点/終点(度)を kmx_msgs/PlanRequest で発行する。
+    /// timeBudget(秒)/goodRatio は任意で計画の粘り具合を要求ごとに指定（0以下=ROS2ノード既定）。
+    /// </summary>
+    void PublishPlanRequest(string topic, string[] names, double[] startDeg, double[] goalDeg,
+                            double timeBudget = 0.0, double goodRatio = 0.0);
     /// <summary>trajectory_msgs/JointTrajectory を購読し Ros2Trajectory(度) に変換して渡す。</summary>
     void SubscribeTrajectory(string topic, Action<Ros2Trajectory> onTrajectory);
+    /// <summary>計画ステータス(std_msgs/String, 例 "planning"/"succeeded:.."/"failed:..")を購読する。</summary>
+    void SubscribePlanStatus(string topic, Action<string> onStatus);
 
     // --- 障害物（Unity→ROS2 で planning scene へ）---
     /// <summary>障害物 publisher を事前登録する（初回publishの "Not registered" レース回避）。</summary>
@@ -517,8 +523,10 @@ public sealed class NullRos2Transport : IRos2Transport
     public void Publish(string topic, string[] names, double[] values) { }
     public void Subscribe(string topic, Action<string[], double[]> onMessage) { }
     public void RegisterPlanRequestPublisher(string topic) { }
-    public void PublishPlanRequest(string topic, string[] names, double[] startDeg, double[] goalDeg) { }
+    public void PublishPlanRequest(string topic, string[] names, double[] startDeg, double[] goalDeg,
+                                   double timeBudget = 0.0, double goodRatio = 0.0) { }
     public void SubscribeTrajectory(string topic, Action<Ros2Trajectory> onTrajectory) { }
+    public void SubscribePlanStatus(string topic, Action<string> onStatus) { }
     public void RegisterObstaclesPublisher(string topic) { }
     public void PublishObstacles(string topic, string frameId, List<Ros2Obstacle> obstacles) { }
 }

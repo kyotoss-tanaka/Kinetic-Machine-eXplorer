@@ -4,3 +4,6 @@
 string[] names    # 関節名。例 ["J1","J2","J3","J4","J5","J6"]。空なら受信側の既定順。
 float64[] start   # 始点 関節角（度）
 float64[] goal    # 終点 関節角（度）
+# --- 任意（Unity から計画の粘り具合を制御。0以下 or 未設定なら ROS2 ノード既定を使う＝後方互換） ---
+float64 time_budget   # 計画の総時間予算(秒)。難しい姿勢は大きく、簡単なら小さく。0以下=既定 plan_time_budget_sec
+float64 good_ratio    # 大回り回避の許容倍率(始点→終点の直線関節距離比)。小さいほど短経路を要求。0以下=既定 plan_good_ratio

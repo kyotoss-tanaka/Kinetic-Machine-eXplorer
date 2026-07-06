@@ -91,6 +91,16 @@ public class Kinematics6D : Kinematics3D
     }
 
     /// <summary>
+    /// 与えた関節角セット列(度・J1..J6順)での「先端(ツール/フランジ)」世界位置列を返す（経路プレビュー用）。
+    /// 実装(サブクラス)は現在姿勢を保存→各点で pose→先端位置を記録→復元する（1コール内で完結＝表示は乱れない）。
+    /// 既定は何もしない（先端不明）。
+    /// </summary>
+    public virtual void SampleTipWorld(IReadOnlyList<double[]> jointsDeg, List<Vector3> outWorld)
+    {
+        outWorld.Clear();
+    }
+
+    /// <summary>
     /// 目標位置セット
     /// </summary>
     /// <param name="target"></param>

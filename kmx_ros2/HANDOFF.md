@@ -36,8 +36,9 @@ Unity ⇄ ros_tcp_endpoint ⇄ (DDS) ⇄ kmx_planner / move_group
 |---|---|---|---|
 | `/kmx/command` | kmx_msgs/TagArray (names,values) | Unity→ROS2 | 直接関節駆動(度) |
 | `/kmx/state` | kmx_msgs/TagArray | ROS2→Unity | 現在角度(度) |
-| `/kmx/plan_request` | kmx_msgs/PlanRequest (names,start,goal) | Unity→ROS2 | 経路要求(度) |
+| `/kmx/plan_request` | kmx_msgs/PlanRequest (names,start,goal,**time_budget,good_ratio**) | Unity→ROS2 | 経路要求(度)。time_budget(秒)/good_ratio は任意＝計画の粘り具合を要求ごとに指定（0/未設定=ノード既定）。※フィールド追加につき Unity は Generate ROS Messages 再生成が必要 |
 | `/kmx/trajectory` | trajectory_msgs/JointTrajectory | ROS2→Unity | 生成軌道(度) |
+| `/kmx/plan_status` | **std_msgs/String** (reliable) | ROS2→Unity | 計画ステータス通知。`planning` / `succeeded:<points>:<ratio>` / `failed:<reason>`（軌道は載せない・状態専用。Unityの計画中表示/プレビュー用） |
 | `/kmx/obstacles` | kmx_msgs/Obstacles (frame_id,items[]) | Unity→ROS2 | 障害物→planning scene（**メートル**・base_link相対・**世界CollisionObject**） |
 | `/kmx/attached` | **kmx_msgs/Obstacles（同型を流用）** | Unity→ROS2 | ヘッド(ツール)→**AttachedCollisionObject**（**メートル**・**frame_id=attach先リンク**相対） |
 
@@ -83,9 +84,14 @@ ros2 run kmx_planner kmx_planner --ros-args -p use_moveit:=true -p planning_grou
 - `use_moveit:=false` → `plan_interpolate`（関節空間 smoothstep 補間、MoveIt不要）。
 - `use_moveit:=true` → **MoveGroupアクション `plan_only` を `send_goal_async`（非同期）**。始点=`start_state.joint_state`(rad絶対)、終点=`JointConstraint`。結果は `_convert_result` で rad→deg＋`J1..J6`順へ。
 - **障害物 → planning scene**: `/kmx/obstacles`(kmx_msgs/Obstacles) を購読 → `moveit_msgs/CollisionObject` 化 → **`/apply_planning_scene` サービス**で move_group の planning scene に反映（未準備時は `/planning_scene` publish で fallback）。反映後は `plan_only` が自動で障害物を回避。受信のたび**全置換**（同一id ADD で置換／消えたidは REMOVE、`_obstacle_ids` は apply 成功後に確定）。詳細・検証結果は `OBSTACLES_ROS2_SPEC.md` §6。
-- params: `use_moveit`, `planning_group`(=manipulator), `moveit_joint_names`(=[J1..J6]), `duration_sec`, `num_points`, `allowed_planning_time`, `vel_scale`, `acc_scale`, `obstacles_topic`, `apply_scene_service`, `planning_scene_topic`。
-- メッセージ: `PlanRequest` / `Obstacles` / `ObstaclePrimitive` は `kmx_msgs`（障害物系は `geometry_msgs` 依存）。`JointTrajectory` は **ROS-TCP-Connector 同梱**（Unity側は生成不要）。
-- 堅牢化: `Obstacles` import は try/except で保護（未ビルドでも PlanRequest 経路は起動）。`_convert_result` は関節名不一致時に発行中止（0埋め廃止）。
+- **★attached が world と衝突判定される要点**: MoveGroup goal の `start_state.is_diff = True`。`False` だと MoveIt が `clearAttachedBodies()` で attached(ヘッド)を消してから計画し、ヘッドが障害物をすり抜ける（2026-07-05 真因特定・修正済）。
+- **リトライ＋経路最適化＋大回り回避**（狭所対策・2026-07-05）: 1要求＝1計画セッション。時間予算内(`plan_time_budget_sec` or `PlanRequest.time_budget`)・最大 `plan_retries` 回まで計画を繰り返し、**失敗はリトライ／成功は貯めて関節総移動量が最小の経路を採用**。「始点→終点の直線関節距離の `plan_good_ratio`(or `PlanRequest.good_ratio`) 倍以下」の短経路が出たら**早期終了**、出なければ予算まで**より短い通り道を探し続ける**（稀な大迂回ホモトピーで妥協しない）。1試行は `allowed_planning_time`(既定1.0s)で短く打ち切り回数を稼ぐ。
+- **経路短縮（発行前・RRT*-Smart の Path Optimization 相当）**: `path_shortcut`=true のとき、採用経路の**非隣接ウェイポイント間を直結できる（直線補間が衝突しない）なら中間点を捨てて**うねりを除去。衝突判定は `/check_state_validity` を経路上だけに使う（attachヘッド＋障害物込み・`is_diff=True`）。`shortcut_step_deg`/`shortcut_output_step_deg` で刻み調整。ログ `cost A→B, 直線=D [N倍]` で効果確認。
+- **計画バックエンド `planner_backend`**: `moveit`（既定＝OMPL RRTConnect＋上記retry/shortcut）/ `rrtstar_smart`（**Python実装のRRT*-Smart**・実験的。関節空間RRT*＋近傍リワイヤ＋Intelligent Sampling＋shortcut、時間予算内で最良）。RRT*-Smart は衝突判定が `check_state_validity`(サービス)経由でスループット低め＝狭所発見は弱い。関節可動域は `/robot_description` から自動取得。本番最適性は C++ OMPL プラグイン化が本筋。
+- **地面（床）は Unity が `/kmx/obstacles` で送る**（例 `kmx_ground_plane` 4×4×0.1m を base_link下 z≈-0.9 等）。ROS2 側でハードコード地面は持たない（一度実装したが撤去）。※ Unity の巨大床(scale 1000)は `ComRos2Obstacles` の `maxObstacleSize` 安全弁で除外され得るので、適正サイズで送るか安全弁を調整。
+- params（`ros2 param set /kmx_planner …` でライブ調整可）: `use_moveit`, `planning_group`(=manipulator), `moveit_joint_names`(=[J1..J6]), `duration_sec`, `num_points`, `allowed_planning_time`(=1.0), `vel_scale`/`acc_scale`(=0.3), `planner_id`(=RRTConnect), `num_planning_attempts`, `planning_pipeline`, **`plan_retries`(=20)**, **`plan_time_budget_sec`(=10)**, **`plan_good_ratio`(=2.0)**, **`path_shortcut`**, `shortcut_step_deg`, `shortcut_output_step_deg`, **`planner_backend`**, `rrt_*`（RRT*-Smart用）, `head_calibration_rpy`(=[0,90,90]), `attach_link`(=flange), `attached_touch_links`, `obstacles_topic`, `apply_scene_service`, `get_scene_service`, `planning_scene_topic`。
+- メッセージ: `PlanRequest`(names,start,goal,**time_budget,good_ratio**) / `Obstacles` / `ObstaclePrimitive` は `kmx_msgs`（障害物系は `geometry_msgs` 依存）。`JointTrajectory` は **ROS-TCP-Connector 同梱**（Unity側は生成不要）。**PlanRequest にフィールド追加したので Unity は `Generate ROS Messages` 再生成が必要**。
+- 堅牢化: `Obstacles` import は try/except で保護（未ビルドでも PlanRequest 経路は起動）。`_convert_result` は関節名不一致時に発行中止（0埋め廃止）。実行モデルは **MultiThreadedExecutor**（shortcut の同期 `check_state_validity` 呼び出しをコールバック内から行うため。sv クライアントは別コールバックグループ）。
 
 ## 7. 版固定（変えない・過去に長時間ハマった）
 - ROS-TCP-Connector（Unity UPM）= **`#v0.7.0`**
@@ -117,9 +123,36 @@ ros2 run kmx_planner kmx_planner --ros-args -p use_moveit:=true -p planning_grou
 - **★残＝ヘッドの Collider 数（性能）**: CADヘッドは 150個超の Collider を attach するため MoveIt が重い懸念。
   Unity 側 `ComRos2Obstacles.headAsSingleBox`(既定false) を true にすると**全体を1個のAABB**で送れる（把持開口が要らなければ推奨）。
   把持開口が要る運用なら個別のまま or 数個へ間引きを別途検討。
-- **認識合わせ 未確定（要ROS2側回答）**: ①attach 先リンク名（SRDF: `flange`/`tool0`/`J6_link`? 既定は `flange`／
-  `attached_touch_links` の手首側リンク名も実在名に）②scene 反映レイテンシは Unity 待ち 0.4s で足りるか
-  ③world 障害物は現状**全て軸整列BOX(向き無し)** で来る前提でよいか。
+- **★地面(ground plane)対応＝ROS2側 新規実装 不要(2026-07-05)**: Unity が **基部の真下・床の高さ**に
+  **可動範囲サイズの薄い板(既定 4×4×0.1m)** を `id="kmx_ground_plane"` で **`/kmx/obstacles` の世界障害物**として送る
+  （`ComRos2Obstacles.sendGroundPlane`＝既定 true。床の高さは `groundNameContains="Floor"` の Collider 上面から取得）。
+  base_link で床高さ(例 Z≈-0.9m)の薄板になり基部を内包しない。**実床(1000m級)は送らない**（軽量）。既存 `on_obstacles`
+  でそのまま処理＝**新規実装不要・性能懸念なし**。板サイズ/厚みは Unity 側で調整可。
+- **認識合わせ 確認事項（要ROS2側回答）**: ①attach 先=`flange`(SRDF tip 確定)・`attached_touch_links` は実在名でOK
+  ②scene 反映レイテンシは Unity 待ち 0.4s で足りるか ③world 障害物は現状**全て軸整列BOX(向き無し)** で来る前提でよいか
+  ④(任意) attached の起動時同期: `GetPlanningScene(ROBOT_STATE_ATTACHED_OBJECTS)` で `_attached_ids` を seed すると
+  planner 単体再起動でも古い attached を掃除でき、move_group 再起動不要になる。
+- **★狭所プランナ調査＋狭所サンプラ実装＝済(2026-07-06)**: 標準プランナ比較（実シーン単発6回）で
+  **BITstar が最良（6/6・cost1.84倍）**＝据え置き確定（ABITstar 5/6・1.85／AITstar 4/6・2.14不安定／
+  RRTConnect 4/6・2.56倍・0.8sと最速だが長い）。運用リトライ有でも BITstar 1.77 > SBLbridge 2.15。
+  文献調査で VAMP(CPU SIMD・OMPL2.0統合)/cuRobo(GPU)/狭所サンプラ/STOMP等を整理。
+  **狭所 ValidStateSampler を MoveIt OMPL に実装済**：`ompl_planning.yaml` に `PRMbridge/PRMobstacle/
+  ESTgaussian/SBLbridge`、`model_based_planning_context.cpp` に `valid_state_sampler` キー処理
+  （`bridge_test|gaussian|obstacle_based|max_clearance|uniform`＋任意 `valid_state_sampler_stddev`[rad]）。
+  **PRM/EST/SBL/BKPIECE/STRIDE のみ効く**（RRTConnect/KPIECE/BIT*系は StateSampler で無効）。
+  **ws_moveit パッチ＝更新時要再適用**（BITstar backport と同様）。ただし現行シーンでは BITstar に及ばず
+  ＝発見は環境修正で既に解決済で旨味なし → **より狭い所/速度優先時の予備**として温存。詳細 `HANDOFF_curobo.md` §6。
+- **★計画ステータス通知 `/kmx/plan_status`＝実装・検証済(2026-07-06)**（要望書 `PLAN_STATUS_ROS2_SPEC.md`）:
+  `std_msgs/String`(reliable) を新設。`on_request` で `planning`、成功発行直後に `succeeded:<points>:<ratio>`、
+  失敗（時間予算内に解なし/MoveItエラー/不正要求）で `failed:<reason>`（`no_solution`/`GOAL_IN_COLLISION`/
+  `bad_request` 等・`_error_reason` で MoveItErrorCodes を文字列化）。**補間モード(`use_moveit:=false`)も
+  planning→succeeded を出す**。軌道は従来どおり `/kmx/trajectory`（status は状態専用）。新param `plan_status_topic`
+  (=`/kmx/plan_status`)。実測確認：`planning`→`succeeded:15:1.00`／`failed:bad_request`。Unity 側（購読・
+  プレビュー→OK/Cancel・timeout保険）は先方担当。※kmx_planner のみ変更＝ノード再起動で反映（move_group 不要）。
+- **★cuRobo(GPU計画)統合＝未着手・後日別途(2026-07-06 ユーザー判断)**: 環境= RTX A2000/CUDA12.8 は可だが
+  **nvcc/pip/torch/curobo 未導入**（~6-8GB 導入が要る）。再開用の環境ステータス・導入手順・統合設計
+  （`planner_backend=curobo` 追加＝move_group を通さず `/kmx/obstacles`(BOX)→world・`/kmx/attached`→attach・
+  CRX-30iA 球モデルで GPU 計画→`/kmx/trajectory`）は **`HANDOFF_curobo.md`** に集約。既定は BITstar 据え置き。
 
 ## 10. Unity側（参考・別VSCode担当。ここは触らない）
 - C#: `Assets/Scripts/Com/Ros2/`（ComRos2 / RosTcpConnectorTransport / ComRos2PathPlanner）。`GlobalScript`, `ParameterLoader`, `BuildAndRun` にも変更。

@@ -19,6 +19,7 @@ using Unity.Robotics.ROSTCPConnector.ROSGeometry;   // Unity→ROS(FLU) 変換
 using RosMessageTypes.Kmx;            // 生成した kmx_msgs/TagArray, PlanRequest, Obstacles
 using RosMessageTypes.Trajectory;     // 標準 trajectory_msgs/JointTrajectory
 using RosMessageTypes.Geometry;       // geometry_msgs/Pose
+using RosMessageTypes.Std;            // std_msgs/String（計画ステータス）
 
 /// <summary>ROS-TCP-Connector 経由のトランスポート（kmx_msgs/TagArray で名前＋値を送受信）。</summary>
 public sealed class RosTcpConnectorTransport : IRos2Transport
@@ -99,7 +100,8 @@ public sealed class RosTcpConnectorTransport : IRos2Transport
         planReqRegistered = true;
     }
 
-    public void PublishPlanRequest(string topic, string[] names, double[] startDeg, double[] goalDeg)
+    public void PublishPlanRequest(string topic, string[] names, double[] startDeg, double[] goalDeg,
+                                   double timeBudget = 0.0, double goodRatio = 0.0)
     {
         if (ros == null)
         {
@@ -109,7 +111,12 @@ public sealed class RosTcpConnectorTransport : IRos2Transport
         {
             RegisterPlanRequestPublisher(topic);   // 事前登録漏れ時のフォールバック（レースの可能性あり）
         }
-        ros.Publish(topic, new PlanRequestMsg { names = names, start = startDeg, goal = goalDeg });
+        // time_budget/good_ratio は 0以下 なら ROS2 ノード既定にフォールバック（後方互換）。
+        ros.Publish(topic, new PlanRequestMsg
+        {
+            names = names, start = startDeg, goal = goalDeg,
+            time_budget = timeBudget, good_ratio = goodRatio,
+        });
     }
 
     public void SubscribeTrajectory(string topic, Action<Ros2Trajectory> onTrajectory)
@@ -136,6 +143,16 @@ public sealed class RosTcpConnectorTransport : IRos2Transport
             }
             onTrajectory(traj);
         });
+        subscribedTopics.Add(topic);
+    }
+
+    public void SubscribePlanStatus(string topic, Action<string> onStatus)
+    {
+        if (ros == null)
+        {
+            ros = ROSConnection.GetOrCreateInstance();
+        }
+        ros.Subscribe<StringMsg>(topic, m => onStatus(m.data));
         subscribedTopics.Add(topic);
     }
 

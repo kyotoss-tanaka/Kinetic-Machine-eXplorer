@@ -22,19 +22,28 @@ namespace RosMessageTypes.Kmx
         //  始点 関節角（度）
         public double[] goal;
         //  終点 関節角（度）
+        //  --- 任意（Unity から計画の粘り具合を制御。0以下 or 未設定なら ROS2 ノード既定を使う＝後方互換） ---
+        public double time_budget;
+        //  計画の総時間予算(秒)。難しい姿勢は大きく、簡単なら小さく。0以下=既定 plan_time_budget_sec
+        public double good_ratio;
+        //  大回り回避の許容倍率(始点→終点の直線関節距離比)。小さいほど短経路を要求。0以下=既定 plan_good_ratio
 
         public PlanRequestMsg()
         {
             this.names = new string[0];
             this.start = new double[0];
             this.goal = new double[0];
+            this.time_budget = 0.0;
+            this.good_ratio = 0.0;
         }
 
-        public PlanRequestMsg(string[] names, double[] start, double[] goal)
+        public PlanRequestMsg(string[] names, double[] start, double[] goal, double time_budget, double good_ratio)
         {
             this.names = names;
             this.start = start;
             this.goal = goal;
+            this.time_budget = time_budget;
+            this.good_ratio = good_ratio;
         }
 
         public static PlanRequestMsg Deserialize(MessageDeserializer deserializer) => new PlanRequestMsg(deserializer);
@@ -44,6 +53,8 @@ namespace RosMessageTypes.Kmx
             deserializer.Read(out this.names, deserializer.ReadLength());
             deserializer.Read(out this.start, sizeof(double), deserializer.ReadLength());
             deserializer.Read(out this.goal, sizeof(double), deserializer.ReadLength());
+            deserializer.Read(out this.time_budget);
+            deserializer.Read(out this.good_ratio);
         }
 
         public override void SerializeTo(MessageSerializer serializer)
@@ -54,6 +65,8 @@ namespace RosMessageTypes.Kmx
             serializer.Write(this.start);
             serializer.WriteLength(this.goal);
             serializer.Write(this.goal);
+            serializer.Write(this.time_budget);
+            serializer.Write(this.good_ratio);
         }
 
         public override string ToString()
@@ -61,7 +74,9 @@ namespace RosMessageTypes.Kmx
             return "PlanRequestMsg: " +
             "\nnames: " + System.String.Join(", ", names.ToList()) +
             "\nstart: " + System.String.Join(", ", start.ToList()) +
-            "\ngoal: " + System.String.Join(", ", goal.ToList());
+            "\ngoal: " + System.String.Join(", ", goal.ToList()) +
+            "\ntime_budget: " + time_budget.ToString() +
+            "\ngood_ratio: " + good_ratio.ToString();
         }
 
 #if UNITY_EDITOR

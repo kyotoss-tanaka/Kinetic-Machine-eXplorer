@@ -1,5 +1,6 @@
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
@@ -35,6 +36,32 @@ public class ComRos2PathPlanner : MonoBehaviour
     [Tooltip("障害物/ヘッド送信から plan要求までの待ち(秒)。scene反映が非同期なので少し待つ")]
     [SerializeField] private float sceneSettleSec = 0.4f;
 
+    [Header("計画の粘り具合（0=ROS2ノード既定にフォールバック）")]
+    [Tooltip("計画の総時間予算(秒)。難所は大きく(例8〜15)/簡単なら小さく。0=ROS2既定(plan_time_budget_sec)")]
+    [SerializeField] private double planTimeBudget = 0.0;
+    [Tooltip("大回り回避の許容倍率(始点→終点の直線関節距離比)。小さいほど短経路を要求(例1.5)。0=ROS2既定(plan_good_ratio)")]
+    [SerializeField] private double planGoodRatio = 0.0;
+
+    [Header("計画のレビュー（計画中表示／成否／経路プレビュー→OK/Cancel）")]
+    [Tooltip("軌道受信後すぐ動かさず、3Dプレビュー表示して OK(ApprovePlan)/Cancel(CancelPlan) を待つ")]
+    [SerializeField] private bool requireApproval = true;
+    [Tooltip("計画ステータス(std_msgs/String)トピック。計画中/成功/失敗を受ける（ROS2側が publish）")]
+    [SerializeField] private string planStatusTopic = "/kmx/plan_status";
+    [Tooltip("計画中のまま軌道/失敗通知が来ない場合に失敗とみなす保険の秒数（time_budget より十分大きく）")]
+    [SerializeField] private float planTimeoutSec = 20f;
+    [Tooltip("経路プレビューの先端軌跡ライン色/幅")]
+    [SerializeField] private Color previewLineColor = new Color(0.1f, 0.8f, 1f, 1f);
+    [SerializeField] private float previewLineWidth = 0.01f;
+
+    /// <summary>計画の状態。UI(専用パネル)や外部がこれを見て表示を切替える。</summary>
+    public enum PlanState { Idle, Planning, Preview, Playing, Failed }
+    /// <summary>現在の計画状態。</summary>
+    public PlanState State { get; private set; } = PlanState.Idle;
+    /// <summary>状態の付随メッセージ（成功詳細/失敗理由など。UI表示用）。</summary>
+    public string StatusMessage { get; private set; } = "";
+    /// <summary>状態が変わったとき (state, message) を通知する。UI パネルが購読する。</summary>
+    public event Action<PlanState, string> StateChanged;
+
     private IRos2Transport transport;
     private ComRos2 com;
     private ComRos2Obstacles obstacles;   // 同一GameObject。plan前の scene 更新に使う
@@ -46,6 +73,12 @@ public class ComRos2PathPlanner : MonoBehaviour
     private double playT;
     private bool playing;
     private bool warnedMappingThisTraj;   // 軌道1本につきマップ失敗警告は1回だけ（毎フレーム spam 防止）
+
+    // レビュー/プレビュー
+    private float planStartTime;                 // Planning に入った時刻（timeout 判定用）
+    private LineRenderer previewLine;            // 先端軌跡プレビュー
+    private Kinematics6D kin;                    // FK サンプル用（先端位置）
+    private readonly System.Collections.Generic.List<Vector3> tipBuf = new();
 
     private void Start()
     {
@@ -69,8 +102,10 @@ public class ComRos2PathPlanner : MonoBehaviour
         // ROSConnection はシングルトンなので ComRos2 と同じ接続を共有する（Connect は ComRos2 が実施済み）。
         transport = Ros2TransportFactory.Create();
         transport.SubscribeTrajectory(trajectoryTopic, OnTrajectory);
+        transport.SubscribePlanStatus(planStatusTopic, OnPlanStatus);   // 計画中/成功/失敗
         // plan要求 publisher を起動時に事前登録（初回 Test Plan で "Not registered" レースを避ける）。
         transport.RegisterPlanRequestPublisher(planRequestTopic);
+        CreatePreviewLine();
         started = true;
         Debug.Log($"[ComRos2PathPlanner] start req='{planRequestTopic}' traj='{trajectoryTopic}' joints={jointNames.Length} transport={transport.GetType().Name}");
 #endif
@@ -97,8 +132,15 @@ public class ComRos2PathPlanner : MonoBehaviour
             Debug.LogWarning($"[ComRos2PathPlanner] start/goal は {jointNames.Length} 要素（度）で渡してください。");
             return;
         }
-        transport.PublishPlanRequest(planRequestTopic, jointNames, startDeg, goalDeg);
-        Debug.Log($"[ComRos2PathPlanner] plan要求 start=[{string.Join(",", startDeg)}] goal=[{string.Join(",", goalDeg)}]");
+        // 新しい要求。前の再生/プレビューは破棄して計画中へ。
+        playing = false;
+        traj = null;
+        HidePreviewLine();
+        transport.PublishPlanRequest(planRequestTopic, jointNames, startDeg, goalDeg, planTimeBudget, planGoodRatio);
+        planStartTime = Time.time;
+        SetState(PlanState.Planning, "計画中…");
+        Debug.Log($"[ComRos2PathPlanner] plan要求 start=[{string.Join(",", startDeg)}] goal=[{string.Join(",", goalDeg)}] "
+            + $"time_budget={planTimeBudget} good_ratio={planGoodRatio}");
     }
 
     /// <summary>現在の関節角を始点にして、終点までの経路生成を要求する。</summary>
@@ -180,15 +222,64 @@ public class ComRos2PathPlanner : MonoBehaviour
         }
         traj = t;
         playT = 0d;
-        playing = true;
+        playing = false;   // すぐ動かさない。承認(OK)まで待つ。
         warnedMappingThisTraj = false;
         double dur = t.timesSec[t.timesSec.Length - 1];
         Debug.Log($"[ComRos2PathPlanner] 軌道受信: {t.positions.Length}点 / {(t.jointNames != null ? t.jointNames.Length : 0)}軸 / 所要 {dur:F2}s");
+
+        BuildPreviewLine(t);   // 先端の軌跡を3D表示
+        if (requireApproval)
+        {
+            SetState(PlanState.Preview, $"成功: {t.positions.Length}点 / {dur:F1}s（OK で実行 / Cancel で破棄）");
+        }
+        else
+        {
+            // 承認不要モード（従来動作）＝そのまま再生。
+            ApprovePlan();
+        }
+    }
+
+    /// <summary>ROS2 の計画ステータス(std_msgs/String)を受けて状態を更新する。</summary>
+    private void OnPlanStatus(string data)
+    {
+        if (destroyed || string.IsNullOrEmpty(data))
+        {
+            return;
+        }
+        // 例: "planning" / "succeeded:74:1.8" / "failed:no_solution"
+        if (data.StartsWith("failed", StringComparison.OrdinalIgnoreCase))
+        {
+            string reason = data.Length > 6 ? data.Substring(6).TrimStart(':', ' ') : "";
+            SetState(PlanState.Failed, string.IsNullOrEmpty(reason) ? "計画失敗" : $"計画失敗: {reason}");
+        }
+        else if (data.StartsWith("planning", StringComparison.OrdinalIgnoreCase))
+        {
+            if (State != PlanState.Preview && State != PlanState.Playing)
+            {
+                SetState(PlanState.Planning, "計画中…");
+            }
+        }
+        // "succeeded" は軌道(OnTrajectory)受信でプレビュー遷移するので、ここでは状態を変えない
+        // （メッセージとしてログのみ）。
+        else if (data.StartsWith("succeeded", StringComparison.OrdinalIgnoreCase))
+        {
+            Debug.Log($"[ComRos2PathPlanner] plan_status: {data}");
+        }
     }
 
     private void Update()
     {
-        if (!started || !playing || destroyed || traj == null)
+        if (!started || destroyed)
+        {
+            return;
+        }
+        // 計画中に軌道も失敗通知も来ないまま時間超過 → 失敗扱い（だんまり防止の保険）。
+        if (State == PlanState.Planning && Time.time - planStartTime > planTimeoutSec)
+        {
+            SetState(PlanState.Failed, $"タイムアウト（{planTimeoutSec:F0}s 応答なし）");
+        }
+
+        if (!playing || traj == null)
         {
             return;
         }
@@ -213,7 +304,8 @@ public class ComRos2PathPlanner : MonoBehaviour
             }
             else
             {
-                playing = false;   // 最終姿勢で停止
+                playing = false;       // 最終姿勢で停止
+                SetState(PlanState.Idle, "再生完了");
             }
         }
         else
@@ -280,6 +372,122 @@ public class ComRos2PathPlanner : MonoBehaviour
         }
     }
     #endregion 受信 / 再生
+
+    #region 承認 / プレビュー
+    /// <summary>プレビュー中の経路を承認して再生する（OK）。</summary>
+    [ContextMenu("Approve Plan (OK・実行)")]
+    public void ApprovePlan()
+    {
+        if (traj == null)
+        {
+            Debug.LogWarning("[ComRos2PathPlanner] 承認する軌道がありません。");
+            return;
+        }
+        HidePreviewLine();
+        playT = 0d;
+        playing = true;
+        SetState(PlanState.Playing, "実行中…");
+    }
+
+    /// <summary>プレビュー中の経路を破棄する（Cancel）。ロボットは動かさない。</summary>
+    [ContextMenu("Cancel Plan (破棄)")]
+    public void CancelPlan()
+    {
+        playing = false;
+        traj = null;
+        HidePreviewLine();
+        SetState(PlanState.Idle, "キャンセル");
+    }
+
+    private void SetState(PlanState s, string msg)
+    {
+        State = s;
+        StatusMessage = msg;
+        Debug.Log($"[ComRos2PathPlanner] state={s} : {msg}");
+        try { StateChanged?.Invoke(s, msg); }
+        catch (Exception e) { Debug.LogException(e); }
+    }
+
+    private void CreatePreviewLine()
+    {
+        var go = new GameObject("Ros2PlanPreviewLine");
+        go.transform.SetParent(transform, false);
+        previewLine = go.AddComponent<LineRenderer>();
+        previewLine.useWorldSpace = true;
+        previewLine.widthMultiplier = previewLineWidth;
+        previewLine.numCornerVertices = 2;
+        previewLine.numCapVertices = 2;
+        previewLine.material = new Material(Shader.Find("Sprites/Default"));
+        previewLine.startColor = previewLine.endColor = previewLineColor;
+        previewLine.positionCount = 0;
+    }
+
+    private void HidePreviewLine()
+    {
+        if (previewLine != null)
+        {
+            previewLine.positionCount = 0;
+        }
+    }
+
+    /// <summary>受信軌道の先端(ツール/フランジ)の通り道を LineRenderer で描く（ロボは動かさない）。</summary>
+    private void BuildPreviewLine(Ros2Trajectory t)
+    {
+        if (previewLine == null)
+        {
+            return;
+        }
+        if (kin == null)
+        {
+            var kins = FindObjectsByType<Kinematics6D>(FindObjectsSortMode.None);
+            if (kins != null && kins.Length > 0)
+            {
+                kin = kins[0];
+            }
+        }
+        if (kin == null)
+        {
+            Debug.LogWarning("[ComRos2PathPlanner] Kinematics6D が見つからず、先端軌跡プレビューを描けません。");
+            return;
+        }
+        kin.SampleTipWorld(BuildJ16Waypoints(t), tipBuf);
+        previewLine.positionCount = tipBuf.Count;
+        previewLine.SetPositions(tipBuf.ToArray());
+    }
+
+    /// <summary>軌道を J1..J6 順の関節角(度)列にそろえる（FK サンプル用。過密なら間引く）。</summary>
+    private List<double[]> BuildJ16Waypoints(Ros2Trajectory t)
+    {
+        var names = t.jointNames;
+        double[] ToJ16(double[] src)
+        {
+            var w = new double[jointNames.Length];
+            for (int k = 0; k < jointNames.Length; k++)
+            {
+                int idx = k;
+                if (names != null && names.Length > 0)
+                {
+                    idx = Array.IndexOf(names, jointNames[k]);
+                    if (idx < 0) { idx = k; }
+                }
+                w[k] = (idx >= 0 && idx < src.Length) ? src[idx] : 0d;
+            }
+            return w;
+        }
+        var res = new List<double[]>();
+        int n = t.positions.Length;
+        int stride = Mathf.Max(1, n / 80);   // 線が過密/重くならないよう最大~80点
+        for (int p = 0; p < n; p += stride)
+        {
+            if (t.positions[p] != null) { res.Add(ToJ16(t.positions[p])); }
+        }
+        if (n > 0 && (n - 1) % stride != 0 && t.positions[n - 1] != null)
+        {
+            res.Add(ToJ16(t.positions[n - 1]));   // 最終点は必ず含める
+        }
+        return res;
+    }
+    #endregion 承認 / プレビュー
 
     #region テスト用
     // 既定でシーン(障害物+ヘッド)を送ってから plan する（sendSceneBeforePlan で切替）。

@@ -34,6 +34,19 @@ public class ComRos2Obstacles : MonoBehaviour
     [SerializeField] private float unitScale = 1.0f;
     [Tooltip("このサイズ(Unity単位)を超えるAABBは床/機械フレームとみなし障害物にしない（基部包含→START_STATE_IN_COLLISION 回避）。0以下で無効")]
     [SerializeField] private float maxObstacleSize = 2.0f;
+    [Tooltip("明示的に障害物として送るオブジェクト名（半径外/巨大サイズの除外を無視）。"
+        + "基部を内包するものは計画不能回避のため安全に除外。完全一致優先→部分一致")]
+    [SerializeField] private string[] extraObstacleNames = new string[0];
+
+    [Header("地面(ground plane) — 床の高さに可動範囲サイズの薄板を1枚")]
+    [Tooltip("基部の真下・床の高さに、可動範囲サイズの薄い板を地面として送る（巨大な実床は送らない）")]
+    [SerializeField] private bool sendGroundPlane = true;
+    [Tooltip("床の高さ取得用オブジェクト名（この Collider 上面を地面高さにする）。見つからなければ基部直下")]
+    [SerializeField] private string groundNameContains = "Floor";
+    [Tooltip("地面板の一辺の大きさ(Unity単位)。ロボット可動範囲を覆う程度で十分")]
+    [SerializeField] private float groundPlaneSize = 4.0f;
+    [Tooltip("地面板の厚み(Unity単位)")]
+    [SerializeField] private float groundPlaneThickness = 0.1f;
     [Tooltip("MeshCollider等は AABB box にして送る")]
     [SerializeField] private bool includeNonPrimitiveAsBox = true;
     [Tooltip("ロード完了後に1回だけ自動送信する")]
@@ -154,6 +167,7 @@ public class ComRos2Obstacles : MonoBehaviour
         }
 
         var list = new List<Ros2Obstacle>();
+        var seenIds = new HashSet<string>();
         int skipped = 0;
         var hits = Physics.OverlapSphere(baseT.position, radius, layerMask, QueryTriggerInteraction.Ignore);
         foreach (var col in hits)
@@ -174,7 +188,7 @@ public class ComRos2Obstacles : MonoBehaviour
                 continue;
             }
             var ob = ToObstacle(col, baseT, baseCalibrationEuler);
-            if (ob != null)
+            if (ob != null && seenIds.Add(ob.id))
             {
                 list.Add(ob);
                 if (debugPose)
@@ -189,8 +203,86 @@ public class ComRos2Obstacles : MonoBehaviour
                 }
             }
         }
+
+        // 明示指定オブジェクト（床など）を、半径/巨大サイズの除外を無視して追加する。
+        // ただし基部を内包するものは START_STATE_IN_COLLISION を招くため安全のため除外する。
+        int extra = 0;
+        foreach (var name in extraObstacleNames)
+        {
+            if (string.IsNullOrEmpty(name))
+            {
+                continue;
+            }
+            var t = FindTransformByName(name);
+            if (t == null)
+            {
+                Debug.LogWarning($"[ComRos2Obstacles] extraObstacle '{name}' が見つかりません。");
+                continue;
+            }
+            foreach (var col in t.GetComponentsInChildren<Collider>())
+            {
+                if (col.transform == baseT || col.transform.IsChildOf(baseT))
+                {
+                    continue;
+                }
+                if (col.bounds.Contains(baseT.position))
+                {
+                    Debug.LogWarning($"[ComRos2Obstacles] extraObstacle '{col.name}' は基部を内包するため除外（計画不能回避）。");
+                    continue;
+                }
+                var ob = ToObstacle(col, baseT, baseCalibrationEuler);
+                if (ob != null && seenIds.Add(ob.id))
+                {
+                    list.Add(ob);
+                    extra++;
+                    if (debugPose)
+                    {
+                        Vector3 p = ob.position;
+                        Vector3 rosPos = new Vector3(p.z, -p.x, p.y);
+                        Debug.Log($"[ComRos2Obstacles]   extra '{col.name}' "
+                            + $"base相対Unity(m)={p.ToString("F3")} → ROS(x,y,z)={rosPos.ToString("F3")} "
+                            + $"dims(ROS順xyz)=[{string.Join(",", System.Array.ConvertAll(ob.dimensions, x => x.ToString("F3")))}]");
+                    }
+                }
+            }
+        }
+
+        // 地面(ground plane): 基部の真下・床高さに、可動範囲サイズの薄い板を1枚張る。
+        // 実床(1000m級)は送らず、これで「床下へ計画しない」を軽く担保する。
+        if (sendGroundPlane)
+        {
+            float topY;
+            var floorT = FindTransformByName(groundNameContains);
+            var floorCol = floorT != null ? floorT.GetComponentInChildren<Collider>() : null;
+            if (floorCol != null)
+            {
+                topY = floorCol.bounds.max.y;   // 床の上面（world）
+            }
+            else
+            {
+                topY = baseT.position.y - 0.001f;   // 床が無ければ基部直下を地面とする
+                Debug.LogWarning($"[ComRos2Obstacles] 地面高さ用 '{groundNameContains}' が見つからず。基部直下を地面とします。");
+            }
+            // 上面を床高さに合わせた薄板を、基部の真下（水平中心）に配置。
+            Vector3 gpCenter = new Vector3(baseT.position.x, topY - groundPlaneThickness * 0.5f, baseT.position.z);
+            Vector3 gpSize = new Vector3(groundPlaneSize, groundPlaneThickness, groundPlaneSize);
+            var gp = BoxFromWorldAabb("kmx_ground_plane", gpCenter, gpSize, baseT, baseCalibrationEuler);
+            if (seenIds.Add(gp.id))
+            {
+                list.Add(gp);
+                if (debugPose)
+                {
+                    Vector3 p = gp.position;
+                    Vector3 rosPos = new Vector3(p.z, -p.x, p.y);
+                    Debug.Log($"[ComRos2Obstacles]   ground '{gp.id}' 床上面Y={topY:F3} "
+                        + $"base相対Unity(m)={p.ToString("F3")} → ROS(x,y,z)={rosPos.ToString("F3")} "
+                        + $"dims(ROS順xyz)=[{string.Join(",", System.Array.ConvertAll(gp.dimensions, x => x.ToString("F3")))}]");
+                }
+            }
+        }
+
         transport.PublishObstacles(topic, frameId, list);
-        Debug.Log($"[ComRos2Obstacles] {list.Count} obstacles 送信 (frame='{frameId}', radius={radius}, 除外={skipped} 巨大/基部包含)");
+        Debug.Log($"[ComRos2Obstacles] {list.Count} obstacles 送信 (frame='{frameId}', radius={radius}, 除外={skipped} 巨大/基部包含, 明示追加={extra}, 地面={(sendGroundPlane ? 1 : 0)})");
         return true;
     }
 

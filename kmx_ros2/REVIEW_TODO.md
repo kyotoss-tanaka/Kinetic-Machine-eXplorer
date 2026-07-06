@@ -74,6 +74,25 @@
       - **確定(2026-07-05)**: attach_link=`flange`(SRDF tip)・touch_links 既定は実在名でOK。`head_calibration_rpy=[0,90,90]` 実機確認→param既定へ焼込。安定id＋Clear Scene で累積対策。
       - **残(性能)**: ヘッドが 150+ Collider で重い→ `headAsSingleBox`(既定false) で1個AABB化可（把持開口不要なら推奨）。要検証。
 
+- [~] **地面(ground plane)を障害物に**: Unity `ComRos2Obstacles.sendGroundPlane`(既定true)で、**基部の真下・床の高さ**に
+      **可動範囲サイズの薄板(既定4×4×0.1m, id=kmx_ground_plane)** を `/kmx/obstacles` で送る。床の高さは `groundNameContains`
+      (="Floor")の Collider 上面から取得。実床(1000m)は送らず軽量。ROS2は既存 on_obstacles で処理＝**新規実装不要**。
+      汎用の `extraObstacleNames`(明示障害物・除外無視) も別途あり(既定 空)。**未コミット**（ComRos2Obstacles.cs）。
+
+- [~] **計画予算 time_budget/good_ratio を Unity から送る**（ROS2→Unity 要望書 `PLAN_BUDGET_UNITY_SPEC.md`・ROS2側受け皿実装済）:
+      Unity 実装済（未コミット）: `IRos2Transport.PublishPlanRequest` に timeBudget/goodRatio 追加（既定0=ROS2既定）／
+      RosTcpConnectorTransport で `PlanRequestMsg.time_budget/good_ratio` セット／`ComRos2PathPlanner` に
+      `planTimeBudget`/`planGoodRatio` SerializeField 追加し RequestPlan で送信。生成 PlanRequestMsg にフィールド有り(再生成済)。
+      検証: Test Plan → ROS2 ログ `plan request: … time_budget=X good_ratio=Y` が出れば Unity 送信成功。
+
+- [~] **経路計画のレビューUX（計画中表示/成否/経路プレビュー→OK/Cancel）**（要望書 `PLAN_STATUS_ROS2_SPEC.md`）:
+      Unity 中核 実装済（未コミット・要検証）: `ComRos2PathPlanner` を状態機械化（Idle/Planning/Preview/Playing/Failed）。
+      軌道受信で即再生せず **先端軌跡ライン(LineRenderer, ロボは動かさずFKサンプル)** を表示→`ApprovePlan`(OK)/`CancelPlan`(Cancel)。
+      `/kmx/plan_status`(std_msgs/String)購読で計画中/成功/失敗、+timeout保険。`State`/`StatusMessage`/`StateChanged` 公開。
+      Kinematics6D/CRX-30iA に `SampleTipWorld`（先端位置サンプル）追加。
+      **残**: ①ROS2側 `/kmx/plan_status` publish（`PLAN_STATUS_ROS2_SPEC.md`）②Unity std_msgs 生成（未生成ならコンパイル要対応）
+      ③**専用パネル(uGUI)**＝中核検証後に載せる（ボタン→Approve/Cancel、`StateChanged`で表示更新）。
+
 ## 次バッチ候補（C クリーンアップ）
 バグではないので B/D と分離。着手時は別コミット推奨（検証済みコードへの広い差分を混ぜない）。
 - C1 リロード掃除（`Ros2TransportFactory.Create`＋`destroyed`＋`OnDestroy`→`Disconnect`）が 3 コンポで重複 → 基底 or ヘルパー
