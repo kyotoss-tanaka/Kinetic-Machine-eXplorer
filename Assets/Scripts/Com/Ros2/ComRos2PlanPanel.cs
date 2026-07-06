@@ -2,6 +2,19 @@ using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.EventSystems;
 
+/// <summary>タイトルバーをドラッグして親パネル(target)を移動する（overlay・等倍前提でdelta=1:1）。</summary>
+public sealed class Ros2PanelDrag : MonoBehaviour, IDragHandler
+{
+    public RectTransform target;
+    public void OnDrag(PointerEventData e)
+    {
+        if (target != null)
+        {
+            target.anchoredPosition += e.delta;
+        }
+    }
+}
+
 /// <summary>
 /// 経路計画の実行時UI（画面上でゴール姿勢設定→計画→計画中/残り時間/成否→OK/NG）。
 ///
@@ -19,22 +32,28 @@ using UnityEngine.EventSystems;
 [RequireComponent(typeof(ComRos2PathPlanner))]
 public class ComRos2PlanPanel : MonoBehaviour
 {
-    [SerializeField] private double displayBudgetSec = 10.0;   // 計画予算＝残り時間表示の総量
+    [SerializeField] private double displayBudgetSec = 0.0;   // 計画予算(0=ROS2既定)。>0 なら残り時間表示に使う
     [SerializeField] private float jointMin = -180f;
     [SerializeField] private float jointMax = 180f;
     private static readonly string[] JointNames = { "J1", "J2", "J3", "J4", "J5", "J6" };
 
     private ComRos2PathPlanner planner;
+    private ComRos2Obstacles obstacles;   // ヘッド設定(1箱/間引き)の切替用
     private Kinematics6D kin;
     private bool goalSetMode;
+    private bool goalInitialized;                  // 起動時に一度だけ現在姿勢で初期化したか
     private readonly double[] goalDeg = new double[6];
 
     private Text statusText;
     private Text goalText;
     private readonly Slider[] sliders = new Slider[6];
-    private readonly Text[] sliderVals = new Text[6];
+    private readonly InputField[] sliderInputs = new InputField[6];   // 角度の直接入力
     private Button setGoalBtn, planBtn, okBtn, ngBtn;
+    private InputField budgetInput, ratioInput;                       // 時間予算/大回り許容比の入力
+    private double planGoodRatioVal;                                  // 大回り許容比（0=ROS2既定）
     private Font uiFont;
+    private GameObject canvasGo;                                      // 生成した Canvas（破棄/掃除用）
+    private const string CanvasName = "Ros2PlanPanelCanvas";
 
     private void Start()
     {
@@ -54,6 +73,7 @@ public class ComRos2PlanPanel : MonoBehaviour
             enabled = false;
             return;
         }
+        obstacles = GetComponent<ComRos2Obstacles>();   // 無くても可（トグルは非表示相当）
         planner.StateChanged += OnPlanState;
         BuildUI();
         RefreshButtons(planner.State);
@@ -66,6 +86,12 @@ public class ComRos2PlanPanel : MonoBehaviour
         {
             planner.StateChanged -= OnPlanState;
         }
+        // 生成した UI(Canvas + 配下のEventSystem) を破棄。残さないとリロード/再コンパイルで重複する。
+        if (canvasGo != null)
+        {
+            Destroy(canvasGo);
+            canvasGo = null;
+        }
     }
 
     private void Update()
@@ -74,11 +100,19 @@ public class ComRos2PlanPanel : MonoBehaviour
         {
             return;
         }
-        // 計画中は残り時間を更新表示。
+        // 起動後（ロード完了）に一度だけ、ゴール初期値を現在姿勢にする（以後は保持・上書きしない）。
+        if (!goalInitialized && GlobalScript.isLoaded)
+        {
+            InitGoalFromCurrent();
+            goalInitialized = true;
+        }
+        // 計画中の表示。予算>0 なら残り時間、0(ROS2既定で総量不明)なら経過時間。
         if (planner.State == ComRos2PathPlanner.PlanState.Planning && statusText != null)
         {
-            float rem = Mathf.Max(0f, (float)displayBudgetSec - planner.PlanElapsedSec);
-            statusText.text = $"計画中…  残り {rem:F1}s";
+            float el = planner.PlanElapsedSec;
+            statusText.text = displayBudgetSec > 0.0
+                ? $"計画中…  残り {Mathf.Max(0f, (float)displayBudgetSec - el):F1}s"
+                : $"計画中…  {el:F1}s 経過";
         }
     }
 
@@ -86,10 +120,10 @@ public class ComRos2PlanPanel : MonoBehaviour
     private void BuildUI()
     {
         uiFont = GetFont();
-        EnsureEventSystem();
+        DestroyExistingPanels();   // リロード/再コンパイルで残った古いUIを先に掃除（重複防止）
 
-        // Canvas（Screen-space overlay）
-        var canvasGo = new GameObject("Ros2PlanPanelCanvas");
+        // Canvas（Screen-space overlay）。EventSystem も配下に置きライフタイムを揃える。
+        canvasGo = new GameObject(CanvasName);
         canvasGo.transform.SetParent(transform, false);
         var canvas = canvasGo.AddComponent<Canvas>();
         canvas.renderMode = RenderMode.ScreenSpaceOverlay;
@@ -101,38 +135,78 @@ public class ComRos2PlanPanel : MonoBehaviour
         scaler.scaleFactor = 1f;
         scaler.dynamicPixelsPerUnit = 1f;
         canvasGo.AddComponent<GraphicRaycaster>();
+        EnsureEventSystem();   // 無ければ Canvas 配下に作る（Canvas と一緒に破棄される）
 
-        // パネル（左上に縦積み）
+        // パネル（左上・タイトルバーでドラッグ移動可。高さは内容に合わせて末尾で確定）
+        const float W = 360f;
         var panel = MakeRect("Panel", canvasGo.transform);
         panel.anchorMin = new Vector2(0f, 1f);
         panel.anchorMax = new Vector2(0f, 1f);
         panel.pivot = new Vector2(0f, 1f);
         panel.anchoredPosition = new Vector2(16f, -16f);
-        panel.sizeDelta = new Vector2(360f, 470f);
+        panel.sizeDelta = new Vector2(W, 400f);
         var bg = panel.gameObject.AddComponent<Image>();
         bg.color = new Color(0f, 0f, 0f, 0.6f);
 
-        float y = -8f;
-        statusText = MakeLabel(panel, "status", "待機", 18, new Vector2(8f, y), 344f, 28f);
-        y -= 32f;
-        goalText = MakeLabel(panel, "goal", "ゴール: -", 14, new Vector2(8f, y), 344f, 22f);
-        y -= 28f;
+        // タイトルバー（ドラッグで移動）
+        var title = MakeRect("TitleBar", panel);
+        title.anchorMin = new Vector2(0f, 1f);
+        title.anchorMax = new Vector2(0f, 1f);
+        title.pivot = new Vector2(0f, 1f);
+        title.anchoredPosition = new Vector2(0f, 0f);
+        title.sizeDelta = new Vector2(W, 26f);
+        var titleImg = title.gameObject.AddComponent<Image>();
+        titleImg.color = new Color(0.15f, 0.3f, 0.55f, 0.98f);
+        title.gameObject.AddComponent<Ros2PanelDrag>().target = panel;
+        var titleLbl = MakeLabel(title, "TitleText", "≡ 経路計画", 15, new Vector2(8f, 0f), W - 16f, 26f);
+        titleLbl.alignment = TextAnchor.MiddleLeft;
+        titleLbl.raycastTarget = false;   // タイトルバー(Image)でドラッグを拾わせる
 
-        // J1..J6 スライダー
+        float y = -30f;   // タイトルバーの下から積む
+        statusText = MakeLabel(panel, "status", "待機", 16, new Vector2(8f, y), W - 16f, 24f);
+        y -= 28f;
+        goalText = MakeLabel(panel, "goal", "ゴール: -", 13, new Vector2(8f, y), W - 16f, 20f);
+        y -= 26f;
+
+        // J1..J6 スライダー＋直接入力
         for (int i = 0; i < 6; i++)
         {
             int idx = i;
             MakeLabel(panel, $"lbl{i}", JointNames[i], 14, new Vector2(8f, y), 30f, 22f);
-            var s = MakeSlider(panel, $"sld{i}", new Vector2(44f, y), 240f, 22f);
+            var s = MakeSlider(panel, $"sld{i}", new Vector2(44f, y), 232f, 22f);
             s.minValue = jointMin;
             s.maxValue = jointMax;
             s.value = 0f;
             s.onValueChanged.AddListener(v => OnSlider(idx, v));
             sliders[i] = s;
-            sliderVals[i] = MakeLabel(panel, $"val{i}", "0", 14, new Vector2(290f, y), 62f, 22f);
+            var inp = MakeInput(panel, $"inp{i}", new Vector2(282f, y), 70f, 22f);
+            inp.onEndEdit.AddListener(v => OnInput(idx, v));
+            sliderInputs[i] = inp;
             y -= 26f;
         }
         y -= 6f;
+
+        // 計画パラメータ（時間予算 / 大回り許容比。0=ROS2ノード既定）
+        MakeLabel(panel, "lblBudget", "時間予算(秒)", 13, new Vector2(8f, y), 110f, 22f);
+        budgetInput = MakeInput(panel, "inpBudget", new Vector2(120f, y), 80f, 22f);
+        budgetInput.SetTextWithoutNotify(displayBudgetSec.ToString("F0"));
+        budgetInput.onEndEdit.AddListener(OnBudgetInput);
+        MakeLabel(panel, "hintBudget", "0=既定", 12, new Vector2(206f, y), 150f, 22f);
+        y -= 26f;
+        MakeLabel(panel, "lblRatio", "大回り許容比", 13, new Vector2(8f, y), 110f, 22f);
+        ratioInput = MakeInput(panel, "inpRatio", new Vector2(120f, y), 80f, 22f);
+        ratioInput.SetTextWithoutNotify(planGoodRatioVal.ToString("F1"));
+        ratioInput.onEndEdit.AddListener(OnRatioInput);
+        MakeLabel(panel, "hintRatio", "0=既定/小=短経路", 12, new Vector2(206f, y), 150f, 22f);
+        y -= 26f;
+
+        // ヘッド形状トグル（1箱＝把持開口なし / OFF＝グリッド間引きで開口を残す）
+        if (obstacles != null)
+        {
+            MakeToggle(panel, "togHeadSingle", "ヘッド1箱(把持開口なし)", obstacles.HeadAsSingleBox,
+                new Vector2(8f, y), v => { if (obstacles != null) { obstacles.HeadAsSingleBox = v; } });
+            y -= 28f;
+        }
 
         // ボタン
         setGoalBtn = MakeButton(panel, "SetGoal", "ゴール設定", new Vector2(8f, y), 168f, 34f, ToggleGoalSet);
@@ -140,6 +214,9 @@ public class ComRos2PlanPanel : MonoBehaviour
         y -= 40f;
         okBtn = MakeButton(panel, "OK", "OK 実行", new Vector2(8f, y), 168f, 34f, OnOk);
         ngBtn = MakeButton(panel, "NG", "NG 破棄", new Vector2(184f, y), 168f, 34f, OnNg);
+
+        // 内容に合わせて背景の高さを確定（下の余白を詰める）
+        panel.sizeDelta = new Vector2(W, -y + 34f + 8f);
     }
 
     private void EnsureEventSystem()
@@ -147,11 +224,45 @@ public class ComRos2PlanPanel : MonoBehaviour
         if (FindObjectsByType<EventSystem>(FindObjectsSortMode.None).Length == 0)
         {
             var es = new GameObject("EventSystem");
-            es.transform.SetParent(transform, false);
+            es.transform.SetParent(canvasGo.transform, false);   // Canvas 配下＝掃除時に一緒に消える
             es.AddComponent<EventSystem>();
             es.AddComponent<StandaloneInputModule>();
         }
     }
+
+    /// <summary>既存の計画パネル Canvas（リロード/再コンパイルの残骸含む）を全て破棄する。</summary>
+    private void DestroyExistingPanels()
+    {
+        foreach (var c in FindObjectsByType<Canvas>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+        {
+            if (c != null && c.gameObject.name == CanvasName)
+            {
+                Destroy(c.gameObject);
+            }
+        }
+    }
+
+#if UNITY_EDITOR
+    // ★再コンパイル(ドメインリロード)の直前にパネルCanvasを確実に破棄する。
+    //   これが無いと、再生中の再コンパイルで onClick 等の非永続リスナが失われた「死んだUI」が残る。
+    [UnityEditor.InitializeOnLoadMethod]
+    private static void RegisterEditorReloadCleanup()
+    {
+        UnityEditor.AssemblyReloadEvents.beforeAssemblyReload -= CleanupOnAssemblyReload;
+        UnityEditor.AssemblyReloadEvents.beforeAssemblyReload += CleanupOnAssemblyReload;
+    }
+
+    private static void CleanupOnAssemblyReload()
+    {
+        foreach (var c in FindObjectsByType<Canvas>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+        {
+            if (c != null && c.gameObject.name == CanvasName)
+            {
+                DestroyImmediate(c.gameObject);
+            }
+        }
+    }
+#endif
 
     private static Font GetFont()
     {
@@ -225,6 +336,77 @@ public class ComRos2PlanPanel : MonoBehaviour
         return slider;
     }
 
+    private InputField MakeInput(RectTransform parent, string name, Vector2 pos, float w, float h)
+    {
+        var rt = MakeRect(name, parent);
+        rt.anchorMin = new Vector2(0f, 1f);
+        rt.anchorMax = new Vector2(0f, 1f);
+        rt.pivot = new Vector2(0f, 1f);
+        rt.anchoredPosition = pos;
+        rt.sizeDelta = new Vector2(w, h);
+        var img = rt.gameObject.AddComponent<Image>();
+        img.color = new Color(1f, 1f, 1f, 0.15f);
+        var input = rt.gameObject.AddComponent<InputField>();
+
+        var textRt = MakeRect("Text", rt);
+        textRt.anchorMin = Vector2.zero;
+        textRt.anchorMax = Vector2.one;
+        textRt.offsetMin = new Vector2(4f, 0f);
+        textRt.offsetMax = new Vector2(-4f, 0f);
+        var text = textRt.gameObject.AddComponent<Text>();
+        text.font = uiFont;
+        text.fontSize = 14;
+        text.color = Color.white;
+        text.alignment = TextAnchor.MiddleLeft;
+        text.supportRichText = false;
+
+        input.textComponent = text;
+        input.targetGraphic = img;
+        input.contentType = InputField.ContentType.Standard;   // 符号/小数を許容（float.TryParse で検証）
+        input.text = "0";
+        return input;
+    }
+
+    private Toggle MakeToggle(RectTransform parent, string name, string label, bool init, Vector2 pos, UnityEngine.Events.UnityAction<bool> onChange)
+    {
+        var rt = MakeRect(name, parent);
+        rt.anchorMin = new Vector2(0f, 1f);
+        rt.anchorMax = new Vector2(0f, 1f);
+        rt.pivot = new Vector2(0f, 1f);
+        rt.anchoredPosition = pos;
+        rt.sizeDelta = new Vector2(320f, 22f);
+        // 行全体をクリック領域に（透明だが raycast 対象）。
+        var rowImg = rt.gameObject.AddComponent<Image>();
+        rowImg.color = new Color(0f, 0f, 0f, 0f);
+
+        var boxRt = MakeRect("Box", rt);
+        boxRt.anchorMin = new Vector2(0f, 0.5f);
+        boxRt.anchorMax = new Vector2(0f, 0.5f);
+        boxRt.pivot = new Vector2(0f, 0.5f);
+        boxRt.anchoredPosition = new Vector2(2f, 0f);
+        boxRt.sizeDelta = new Vector2(18f, 18f);
+        var boxImg = boxRt.gameObject.AddComponent<Image>();
+        boxImg.color = new Color(1f, 1f, 1f, 0.3f);
+
+        var ckRt = MakeRect("Check", boxRt);
+        ckRt.anchorMin = new Vector2(0.15f, 0.15f);
+        ckRt.anchorMax = new Vector2(0.85f, 0.85f);
+        ckRt.offsetMin = Vector2.zero;
+        ckRt.offsetMax = Vector2.zero;
+        var ckImg = ckRt.gameObject.AddComponent<Image>();
+        ckImg.color = new Color(0.1f, 0.8f, 1f, 1f);
+
+        var toggle = rt.gameObject.AddComponent<Toggle>();
+        toggle.targetGraphic = boxImg;
+        toggle.graphic = ckImg;
+        toggle.isOn = init;
+        toggle.onValueChanged.AddListener(onChange);
+
+        var lbl = MakeLabel(rt, "Label", label, 13, new Vector2(26f, 0f), 290f, 22f);
+        lbl.raycastTarget = false;
+        return toggle;
+    }
+
     private Button MakeButton(RectTransform parent, string name, string label, Vector2 pos, float w, float h, UnityEngine.Events.UnityAction onClick)
     {
         var rt = MakeRect(name, parent);
@@ -262,14 +444,7 @@ public class ComRos2PlanPanel : MonoBehaviour
         EnsureKin();
         if (goalSetMode)
         {
-            // 現在姿勢をゴール初期値にしてスライダーへ、isManual ON で目標を表示。
-            var cur = planner.ReadCurrentDeg();
-            for (int i = 0; i < 6; i++)
-            {
-                goalDeg[i] = (cur != null && i < cur.Length) ? cur[i] : 0d;
-                if (sliders[i] != null) { sliders[i].SetValueWithoutNotify((float)goalDeg[i]); }
-                if (sliderVals[i] != null) { sliderVals[i].text = goalDeg[i].ToString("F1"); }
-            }
+            // ★ゴール値は保持（クリアしない）。現在の goalDeg を isManual で実機モデルに表示するだけ。
             if (kin != null)
             {
                 kin.SetManual(true);
@@ -279,20 +454,82 @@ public class ComRos2PlanPanel : MonoBehaviour
         }
         else
         {
-            // 設定終了：実機現在姿勢の表示へ戻す。
+            // 設定終了：実機現在姿勢の表示へ戻す（goalDeg は保持）。
             if (kin != null) { kin.SetManual(false); }
         }
         SetButtonColor(setGoalBtn, goalSetMode ? new Color(0.8f, 0.5f, 0.1f, 0.95f) : new Color(0.2f, 0.4f, 0.7f, 0.95f));
     }
 
+    /// <summary>起動時の一度だけ：ゴール初期値を現在姿勢にしてスライダー/入力へ反映（以後は保持）。</summary>
+    private void InitGoalFromCurrent()
+    {
+        var cur = planner.ReadCurrentDeg();
+        for (int i = 0; i < 6; i++)
+        {
+            goalDeg[i] = (cur != null && i < cur.Length) ? cur[i] : 0d;
+            if (sliders[i] != null) { sliders[i].SetValueWithoutNotify((float)goalDeg[i]); }
+            if (sliderInputs[i] != null) { sliderInputs[i].SetTextWithoutNotify(goalDeg[i].ToString("F1")); }
+        }
+        UpdateGoalText();
+    }
+
     private void OnSlider(int i, float v)
     {
         goalDeg[i] = v;
-        if (sliderVals[i] != null) { sliderVals[i].text = v.ToString("F1"); }
+        if (sliderInputs[i] != null) { sliderInputs[i].SetTextWithoutNotify(v.ToString("F1")); }
         UpdateGoalText();
         if (goalSetMode && kin != null)
         {
             kin.SetManualJointsDeg(goalDeg);   // 目標姿勢を実機モデルに表示
+        }
+    }
+
+    /// <summary>角度の直接入力（確定時）。パースしてスライダー/ゴールへ反映。無効入力は元に戻す。</summary>
+    private void OnInput(int i, string s)
+    {
+        if (float.TryParse(s, out float val))
+        {
+            val = Mathf.Clamp(val, jointMin, jointMax);
+            goalDeg[i] = val;
+            if (sliders[i] != null) { sliders[i].SetValueWithoutNotify(val); }
+            if (sliderInputs[i] != null) { sliderInputs[i].SetTextWithoutNotify(val.ToString("F1")); }
+            UpdateGoalText();
+            if (goalSetMode && kin != null)
+            {
+                kin.SetManualJointsDeg(goalDeg);
+            }
+        }
+        else if (sliderInputs[i] != null)
+        {
+            sliderInputs[i].SetTextWithoutNotify(goalDeg[i].ToString("F1"));   // 無効 → 現在値へ戻す
+        }
+    }
+
+    /// <summary>時間予算(秒)の直接入力。0以上。無効は元へ戻す。</summary>
+    private void OnBudgetInput(string s)
+    {
+        if (float.TryParse(s, out float v))
+        {
+            displayBudgetSec = Mathf.Max(0f, v);
+            if (budgetInput != null) { budgetInput.SetTextWithoutNotify(displayBudgetSec.ToString("F0")); }
+        }
+        else if (budgetInput != null)
+        {
+            budgetInput.SetTextWithoutNotify(displayBudgetSec.ToString("F0"));
+        }
+    }
+
+    /// <summary>大回り許容比の直接入力。0以上。無効は元へ戻す。</summary>
+    private void OnRatioInput(string s)
+    {
+        if (float.TryParse(s, out float v))
+        {
+            planGoodRatioVal = Mathf.Max(0f, v);
+            if (ratioInput != null) { ratioInput.SetTextWithoutNotify(planGoodRatioVal.ToString("F1")); }
+        }
+        else if (ratioInput != null)
+        {
+            ratioInput.SetTextWithoutNotify(planGoodRatioVal.ToString("F1"));
         }
     }
 
@@ -301,6 +538,7 @@ public class ComRos2PlanPanel : MonoBehaviour
         // 設定モードなら抜けて現在姿勢の表示へ（start=実機現在）。
         if (goalSetMode) { ToggleGoalSet(); }
         planner.PlanTimeBudget = displayBudgetSec;                 // 残り時間表示＆ROS2予算
+        planner.PlanGoodRatio = planGoodRatioVal;                  // 大回り許容比
         var start = planner.ReadCurrentDeg();
         var goal = (double[])goalDeg.Clone();
         planner.RequestPlanWithScene(start, goal);                 // 障害物/ヘッドも送って計画

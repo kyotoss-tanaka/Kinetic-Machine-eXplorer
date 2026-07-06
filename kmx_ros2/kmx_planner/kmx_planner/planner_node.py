@@ -511,10 +511,18 @@ class KmxPlannerNode(Node):
         try:
             res = future.result()
             ok = getattr(res, 'success', True)
+            # ★id は success に関わらず確定する。attached の ADD は MoveIt(2.5.9) が success=False を
+            #   返しても diff 自体は適用される（実測：箱は scene に載る）。ここで確定しないと _attached_ids が
+            #   空のままになり、全置換の REMOVE が対象を持てず「空を送ってもヘッドが消えない」stale 残留に陥る。
+            #   呼び出しが例外で完全失敗した場合のみ据え置き（下の except）。
+            setattr(self, target_attr, new_ids)
             if ok:
-                setattr(self, target_attr, new_ids)   # 成功時のみ確定
-            self.get_logger().info(
-                f"planning scene 更新({label}): success={ok} active_ids={sorted(new_ids)}")
+                self.get_logger().info(
+                    f"planning scene 更新({label}): success=True active_ids={sorted(new_ids)}")
+            else:
+                self.get_logger().warn(
+                    f"planning scene 更新({label}): success=False だが diff は適用済み前提で "
+                    f"{target_attr} を確定（stale 残留回避）。active_ids={sorted(new_ids)}")
         except Exception as e:   # noqa: BLE001
             self.get_logger().error(
                 f"apply_planning_scene 呼び出し失敗({label}): {e}（{target_attr} は据え置き）")

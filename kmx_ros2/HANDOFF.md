@@ -153,6 +153,13 @@ ros2 run kmx_planner kmx_planner --ros-args -p use_moveit:=true -p planning_grou
   planning→succeeded を出す**。軌道は従来どおり `/kmx/trajectory`（status は状態専用）。新param `plan_status_topic`
   (=`/kmx/plan_status`)。実測確認：`planning`→`succeeded:15:1.00`／`failed:bad_request`。Unity 側（購読・
   プレビュー→OK/Cancel・timeout保険）は先方担当。※kmx_planner のみ変更＝ノード再起動で反映（move_group 不要）。
+- **★attached の stale 残留バグ＝修正済(2026-07-06)**: `/apply_planning_scene` は **attached diff で `success=False` を返す**
+  （world障害物は True）が **diff は実際に適用される**。旧実装は success=True 時のみ `_attached_ids` を確定→未確定のまま→
+  全置換 REMOVE が効かず**空 `/kmx/attached` を送ってもヘッドが消えない**→ stale 蓄積→ goal がそれと衝突し
+  **`GOAL_STATE_INVALID`(-27)** で計画失敗（"Unable to sample any valid states for goal tree"）。修正＝`_on_scene_applied` で
+  **success に関わらず id 確定**（例外時のみ据え置き）。検証：3箱→空送信で確実クリア。**運用注意**：Unity でオブジェクトを消しても
+  ROS2 は自動で消えない＝**空の obstacles/attached を明示送信**して全消し（全置換＝空送信で全消し/未送信で据え置き）。手動強制クリアは
+  scratchpad の `clear_scene.py`（id 明示 REMOVE。空id="" は効かない）。
 - **★cuRobo(GPU計画)統合＝未着手・後日別途(2026-07-06 ユーザー判断)**: 環境= RTX A2000/CUDA12.8 は可だが
   **nvcc/pip/torch/curobo 未導入**（~6-8GB 導入が要る）。再開用の環境ステータス・導入手順・統合設計
   （`planner_backend=curobo` 追加＝move_group を通さず `/kmx/obstacles`(BOX)→world・`/kmx/attached`→attach・

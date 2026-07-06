@@ -120,6 +120,23 @@ public class Kinematics6D : Kinematics3D
         rotate = new Vector3((float)j[3], (float)j[4], (float)j[5]);
     }
 
+    // --- 経路プレビュー用ゴースト（半透明複製。実機モデルは動かさず複製だけ動かす） ---
+    /// <summary>ロボットの半透明複製(ゴースト)を生成して返す。既定は未対応(null)。サブクラスで実装。</summary>
+    public virtual GameObject CreateGhost()
+    {
+        return null;
+    }
+
+    /// <summary>ゴーストを J1..J6(度) の姿勢にする。</summary>
+    public virtual void PoseGhostDeg(double[] j16)
+    {
+    }
+
+    /// <summary>ゴーストを破棄する。</summary>
+    public virtual void DestroyGhost()
+    {
+    }
+
     /// <summary>
     /// 目標位置セット
     /// </summary>

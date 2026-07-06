@@ -98,6 +98,112 @@ public class CRX_30iA: Kinematics6D
         arm4.localEulerAngles = s4; arm5.localEulerAngles = s5; arm6.localEulerAngles = s6;
     }
 
+    // --- 経路プレビュー用ゴースト（半透明複製） ---
+    private GameObject ghost;
+    private Transform g1, g2, g3, g4, g5, g6;
+    private float ghostAng1x;
+
+    /// <summary>与えた腕Transform群を J1..J6(度) の姿勢にする（SetTarget と同じ式）。ゴースト共用。</summary>
+    public static void ApplyArmPose(Transform a1, Transform a2, Transform a3, Transform a4, Transform a5, Transform a6,
+                                    float ang1x, double[] j, bool ros2)
+    {
+        if (j == null || j.Length < 6)
+        {
+            return;
+        }
+        if (a1) { a1.localEulerAngles = new Vector3(ang1x, 0f, (float)j[0]); }
+        if (a2) { a2.localEulerAngles = new Vector3(0f, -(float)j[1], 0f); }
+        // 3軸目は arm3=z(ROS純粋角) / y+z(実機連成) を SetTarget と同じく切替。
+        if (a3) { a3.localEulerAngles = new Vector3(0f, ros2 ? (float)j[2] : (float)(j[1] + j[2]), 0f); }
+        if (a4) { a4.localEulerAngles = new Vector3((float)j[3], 0f, 0f); }
+        if (a5) { a5.localEulerAngles = new Vector3(0f, (float)j[4], 0f); }
+        if (a6) { a6.localEulerAngles = new Vector3((float)j[5], 0f, 0f); }
+    }
+
+    public override GameObject CreateGhost()
+    {
+        DestroyGhost();
+        if (crx == null)
+        {
+            return null;
+        }
+        ghost = Instantiate(crx, crx.transform.parent);
+        ghost.name = "CRX-30iA_Ghost";
+        ghost.SetActive(false);   // 複製の Start を走らせない（Kinematics 等が動かないよう）
+        // コライダー/スクリプトを除去（複製は表示専用）。
+        foreach (var col in ghost.GetComponentsInChildren<Collider>(true))
+        {
+            Destroy(col);
+        }
+        foreach (var mb in ghost.GetComponentsInChildren<MonoBehaviour>(true))
+        {
+            Destroy(mb);
+        }
+        // 半透明マテリアルに差し替え。
+        var mat = MakeGhostMaterial();
+        if (mat != null)
+        {
+            foreach (var r in ghost.GetComponentsInChildren<Renderer>(true))
+            {
+                var mats = new Material[r.sharedMaterials.Length];
+                for (int i = 0; i < mats.Length; i++) { mats[i] = mat; }
+                r.sharedMaterials = mats;
+            }
+        }
+        // 腕参照（複製内を名前で探索・本体と同じ規約）。
+        var ch = ghost.GetComponentsInChildren<Transform>(true).ToList();
+        g1 = ch.Find(d => d.name.Contains("J2BASE"));
+        g2 = ch.Find(d => d.name.Contains("J2ARM"));
+        g3 = ch.Find(d => d.name.Contains("J3CASING"));
+        g4 = ch.Find(d => d.name.Contains("J3ARM"));
+        g5 = ch.Find(d => d.name.Contains("J6CASING"));
+        g6 = ch.Find(d => d.name.Contains("J6FLANGE"));
+        ghostAng1x = g1 != null ? g1.localEulerAngles.x : 0f;
+        ghost.SetActive(true);
+        return ghost;
+    }
+
+    public override void PoseGhostDeg(double[] j16)
+    {
+        if (ghost == null)
+        {
+            return;
+        }
+        ApplyArmPose(g1, g2, g3, g4, g5, g6, ghostAng1x, j16, GlobalScript.useRos2);
+    }
+
+    public override void DestroyGhost()
+    {
+        if (ghost != null)
+        {
+            Destroy(ghost);
+            ghost = null;
+        }
+        g1 = g2 = g3 = g4 = g5 = g6 = null;
+    }
+
+    /// <summary>ゴースト用の半透明マテリアル（URP。取れなければ null）。</summary>
+    private static Material MakeGhostMaterial()
+    {
+        var sh = Shader.Find("Universal Render Pipeline/Lit");
+        if (sh == null) { sh = Shader.Find("Universal Render Pipeline/Unlit"); }
+        if (sh == null) { sh = Shader.Find("Sprites/Default"); }
+        if (sh == null) { return null; }
+        var m = new Material(sh);
+        var col = new Color(0.15f, 0.8f, 1f, 0.35f);
+        if (m.HasProperty("_BaseColor")) { m.SetColor("_BaseColor", col); }
+        if (m.HasProperty("_Color")) { m.SetColor("_Color", col); }
+        // URP transparent 設定（Surface=Transparent / alpha blend / ZWrite off）。
+        if (m.HasProperty("_Surface")) { m.SetFloat("_Surface", 1f); }
+        m.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
+        m.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+        m.SetInt("_ZWrite", 0);
+        m.DisableKeyword("_SURFACE_TYPE_OPAQUE");
+        m.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+        m.renderQueue = (int)UnityEngine.Rendering.RenderQueue.Transparent;
+        return m;
+    }
+
     /// <summary>
     /// モデル再構築
     /// </summary>

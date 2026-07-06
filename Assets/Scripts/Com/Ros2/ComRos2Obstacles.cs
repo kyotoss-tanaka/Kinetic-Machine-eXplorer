@@ -70,9 +70,13 @@ public class ComRos2Obstacles : MonoBehaviour
     [SerializeField] private string flangeNameContains = "J6FLANGE";
     [Tooltip("ヘッド(ツール)ルート。未割当なら Kinematics6D.HeadObject を使用")]
     [SerializeField] private Transform headRoot;
-    [Tooltip("ヘッドを全Collider合成の1個のAABBで送る（true=軽い・粗い/false=個別・正確だが多数）。"
-        + "CADヘッドはCollider数が多くMoveItが重くなるので、把持開口が不要なら true 推奨")]
+    [Tooltip("ヘッドを全Collider合成の1個のAABBで送る（true=1箱・開口なし）。false=下のグリッドで数箱に間引く")]
     [SerializeField] private bool headAsSingleBox = false;
+    /// <summary>ヘッドを1箱で送るか（true=1箱/false=グリッド間引き）。UIから切替可。</summary>
+    public bool HeadAsSingleBox { get => headAsSingleBox; set => headAsSingleBox = value; }
+    [Tooltip("ヘッド間引きのグリッド分割数(フランジ相対 X,Y,Z)。各非空セルを1箱に統合。積が ROS2 の統合閾値(12)以下推奨。"
+        + "開口(コライダーの無いセル)は空のまま残る＝把持開口を保てる")]
+    [SerializeField] private Vector3Int headGrid = new Vector3Int(2, 2, 3);
 
     private IRos2Transport transport;
     private bool started;
@@ -329,28 +333,56 @@ public class ComRos2Obstacles : MonoBehaviour
         //   コライダーの「ローカル bounds」からフランジ相対 AABB を作る（剛体ツールなので姿勢に依らず一定）。
         var cols = head.GetComponentsInChildren<Collider>();
         var list = new List<Ros2Obstacle>();
-        bool mergeHas = false;
-        Vector3 mergeMin = Vector3.zero, mergeMax = Vector3.zero;
+
+        // 全 Collider を「フランジ相対の AABB(center,size)」に変換して集める。
+        var boxMin = new List<Vector3>();
+        var boxMax = new List<Vector3>();
         foreach (var col in cols)
         {
             if (!TryHeadLocalAabb(col, flange, out var c, out var s))
             {
                 continue;
             }
-            if (headAsSingleBox)
-            {
-                Vector3 mn = c - s * 0.5f, mx = c + s * 0.5f;
-                if (!mergeHas) { mergeMin = mn; mergeMax = mx; mergeHas = true; }
-                else { mergeMin = Vector3.Min(mergeMin, mn); mergeMax = Vector3.Max(mergeMax, mx); }
-            }
-            else
-            {
-                list.Add(BoxFromFlangeLocal(StableId(col), c, s));
-            }
+            boxMin.Add(c - s * 0.5f);
+            boxMax.Add(c + s * 0.5f);
         }
-        if (headAsSingleBox && mergeHas)
+
+        if (boxMin.Count == 0)
         {
-            list.Add(BoxFromFlangeLocal(head.name + "#headbox", (mergeMin + mergeMax) * 0.5f, mergeMax - mergeMin));
+            // 何も無ければ空送信（全消し）。
+        }
+        else if (headAsSingleBox)
+        {
+            // 全体を1箱に統合。
+            Vector3 mn = boxMin[0], mx = boxMax[0];
+            for (int i = 1; i < boxMin.Count; i++) { mn = Vector3.Min(mn, boxMin[i]); mx = Vector3.Max(mx, boxMax[i]); }
+            list.Add(BoxFromFlangeLocal(head.name + "#headbox", (mn + mx) * 0.5f, mx - mn));
+        }
+        else
+        {
+            // ★間引き: フランジ相対グリッドの各非空セルを1箱に統合（開口セルは空のまま残る）。
+            Vector3 allMin = boxMin[0], allMax = boxMax[0];
+            for (int i = 1; i < boxMin.Count; i++) { allMin = Vector3.Min(allMin, boxMin[i]); allMax = Vector3.Max(allMax, boxMax[i]); }
+            int gx = Mathf.Max(1, headGrid.x), gy = Mathf.Max(1, headGrid.y), gz = Mathf.Max(1, headGrid.z);
+            Vector3 span = allMax - allMin;
+            Vector3 cell = new Vector3(span.x / gx, span.y / gy, span.z / gz);
+            var cellMin = new Dictionary<int, Vector3>();
+            var cellMax = new Dictionary<int, Vector3>();
+            for (int i = 0; i < boxMin.Count; i++)
+            {
+                Vector3 ctr = (boxMin[i] + boxMax[i]) * 0.5f;
+                int ix = cell.x > 1e-9f ? Mathf.Clamp((int)((ctr.x - allMin.x) / cell.x), 0, gx - 1) : 0;
+                int iy = cell.y > 1e-9f ? Mathf.Clamp((int)((ctr.y - allMin.y) / cell.y), 0, gy - 1) : 0;
+                int iz = cell.z > 1e-9f ? Mathf.Clamp((int)((ctr.z - allMin.z) / cell.z), 0, gz - 1) : 0;
+                int key = (ix * gy + iy) * gz + iz;
+                if (!cellMin.ContainsKey(key)) { cellMin[key] = boxMin[i]; cellMax[key] = boxMax[i]; }
+                else { cellMin[key] = Vector3.Min(cellMin[key], boxMin[i]); cellMax[key] = Vector3.Max(cellMax[key], boxMax[i]); }
+            }
+            foreach (var kv in cellMin)
+            {
+                Vector3 mn = kv.Value, mx = cellMax[kv.Key];
+                list.Add(BoxFromFlangeLocal($"{head.name}#hc{kv.Key}", (mn + mx) * 0.5f, mx - mn));
+            }
         }
         if (debugPose)
         {

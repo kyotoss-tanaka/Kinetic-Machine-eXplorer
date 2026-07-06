@@ -64,6 +64,8 @@ public class ComRos2PathPlanner : MonoBehaviour
 
     /// <summary>計画の時間予算(秒)。0=ROS2既定。UIから設定でき、残り時間表示にも使う。</summary>
     public double PlanTimeBudget { get => planTimeBudget; set => planTimeBudget = value; }
+    /// <summary>大回り回避の許容倍率。0=ROS2既定。UIから設定。</summary>
+    public double PlanGoodRatio { get => planGoodRatio; set => planGoodRatio = value; }
     /// <summary>計画中の経過秒（Planning 以外は 0）。UI の残り時間表示用。</summary>
     public float PlanElapsedSec => (State == PlanState.Planning) ? Time.time - planStartTime : 0f;
     /// <summary>だんまり保険の timeout 秒（UI の残り時間上限にも使える）。</summary>
@@ -84,8 +86,11 @@ public class ComRos2PathPlanner : MonoBehaviour
     // レビュー/プレビュー
     private float planStartTime;                 // Planning に入った時刻（timeout 判定用）
     private LineRenderer previewLine;            // 先端軌跡プレビュー
-    private Kinematics6D kin;                    // FK サンプル用（先端位置）
+    private Kinematics6D kin;                    // FK サンプル用（先端位置）＋ゴースト
     private readonly System.Collections.Generic.List<Vector3> tipBuf = new();
+    private double previewT;                     // ゴースト再生の時刻（ループ）
+    private bool ghostActive;                    // ゴースト再生中か
+    [SerializeField] private float ghostLoopPauseSec = 0.6f;   // ループ末で一瞬止める
 
     private void Start()
     {
@@ -121,6 +126,7 @@ public class ComRos2PathPlanner : MonoBehaviour
     private void OnDestroy()
     {
         destroyed = true;
+        StopGhostPreview();   // ゴースト複製を残さない
         // /kmx/trajectory の購読を解除（常駐 ROSConnection にコールバックが残らないよう）。
         try { transport?.Disconnect(); } catch { /* ignore */ }
     }
@@ -139,9 +145,10 @@ public class ComRos2PathPlanner : MonoBehaviour
             Debug.LogWarning($"[ComRos2PathPlanner] start/goal は {jointNames.Length} 要素（度）で渡してください。");
             return;
         }
-        // 新しい要求。前の再生/プレビューは破棄して計画中へ。
+        // 新しい要求。前の再生/プレビュー/ゴーストは破棄して計画中へ。
         playing = false;
         traj = null;
+        StopGhostPreview();
         HidePreviewLine();
         transport.PublishPlanRequest(planRequestTopic, jointNames, startDeg, goalDeg, planTimeBudget, planGoodRatio);
         planStartTime = Time.time;
@@ -238,6 +245,7 @@ public class ComRos2PathPlanner : MonoBehaviour
         if (requireApproval)
         {
             SetState(PlanState.Preview, $"成功: {t.positions.Length}点 / {dur:F1}s（OK で実行 / Cancel で破棄）");
+            StartGhostPreview();   // 半透明複製が経路をなぞる（ヘッドの当たり確認用）
         }
         else
         {
@@ -284,6 +292,20 @@ public class ComRos2PathPlanner : MonoBehaviour
         if (State == PlanState.Planning && Time.time - planStartTime > planTimeoutSec)
         {
             SetState(PlanState.Failed, $"タイムアウト（{planTimeoutSec:F0}s 応答なし）");
+        }
+
+        // プレビュー中：ゴースト(半透明複製)を軌道でループ再生（実機モデルは動かさない）。
+        if (ghostActive && State == PlanState.Preview && traj != null && kin != null)
+        {
+            var gt = traj.timesSec;
+            double gtotal = gt[gt.Length - 1];
+            previewT += Time.deltaTime;
+            if (gtotal <= 0d || previewT > gtotal + ghostLoopPauseSec)
+            {
+                previewT = 0d;   // 先頭へ（末尾で少しポーズしてループ）
+            }
+            double sampleT = previewT < gtotal ? previewT : gtotal;
+            kin.PoseGhostDeg(SamplePoseJ16(sampleT));
         }
 
         if (!playing || traj == null)
@@ -390,6 +412,7 @@ public class ComRos2PathPlanner : MonoBehaviour
             Debug.LogWarning("[ComRos2PathPlanner] 承認する軌道がありません。");
             return;
         }
+        StopGhostPreview();   // ゴーストを消して実機モデルで再生する
         HidePreviewLine();
         playT = 0d;
         playing = true;
@@ -402,6 +425,7 @@ public class ComRos2PathPlanner : MonoBehaviour
     {
         playing = false;
         traj = null;
+        StopGhostPreview();
         HidePreviewLine();
         SetState(PlanState.Idle, "キャンセル");
     }
@@ -435,6 +459,78 @@ public class ComRos2PathPlanner : MonoBehaviour
         {
             previewLine.positionCount = 0;
         }
+    }
+
+    /// <summary>ゴースト(半透明複製)のプレビュー再生を開始（Update でループ）。</summary>
+    private void StartGhostPreview()
+    {
+        if (kin == null)
+        {
+            var kins = FindObjectsByType<Kinematics6D>(FindObjectsSortMode.None);
+            if (kins != null && kins.Length > 0) { kin = kins[0]; }
+        }
+        if (kin == null)
+        {
+            return;
+        }
+        kin.CreateGhost();
+        previewT = 0d;
+        ghostActive = true;
+    }
+
+    /// <summary>ゴーストを消してプレビュー再生を止める。</summary>
+    private void StopGhostPreview()
+    {
+        ghostActive = false;
+        if (kin != null)
+        {
+            kin.DestroyGhost();
+        }
+    }
+
+    /// <summary>軌道の時刻 t(秒) での姿勢を J1..J6(度) で返す（区間線形補間＋J1..J6並べ替え）。</summary>
+    private double[] SamplePoseJ16(double t)
+    {
+        var res = new double[jointNames.Length];
+        if (traj == null || traj.positions == null || traj.positions.Length == 0)
+        {
+            return res;
+        }
+        var times = traj.timesSec;
+        int last = times.Length - 1;
+        double[] pos;
+        if (t <= times[0] || last == 0)
+        {
+            pos = traj.positions[0];
+        }
+        else if (t >= times[last])
+        {
+            pos = traj.positions[last];
+        }
+        else
+        {
+            int i = 0;
+            while (i < last && times[i + 1] < t) { i++; }
+            double t0 = times[i], t1 = times[i + 1];
+            double a = (t1 > t0) ? (t - t0) / (t1 - t0) : 0d;
+            a = a < 0d ? 0d : (a > 1d ? 1d : a);
+            double[] p0 = traj.positions[i], p1 = traj.positions[i + 1];
+            pos = new double[p0.Length];
+            for (int k = 0; k < p0.Length; k++) { pos[k] = p0[k] + (p1[k] - p0[k]) * a; }
+        }
+        // J1..J6 へ並べ替え（軌道の関節名順が違う場合に対応）。
+        var names = traj.jointNames;
+        for (int k = 0; k < jointNames.Length; k++)
+        {
+            int idx = k;
+            if (names != null && names.Length > 0)
+            {
+                idx = Array.IndexOf(names, jointNames[k]);
+                if (idx < 0) { idx = k; }
+            }
+            res[k] = (idx >= 0 && idx < pos.Length) ? pos[idx] : 0d;
+        }
+        return res;
     }
 
     /// <summary>受信軌道の先端(ツール/フランジ)の通り道を LineRenderer で描く（ロボは動かさない）。</summary>
