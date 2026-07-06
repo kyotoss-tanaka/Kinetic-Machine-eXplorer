@@ -31,6 +31,8 @@ public sealed class RosTcpConnectorTransport : IRos2Transport
     private readonly List<string> subscribedTopics = new();
 
     public bool IsConnected => ros != null;
+    // 実接続状態：接続スレッドが生きていてエラーが無い（ROS-TCP-Connector の HUD と同じ判定）。
+    public bool IsLinkUp => ros != null && ros.HasConnectionThread && !ros.HasConnectionError;
 
     public void Connect(string ip, int port)
     {

@@ -107,7 +107,7 @@ ros2 run kmx_planner kmx_planner --ros-args -p use_moveit:=true -p planning_grou
 
 ## 9. 状況・残タスク
 - **検証済**: 直接駆動 / 補間経路 / MoveIt(実CRX-30iA config) は実機Unityで動作。統合launch `kmx_bringup.launch.py`(both modes) と `sync.sh` も検証済(2026-07-04)＝ROS2起動〜実機Unityでの MoveIt 往復駆動まで確認。障害物→planning scene は ROS2側(CLI模擬)で検証済（scene反映 success=True / 計画ゲート / 全置換）。
-- **未検証（次に確認）**: `/kmx/obstacles` の Unity実送信（`Send Obstacles`）と座標一致。Unity で `Robotics > Generate ROS Messages`（geometry_msgs 要）後、まず1個の箱で位置/向きを確認（`OBSTACLES_ROS2_SPEC.md` §4 / §6.4）。
+- **検証済(2026-07-05)**: `/kmx/obstacles` の Unity実送信（`Send Obstacles`）と**座標一致**＝Unity/RViz で確認。世界障害物は `baseCalibrationEuler`=(0,-90,0)、ヘッド `/kmx/attached` は生送り＋`head_calibration_rpy=[0,90,90]` で一致（§4.1）。`Robotics > Generate ROS Messages`（geometry_msgs 含む）済。
 - 任意: FANUC URDF のゼロ点/符号が Unity(d_robo_a) と食い違えば `_convert_result` に補正。/kmx/state の `ros2 topic echo` 確認。
 - **コードレビュー修正(2026-07-04)を planner_node.py に反映済**（詳細は `OBSTACLES_ROS2_SPEC.md` §6）: Obstacles import を try/except 保護／`_convert_result` は関節名不一致で発行中止（0埋め廃止）／既定 `moveit_joint_names`=J1..J6／`_obstacle_ids` は apply 成功後に確定。WSLで別途編集していれば `sync.sh` 取り込み時に要マージ。
 - 既知の残(任意対応): `wait_for_server(3s)` が単一executorをブロック／planner再起動時の planning scene 乖離。
@@ -151,8 +151,9 @@ ros2 run kmx_planner kmx_planner --ros-args -p use_moveit:=true -p planning_grou
   失敗（時間予算内に解なし/MoveItエラー/不正要求）で `failed:<reason>`（`no_solution`/`GOAL_IN_COLLISION`/
   `bad_request` 等・`_error_reason` で MoveItErrorCodes を文字列化）。**補間モード(`use_moveit:=false`)も
   planning→succeeded を出す**。軌道は従来どおり `/kmx/trajectory`（status は状態専用）。新param `plan_status_topic`
-  (=`/kmx/plan_status`)。実測確認：`planning`→`succeeded:15:1.00`／`failed:bad_request`。Unity 側（購読・
-  プレビュー→OK/Cancel・timeout保険）は先方担当。※kmx_planner のみ変更＝ノード再起動で反映（move_group 不要）。
+  (=`/kmx/plan_status`)。実測確認：`planning`→`succeeded:15:1.00`／`failed:bad_request`。**Unity 側も実装済(2026-07-06)**：
+  `ComRos2PathPlanner` が購読→`ComRos2PlanPanel` で計画中/残り時間/成否表示＋プレビュー(青線＋半透明ゴースト)→OK/NG、timeout保険。
+  ※kmx_planner のみ変更＝ノード再起動で反映（move_group 不要）。
 - **★attached の stale 残留バグ＝修正済(2026-07-06)**: `/apply_planning_scene` は **attached diff で `success=False` を返す**
   （world障害物は True）が **diff は実際に適用される**。旧実装は success=True 時のみ `_attached_ids` を確定→未確定のまま→
   全置換 REMOVE が効かず**空 `/kmx/attached` を送ってもヘッドが消えない**→ stale 蓄積→ goal がそれと衝突し
@@ -160,12 +161,26 @@ ros2 run kmx_planner kmx_planner --ros-args -p use_moveit:=true -p planning_grou
   **success に関わらず id 確定**（例外時のみ据え置き）。検証：3箱→空送信で確実クリア。**運用注意**：Unity でオブジェクトを消しても
   ROS2 は自動で消えない＝**空の obstacles/attached を明示送信**して全消し（全置換＝空送信で全消し/未送信で据え置き）。手動強制クリアは
   scratchpad の `clear_scene.py`（id 明示 REMOVE。空id="" は効かない）。
+- **★Unity からの ROS2 起動/停止/再起動＝ROS2側 実装・検証済(2026-07-06)**（要望書 `LAUNCH_CONTROL_UNITY_SPEC.md`）:
+  方式A＝Unity(Windows) が `wsl.exe` で WSL スクリプトを実行（ROS 経由はコールドスタート不可＝endpoint が bringup 内のため）。
+  提供スクリプト（`~/ros2_ws/`・正本 `kmx_ros2/` にも複製）: **`kmx_start.sh [use_moveit]`**（冪等・`setsid` で detach・即return）／
+  **`kmx_stop.sh`**（SIGINT→10s→SIGKILL＋子ノード掃除）／**`kmx_restart.sh`**／**`kmx_status.sh`**（`stopped`/`starting`/`running_full`）。
+  検証済：stop→stopped／start→running_full(~4s・node2/2)／restart→running_full。PID=`~/ros2_ws/.kmx_bringup.pid`、log=`~/ros2_ws/kmx_bringup.log`。
+  **Unity 側（先方）**＝`System.Diagnostics.Process` で `wsl.exe -e bash -lc "…/kmx_start.sh"` 等を呼び、`kmx_status.sh` を
+  ポーリングして `running_full` を待ってから ROS-TCP 再接続＋（再起動時は空になる scene に）obstacles/head 再送。
 - **★cuRobo(GPU計画)統合＝未着手・後日別途(2026-07-06 ユーザー判断)**: 環境= RTX A2000/CUDA12.8 は可だが
   **nvcc/pip/torch/curobo 未導入**（~6-8GB 導入が要る）。再開用の環境ステータス・導入手順・統合設計
   （`planner_backend=curobo` 追加＝move_group を通さず `/kmx/obstacles`(BOX)→world・`/kmx/attached`→attach・
   CRX-30iA 球モデルで GPU 計画→`/kmx/trajectory`）は **`HANDOFF_curobo.md`** に集約。既定は BITstar 据え置き。
 
-## 10. Unity側（参考・別VSCode担当。ここは触らない）
-- C#: `Assets/Scripts/Com/Ros2/`（ComRos2 / RosTcpConnectorTransport / ComRos2PathPlanner）。`GlobalScript`, `ParameterLoader`, `BuildAndRun` にも変更。
+## 10. Unity側（参考・別VSCode担当。WSL側はここを触らない）
+- C#: `Assets/Scripts/Com/Ros2/`（**ComRos2 / RosTcpConnectorTransport / ComRos2Obstacles / ComRos2PathPlanner / ComRos2PlanPanel**）。
+  `GlobalScript`(useRos2)・`ParameterLoader`(生成/破棄ヘルパー)・`Kinematics6D`＋`CRX-30iA`(手動姿勢/ゴースト)・`BuildAndRun` にも変更。
 - `KMX_ROS2` define がONのときだけ実通信。Unityメニュー **`Kyotoss/ROS2連携を有効化`** でトグル。
-- コミット: `refine-URP` の `26cfc94`（ROS2連携一式）。`kmx_ros2` 改称＋統合launch/sync は未コミット（別途）。
+- **実行時UI＝経路計画パネル**(`ComRos2PlanPanel`)：ゴール角(J1-J6 スライダー/数値直入力)・時間予算/大回り許容比・
+  計画ボタン/計画中・残り時間/成否・プレビュー(青線＋半透明ゴースト)→OK/NG・**ROS通信状態表示**・ヘッド形状トグル(1箱/間引き)。
+  再コンパイル/リロードで UI・青線・ゴーストは自動掃除。
+- 座標契約は §4.1 準拠（obstacles=Unity `baseCalibrationEuler`=(0,-90,0)／attached=生送り＋ROS `head_calibration_rpy`）。
+- コミット(`refine-URP`)：`26cfc94`(連携一式)→`a15e419`(kmx_ros2 改称＋統合launch/sync)→`c9f40d0`(レビュー修正)→
+  `1ba724e`(計画パネル Stage1)→`85eff95`(パネル拡充＋ゴースト＋ヘッド間引き)。以降、ROS通信状態表示／破棄ヘルパー(C1)／
+  青線・ゴーストのコンパイル掃除 は作業中（未コミット）。

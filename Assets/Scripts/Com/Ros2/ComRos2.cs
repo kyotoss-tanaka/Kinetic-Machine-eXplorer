@@ -482,6 +482,8 @@ public class Ros2Obstacle
 public interface IRos2Transport
 {
     bool IsConnected { get; }
+    /// <summary>実際に ROS(endpoint) と接続が確立できているか（通信状態表示用）。</summary>
+    bool IsLinkUp { get; }
     void Connect(string ip, int port);
     void Disconnect();
     void RegisterPublisher(string topic);
@@ -516,6 +518,7 @@ public interface IRos2Transport
 public sealed class NullRos2Transport : IRos2Transport
 {
     public bool IsConnected => false;
+    public bool IsLinkUp => false;
     public void Connect(string ip, int port)
         => Debug.LogWarning("[ComRos2] ROS2 トランスポート未有効。Scripting Define に 'KMX_ROS2' を追加し ROS-TCP-Connector を導入すると有効化されます。");
     public void Disconnect() { }

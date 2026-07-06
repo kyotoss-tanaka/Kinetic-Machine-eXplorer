@@ -70,6 +70,8 @@ public class ComRos2PathPlanner : MonoBehaviour
     public float PlanElapsedSec => (State == PlanState.Planning) ? Time.time - planStartTime : 0f;
     /// <summary>だんまり保険の timeout 秒（UI の残り時間上限にも使える）。</summary>
     public float PlanTimeoutSec => planTimeoutSec;
+    /// <summary>ROS(endpoint) と実接続できているか（通信状態表示用）。</summary>
+    public bool IsLinkUp => transport != null && transport.IsLinkUp;
 
     private IRos2Transport transport;
     private ComRos2 com;
@@ -86,6 +88,8 @@ public class ComRos2PathPlanner : MonoBehaviour
     // レビュー/プレビュー
     private float planStartTime;                 // Planning に入った時刻（timeout 判定用）
     private LineRenderer previewLine;            // 先端軌跡プレビュー
+    private const string PreviewLineName = "Ros2PlanPreviewLine";
+    private const string GhostObjectName = "CRX-30iA_Ghost";   // CRX_30iA が生成するゴースト名
     private Kinematics6D kin;                    // FK サンプル用（先端位置）＋ゴースト
     private readonly System.Collections.Generic.List<Vector3> tipBuf = new();
     private double previewT;                     // ゴースト再生の時刻（ループ）
@@ -127,9 +131,61 @@ public class ComRos2PathPlanner : MonoBehaviour
     {
         destroyed = true;
         StopGhostPreview();   // ゴースト複製を残さない
+        if (previewLine != null)
+        {
+            Destroy(previewLine.gameObject);   // 先端軌跡ラインを残さない
+            previewLine = null;
+        }
         // /kmx/trajectory の購読を解除（常駐 ROSConnection にコールバックが残らないよう）。
         try { transport?.Disconnect(); } catch { /* ignore */ }
     }
+
+    /// <summary>再コンパイル/リロードで残った先端軌跡ライン・ゴーストを破棄する。</summary>
+    private static void DestroyStalePreview()
+    {
+        foreach (var lr in FindObjectsByType<LineRenderer>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+        {
+            if (lr != null && lr.gameObject.name == PreviewLineName)
+            {
+                Destroy(lr.gameObject);
+            }
+        }
+        foreach (var t in FindObjectsByType<Transform>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+        {
+            if (t != null && t.gameObject.name == GhostObjectName)
+            {
+                Destroy(t.gameObject);
+            }
+        }
+    }
+
+#if UNITY_EDITOR
+    // ★再コンパイル(ドメインリロード)直前に、先端軌跡ライン・ゴーストを確実に破棄する。
+    [UnityEditor.InitializeOnLoadMethod]
+    private static void RegisterEditorReloadCleanup()
+    {
+        UnityEditor.AssemblyReloadEvents.beforeAssemblyReload -= CleanupOnAssemblyReload;
+        UnityEditor.AssemblyReloadEvents.beforeAssemblyReload += CleanupOnAssemblyReload;
+    }
+
+    private static void CleanupOnAssemblyReload()
+    {
+        foreach (var lr in FindObjectsByType<LineRenderer>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+        {
+            if (lr != null && lr.gameObject.name == PreviewLineName)
+            {
+                DestroyImmediate(lr.gameObject);
+            }
+        }
+        foreach (var t in FindObjectsByType<Transform>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+        {
+            if (t != null && t.gameObject.name == GhostObjectName)
+            {
+                DestroyImmediate(t.gameObject);
+            }
+        }
+    }
+#endif
 
     #region 要求
     /// <summary>始点/終点（度・jointNames と同数）を渡して経路生成を要求する。</summary>
@@ -441,7 +497,8 @@ public class ComRos2PathPlanner : MonoBehaviour
 
     private void CreatePreviewLine()
     {
-        var go = new GameObject("Ros2PlanPreviewLine");
+        DestroyStalePreview();   // 再コンパイル/リロードで残った線・ゴーストを先に掃除
+        var go = new GameObject(PreviewLineName);
         go.transform.SetParent(transform, false);
         previewLine = go.AddComponent<LineRenderer>();
         previewLine.useWorldSpace = true;

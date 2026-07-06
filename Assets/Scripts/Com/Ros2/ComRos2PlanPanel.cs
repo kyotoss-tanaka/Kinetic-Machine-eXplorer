@@ -46,6 +46,7 @@ public class ComRos2PlanPanel : MonoBehaviour
 
     private Text statusText;
     private Text goalText;
+    private Text commText;                                            // ROS通信状態（タイトルバー右）
     private readonly Slider[] sliders = new Slider[6];
     private readonly InputField[] sliderInputs = new InputField[6];   // 角度の直接入力
     private Button setGoalBtn, planBtn, okBtn, ngBtn;
@@ -106,6 +107,13 @@ public class ComRos2PlanPanel : MonoBehaviour
             InitGoalFromCurrent();
             goalInitialized = true;
         }
+        // ROS通信状態（タイトルバー右）。
+        if (commText != null)
+        {
+            bool up = planner.IsLinkUp;
+            commText.text = up ? "ROS ●接続" : "ROS ●未接続";
+            commText.color = up ? new Color(0.3f, 1f, 0.4f) : new Color(1f, 0.45f, 0.45f);
+        }
         // 計画中の表示。予算>0 なら残り時間、0(ROS2既定で総量不明)なら経過時間。
         if (planner.State == ComRos2PathPlanner.PlanState.Planning && statusText != null)
         {
@@ -158,9 +166,13 @@ public class ComRos2PlanPanel : MonoBehaviour
         var titleImg = title.gameObject.AddComponent<Image>();
         titleImg.color = new Color(0.15f, 0.3f, 0.55f, 0.98f);
         title.gameObject.AddComponent<Ros2PanelDrag>().target = panel;
-        var titleLbl = MakeLabel(title, "TitleText", "≡ 経路計画", 15, new Vector2(8f, 0f), W - 16f, 26f);
+        var titleLbl = MakeLabel(title, "TitleText", "≡ 経路計画", 15, new Vector2(8f, 0f), 180f, 26f);
         titleLbl.alignment = TextAnchor.MiddleLeft;
         titleLbl.raycastTarget = false;   // タイトルバー(Image)でドラッグを拾わせる
+        // ROS通信状態（タイトルバー右）。Update で色/文言を更新。
+        commText = MakeLabel(title, "Comm", "ROS ●", 13, new Vector2(W - 130f, 0f), 122f, 26f);
+        commText.alignment = TextAnchor.MiddleRight;
+        commText.raycastTarget = false;
 
         float y = -30f;   // タイトルバーの下から積む
         statusText = MakeLabel(panel, "status", "待機", 16, new Vector2(8f, y), W - 16f, 24f);
