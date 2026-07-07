@@ -90,16 +90,19 @@ public class CardboardPartsScript: KssBaseScript
                 meshCollider.convex = true;
             }
             */
-            if (boxCollider != null)
-            {
-                Destroy(boxCollider);
-            }
-            // 線/点トポロジのメッシュは MeshCollider(convex) を焼けない（PhysXがエラー多発・abort誘因）→スキップ
+            // 線/点トポロジのメッシュは MeshCollider(convex) を焼けない（PhysXがエラー多発・abort誘因）。
+            // ただし何も付けないと段ボールに衝突形状が無く、面に乗らず突き抜ける（cf4f4a1 以降の回帰）。
+            // → cook 可能なら convex MeshCollider、不可なら cook 不要の BoxCollider で必ず実体コライダーを確保する。
             var cbMesh = mr.GetComponent<MeshFilter>();
             if (cbMesh != null && MeshColliderUtil.IsCookable(cbMesh.sharedMesh))
             {
+                if (boxCollider != null) { Destroy(boxCollider); boxCollider = null; }
                 meshCollider = mr.gameObject.AddComponent<MeshCollider>();
                 meshCollider.convex = true;
+            }
+            else if (boxCollider == null)
+            {
+                boxCollider = mr.gameObject.AddComponent<BoxCollider>();
             }
         }
     }
