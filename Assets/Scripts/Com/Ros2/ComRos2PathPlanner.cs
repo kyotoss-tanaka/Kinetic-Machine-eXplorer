@@ -89,8 +89,10 @@ public class ComRos2PathPlanner : MonoBehaviour
     private float planStartTime;                 // Planning に入った時刻（timeout 判定用）
     private LineRenderer previewLine;            // 先端軌跡プレビュー
     private const string PreviewLineName = "Ros2PlanPreviewLine";
-    private const string GhostObjectName = "CRX-30iA_Ghost";   // CRX_30iA が生成するゴースト名
-    private Kinematics6D kin;                    // FK サンプル用（先端位置）＋ゴースト
+    private const string GhostNameSuffix = "_Ghost";   // ゴースト複製名の接尾辞（機種非依存 "<model>_Ghost"）
+    private IRos2PlanTarget target;              // 計画対象ロボット（FKサンプル/ゴースト/現在角度）
+    private Ros2PlanTargetRegistry registry;     // 対象ロボットの解決（選択）に使う
+    private string robotId = "";                 // 計画要求に載せる robot_id（Phase1 は ""）
     private readonly System.Collections.Generic.List<Vector3> tipBuf = new();
     private double previewT;                     // ゴースト再生の時刻（ループ）
     private bool ghostActive;                    // ゴースト再生中か
@@ -115,6 +117,7 @@ public class ComRos2PathPlanner : MonoBehaviour
             return;
         }
         obstacles = GetComponent<ComRos2Obstacles>();   // plan前の scene 更新用（無くても可）
+        registry = GetComponent<Ros2PlanTargetRegistry>();   // 計画対象ロボットの解決（無くても既定で動く）
         // ROSConnection はシングルトンなので ComRos2 と同じ接続を共有する（Connect は ComRos2 が実施済み）。
         transport = Ros2TransportFactory.Create();
         transport.SubscribeTrajectory(trajectoryTopic, OnTrajectory);
@@ -152,7 +155,7 @@ public class ComRos2PathPlanner : MonoBehaviour
         }
         foreach (var t in FindObjectsByType<Transform>(FindObjectsInactive.Include, FindObjectsSortMode.None))
         {
-            if (t != null && t.gameObject.name == GhostObjectName)
+            if (t != null && t.gameObject.name.EndsWith(GhostNameSuffix, StringComparison.OrdinalIgnoreCase))
             {
                 Destroy(t.gameObject);
             }
@@ -179,7 +182,7 @@ public class ComRos2PathPlanner : MonoBehaviour
         }
         foreach (var t in FindObjectsByType<Transform>(FindObjectsInactive.Include, FindObjectsSortMode.None))
         {
-            if (t != null && t.gameObject.name == GhostObjectName)
+            if (t != null && t.gameObject.name.EndsWith(GhostNameSuffix, StringComparison.OrdinalIgnoreCase))
             {
                 DestroyImmediate(t.gameObject);
             }
@@ -206,7 +209,7 @@ public class ComRos2PathPlanner : MonoBehaviour
         traj = null;
         StopGhostPreview();
         HidePreviewLine();
-        transport.PublishPlanRequest(planRequestTopic, jointNames, startDeg, goalDeg, planTimeBudget, planGoodRatio);
+        transport.PublishPlanRequest(planRequestTopic, jointNames, startDeg, goalDeg, planTimeBudget, planGoodRatio, robotId);
         planStartTime = Time.time;
         SetState(PlanState.Planning, "計画中…");
         Debug.Log($"[ComRos2PathPlanner] plan要求 start=[{string.Join(",", startDeg)}] goal=[{string.Join(",", goalDeg)}] "
@@ -250,15 +253,69 @@ public class ComRos2PathPlanner : MonoBehaviour
         RequestPlan(startDeg, goalDeg);
     }
 
-    /// <summary>現在の関節角（度）を ComRos2 経由で読む。読めない軸は 0。UI がゴール初期値/start に使う。</summary>
+    /// <summary>現在の関節角（度）を読む。タグにマップ済みなら ComRos2 経由（CRX後方互換）、
+    /// 無ければ計画対象ロボットの kinematics から直接読む。UI がゴール初期値/start に使う。</summary>
     public double[] ReadCurrentDeg()
     {
         var a = new double[jointNames.Length];
+        bool allTagged = jointNames.Length > 0;
         for (int j = 0; j < jointNames.Length; j++)
         {
-            com.TryReadValue(jointNames[j], out a[j]);
+            if (!com.TryReadValue(jointNames[j], out a[j]))
+            {
+                allTagged = false;
+                break;
+            }
         }
-        return a;
+        if (allTagged)
+        {
+            return a;
+        }
+        var t = EnsureTarget();
+        return (t != null) ? t.GetCurrentJointsDeg() : new double[jointNames.Length];
+    }
+
+    /// <summary>計画対象ロボットを設定する（パネルの選択から呼ぶ）。関節名/robot_id を切替える。</summary>
+    public void SetTarget(Ros2PlanTargetRegistry.RegisteredRobot r)
+    {
+        if (r == null || r.Target == null)
+        {
+            return;
+        }
+        // 対象切替時は前のゴースト/プレビュー/再生を片付ける（別機体の残骸を残さない）。
+        playing = false;
+        traj = null;
+        StopGhostPreview();
+        HidePreviewLine();
+        target = r.Target;
+        robotId = r.RobotId;
+        var jn = r.JointNames;
+        jointNames = (jn != null && jn.Length >= 1) ? jn : target.JointNames;
+    }
+
+    /// <summary>計画対象を解決（未設定ならレジストリの選択→無ければシーンの最初の Kinematics6D）。</summary>
+    private IRos2PlanTarget EnsureTarget()
+    {
+        if (target != null)
+        {
+            return target;
+        }
+        if (registry == null)
+        {
+            registry = GetComponent<Ros2PlanTargetRegistry>();
+        }
+        if (registry != null && registry.Selected != null)
+        {
+            SetTarget(registry.Selected);
+            return target;
+        }
+        // 後方互換フォールバック：シーンの最初の Kinematics6D（＝従来の単一ロボット挙動）。
+        var kins = FindObjectsByType<Kinematics6D>(FindObjectsSortMode.None);
+        if (kins != null && kins.Length > 0)
+        {
+            target = kins[0];
+        }
+        return target;
     }
     #endregion 要求
 
@@ -351,7 +408,7 @@ public class ComRos2PathPlanner : MonoBehaviour
         }
 
         // プレビュー中：ゴースト(半透明複製)を軌道でループ再生（実機モデルは動かさない）。
-        if (ghostActive && State == PlanState.Preview && traj != null && kin != null)
+        if (ghostActive && State == PlanState.Preview && traj != null && target != null)
         {
             var gt = traj.timesSec;
             double gtotal = gt[gt.Length - 1];
@@ -361,7 +418,7 @@ public class ComRos2PathPlanner : MonoBehaviour
                 previewT = 0d;   // 先頭へ（末尾で少しポーズしてループ）
             }
             double sampleT = previewT < gtotal ? previewT : gtotal;
-            kin.PoseGhostDeg(SamplePoseJ16(sampleT));
+            target.PoseGhostDeg(SamplePoseJ16(sampleT));
         }
 
         if (!playing || traj == null)
@@ -521,16 +578,12 @@ public class ComRos2PathPlanner : MonoBehaviour
     /// <summary>ゴースト(半透明複製)のプレビュー再生を開始（Update でループ）。</summary>
     private void StartGhostPreview()
     {
-        if (kin == null)
-        {
-            var kins = FindObjectsByType<Kinematics6D>(FindObjectsSortMode.None);
-            if (kins != null && kins.Length > 0) { kin = kins[0]; }
-        }
-        if (kin == null)
+        var t = EnsureTarget();
+        if (t == null)
         {
             return;
         }
-        kin.CreateGhost();
+        t.CreateGhost();
         previewT = 0d;
         ghostActive = true;
     }
@@ -539,9 +592,9 @@ public class ComRos2PathPlanner : MonoBehaviour
     private void StopGhostPreview()
     {
         ghostActive = false;
-        if (kin != null)
+        if (target != null)
         {
-            kin.DestroyGhost();
+            target.DestroyGhost();
         }
     }
 
@@ -597,20 +650,13 @@ public class ComRos2PathPlanner : MonoBehaviour
         {
             return;
         }
-        if (kin == null)
+        var tgt = EnsureTarget();
+        if (tgt == null)
         {
-            var kins = FindObjectsByType<Kinematics6D>(FindObjectsSortMode.None);
-            if (kins != null && kins.Length > 0)
-            {
-                kin = kins[0];
-            }
-        }
-        if (kin == null)
-        {
-            Debug.LogWarning("[ComRos2PathPlanner] Kinematics6D が見つからず、先端軌跡プレビューを描けません。");
+            Debug.LogWarning("[ComRos2PathPlanner] 計画対象ロボットが見つからず、先端軌跡プレビューを描けません。");
             return;
         }
-        kin.SampleTipWorld(BuildJ16Waypoints(t), tipBuf);
+        tgt.SampleTipWorld(BuildJ16Waypoints(t), tipBuf);
         previewLine.positionCount = tipBuf.Count;
         previewLine.SetPositions(tipBuf.ToArray());
     }

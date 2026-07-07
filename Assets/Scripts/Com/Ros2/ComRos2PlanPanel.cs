@@ -35,28 +35,33 @@ public class ComRos2PlanPanel : MonoBehaviour
     [SerializeField] private double displayBudgetSec = 0.0;   // 計画予算(0=ROS2既定)。>0 なら残り時間表示に使う
     [SerializeField] private float jointMin = -180f;
     [SerializeField] private float jointMax = 180f;
-    private static readonly string[] JointNames = { "J1", "J2", "J3", "J4", "J5", "J6" };
+    private static readonly string[] DefaultJointNames = { "J1", "J2", "J3", "J4", "J5", "J6" };
+    private string[] jointNames = DefaultJointNames;   // 選択ロボットの関節名（可変長・6以上）
 
     private ComRos2PathPlanner planner;
     private ComRos2Obstacles obstacles;   // ヘッド設定(1箱/間引き)の切替用
     private ComRos2Launcher launcher;     // ROS2 起動/停止/再起動（wsl.exe）
-    private Kinematics6D kin;
+    private Ros2PlanTargetRegistry registry;   // 複数ロボットの列挙/選択
+    private IRos2PlanTarget targetKin;    // 選択ロボの kinematics（ゴール姿勢の手動表示用）
     private bool goalSetMode;
     private bool goalInitialized;                  // 起動時に一度だけ現在姿勢で初期化したか
-    private readonly double[] goalDeg = new double[6];
+    private double[] goalDeg = new double[6];       // 長さは jointNames.Length に追従
 
     private Text statusText;
     private Text goalText;
     private Text commText;                                            // ROS通信状態（タイトルバー右）
     private Text launchStateText;                                     // ROS2 起動状態（stopped/starting/running_full）
     private Button startBtn, stopBtn, restartBtn;                     // 起動/停止/再起動
-    private readonly Slider[] sliders = new Slider[6];
-    private readonly InputField[] sliderInputs = new InputField[6];   // 角度の直接入力
+    private Slider[] sliders = new Slider[0];
+    private InputField[] sliderInputs = new InputField[0];   // 角度の直接入力（関節数ぶん）
     private Button setGoalBtn, planBtn, okBtn, ngBtn;
+    private Text robotNameText;                     // 選択中ロボット名（◀ 名前 ▶）
+    private Button robotPrevBtn, robotNextBtn;
     private InputField budgetInput, ratioInput;                       // 時間予算/大回り許容比の入力
     private double planGoodRatioVal;                                  // 大回り許容比（0=ROS2既定）
     private Font uiFont;
     private GameObject canvasGo;                                      // 生成した Canvas（破棄/掃除用）
+    private GameObject panelRootGo;                                   // パネル本体（表示トグル対象。Canvas/EventSystem は常時活性）
     private const string CanvasName = "Ros2PlanPanelCanvas";
 
     private void Start()
@@ -79,9 +84,12 @@ public class ComRos2PlanPanel : MonoBehaviour
         }
         obstacles = GetComponent<ComRos2Obstacles>();   // 無くても可（トグルは非表示相当）
         launcher = GetComponent<ComRos2Launcher>();      // 無くても可（起動行は非表示相当）
+        registry = GetComponent<Ros2PlanTargetRegistry>();   // 複数ロボット（無ければ従来の単一ロボット動作）
         planner.StateChanged += OnPlanState;
+        if (registry != null) { registry.Changed += OnRegistryChanged; }
         BuildUI();
         RefreshButtons(planner.State);
+        SetVisible(false);   // 初期は非表示。InfoMenu の BtnRoboPath で表示する（他メニューと同様）
 #endif
     }
 
@@ -91,6 +99,10 @@ public class ComRos2PlanPanel : MonoBehaviour
         {
             planner.StateChanged -= OnPlanState;
         }
+        if (registry != null)
+        {
+            registry.Changed -= OnRegistryChanged;
+        }
         // 生成した UI(Canvas + 配下のEventSystem) を破棄。残さないとリロード/再コンパイルで重複する。
         if (canvasGo != null)
         {
@@ -98,6 +110,21 @@ public class ComRos2PlanPanel : MonoBehaviour
             canvasGo = null;
         }
     }
+
+    /// <summary>パネル本体の表示/非表示（Canvas と EventSystem は常時活性のまま＝他UIの入力を止めない）。</summary>
+    public void SetVisible(bool v)
+    {
+        if (panelRootGo != null)
+        {
+            panelRootGo.SetActive(v);
+        }
+    }
+
+    /// <summary>パネルが表示中か。</summary>
+    public bool IsVisible => panelRootGo != null && panelRootGo.activeSelf;
+
+    /// <summary>表示/非表示をトグルする（InfoMenu の BtnRoboPath 用）。</summary>
+    public void ToggleVisible() => SetVisible(!IsVisible);
 
     private void Update()
     {
@@ -157,6 +184,7 @@ public class ComRos2PlanPanel : MonoBehaviour
         // パネル（左上・タイトルバーでドラッグ移動可。高さは内容に合わせて末尾で確定）
         const float W = 360f;
         var panel = MakeRect("Panel", canvasGo.transform);
+        panelRootGo = panel.gameObject;   // 表示トグル対象（Canvas/EventSystem は残す）
         panel.anchorMin = new Vector2(0f, 1f);
         panel.anchorMax = new Vector2(0f, 1f);
         panel.pivot = new Vector2(0f, 1f);
@@ -185,6 +213,13 @@ public class ComRos2PlanPanel : MonoBehaviour
 
         float y = -30f;   // タイトルバーの下から積む
 
+        // ロボット選択（◀ 名前 ▶）。複数ロボット時に切替。1台でも現機体を表示。
+        robotPrevBtn = MakeButton(panel, "RobotPrev", "◀", new Vector2(8f, y), 30f, 24f, OnRobotPrev);
+        robotNameText = MakeLabel(panel, "RobotName", "ロボット: -", 14, new Vector2(42f, y), W - 42f - 38f, 24f);
+        robotNameText.alignment = TextAnchor.MiddleCenter;
+        robotNextBtn = MakeButton(panel, "RobotNext", "▶", new Vector2(W - 38f, y), 30f, 24f, OnRobotNext);
+        y -= 28f;
+
         // ROS2 起動制御（起動/停止/再起動＋状態ランプ）。ランチャがある時だけ表示。
         if (launcher != null)
         {
@@ -201,18 +236,24 @@ public class ComRos2PlanPanel : MonoBehaviour
         goalText = MakeLabel(panel, "goal", "ゴール: -", 13, new Vector2(8f, y), W - 16f, 20f);
         y -= 26f;
 
-        // J1..J6 スライダー＋直接入力
-        for (int i = 0; i < 6; i++)
+        // 関節スライダー＋直接入力（選択ロボの関節数ぶん・可変。6軸以上）
+        int nJoints = (jointNames != null && jointNames.Length > 0) ? jointNames.Length : DefaultJointNames.Length;
+        if (goalDeg == null || goalDeg.Length != nJoints) { goalDeg = new double[nJoints]; }
+        sliders = new Slider[nJoints];
+        sliderInputs = new InputField[nJoints];
+        for (int i = 0; i < nJoints; i++)
         {
             int idx = i;
-            MakeLabel(panel, $"lbl{i}", JointNames[i], 14, new Vector2(8f, y), 30f, 22f);
-            var s = MakeSlider(panel, $"sld{i}", new Vector2(44f, y), 232f, 22f);
+            string jn = (jointNames != null && i < jointNames.Length) ? jointNames[i] : $"J{i + 1}";
+            MakeLabel(panel, $"lbl{i}", jn, 14, new Vector2(8f, y), 34f, 22f);
+            var s = MakeSlider(panel, $"sld{i}", new Vector2(46f, y), 230f, 22f);
             s.minValue = jointMin;
             s.maxValue = jointMax;
-            s.value = 0f;
+            s.value = (i < goalDeg.Length) ? (float)goalDeg[i] : 0f;
             s.onValueChanged.AddListener(v => OnSlider(idx, v));
             sliders[i] = s;
             var inp = MakeInput(panel, $"inp{i}", new Vector2(282f, y), 70f, 22f);
+            inp.SetTextWithoutNotify(((i < goalDeg.Length) ? goalDeg[i] : 0d).ToString("F1"));
             inp.onEndEdit.AddListener(v => OnInput(idx, v));
             sliderInputs[i] = inp;
             y -= 26f;
@@ -250,6 +291,7 @@ public class ComRos2PlanPanel : MonoBehaviour
 
         // 内容に合わせて背景の高さを確定（下の余白を詰める）
         panel.sizeDelta = new Vector2(W, -y + 34f + 8f);
+        UpdateRobotRow();   // ロボット名ラベル/ボタン活性を現状に合わせる
     }
 
     private void EnsureEventSystem()
@@ -478,17 +520,17 @@ public class ComRos2PlanPanel : MonoBehaviour
         if (goalSetMode)
         {
             // ★ゴール値は保持（クリアしない）。現在の goalDeg を isManual で実機モデルに表示するだけ。
-            if (kin != null)
+            if (targetKin != null)
             {
-                kin.SetManual(true);
-                kin.SetManualJointsDeg(goalDeg);
+                targetKin.SetManual(true);
+                targetKin.SetManualJointsDeg(goalDeg);
             }
             UpdateGoalText();
         }
         else
         {
             // 設定終了：実機現在姿勢の表示へ戻す（goalDeg は保持）。
-            if (kin != null) { kin.SetManual(false); }
+            if (targetKin != null) { targetKin.SetManual(false); }
         }
         SetButtonColor(setGoalBtn, goalSetMode ? new Color(0.8f, 0.5f, 0.1f, 0.95f) : new Color(0.2f, 0.4f, 0.7f, 0.95f));
     }
@@ -497,11 +539,13 @@ public class ComRos2PlanPanel : MonoBehaviour
     private void InitGoalFromCurrent()
     {
         var cur = planner.ReadCurrentDeg();
-        for (int i = 0; i < 6; i++)
+        int n = (jointNames != null && jointNames.Length > 0) ? jointNames.Length : 6;
+        if (goalDeg == null || goalDeg.Length != n) { goalDeg = new double[n]; }
+        for (int i = 0; i < n; i++)
         {
             goalDeg[i] = (cur != null && i < cur.Length) ? cur[i] : 0d;
-            if (sliders[i] != null) { sliders[i].SetValueWithoutNotify((float)goalDeg[i]); }
-            if (sliderInputs[i] != null) { sliderInputs[i].SetTextWithoutNotify(goalDeg[i].ToString("F1")); }
+            if (i < sliders.Length && sliders[i] != null) { sliders[i].SetValueWithoutNotify((float)goalDeg[i]); }
+            if (i < sliderInputs.Length && sliderInputs[i] != null) { sliderInputs[i].SetTextWithoutNotify(goalDeg[i].ToString("F1")); }
         }
         UpdateGoalText();
     }
@@ -511,9 +555,9 @@ public class ComRos2PlanPanel : MonoBehaviour
         goalDeg[i] = v;
         if (sliderInputs[i] != null) { sliderInputs[i].SetTextWithoutNotify(v.ToString("F1")); }
         UpdateGoalText();
-        if (goalSetMode && kin != null)
+        if (goalSetMode && targetKin != null)
         {
-            kin.SetManualJointsDeg(goalDeg);   // 目標姿勢を実機モデルに表示
+            targetKin.SetManualJointsDeg(goalDeg);   // 目標姿勢を実機モデルに表示
         }
     }
 
@@ -527,9 +571,9 @@ public class ComRos2PlanPanel : MonoBehaviour
             if (sliders[i] != null) { sliders[i].SetValueWithoutNotify(val); }
             if (sliderInputs[i] != null) { sliderInputs[i].SetTextWithoutNotify(val.ToString("F1")); }
             UpdateGoalText();
-            if (goalSetMode && kin != null)
+            if (goalSetMode && targetKin != null)
             {
-                kin.SetManualJointsDeg(goalDeg);
+                targetKin.SetManualJointsDeg(goalDeg);
             }
         }
         else if (sliderInputs[i] != null)
@@ -664,25 +708,99 @@ public class ComRos2PlanPanel : MonoBehaviour
         if (restartBtn != null) { restartBtn.interactable = !busy; }
     }
 
-    private void UpdateGoalText()
+    // --- ロボット選択（複数ロボット） ---
+    private void OnRobotPrev() => CycleRobot(-1);
+    private void OnRobotNext() => CycleRobot(+1);
+
+    private void CycleRobot(int dir)
     {
-        if (goalText == null)
+        if (registry == null || registry.Robots.Count == 0)
         {
             return;
         }
-        goalText.text = $"ゴール: {goalDeg[0]:F0},{goalDeg[1]:F0},{goalDeg[2]:F0},{goalDeg[3]:F0},{goalDeg[4]:F0},{goalDeg[5]:F0}";
+        int n = registry.Robots.Count;
+        int idx = ((registry.SelectedIndex + dir) % n + n) % n;
+        registry.Select(idx);   // → Changed → OnRegistryChanged
+    }
+
+    /// <summary>レジストリ構築/選択変更時：選択ロボへ計画/障害物をリターゲットし UI を合わせる。</summary>
+    private void OnRegistryChanged()
+    {
+        if (registry == null)
+        {
+            return;
+        }
+        var sel = registry.Selected;
+        if (sel == null)
+        {
+            UpdateRobotRow();
+            return;
+        }
+        // 計画/障害物を選択ロボへ。前のプレビュー/ゴーストは片付ける。
+        planner.CancelPlan();
+        planner.SetTarget(sel);
+        if (obstacles != null) { obstacles.SetTarget(sel); }
+        targetKin = sel.Target;
+        var names = sel.JointNames ?? DefaultJointNames;
+        if (jointNames == null || names.Length != jointNames.Length)
+        {
+            jointNames = names;
+            BuildUI();   // 関節数が変わったら全再構築（末尾で UpdateRobotRow も呼ぶ）
+        }
+        else
+        {
+            jointNames = names;
+            UpdateRobotRow();
+        }
+        InitGoalFromCurrent();
+        RefreshButtons(planner.State);
+    }
+
+    /// <summary>ロボット名ラベル/前後ボタンの活性を現状に合わせる。</summary>
+    private void UpdateRobotRow()
+    {
+        int n = registry != null ? registry.Robots.Count : 0;
+        if (robotNameText != null)
+        {
+            var sel = registry != null ? registry.Selected : null;
+            robotNameText.text = (sel != null) ? $"{sel.DisplayName}  ({registry.SelectedIndex + 1}/{n})" : "ロボット: -";
+        }
+        bool multi = n > 1;
+        if (robotPrevBtn != null) { robotPrevBtn.interactable = multi; }
+        if (robotNextBtn != null) { robotNextBtn.interactable = multi; }
+    }
+
+    private void UpdateGoalText()
+    {
+        if (goalText == null || goalDeg == null)
+        {
+            return;
+        }
+        var sb = new System.Text.StringBuilder("ゴール: ");
+        for (int i = 0; i < goalDeg.Length; i++)
+        {
+            if (i > 0) { sb.Append(','); }
+            sb.Append(goalDeg[i].ToString("F0"));
+        }
+        goalText.text = sb.ToString();
     }
 
     private void EnsureKin()
     {
-        if (kin != null)
+        if (targetKin != null)
         {
             return;
         }
+        if (registry != null && registry.Selected != null)
+        {
+            targetKin = registry.Selected.Target;
+            return;
+        }
+        // 後方互換フォールバック：シーンの最初の Kinematics6D。
         var kins = FindObjectsByType<Kinematics6D>(FindObjectsSortMode.None);
         if (kins != null && kins.Length > 0)
         {
-            kin = kins[0];
+            targetKin = kins[0];
         }
     }
 

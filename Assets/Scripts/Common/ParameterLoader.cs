@@ -1100,6 +1100,10 @@ namespace Parameters
             {
                 Destroy(obj);
             }
+            foreach (var obj in globalSetting.GetComponentsInChildren<Ros2PlanTargetRegistry>())
+            {
+                Destroy(obj);
+            }
             foreach (var obj in globalSetting.GetComponentsInChildren<ComRos2>())
             {
                 Destroy(obj);
@@ -1747,6 +1751,11 @@ namespace Parameters
                 if (globalSetting.GetComponent<ComRos2>() == null)
                 {
                     globalSetting.AddComponent<ComRos2>();
+                }
+                // 複数ロボットのレジストリ（計画可能ロボットの列挙・選択保持）。planner/obstacles/panel が参照。
+                if (globalSetting.GetComponent<Ros2PlanTargetRegistry>() == null)
+                {
+                    globalSetting.AddComponent<Ros2PlanTargetRegistry>();
                 }
                 // 経路生成（始点/終点→MoveIt→軌道再生）。ComRos2 のマッピング/解決を再利用する。
                 if (globalSetting.GetComponent<ComRos2PathPlanner>() == null)

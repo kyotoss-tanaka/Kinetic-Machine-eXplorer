@@ -160,9 +160,9 @@ ros2 run kmx_planner kmx_planner --ros-args -p use_moveit:=true -p planning_grou
   単発へ戻すなら `~/ros2_ws/revert_baseline.sh`。**★計測時の罠＝bringup 二重起動（KMX起動+直接launch）で `/kmx_planner` 名前衝突→全無効**。
   起動は `kmx_start.sh`（冪等）に一元化し `ros2 launch` 直叩き禁止。プロセス確認は `ps|grep -v bash`（`pgrep` はシェル自己マッチ）。
 - **★EIT*/Ruckig 追加評価＝BITstar 据え置き(2026-07-07)**: 「さらなる高速化/高精度化」検討で **EIT\*(Effort Informed Trees)** を
-  ws_moveit `planning_context_manager.cpp` に登録（BITstar backport と同手順・**更新時要再適用**）＋yaml。**N=15 比較で BITstar が優**
-  （中央 1.77 vs EIT\* 1.90／BITstar は締まり外れ値無し・EIT\* は 2.95 の外れ値。N=5 の EIT\* 優位はノイズ）→ **既定 BITstar 継続**。
-  EIT\* は「衝突判定が重いほど有利」＝実ヘッド（潰れ修正後）で再確認用に残置。**Ruckig** ジャーク平滑化は adapter 追加したが
+  ws_moveit `planning_context_manager.cpp` に登録（BITstar backport と同手順・**更新時要再適用**）＋yaml。**N=15×2シーンで拮抗＝決定差なし**
+  （シーンA潰れヘッド: BITstar 締まる1.77 vs EIT\* 1.90+外れ値2.95／シーンB 1箱ヘッド: 逆で BITstar 1.66 だが大迂回2つ(3.0,4.2)・EIT\* 1.77 安定。
+  BIT\*系で分布重なり15回でも確定せず・外れ値は retry＋最短採用で吸収。N=5 の EIT\* 優位はノイズ）→ **既定 BITstar 継続**（中央わずか優・E2E検証済）、EIT\* 同等候補で温存。**Ruckig** ジャーク平滑化は adapter 追加したが
   `error -100`＋**kmx が shortcut 後に `_densify_retime` で再タイム付け→move_group段Ruckigは上書き無効**なので撤去（jerk 推定値は joint_limits に残置）。
 - **★ヘッド潰れバグ(Unity側・2026-07-07)**: 間引きヘッド運用で**時々**全箱 pose=(0,0,0)＝flange 原点に潰れる。ROS2 は回転補正のみで
   非ゼロをゼロにできない＝**Unity が pose=0 送信**確定（11箱は dims バラバラ＝分割は成立・pose だけ全0）。要望書 `HEAD_POSE_ZERO_UNITY_SPEC.md`。

@@ -182,6 +182,32 @@ public class CRX_30iA: Kinematics6D
         g1 = g2 = g3 = g4 = g5 = g6 = null;
     }
 
+    // --- IRos2PlanTarget（機種固有の実装） ---
+    /// <summary>現在の腕姿勢(localEulerAngles)から J1..J6(度)を逆算（SetTarget/ApplyArmPose の逆写像）。</summary>
+    public override double[] GetCurrentJointsDeg()
+    {
+        var j = new double[6];
+        if (arm1 == null || arm2 == null || arm3 == null || arm4 == null || arm5 == null || arm6 == null)
+        {
+            return j;   // 未構築時はゼロ
+        }
+        float j1 = Mathf.DeltaAngle(0f, arm1.localEulerAngles.z);   // arm1.z = J1
+        float j2 = -Mathf.DeltaAngle(0f, arm2.localEulerAngles.y);  // arm2.y = -J2
+        float a3y = Mathf.DeltaAngle(0f, arm3.localEulerAngles.y);  // arm3.y = ros2? J3 : (J2+J3)
+        float j3 = GlobalScript.useRos2 ? a3y : (a3y - j2);
+        float j4 = Mathf.DeltaAngle(0f, arm4.localEulerAngles.x);   // arm4.x = J4
+        float j5 = Mathf.DeltaAngle(0f, arm5.localEulerAngles.y);   // arm5.y = J5
+        float j6 = Mathf.DeltaAngle(0f, arm6.localEulerAngles.x);   // arm6.x = J6
+        j[0] = j1; j[1] = j2; j[2] = j3; j[3] = j4; j[4] = j5; j[5] = j6;
+        return j;
+    }
+
+    /// <summary>障害物 base フレーム＝ModelRestructProcess で作る crx ルート。</summary>
+    public override Transform GetBaseTransform()
+    {
+        return crx != null ? crx.transform : null;
+    }
+
     /// <summary>ゴースト用の半透明マテリアル（URP。取れなければ null）。</summary>
     private static Material MakeGhostMaterial()
     {

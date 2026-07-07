@@ -75,6 +75,24 @@ public class ComRos2 : MonoBehaviour, ITagCom
         public string wslUser = "kyotoss";       // WSL ユーザー（制御スクリプトは /home/<user>/ros2_ws/）
         public string wslDistro = "";            // 空=既定ディストロ。指定時は wsl -d <distro>
         public bool launchUseMoveit = true;      // 起動時に MoveIt 込み(true)/補間のみ(false)
+
+        // ── 複数ロボット対応（MULTI_ROBOT_ROS2_SPEC.md）。空なら従来どおり単一ロボットで動作。──
+        public List<Ros2RobotConfig> robots = new();
+    }
+
+    /// <summary>ロボットごとの計画設定（Ros2Info.json の robots 配列の各要素）。</summary>
+    [Serializable]
+    public class Ros2RobotConfig
+    {
+        public string robotId;               // ROS2 robot_map のキーと一致させる（例 "crx30ia_1"）
+        public string unit;                  // UnitSetting.name（レジストリ突合キー・内部用）
+        public string mechId;                // 任意。unit 名重複時の識別
+        public string[] jointNames;          // 順序付き。長さ=jointCount（未指定なら機種既定）
+        public int jointCount;               // 6 以上（jointNames.Length と一致すべき）
+        public string baseNameContains;      // 基準 Transform 名（GetBaseTransform が null の時のフォールバック）
+        public string flangeNameContains;    // 6軸フランジ名（ヘッド attach）
+        public string attachLinkName;        // URDF attach リンク名（例 "flange" / "tool0"）
+        public Vector3 baseCalibrationEuler; // 機種別の Unity基準→URDF base_link 補正
     }
     #endregion 設定
 
@@ -102,6 +120,9 @@ public class ComRos2 : MonoBehaviour, ITagCom
 
     /// <summary>ITagCom：接続先名（tagDatas のキーにも使用可）</summary>
     public string Name => "ROS2:" + setting.ip + ":" + setting.port;
+
+    /// <summary>Ros2Info.json の robots 設定（複数ロボット・レジストリ/計画が参照）。空なら単一ロボット。</summary>
+    public IReadOnlyList<Ros2RobotConfig> RobotConfigs => setting.robots;
 
     #region ライフサイクル
     private void Start()
@@ -542,7 +563,7 @@ public interface IRos2Transport
     /// timeBudget(秒)/goodRatio は任意で計画の粘り具合を要求ごとに指定（0以下=ROS2ノード既定）。
     /// </summary>
     void PublishPlanRequest(string topic, string[] names, double[] startDeg, double[] goalDeg,
-                            double timeBudget = 0.0, double goodRatio = 0.0);
+                            double timeBudget = 0.0, double goodRatio = 0.0, string robotId = "");
     /// <summary>trajectory_msgs/JointTrajectory を購読し Ros2Trajectory(度) に変換して渡す。</summary>
     void SubscribeTrajectory(string topic, Action<Ros2Trajectory> onTrajectory);
     /// <summary>計画ステータス(std_msgs/String, 例 "planning"/"succeeded:.."/"failed:..")を購読する。</summary>
@@ -571,7 +592,7 @@ public sealed class NullRos2Transport : IRos2Transport
     public void Subscribe(string topic, Action<string[], double[]> onMessage) { }
     public void RegisterPlanRequestPublisher(string topic) { }
     public void PublishPlanRequest(string topic, string[] names, double[] startDeg, double[] goalDeg,
-                                   double timeBudget = 0.0, double goodRatio = 0.0) { }
+                                   double timeBudget = 0.0, double goodRatio = 0.0, string robotId = "") { }
     public void SubscribeTrajectory(string topic, Action<Ros2Trajectory> onTrajectory) { }
     public void SubscribePlanStatus(string topic, Action<string> onStatus) { }
     public void RegisterObstaclesPublisher(string topic) { }

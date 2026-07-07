@@ -85,6 +85,7 @@ public class ComRos2Obstacles : MonoBehaviour
     private float sinceLastAutoTry;   // autoSend: 基部未解決時の再試行スロットル用
     private int autoTries;            // autoSend: 試行回数（上限で打ち切り、全シーン走査の無限化を防ぐ）
     private const int AutoTryMax = 20;
+    private Ros2PlanTargetRegistry registry;   // 他ロボを障害物として送る＆選択ロボ解決に使う
 
     private void Start()
     {
@@ -103,6 +104,7 @@ public class ComRos2Obstacles : MonoBehaviour
         // 呼べるよう sendHead に関わらず両トピックを登録しておく（登録はトピック単位で冪等）。
         transport.RegisterObstaclesPublisher(topic);
         transport.RegisterObstaclesPublisher(attachedTopic);
+        registry = GetComponent<Ros2PlanTargetRegistry>();   // 他ロボ障害物/選択ロボ解決（無くても既定動作）
         started = true;
         Debug.Log($"[ComRos2Obstacles] start topic='{topic}' frame='{frameId}' radius={radius} transport={transport.GetType().Name}");
 #endif
@@ -146,6 +148,32 @@ public class ComRos2Obstacles : MonoBehaviour
                 }
             }
         }
+    }
+
+    /// <summary>計画対象ロボットに合わせて基準/ヘッド/補正を切替える（パネルの選択から呼ぶ）。</summary>
+    public void SetTarget(Ros2PlanTargetRegistry.RegisteredRobot r)
+    {
+        if (r == null || r.Target == null)
+        {
+            return;
+        }
+        var b = r.Target.GetBaseTransform();
+        if (b != null)
+        {
+            robotBase = b;   // ResolveBase はこれを優先して返す
+        }
+        var cfg = r.Config;
+        if (cfg != null)
+        {
+            if (!string.IsNullOrEmpty(cfg.baseNameContains)) { robotBaseNameContains = cfg.baseNameContains; }
+            if (!string.IsNullOrEmpty(cfg.flangeNameContains)) { flangeNameContains = cfg.flangeNameContains; }
+            if (!string.IsNullOrEmpty(cfg.attachLinkName)) { attachLinkName = cfg.attachLinkName; }
+            baseCalibrationEuler = cfg.baseCalibrationEuler;   // 機種別の base 補正
+        }
+        var head = r.Target.GetHeadObject();
+        headRoot = head != null ? head.transform : null;
+        Debug.Log($"[ComRos2Obstacles] target='{r.DisplayName}' base='{(robotBase != null ? robotBase.name : "?")}'"
+            + $" flange~'{flangeNameContains}' attach='{attachLinkName}' calib={baseCalibrationEuler}");
     }
 
     /// <summary>右クリックメニュー用ラッパー（ContextMenu は void 前提のため分離）。</summary>
@@ -251,6 +279,42 @@ public class ComRos2Obstacles : MonoBehaviour
                     }
                 }
             }
+        }
+
+        // 他のロボット（選択外）を「現在姿勢の障害物」として送る（1台ずつ計画＝他ロボは動かない障害物）。
+        // 各ロボの現在姿勢コライダーを選択ロボ base 相対の AABB 化して合成（トリガの有無を問わず含める）。
+        int others = 0;
+        if (registry != null)
+        {
+            var sel = registry.Selected;
+            foreach (var reg in registry.Robots)
+            {
+                if (reg == null || reg.Target == null || reg == sel)
+                {
+                    continue;   // 選択ロボ自身は障害物にしない
+                }
+                foreach (var col in reg.Target.GetBodyColliders())
+                {
+                    if (col == null || col.transform == baseT || col.transform.IsChildOf(baseT))
+                    {
+                        continue;
+                    }
+                    if (col.bounds.Contains(baseT.position))
+                    {
+                        continue;   // 基部内包は START_STATE_IN_COLLISION を招くため除外
+                    }
+                    var ob = ToObstacle(col, baseT, baseCalibrationEuler);
+                    if (ob != null && seenIds.Add(ob.id))
+                    {
+                        list.Add(ob);
+                        others++;
+                    }
+                }
+            }
+        }
+        if (others > 0)
+        {
+            Debug.Log($"[ComRos2Obstacles] 他ロボットを障害物として {others} 箱追加（選択外の機体）。");
         }
 
         // 地面(ground plane): 基部の真下・床高さに、可動範囲サイズの薄い板を1枚張る。

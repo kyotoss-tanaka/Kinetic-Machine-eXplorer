@@ -103,7 +103,7 @@ public sealed class RosTcpConnectorTransport : IRos2Transport
     }
 
     public void PublishPlanRequest(string topic, string[] names, double[] startDeg, double[] goalDeg,
-                                   double timeBudget = 0.0, double goodRatio = 0.0)
+                                   double timeBudget = 0.0, double goodRatio = 0.0, string robotId = "")
     {
         if (ros == null)
         {
@@ -114,6 +114,8 @@ public sealed class RosTcpConnectorTransport : IRos2Transport
             RegisterPlanRequestPublisher(topic);   // 事前登録漏れ時のフォールバック（レースの可能性あり）
         }
         // time_budget/good_ratio は 0以下 なら ROS2 ノード既定にフォールバック（後方互換）。
+        // ★robotId: PlanRequest.msg に robot_id を足して Generate ROS Messages 再生成したら
+        //   下の初期化子に `robot_id = robotId,` を追加する（Phase3）。現状は受け取るだけ（後方互換）。
         ros.Publish(topic, new PlanRequestMsg
         {
             names = names, start = startDeg, goal = goalDeg,

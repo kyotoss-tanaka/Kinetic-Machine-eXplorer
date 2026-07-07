@@ -5,7 +5,7 @@ using System.Text.Json;
 using Unity.VisualScripting;
 using UnityEngine;
 
-public class Kinematics6D : Kinematics3D
+public class Kinematics6D : Kinematics3D, IRos2PlanTarget
 {
     #region プロパティ
     [SerializeField]
@@ -88,6 +88,50 @@ public class Kinematics6D : Kinematics3D
     public GameObject GetHeadObject()
     {
         return HeadObject;
+    }
+
+    // --- IRos2PlanTarget（機種非依存の計画対象契約） ---
+    /// <summary>ユニット名（UnitSetting.name）。無ければ GameObject 名。</summary>
+    public string UnitName => (unitSetting != null && !string.IsNullOrEmpty(unitSetting.name)) ? unitSetting.name : name;
+
+    private static readonly string[] DefaultJointNames = { "J1", "J2", "J3", "J4", "J5", "J6" };
+    /// <summary>関節名（機種の既定。サブクラスで上書き可）。既定は J1..J6。</summary>
+    public virtual string[] JointNames => DefaultJointNames;
+    /// <summary>関節数。</summary>
+    public int JointCount => JointNames.Length;
+
+    /// <summary>現在の関節角(度)。既定はゼロ（arm 逆算はサブクラスで実装）。</summary>
+    public virtual double[] GetCurrentJointsDeg() => new double[JointCount];
+
+    /// <summary>ロボット基準(arm チェーンのルート) Transform。既定は null（サブクラスで実装）。</summary>
+    public virtual Transform GetBaseTransform() => null;
+
+    /// <summary>現在姿勢のボディコライダー（他ロボを障害物として送る用）。プレビュー用ゴースト複製は除外。</summary>
+    public virtual IReadOnlyList<Collider> GetBodyColliders()
+    {
+        var b = GetBaseTransform();
+        if (b == null)
+        {
+            return System.Array.Empty<Collider>();
+        }
+        var list = new List<Collider>();
+        foreach (var c in b.GetComponentsInChildren<Collider>(true))
+        {
+            bool underGhost = false;
+            for (var p = c.transform; p != null; p = p.parent)
+            {
+                if (p.name.IndexOf("_Ghost", System.StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    underGhost = true;
+                    break;
+                }
+            }
+            if (!underGhost)
+            {
+                list.Add(c);
+            }
+        }
+        return list;
     }
 
     /// <summary>
