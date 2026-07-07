@@ -39,6 +39,7 @@ public class ComRos2PlanPanel : MonoBehaviour
 
     private ComRos2PathPlanner planner;
     private ComRos2Obstacles obstacles;   // ヘッド設定(1箱/間引き)の切替用
+    private ComRos2Launcher launcher;     // ROS2 起動/停止/再起動（wsl.exe）
     private Kinematics6D kin;
     private bool goalSetMode;
     private bool goalInitialized;                  // 起動時に一度だけ現在姿勢で初期化したか
@@ -47,6 +48,8 @@ public class ComRos2PlanPanel : MonoBehaviour
     private Text statusText;
     private Text goalText;
     private Text commText;                                            // ROS通信状態（タイトルバー右）
+    private Text launchStateText;                                     // ROS2 起動状態（stopped/starting/running_full）
+    private Button startBtn, stopBtn, restartBtn;                     // 起動/停止/再起動
     private readonly Slider[] sliders = new Slider[6];
     private readonly InputField[] sliderInputs = new InputField[6];   // 角度の直接入力
     private Button setGoalBtn, planBtn, okBtn, ngBtn;
@@ -75,6 +78,7 @@ public class ComRos2PlanPanel : MonoBehaviour
             return;
         }
         obstacles = GetComponent<ComRos2Obstacles>();   // 無くても可（トグルは非表示相当）
+        launcher = GetComponent<ComRos2Launcher>();      // 無くても可（起動行は非表示相当）
         planner.StateChanged += OnPlanState;
         BuildUI();
         RefreshButtons(planner.State);
@@ -113,6 +117,11 @@ public class ComRos2PlanPanel : MonoBehaviour
             bool up = planner.IsLinkUp;
             commText.text = up ? "ROS ●接続" : "ROS ●未接続";
             commText.color = up ? new Color(0.3f, 1f, 0.4f) : new Color(1f, 0.45f, 0.45f);
+        }
+        // ROS2 起動状態ランプ＋ボタン活性（起動中は押下抑止）。
+        if (launcher != null && launchStateText != null)
+        {
+            UpdateLaunchUi();
         }
         // 計画中の表示。予算>0 なら残り時間、0(ROS2既定で総量不明)なら経過時間。
         if (planner.State == ComRos2PathPlanner.PlanState.Planning && statusText != null)
@@ -175,6 +184,18 @@ public class ComRos2PlanPanel : MonoBehaviour
         commText.raycastTarget = false;
 
         float y = -30f;   // タイトルバーの下から積む
+
+        // ROS2 起動制御（起動/停止/再起動＋状態ランプ）。ランチャがある時だけ表示。
+        if (launcher != null)
+        {
+            startBtn = MakeButton(panel, "RosStart", "起動", new Vector2(8f, y), 60f, 26f, OnStartRos2);
+            stopBtn = MakeButton(panel, "RosStop", "停止", new Vector2(72f, y), 60f, 26f, OnStopRos2);
+            restartBtn = MakeButton(panel, "RosRestart", "再起動", new Vector2(136f, y), 72f, 26f, OnRestartRos2);
+            launchStateText = MakeLabel(panel, "RosState", "ROS2: -", 13, new Vector2(214f, y), W - 222f, 26f);
+            launchStateText.alignment = TextAnchor.MiddleRight;
+            y -= 32f;
+        }
+
         statusText = MakeLabel(panel, "status", "待機", 16, new Vector2(8f, y), W - 16f, 24f);
         y -= 28f;
         goalText = MakeLabel(panel, "goal", "ゴール: -", 13, new Vector2(8f, y), W - 16f, 20f);
@@ -549,11 +570,44 @@ public class ComRos2PlanPanel : MonoBehaviour
     {
         // 設定モードなら抜けて現在姿勢の表示へ（start=実機現在）。
         if (goalSetMode) { ToggleGoalSet(); }
+        // ゴースト再生(プレビュー/再生)中に計画を押したら、まずキャンセルしてゴースト/プレビューを
+        // 片付けてから計画する（ゴースト複製が残ったまま送信して姿勢が崩れるのを防ぐ）。
+        if (planner.State == ComRos2PathPlanner.PlanState.Preview
+            || planner.State == ComRos2PathPlanner.PlanState.Playing)
+        {
+            planner.CancelPlan();
+        }
         planner.PlanTimeBudget = displayBudgetSec;                 // 残り時間表示＆ROS2予算
         planner.PlanGoodRatio = planGoodRatioVal;                  // 大回り許容比
         var start = planner.ReadCurrentDeg();
         var goal = (double[])goalDeg.Clone();
         planner.RequestPlanWithScene(start, goal);                 // 障害物/ヘッドも送って計画
+    }
+
+    private void OnStartRos2()
+    {
+        if (launcher != null) { launcher.StartRos2(); }
+    }
+
+    private void OnStopRos2()
+    {
+        // 停止すると endpoint も落ち TCP が切れる。計画中/プレビューなら破棄しておく。
+        if (planner.State == ComRos2PathPlanner.PlanState.Preview ||
+            planner.State == ComRos2PathPlanner.PlanState.Planning)
+        {
+            planner.CancelPlan();
+        }
+        if (launcher != null) { launcher.StopRos2(); }
+    }
+
+    private void OnRestartRos2()
+    {
+        if (planner.State == ComRos2PathPlanner.PlanState.Preview ||
+            planner.State == ComRos2PathPlanner.PlanState.Planning)
+        {
+            planner.CancelPlan();
+        }
+        if (launcher != null) { launcher.RestartRos2(); }
     }
 
     private void OnOk()
@@ -581,6 +635,33 @@ public class ComRos2PlanPanel : MonoBehaviour
         if (okBtn != null) { okBtn.gameObject.SetActive(preview); }
         if (ngBtn != null) { ngBtn.gameObject.SetActive(preview); }
         if (planBtn != null) { planBtn.interactable = s != ComRos2PathPlanner.PlanState.Planning; }
+    }
+
+    /// <summary>ROS2 起動状態ランプ＋起動/停止/再起動ボタンの活性を更新する。</summary>
+    private void UpdateLaunchUi()
+    {
+        bool busy = launcher.Busy;
+        var st = launcher.State;
+        string label;
+        Color c;
+        switch (st)
+        {
+            case ComRos2Launcher.LaunchState.RunningFull:
+                label = "ROS2: ●稼働中"; c = new Color(0.3f, 1f, 0.4f); break;
+            case ComRos2Launcher.LaunchState.Starting:
+                label = "ROS2: ●起動中…"; c = new Color(1f, 0.85f, 0.2f); break;
+            case ComRos2Launcher.LaunchState.Stopped:
+                label = "ROS2: ●停止"; c = new Color(0.7f, 0.7f, 0.7f); break;
+            default:
+                label = "ROS2: ●不明"; c = new Color(0.6f, 0.6f, 0.6f); break;
+        }
+        if (busy) { label += " (処理中)"; }
+        launchStateText.text = label;
+        launchStateText.color = c;
+
+        if (startBtn != null) { startBtn.interactable = !busy && st != ComRos2Launcher.LaunchState.RunningFull; }
+        if (stopBtn != null) { stopBtn.interactable = !busy && st != ComRos2Launcher.LaunchState.Stopped; }
+        if (restartBtn != null) { restartBtn.interactable = !busy; }
     }
 
     private void UpdateGoalText()

@@ -70,6 +70,11 @@ public class ComRos2 : MonoBehaviour, ITagCom
         public string subscribeTopic = "/kmx/command";
         public int cycleMs = 50;                 // publish 周期
         public List<Ros2TagMap> tags = new();
+
+        // ── Unity からの ROS2 起動制御（LAUNCH_CONTROL_UNITY_SPEC.md）。ComRos2Launcher が参照。──
+        public string wslUser = "kyotoss";       // WSL ユーザー（制御スクリプトは /home/<user>/ros2_ws/）
+        public string wslDistro = "";            // 空=既定ディストロ。指定時は wsl -d <distro>
+        public bool launchUseMoveit = true;      // 起動時に MoveIt 込み(true)/補間のみ(false)
     }
     #endregion 設定
 
@@ -93,6 +98,7 @@ public class ComRos2 : MonoBehaviour, ITagCom
     private bool started;
     private bool destroyed;         // 破棄後に購読コールバックが残留しても処理しないためのガード
     private bool targetsResolved;   // database/mechId をユニット名等から解決済みか（ロード完了後に1回）
+    private ComRos2Launcher launcher;   // ROS2 起動監視。running_full 到達で接続を張り直す。
 
     /// <summary>ITagCom：接続先名（tagDatas のキーにも使用可）</summary>
     public string Name => "ROS2:" + setting.ip + ":" + setting.port;
@@ -125,6 +131,13 @@ public class ComRos2 : MonoBehaviour, ITagCom
             transport.RegisterPublisher(setting.publishTopic);  // 発行前に登録（初回publishのレース回避）
         }
         started = true;
+        // ROS2 を後から起動した場合（Unityロード時は endpoint 不在で接続失敗）、running_full 到達を
+        // 検知して接続を張り直す。ランチャは同一 GameObject（ParameterLoader が先に付与済み）。
+        launcher = GetComponent<ComRos2Launcher>();
+        if (launcher != null)
+        {
+            launcher.StateChanged += OnLaunchStateChanged;
+        }
         Debug.Log($"[ComRos2] start ({Name}) pub='{setting.publishTopic}' sub='{setting.subscribeTopic}' tags={setting.tags.Count} transport={transport.GetType().Name}");
 #endif
     }
@@ -132,9 +145,40 @@ public class ComRos2 : MonoBehaviour, ITagCom
     private void OnDestroy()
     {
         destroyed = true;
+        if (launcher != null)
+        {
+            launcher.StateChanged -= OnLaunchStateChanged;
+        }
         // Disconnect で購読解除（ROSConnection は常駐シングルトンのため、解除しないと
         // 破棄済みインスタンスのコールバックが残留し inbox に溜まり続ける＝リロード毎にリーク）。
         try { transport?.Disconnect(); } catch { /* ignore */ }
+    }
+
+    /// <summary>ランチャの状態変化。running_full（endpoint 起動済）を検知したら接続を張り直す。</summary>
+    private void OnLaunchStateChanged(ComRos2Launcher.LaunchState s)
+    {
+        if (s == ComRos2Launcher.LaunchState.RunningFull && !transport.IsLinkUp)
+        {
+            Debug.Log("[ComRos2] running_full 検知 → ROS-TCP 再接続");
+            Reconnect();
+        }
+    }
+
+    /// <summary>ROS-TCP 接続を張り直す（ROS2 を後から起動/再起動した後に呼ぶ）。購読は常駐 ROSConnection が保持。</summary>
+    public void Reconnect()
+    {
+        if (transport == null)
+        {
+            return;
+        }
+        try
+        {
+            transport.Connect(setting.ip, setting.port);
+        }
+        catch (Exception e)
+        {
+            Debug.LogWarning($"[ComRos2] reconnect failed: {e.Message}");
+        }
     }
 
     private void Update()
