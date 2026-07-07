@@ -176,6 +176,18 @@ public class AxisMotionBase : KinematicsBase
     }
 
     /// <summary>
+    /// 衝突あり(collision==1)ユニットか。形状設定ユニットは ShapeScript が担うため除く。
+    /// ROS2 障害物として送るため、CreateBoxCollider がこの配下のコライダーを実体化(isTrigger=false)する。
+    /// </summary>
+    public bool IsCollisionUnit
+    {
+        get
+        {
+            return (unitSetting != null) && unitSetting.isCollision && !isShape;
+        }
+    }
+
+    /// <summary>
     /// 吸引あり
     /// </summary>
     public bool isSuction
@@ -488,6 +500,10 @@ public class AxisMotionBase : KinematicsBase
             if (!GlobalScript.buildConfig.isCollision && unitSetting.isCollision)
             {
                 // 当たり判定追加
+                foreach (var bc in this.GetComponentsInChildren<BoxCollider>())
+                {
+                    bc.isTrigger = false;
+                }
                 /*
                 foreach (var mesh in this.GetComponentsInChildren<MeshFilter>())
                 {

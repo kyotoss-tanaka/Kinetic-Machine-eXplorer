@@ -255,6 +255,15 @@ public class KssMeshColliderEditorCommon
             for (int subMesh = 0; subMesh < subMeshCount; ++subMesh)
             {
                 _subMeshes[subMesh] = new SubMeshCache();
+                // ライン/点トポロジのサブメッシュは三角形を持たず、GetTriangles が
+                // "Failed getting triangles. Submesh topology is lines or points." を出す。
+                // 事前にトポロジ判定してスキップ（元々このサブメッシュは空扱いなので挙動は不変）。
+                if (mesh.GetTopology(subMesh) != MeshTopology.Triangles)
+                {
+                    _subMeshes[subMesh].triangles = new int[0];
+                    _subMeshes[subMesh].triangleNormals = new Vector3[0];
+                    continue;
+                }
                 _subMeshes[subMesh].triangles = mesh.GetTriangles(subMesh);
                 if (_subMeshes[subMesh].triangles != null)
                 {

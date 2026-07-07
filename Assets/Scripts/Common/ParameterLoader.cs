@@ -1084,6 +1084,10 @@ namespace Parameters
         /// </summary>
         private void DestroyRos2Components()
         {
+            foreach (var obj in globalSetting.GetComponentsInChildren<ComRos2Launcher>())
+            {
+                Destroy(obj);
+            }
             foreach (var obj in globalSetting.GetComponentsInChildren<ComRos2PlanPanel>())
             {
                 Destroy(obj);
@@ -1541,6 +1545,7 @@ namespace Parameters
         /// <param name="root"></param>
         private void CreateBoxCollider(List<Renderer> meshRenderers, bool ignore = false)
         {
+            int collisionFlipped = 0;
             foreach (var mr in meshRenderers)
             {
                 // Line / 特殊用途は除外
@@ -1574,6 +1579,18 @@ namespace Parameters
                         box.center = b.center;
                         box.size = b.size;
                         box.isTrigger = true;
+                        // 衝突あり(collision==1)ユニット配下のコライダーは実体化(isTrigger=false)する。
+                        // OverlapSphere(QueryTriggerInteraction.Ignore) で拾わせ ROS2 障害物として送るため。
+                        // 判定は配下ユニットの AxisMotionBase（collision=1ユニットには付与済）から行う。
+                        if (!GlobalScript.buildConfig.isCollision)
+                        {
+                            var amb = mr.GetComponentInParent<AxisMotionBase>();
+                            if (amb != null && amb.IsCollisionUnit)
+                            {
+                                box.isTrigger = false;
+                                collisionFlipped++;
+                            }
+                        }
                         if (GlobalScript.isXRMode)
                         {
                             // XRモード時はインタラクタ追加
@@ -1584,6 +1601,10 @@ namespace Parameters
                         }
                     }
                 }
+            }
+            if (collisionFlipped > 0)
+            {
+                Debug.Log($"[Collision] collision=1 ユニットの BoxCollider {collisionFlipped}個 を isTrigger=false（ignore={ignore}）");
             }
         }
 
@@ -1736,6 +1757,11 @@ namespace Parameters
                 if (globalSetting.GetComponent<ComRos2Obstacles>() == null)
                 {
                     globalSetting.AddComponent<ComRos2Obstacles>();
+                }
+                // ROS2 起動/停止/再起動（wsl.exe で WSL の bringup を制御）。Windows のみ動作。
+                if (globalSetting.GetComponent<ComRos2Launcher>() == null)
+                {
+                    globalSetting.AddComponent<ComRos2Launcher>();
                 }
                 // 経路計画の実行時UI（ゴール設定/計画/計画中/成否/OK・NG）。ComRos2PathPlanner を使う。
                 if (globalSetting.GetComponent<ComRos2PlanPanel>() == null)

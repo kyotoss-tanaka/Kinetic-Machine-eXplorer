@@ -1003,6 +1003,13 @@ public static class GlobalScript
                     // 吸引は無視
                     continue;
                 }
+                // ライン/点メッシュ由来で頂点/三角形が無いコライダーは、下の Min/Max で
+                // "Sequence contains no elements" になる。コライダーにできないので破棄してスキップ。
+                if (col.sharedMesh.vertexCount == 0 || col.sharedMesh.triangles.Length == 0)
+                {
+                    GameObject.Destroy(col);
+                    continue;
+                }
                 AddFakeThickness(col.sharedMesh);
                 var verts = col.sharedMesh.vertices;
                 float minZ = verts.Min(v => v.z);
