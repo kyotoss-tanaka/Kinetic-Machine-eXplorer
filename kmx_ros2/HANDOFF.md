@@ -89,7 +89,7 @@ ros2 run kmx_planner kmx_planner --ros-args -p use_moveit:=true -p planning_grou
 - **経路短縮（発行前・RRT*-Smart の Path Optimization 相当）**: `path_shortcut`=true のとき、採用経路の**非隣接ウェイポイント間を直結できる（直線補間が衝突しない）なら中間点を捨てて**うねりを除去。衝突判定は `/check_state_validity` を経路上だけに使う（attachヘッド＋障害物込み・`is_diff=True`）。`shortcut_step_deg`/`shortcut_output_step_deg` で刻み調整。ログ `cost A→B, 直線=D [N倍]` で効果確認。
 - **計画バックエンド `planner_backend`**: `moveit`（既定＝OMPL RRTConnect＋上記retry/shortcut）/ `rrtstar_smart`（**Python実装のRRT*-Smart**・実験的。関節空間RRT*＋近傍リワイヤ＋Intelligent Sampling＋shortcut、時間予算内で最良）。RRT*-Smart は衝突判定が `check_state_validity`(サービス)経由でスループット低め＝狭所発見は弱い。関節可動域は `/robot_description` から自動取得。本番最適性は C++ OMPL プラグイン化が本筋。
 - **地面（床）は Unity が `/kmx/obstacles` で送る**（例 `kmx_ground_plane` 4×4×0.1m を base_link下 z≈-0.9 等）。ROS2 側でハードコード地面は持たない（一度実装したが撤去）。※ Unity の巨大床(scale 1000)は `ComRos2Obstacles` の `maxObstacleSize` 安全弁で除外され得るので、適正サイズで送るか安全弁を調整。
-- params（`ros2 param set /kmx_planner …` でライブ調整可）: `use_moveit`, `planning_group`(=manipulator), `moveit_joint_names`(=[J1..J6]), `duration_sec`, `num_points`, `allowed_planning_time`(=1.0), `vel_scale`/`acc_scale`(=0.3), `planner_id`(=RRTConnect), `num_planning_attempts`, `planning_pipeline`, **`plan_retries`(=20)**, **`plan_time_budget_sec`(=10)**, **`plan_good_ratio`(=2.0)**, **`path_shortcut`**, `shortcut_step_deg`, `shortcut_output_step_deg`, **`planner_backend`**, `rrt_*`（RRT*-Smart用）, `head_calibration_rpy`(=[0,90,90]), `attach_link`(=flange), `attached_touch_links`, **`attached_merge_aabb`(=true)**, **`attached_merge_over`(=12・この数超で union1箱に安全弁統合／以下は個別attach＝間引き)**, `obstacles_topic`, `apply_scene_service`, `get_scene_service`, `planning_scene_topic`, **`plan_status_topic`(=/kmx/plan_status)**。
+- params（`ros2 param set /kmx_planner …` でライブ調整可）: `use_moveit`, `planning_group`(=manipulator), `moveit_joint_names`(=[J1..J6]), `duration_sec`, `num_points`, `allowed_planning_time`(=1.0), `vel_scale`/`acc_scale`(=0.3), `planner_id`(=RRTConnect), **`num_planning_attempts`(=8・OMPL ParallelPlanで並列best-of-N)**, `planning_pipeline`, **`plan_retries`(=20)**, **`plan_time_budget_sec`(=10)**, **`plan_good_ratio`(=2.0)**, **`path_shortcut`**, `shortcut_step_deg`, `shortcut_output_step_deg`, **`planner_backend`**, `rrt_*`（RRT*-Smart用）, `head_calibration_rpy`(=[0,90,90]), `attach_link`(=flange), `attached_touch_links`, **`attached_merge_aabb`(=true)**, **`attached_merge_over`(=12・この数超で union1箱に安全弁統合／以下は個別attach＝間引き)**, `obstacles_topic`, `apply_scene_service`, `get_scene_service`, `planning_scene_topic`, **`plan_status_topic`(=/kmx/plan_status)**。
 - メッセージ: `PlanRequest`(names,start,goal,**time_budget,good_ratio**) / `Obstacles` / `ObstaclePrimitive` は `kmx_msgs`（障害物系は `geometry_msgs` 依存）。`JointTrajectory` は **ROS-TCP-Connector 同梱**（Unity側は生成不要）。**PlanRequest にフィールド追加したので Unity は `Generate ROS Messages` 再生成が必要**。
 - 堅牢化: `Obstacles` import は try/except で保護（未ビルドでも PlanRequest 経路は起動）。`_convert_result` は関節名不一致時に発行中止（0埋め廃止）。実行モデルは **MultiThreadedExecutor**（shortcut の同期 `check_state_validity` 呼び出しをコールバック内から行うため。sv クライアントは別コールバックグループ）。
 
@@ -154,6 +154,19 @@ ros2 run kmx_planner kmx_planner --ros-args -p use_moveit:=true -p planning_grou
   (=`/kmx/plan_status`)。実測確認：`planning`→`succeeded:15:1.00`／`failed:bad_request`。**Unity 側も実装済(2026-07-06)**：
   `ComRos2PathPlanner` が購読→`ComRos2PlanPanel` で計画中/残り時間/成否表示＋プレビュー(青線＋半透明ゴースト)→OK/NG、timeout保険。
   ※kmx_planner のみ変更＝ノード再起動で反映（move_group 不要）。
+- **★並列 best-of-N 計画＝採用・既定化(2026-07-07)**: `num_planning_attempts` 既定 1→**8**（OMPL ParallelPlan が
+  8本を並列スレッド生成し最短を返す・in-process）。単一クリーン起動＋同一シーンのクリーン比較で **単発npa=1 に全項目勝利**：
+  成功 5/5 vs 4/5・倍率中央 1.64 vs 1.88・レイテンシ 9.8s vs 13.1s（good_ratio=1.4・各5回）。24コアで余裕。planner_node.py 既定へ焼込済。
+  単発へ戻すなら `~/ros2_ws/revert_baseline.sh`。**★計測時の罠＝bringup 二重起動（KMX起動+直接launch）で `/kmx_planner` 名前衝突→全無効**。
+  起動は `kmx_start.sh`（冪等）に一元化し `ros2 launch` 直叩き禁止。プロセス確認は `ps|grep -v bash`（`pgrep` はシェル自己マッチ）。
+- **★EIT*/Ruckig 追加評価＝BITstar 据え置き(2026-07-07)**: 「さらなる高速化/高精度化」検討で **EIT\*(Effort Informed Trees)** を
+  ws_moveit `planning_context_manager.cpp` に登録（BITstar backport と同手順・**更新時要再適用**）＋yaml。**N=15 比較で BITstar が優**
+  （中央 1.77 vs EIT\* 1.90／BITstar は締まり外れ値無し・EIT\* は 2.95 の外れ値。N=5 の EIT\* 優位はノイズ）→ **既定 BITstar 継続**。
+  EIT\* は「衝突判定が重いほど有利」＝実ヘッド（潰れ修正後）で再確認用に残置。**Ruckig** ジャーク平滑化は adapter 追加したが
+  `error -100`＋**kmx が shortcut 後に `_densify_retime` で再タイム付け→move_group段Ruckigは上書き無効**なので撤去（jerk 推定値は joint_limits に残置）。
+- **★ヘッド潰れバグ(Unity側・2026-07-07)**: 間引きヘッド運用で**時々**全箱 pose=(0,0,0)＝flange 原点に潰れる。ROS2 は回転補正のみで
+  非ゼロをゼロにできない＝**Unity が pose=0 送信**確定（11箱は dims バラバラ＝分割は成立・pose だけ全0）。要望書 `HEAD_POSE_ZERO_UNITY_SPEC.md`。
+  **ROS2 保険ガード＝実装・検証済(2026-07-07)**: `on_attached` 冒頭「複数 item が全て pose≒原点(<0.1mm)なら更新破棄＝前回ヘッド維持」（空配列=全消しは除外）。Unity側も縮退ガード＋リトライ実装済＝両側ガード。
 - **★attached の stale 残留バグ＝修正済(2026-07-06)**: `/apply_planning_scene` は **attached diff で `success=False` を返す**
   （world障害物は True）が **diff は実際に適用される**。旧実装は success=True 時のみ `_attached_ids` を確定→未確定のまま→
   全置換 REMOVE が効かず**空 `/kmx/attached` を送ってもヘッドが消えない**→ stale 蓄積→ goal がそれと衝突し

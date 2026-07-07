@@ -151,9 +151,11 @@ class KmxPlannerNode(Node):
         # 全リトライ失敗時に1回だけ試す保険プランナ（空文字で無効）。BITstar が稀に全滅しても
         # RRTConnect（実測10/10成功）で「経路が返らない」事態を防ぐ。cost は劣るが不成立よりよい。
         self.declare_parameter('plan_fallback_planner', 'RRTConnect')
-        # move_group 内の並列試行数。anytime 系（BITstar/RRTstar）は 1 が素直（並列に走らせても
-        # OMPL 側でハイブリッド合成され挙動が読みにくい）。リトライは kmx 側ループで行う。
-        self.declare_parameter('num_planning_attempts', 1)
+        # move_group 内の並列試行数 = OMPL ParallelPlan で N 本を並列スレッド生成し最短を返す（in-process）。
+        # ★8 に設定（2026-07-07 実測で単発 npa=1 に全項目で勝利：実シーン単発比較で
+        #   成功 5/5 vs 4/5・倍率中央 1.64 vs 1.88・レイテンシ 9.8s vs 13.1s）。24コアで余裕。
+        #   狭所は best-of-8 が単発の取りこぼしを救い、経路も短く・速い。単発に戻すなら 1（revert_baseline.sh）。
+        self.declare_parameter('num_planning_attempts', 8)
         self.declare_parameter('planning_pipeline', 'ompl')
         # ★リトライ＋経路最適化（狭所対策）：時間予算内・最大 plan_retries 回まで計画を繰り返し、
         #   失敗はリトライ／成功は貯めて「関節空間の総移動量が最小の経路」を採用して発行する。
@@ -363,6 +365,17 @@ class KmxPlannerNode(Node):
         link = msg.frame_id if msg.frame_id else self.attach_link
         self.get_logger().info(
             f"attached(head) received: {len(msg.items)} items, link='{link}'")
+
+        # ★縮退ガード（HEAD_POSE_ZERO_UNITY_SPEC・2026-07-07）: 間引きヘッドで Unity が時々「全箱 pose=(0,0,0)」で
+        #   送る不具合があり、ヘッドが flange 原点に潰れる。複数 item が全て原点なら明らかに不正なので、この更新は
+        #   破棄して前回の正常なヘッドを維持する。空配列(=全消し)は正当なので除外（len>=2 のときだけ判定）。
+        if len(msg.items) >= 2 and all(
+                abs(it.pose.position.x) < 1e-4 and abs(it.pose.position.y) < 1e-4
+                and abs(it.pose.position.z) < 1e-4 for it in msg.items):
+            self.get_logger().warn(
+                f"attached(head): {len(msg.items)}個が全て原点(pose≒0)＝縮退。Unity 送信不良の疑いにより"
+                "この更新を破棄し前回のヘッドを維持します（HEAD_POSE_ZERO_UNITY_SPEC）。")
+            return
 
         scene = PlanningScene()
         scene.is_diff = True
