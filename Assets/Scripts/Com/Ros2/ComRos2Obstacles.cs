@@ -130,11 +130,13 @@ public class ComRos2Obstacles : MonoBehaviour
                 autoTries++;
                 if (SendObstacles())
                 {
-                    if (sendHead)
+                    // ヘッドが縮退(pose 未確定)で送れないうちは確定しない＝次回リトライ（transform 確定を待つ）。
+                    // 上限回数に達したら諦めて確定（送れた範囲で継続）。
+                    bool headOk = !sendHead || SendHead();
+                    if (headOk || autoTries >= AutoTryMax)
                     {
-                        SendHead();
+                        sentOnce = true;
                     }
-                    sentOnce = true;
                 }
                 else if (autoTries >= AutoTryMax)
                 {
@@ -290,6 +292,9 @@ public class ComRos2Obstacles : MonoBehaviour
         return true;
     }
 
+    /// <summary>ヘッド全箱の中心がこの距離(m)以内でフランジ原点に潰れていたら「pose未確定＝縮退」とみなす。</summary>
+    private const float HeadDegenerateEps = 1e-4f;
+
     /// <summary>
     /// ヘッド(ツール)を AttachedCollisionObject 用に送る（方式B）。
     /// 障害物と同じ ObstaclesMsg を別トピック attachedTopic に流し、frame_id に attach 先リンク名を入れる。
@@ -337,14 +342,29 @@ public class ComRos2Obstacles : MonoBehaviour
         // 全 Collider を「フランジ相対の AABB(center,size)」に変換して集める。
         var boxMin = new List<Vector3>();
         var boxMax = new List<Vector3>();
+        int nearZero = 0;   // 中心がフランジ原点付近の箱数（縮退検知用）
         foreach (var col in cols)
         {
             if (!TryHeadLocalAabb(col, flange, out var c, out var s))
             {
                 continue;
             }
+            if (c.magnitude < HeadDegenerateEps)
+            {
+                nearZero++;
+            }
             boxMin.Add(c - s * 0.5f);
             boxMax.Add(c + s * 0.5f);
+        }
+
+        // ★縮退ガード：全箱の中心がフランジ原点付近に潰れている＝transform 未確定フレームで pose を
+        //   読んだ疑い（HEAD_POSE_ZERO_UNITY_SPEC.md）。pose=0 で送ると ROS2 でヘッドが原点に潰れるため、
+        //   今回は送信せず前回の正常な attach を維持し、呼び元（オート送信）のリトライに委ねる。
+        if (boxMin.Count > 0 && nearZero >= boxMin.Count)
+        {
+            Debug.LogWarning($"[ComRos2Obstacles] ヘッド pose 縮退を検知（全{boxMin.Count}箱の中心がフランジ原点付近）。"
+                + $"flange='{flange.name}' head='{head.name}' cols={cols.Length}。transform 未確定の疑い→送信スキップ（前回維持）。");
+            return false;
         }
 
         if (boxMin.Count == 0)
@@ -398,7 +418,7 @@ public class ComRos2Obstacles : MonoBehaviour
         // frame_id に attach 先リンク名を載せる（ROS2側が AttachedCollisionObject の link に使う）。
         transport.PublishObstacles(attachedTopic, attachLinkName, list);
         Debug.Log($"[ComRos2Obstacles] head {list.Count}/{cols.Length} 個を attach 送信 "
-            + $"(topic='{attachedTopic}' link='{attachLinkName}' flange='{flange.name}' head='{head.name}')");
+            + $"(topic='{attachedTopic}' link='{attachLinkName}' flange='{flange.name}' head='{head.name}' nearZero={nearZero})");
         return true;
     }
 
@@ -490,7 +510,8 @@ public class ComRos2Obstacles : MonoBehaviour
         return id;
     }
 
-    /// <summary>名前で Transform を探す（完全一致=大小無視 を優先、無ければ部分一致）。</summary>
+    /// <summary>名前で Transform を探す（完全一致=大小無視 を優先、無ければ部分一致）。
+    /// プレビュー用ゴースト複製("_Ghost"配下)は実機でないので除外する（同名 J6FLANGE 等の誤取得防止）。</summary>
     private static Transform FindTransformByName(string nameKey)
     {
         if (string.IsNullOrEmpty(nameKey))
@@ -500,16 +521,38 @@ public class ComRos2Obstacles : MonoBehaviour
         Transform contains = null;
         foreach (var t in FindObjectsByType<Transform>(FindObjectsSortMode.None))
         {
-            if (string.Equals(t.name, nameKey, StringComparison.OrdinalIgnoreCase))
+            bool exact = string.Equals(t.name, nameKey, StringComparison.OrdinalIgnoreCase);
+            bool partial = !exact && (contains == null)
+                && (t.name.IndexOf(nameKey, StringComparison.OrdinalIgnoreCase) >= 0);
+            if (!exact && !partial)
+            {
+                continue;   // 名前不一致は即スキップ（ゴースト判定コストを一致時だけに限定）
+            }
+            // ★ゴースト複製は実機ではない。再生中に同名フランジ等を誤って拾うとヘッド姿勢が崩れるため除外。
+            if (IsUnderGhost(t))
+            {
+                continue;
+            }
+            if (exact)
             {
                 return t;
             }
-            if (contains == null && t.name.IndexOf(nameKey, StringComparison.OrdinalIgnoreCase) >= 0)
-            {
-                contains = t;
-            }
+            contains = t;
         }
         return contains;
+    }
+
+    /// <summary>プレビュー用ゴースト複製（名前に "_Ghost" を含む）配下か。名前検索の対象外にする。</summary>
+    private static bool IsUnderGhost(Transform t)
+    {
+        for (var p = t; p != null; p = p.parent)
+        {
+            if (p.name.IndexOf("_Ghost", StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                return true;
+            }
+        }
+        return false;
     }
 
     /// <summary>
