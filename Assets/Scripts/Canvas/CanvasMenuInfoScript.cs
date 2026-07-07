@@ -40,6 +40,7 @@ public class CanvasMenuInfoScript : KssBaseScript
     public Button btnSlice;
     public Button btnSysRec;
     public Button btnTimeChart;
+    public Button btnRoboPath;   // 経路生成パネル表示（ROS2連携時のみ有効）
 
     /// <summary>
     /// 設定
@@ -102,6 +103,7 @@ public class CanvasMenuInfoScript : KssBaseScript
     private bool visibleSlice = false;
     private bool visibleSysRec = false;
     private bool visibleTimeChart = false;
+    private bool visibleRoboPath = false;
 
     /// <summary>
     /// 軸表示用
@@ -130,6 +132,7 @@ public class CanvasMenuInfoScript : KssBaseScript
         btnSlice = GetComponentsInChildren<Button>().ToList().Find(d => d.name == "BtnSlice");
         btnSysRec = GetComponentsInChildren<Button>().ToList().Find(d => d.name == "BtnSysRec");
         btnTimeChart = GetComponentsInChildren<Button>().ToList().Find(d => d.name == "BtnTimeChart");
+        btnRoboPath = GetComponentsInChildren<Button>().ToList().Find(d => d.name == "BtnRoboPath");
     }
 
     protected override void OnEnable()
@@ -149,6 +152,7 @@ public class CanvasMenuInfoScript : KssBaseScript
         btnSlice.onClick.AddListener(btnSlice_onClick);
         btnSysRec.onClick.AddListener(btnSysRec_onClick);
         btnTimeChart.onClick.AddListener(btnTimeChart_onClick);
+        if (btnRoboPath != null) { btnRoboPath.onClick.AddListener(btnRoboPath_onClick); }
     }
 
     protected override void OnDisable()
@@ -164,6 +168,7 @@ public class CanvasMenuInfoScript : KssBaseScript
         btnSlice.onClick.RemoveAllListeners();
         btnSysRec.onClick.RemoveAllListeners();
         btnTimeChart.onClick.RemoveAllListeners();
+        if (btnRoboPath != null) { btnRoboPath.onClick.RemoveAllListeners(); }
     }
 
     /// <summary>
@@ -196,6 +201,12 @@ public class CanvasMenuInfoScript : KssBaseScript
         uiDirectCom.SetActive(visibleDirect && btnDirect.interactable);
 
         btnSysRec.interactable = sysRecScript.IsEnabled;
+
+        // 経路生成ボタンは ROS2 連携（ComRos2PlanPanel あり）のときだけ有効。
+        if (btnRoboPath != null)
+        {
+            btnRoboPath.interactable = globalSetting.GetComponent<ComRos2PlanPanel>() != null;
+        }
     }
 
     /// <summary>
@@ -325,6 +336,21 @@ public class CanvasMenuInfoScript : KssBaseScript
         uiTimeChart.SetActive(visibleTimeChart);
 
         SetButtonColor(btnTimeChart, visibleTimeChart);
+    }
+
+    /// <summary>
+    /// 経路生成パネル表示切り替え（ROS2連携時のみ・ComRos2PlanPanel をトグル）
+    /// </summary>
+    private void btnRoboPath_onClick()
+    {
+        var panel = globalSetting != null ? globalSetting.GetComponent<ComRos2PlanPanel>() : null;
+        if (panel == null)
+        {
+            return;   // ROS2連携無効時は何もしない（ボタンも非活性）
+        }
+        visibleRoboPath = !visibleRoboPath;
+        panel.SetVisible(visibleRoboPath);
+        SetButtonColor(btnRoboPath, visibleRoboPath);
     }
 
     /// <summary>
