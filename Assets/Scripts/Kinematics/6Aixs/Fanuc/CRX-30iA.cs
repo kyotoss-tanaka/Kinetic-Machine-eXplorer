@@ -183,6 +183,9 @@ public class CRX_30iA: Kinematics6D
     }
 
     // --- IRos2PlanTarget（機種固有の実装） ---
+    /// <summary>機種キー（robot_id=crx30ia_N の生成・機種別既定の索引）。</summary>
+    public override string ModelKey => "crx30ia";
+
     /// <summary>現在の腕姿勢(localEulerAngles)から J1..J6(度)を逆算（SetTarget/ApplyArmPose の逆写像）。</summary>
     public override double[] GetCurrentJointsDeg()
     {

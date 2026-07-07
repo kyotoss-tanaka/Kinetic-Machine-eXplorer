@@ -94,6 +94,9 @@ public class Kinematics6D : Kinematics3D, IRos2PlanTarget
     /// <summary>ユニット名（UnitSetting.name）。無ければ GameObject 名。</summary>
     public string UnitName => (unitSetting != null && !string.IsNullOrEmpty(unitSetting.name)) ? unitSetting.name : name;
 
+    /// <summary>機種キー（robot_id 自動生成・機種別既定の索引）。サブクラスで上書き。既定は "robot"。</summary>
+    public virtual string ModelKey => "robot";
+
     private static readonly string[] DefaultJointNames = { "J1", "J2", "J3", "J4", "J5", "J6" };
     /// <summary>関節名（機種の既定。サブクラスで上書き可）。既定は J1..J6。</summary>
     public virtual string[] JointNames => DefaultJointNames;

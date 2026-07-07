@@ -11,6 +11,9 @@ public interface IRos2PlanTarget
     /// <summary>ユニット名（UnitSetting.name）。レジストリのキー＆Ros2Info robots との突合キー。</summary>
     string UnitName { get; }
 
+    /// <summary>機種キー（例 "crx30ia" / "rs007l"）。robot_id 自動生成(機種+通番)や機種別既定の索引に使う。</summary>
+    string ModelKey { get; }
+
     /// <summary>関節名（順序付き・長さ=JointCount。例 ["J1".."J6"]）。機種の既定値。</summary>
     string[] JointNames { get; }
 

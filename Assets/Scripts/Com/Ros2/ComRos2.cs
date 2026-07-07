@@ -217,6 +217,11 @@ public class ComRos2 : MonoBehaviour, ITagCom
             {
                 return;
             }
+            if (setting.tags.Count == 0)
+            {
+                AutoBuildTagsFromRobots();   // Ros2Info に tags 未記載なら robotSetting から自動生成
+                BuildMaps();                 // 生成分を subByName/pubList へ反映
+            }
             ResolveTargets();
             targetsResolved = true;
         }
@@ -386,6 +391,76 @@ public class ComRos2 : MonoBehaviour, ITagCom
     #endregion タグ読み書き
 
     #region 準備
+    /// <summary>
+    /// Ros2Info.json に tags を書いていない場合、シーンの 6軸ロボ(IRos2PlanTarget)の
+    /// robotSetting.tags から /kmx state・command 用のタグ対応を自動生成する
+    /// （例 FANUC: d_robo_a1..a6 → J1..J6）。手書きの tags があれば優先（本メソッドは呼ばれない）。
+    /// </summary>
+    private void AutoBuildTagsFromRobots()
+    {
+        var units = GlobalScript.unitSettings;
+        if (units == null)
+        {
+            return;
+        }
+        int added = 0, robotsHit = 0;
+        foreach (var u in units)
+        {
+            if (u == null || u.robotSetting == null || u.robotSetting.tags == null || u.moveObject == null)
+            {
+                continue;
+            }
+            var target = u.moveObject.GetComponent<IRos2PlanTarget>();
+            if (target == null || target.JointCount < 6)
+            {
+                continue;   // 6 軸以上の計画対象ロボのみ
+            }
+            var jtags = u.robotSetting.tags;
+            var names = target.JointNames;
+            int n = target.JointCount;
+            if (jtags.Count < n)
+            {
+                continue;   // 関節数ぶんのタグが無い（例: 3 軸位置ロボは対象外）
+            }
+            // 先頭 n 個が全て非空でなければスキップ（部分的タグは誤対応の元）。
+            bool allSet = true;
+            for (int i = 0; i < n; i++)
+            {
+                if (string.IsNullOrEmpty(jtags[i]))
+                {
+                    allSet = false;
+                    break;
+                }
+            }
+            if (!allSet)
+            {
+                continue;
+            }
+            for (int i = 0; i < n; i++)
+            {
+                setting.tags.Add(new Ros2TagMap
+                {
+                    unit = u.name,
+                    tag = jtags[i],
+                    name = (names != null && i < names.Length) ? names[i] : $"J{i + 1}",
+                    dir = "Both",
+                    isFloat = true,
+                });
+            }
+            added += n;
+            robotsHit++;
+        }
+        if (added > 0)
+        {
+            Debug.Log($"[ComRos2] Ros2Info に tags 未記載 → robotSetting から自動生成: {robotsHit}台 / {added}タグ");
+            if (robotsHit > 1)
+            {
+                Debug.LogWarning("[ComRos2] 6軸ロボが複数あります。/kmx/state の関節名(J1..Jn)が衝突するため、"
+                    + "複数ロボの直接駆動には per-robot トピック/接頭辞が必要です（経路計画は robot_id で分離）。");
+            }
+        }
+    }
+
     private void BuildMaps()
     {
         subByName.Clear();

@@ -481,6 +481,11 @@ namespace Parameters
                                         }
                                         else if (roboType == RobotType.RS007L)
                                         {
+                                            // KAWASAKI RS007L（Kinematics6D 実装）。CRX と同じ流儀でアタッチ。
+                                            // ※ 現状 GetRobotType は RS007L を検出しない（Kawasaki モデルの識別子が未登録）ため
+                                            //   この分岐は未到達。実モデルが入ったら GetRobotType に検出（子名 Contains）を追加すること。
+                                            var rObj = unitSetting.moveObject.AddComponent<RS007L>();
+                                            rObj.SetParameter(unitSetting, robo);
                                         }
                                         else if (roboType == RobotType.CRX_30iA)
                                         {

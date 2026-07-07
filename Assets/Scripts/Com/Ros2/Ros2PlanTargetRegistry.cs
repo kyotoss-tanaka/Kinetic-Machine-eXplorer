@@ -54,6 +54,7 @@ public sealed class Ros2PlanTargetRegistry : MonoBehaviour
         selectedIndex = -1;
         var configs = com != null ? com.RobotConfigs : null;
         var units = GlobalScript.unitSettings;
+        var modelCount = new Dictionary<string, int>();   // 機種別の通番（robot_id 自動生成用）
         if (units != null)
         {
             foreach (var u in units)
@@ -67,7 +68,9 @@ public sealed class Ros2PlanTargetRegistry : MonoBehaviour
                 {
                     continue;   // 経路生成対象は 6 軸以上の IRos2PlanTarget のみ
                 }
-                robots.Add(new RegisteredRobot { Target = target, Config = FindConfig(configs, u) });
+                // Ros2Info robots[] に明示があれば優先。無ければ機種キー＋既定から自動合成（Ros2Info を書かなくても動く）。
+                var cfg = FindConfig(configs, u) ?? SynthesizeConfig(target, u, modelCount);
+                robots.Add(new RegisteredRobot { Target = target, Config = cfg });
             }
         }
         if (robots.Count > 0)
@@ -96,6 +99,42 @@ public sealed class Ros2PlanTargetRegistry : MonoBehaviour
             }
         }
         return null;
+    }
+
+    /// <summary>
+    /// Ros2Info robots[] に無いロボの設定を、機種キー(ModelKey)と機種別既定から自動生成する。
+    /// robot_id は「機種キー＋通番」(例 crx30ia_1)＝ROS2 robot_map と一致させる規約。
+    /// base/flange は名前検索せず GetBaseTransform()/ヘッドの親を使うため空でよい。
+    /// </summary>
+    private static ComRos2.Ros2RobotConfig SynthesizeConfig(IRos2PlanTarget target, UnitSetting u, Dictionary<string, int> modelCount)
+    {
+        string model = string.IsNullOrEmpty(target.ModelKey) ? "robot" : target.ModelKey;
+        int idx = (modelCount.TryGetValue(model, out var n) ? n : 0) + 1;
+        modelCount[model] = idx;
+        var d = ModelDefaults(model);
+        return new ComRos2.Ros2RobotConfig
+        {
+            robotId = $"{model}_{idx}",       // 機種＋通番（例 crx30ia_1）
+            unit = u.name,
+            mechId = u.mechId,
+            jointNames = target.JointNames,
+            jointCount = target.JointCount,
+            baseNameContains = "",            // GetBaseTransform() を使うので不要
+            flangeNameContains = d.flange,    // ヘッド attach 用フランジ名（機種別）
+            attachLinkName = d.attach,
+            baseCalibrationEuler = d.calib,
+        };
+    }
+
+    /// <summary>機種別の ROS2 既定（フランジ名・attach リンク名・base 補正 euler）。Ros2Info robots[] で個別に上書き可。</summary>
+    private static (string flange, string attach, Vector3 calib) ModelDefaults(string modelKey)
+    {
+        switch (modelKey)
+        {
+            case "crx30ia": return ("J6FLANGE", "flange", new Vector3(0f, -90f, 0f));   // FANUC CRX-30iA（従来の CRX 既定）
+            case "rs007l":  return ("_J6", "tool0", Vector3.zero);                      // KAWASAKI RS007L（実機確認後に補正調整）
+            default:        return ("", "flange", Vector3.zero);
+        }
     }
 
     /// <summary>選択を変更する（範囲外/同一は無視）。</summary>
