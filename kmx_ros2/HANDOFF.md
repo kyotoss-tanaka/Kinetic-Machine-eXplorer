@@ -160,7 +160,9 @@ ros2 run kmx_planner kmx_planner --ros-args -p use_moveit:=true -p planning_grou
   →smootherstep(6u⁵-15u⁴+10u³) S字時間法で achieved_time へ再タイム付け(関節ジャーク低減)**→`/kmx/trajectory`(度)＋`/kmx/plan_status` に
   `opt phase=<time|jerk> …`／`opt done time= feasible= min_time= jerk=`（標準 planning/succeeded も併存）。`target_time<t_min`→`feasible=0`＋`min_time`。
   検証済(空シーン)：3.0s→feasible=1・1.0s→feasible=0(達成最短2.64s)・軌道121点。**厳密per-jointジャーク制限(Ruckig)＝段階1.5(ruckig-python未導入)／
-  トルク最小(Pinocchio逆動力学)＝段階2 未実装**（payload_* は受領のみ）。通常計画(optimize=false)は不変・後方互換。
+  トルク最小(Pinocchio逆動力学)＝段階2 未実装**（payload_* は受領のみ）。
+  **長時間探索/中断（§追加要望）も実装済**：optimize は good_enough で止めず `time_budget` いっぱい探索、`opt phase=search iter= best=<最短s>` を best更新+3秒ごとに throttle publish、
+  **`/kmx/plan_cancel`(std_msgs/String) 購読→現在の best で即確定**（検証：budget30sで4s後cancel→1s確定）。通常計画(optimize=false)は不変・後方互換。
 - **★並列 best-of-N 計画＝採用・既定化(2026-07-07)**: `num_planning_attempts` 既定 1→**8**（OMPL ParallelPlan が
   8本を並列スレッド生成し最短を返す・in-process）。単一クリーン起動＋同一シーンのクリーン比較で **単発npa=1 に全項目勝利**：
   成功 5/5 vs 4/5・倍率中央 1.64 vs 1.88・レイテンシ 9.8s vs 13.1s（good_ratio=1.4・各5回）。24コアで余裕。planner_node.py 既定へ焼込済。

@@ -139,7 +139,32 @@ float64[] payload_com   # ペイロード重心[m]（フランジ相対 x,y,z。
 - **途中経過**：`/kmx/plan_status` に `opt phase=<time|jerk> iter=<n> time=<s> prog=<0..100>` を publish。
 - **応答**：軌道→`/kmx/trajectory`(度)、完了行 `opt done time=<s> feasible=<0|1> min_time=<s> jerk=<v>`。標準の `planning`/`succeeded:<pts>:<ratio>` も併存。
 - **検証（空シーン）**：target_time=3.0→`opt done time=3.000 feasible=1 min_time=2.641 jerk=143.96`／target_time=1.0→`feasible=0 min_time=2.640 achieved=2.640 jerk=211.22`。軌道121点発行・進捗行 OK・遅い方が低ジャーク。
-- **段階2（トルク・Pinocchio 逆動力学）は未実装**（payload_mass/payload_com は受領するが未使用＝将来）。
+- **★長時間探索＋中断＋最良採用（§追加要望）＝実装済**：optimize 時は **good_enough で早期終了せず**予算(time_budget)いっぱい探索（max_attempts は実質無制限）。
+  `/kmx/plan_status` に **`opt phase=search iter=N best=<最短s>`** を **best 更新時＋3秒ごと**にスロットル publish（試行毎だと氾濫＝空シーンで実測296回/8s→7行に制御）。
+  **`/kmx/plan_cancel`(std_msgs/String)** 購読→受信で打ち切り、**現在の best_traj で確定**（retiming→`/kmx/trajectory`＋`opt done`）。確定契機＝予算到達/中断/最大回数。
+  検証：budget=8→予算で opt done／budget=30 で 4s 後に cancel→**1s で確定**（best 採用）。
+- **段階2（トルク・Pinocchio 逆動力学）は未実装**（payload_mass/payload_com は受領するが未使用＝将来）。Phase2（トップ5候補提示）も未着手。
+
+## 登録モードの長時間探索＋中断＋最良採用（追加要望・2026-07-09）
+登録は「**大きな探索予算(既定10分)で回し続け → Unity から停止 → その間の最良(最短)を採用**」。探索中の**最良値＋経過時間**を Unity 表示。
+
+### Unity 側（実装済）
+- 登録の計画要求は `time_budget = registerSearchBudgetSec`（既定600s）＋`optimize=true`。
+- 進捗行 `opt phase=search iter=N best=X.XX` を「**探索中 最良X.XXs (N回) 経過Ys**」と表示（経過は毎フレーム更新）。
+- **「探索停止（最良を採用）」ボタン** → `/kmx/plan_cancel`（std_msgs/String, data="cancel"）を publish。
+- **無進捗 watchdog**：`opt` 行が `planTimeoutSec` 来なければ失敗（総経過ではなく“進捗が止まったら”で判定＝10分探索でも誤タイムアウトしない）。
+- ヘッド先端**加速度を G 表記**で表示（FK で先端 world→2階差分→÷9.80665、`unitScale` 適用）。`軸速%` は速度のみ。
+
+### ROS2 側（要実装）
+- **optimize 時は good_enough 早期終了しない**（予算/最大回数/中断まで探索継続）。`max_attempts(plan_retries)` は予算に合わせ十分大きく（or 時間のみで制御）。
+- **`opt phase=search iter=N best=<最短s>`** を publish（best = 現在の `best_traj` の t_min）。**best更新時＋定期(例3秒ごと)** に出すこと（無進捗でも生存通知＝Unity の無進捗 watchdog(既定20s)で誤失敗しないため）。
+- **`/kmx/plan_cancel`(std_msgs/String) を購読** → 受信で探索打ち切り、**現在の best_traj で確定**（optimize retiming → `/kmx/trajectory` ＋ `opt done`）。
+- 確定契機＝**予算到達 / 中断 / 最大回数** のいずれか。best は `_traj_cost` 最小（＝最短経路）。
+
+### Phase 2（将来アイデア・トップ5選択）
+- 時間を守れた候補の**トップ5**を残し、各の **ジャーク / 加速度(G) / 軸速% / 所要** を Unity に返す。
+- Unity は候補一覧を表示 → 各をゴーストでプレビュー → **ユーザーが選んで登録**。
+- 契約変更が要る（軌道を複数返す or 1メッセージに N候補）＋選択UI。**まずコア（単一最良）を確定後に検討**。
 
 ## 関連
 - 現状の Unity 側 robotSteps / 登録・キャッシュ / Step A(速度・時間解析) は実装済（`ComRos2PathPlanner` / `ComRos2PlanPanel` / `Ros2TrajCacheStore` / `Ros2MotorLimits`）。

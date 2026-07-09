@@ -166,6 +166,21 @@ public sealed class RosTcpConnectorTransport : IRos2Transport
         subscribedTopics.Add(topic);
     }
 
+    private bool planCancelRegistered;
+    public void PublishPlanCancel(string topic)
+    {
+        if (ros == null)
+        {
+            ros = ROSConnection.GetOrCreateInstance();
+        }
+        if (!planCancelRegistered)
+        {
+            ros.RegisterPublisher<StringMsg>(topic);
+            planCancelRegistered = true;
+        }
+        ros.Publish(topic, new StringMsg { data = "cancel" });
+    }
+
     // ObstaclesMsg を登録済みのトピック集合（障害物 /kmx/obstacles と ヘッド /kmx/attached など複数）。
     // 単一フラグだと2つ目のトピックが未登録のまま publish され "Not registered" になるため集合で管理。
     private readonly HashSet<string> registeredObstacleTopics = new();

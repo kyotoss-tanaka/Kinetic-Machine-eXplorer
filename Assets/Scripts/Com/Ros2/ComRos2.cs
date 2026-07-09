@@ -646,6 +646,8 @@ public interface IRos2Transport
     void SubscribeTrajectory(string topic, Action<Ros2Trajectory> onTrajectory);
     /// <summary>計画ステータス(std_msgs/String, 例 "planning"/"succeeded:.."/"failed:..")を購読する。</summary>
     void SubscribePlanStatus(string topic, Action<string> onStatus);
+    /// <summary>探索中断を通知する（std_msgs/String）。登録の長時間探索を止めて現在の最良で確定させる。</summary>
+    void PublishPlanCancel(string topic);
 
     // --- 障害物（Unity→ROS2 で planning scene へ）---
     /// <summary>障害物 publisher を事前登録する（初回publishの "Not registered" レース回避）。</summary>
@@ -675,6 +677,7 @@ public sealed class NullRos2Transport : IRos2Transport
                                    double payloadMass = 0.0, double[] payloadCom = null) { }
     public void SubscribeTrajectory(string topic, Action<Ros2Trajectory> onTrajectory) { }
     public void SubscribePlanStatus(string topic, Action<string> onStatus) { }
+    public void PublishPlanCancel(string topic) { }
     public void RegisterObstaclesPublisher(string topic) { }
     public void PublishObstacles(string topic, string frameId, List<Ros2Obstacle> obstacles) { }
 }

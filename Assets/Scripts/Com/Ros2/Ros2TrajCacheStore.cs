@@ -30,6 +30,8 @@ public static class Ros2TrajCacheStore
         public List<List<float>> positions { get; set; } = new();
         /// <summary>軌道の関節名（順序）。</summary>
         public List<string> jointNames { get; set; } = new();
+        /// <summary>ROS2 最適化が返した達成可能な最短時間(秒)。0=不明（旧キャッシュ）。表示専用。</summary>
+        public float minTimeSec { get; set; }
     }
 
     private static readonly List<Entry> entries = new();

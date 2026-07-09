@@ -32,6 +32,8 @@ public class ComRos2Obstacles : MonoBehaviour
     [SerializeField] private LayerMask layerMask = ~0;
     [Tooltip("Unity単位→メートル。KMXのスケールに合わせる")]
     [SerializeField] private float unitScale = 1.0f;
+    /// <summary>Unity単位→メートル係数（先端加速度のG換算などに共用）。</summary>
+    public float UnitScale => unitScale;
     [Tooltip("このサイズ(Unity単位)を超えるAABBは床/機械フレームとみなし障害物にしない（基部包含→START_STATE_IN_COLLISION 回避）。0以下で無効")]
     [SerializeField] private float maxObstacleSize = 2.0f;
     [Tooltip("明示的に障害物として送るオブジェクト名（半径外/巨大サイズの除外を無視）。"

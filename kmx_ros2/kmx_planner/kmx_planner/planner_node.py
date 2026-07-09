@@ -114,6 +114,8 @@ class KmxPlannerNode(Node):
         self.declare_parameter('attached_topic', '/kmx/attached')
         # 計画ステータス通知トピック（ROS2→Unity）。planning / succeeded:.. / failed:.. を流す。
         self.declare_parameter('plan_status_topic', '/kmx/plan_status')
+        # 登録最適化の長時間探索を Unity から中断するトピック（String data="cancel"）。REGISTER_OPTIMIZE §追加要望。
+        self.declare_parameter('plan_cancel_topic', '/kmx/plan_cancel')
         # attach 先リンク（msg.frame_id 未指定時の既定）。CRX-30iA は manipulator の tip_link=flange。
         self.declare_parameter('attach_link', 'flange')
         # ツールが接触して当然のリンク（self-collision 許可）。無いと即自己衝突で計画不能。
@@ -196,6 +198,10 @@ class KmxPlannerNode(Node):
 
         self.sub = self.create_subscription(PlanRequest, req_topic, self.on_request, 10)
         self.pub = self.create_publisher(JointTrajectory, traj_topic, 10)
+        # 登録最適化の長時間探索の中断（Unity「探索停止」→ 現在の best で確定）。
+        self._cancel_requested = False
+        self.create_subscription(String, self.get_parameter('plan_cancel_topic').value,
+                                 self.on_plan_cancel, 10)
         # 計画ステータス通知（状態文字列のみ・軌道は載せない）。reliable で取りこぼし防止。
         status_qos = QoSProfile(depth=10, reliability=ReliabilityPolicy.RELIABLE)
         self.status_pub = self.create_publisher(
@@ -283,6 +289,11 @@ class KmxPlannerNode(Node):
         except Exception:   # noqa: BLE001  通知失敗で計画本体を止めない
             pass
 
+    def on_plan_cancel(self, msg):
+        """登録最適化の長時間探索を中断（現在の best_traj で確定させる）。Unity「探索停止」ボタン。"""
+        self._cancel_requested = True
+        self.get_logger().info(f"探索中断要求を受信（data='{getattr(msg, 'data', '')}'）→ 現在の最良経路で確定します。")
+
     def on_request(self, msg: PlanRequest):
         names = list(msg.names) if msg.names else list(self.kmx_joints)
         start = list(msg.start)
@@ -305,9 +316,9 @@ class KmxPlannerNode(Node):
 
         self._publish_status("planning")   # 計画開始（moveit / 補間 共通）
 
-        # ★登録軌道の多目的最適化（REGISTER_OPTIMIZE_ROS2_SPEC 段階1：時間充足＋ジャーク低減）。
+        # ★登録軌道の多目的最適化（REGISTER_OPTIMIZE_ROS2_SPEC 段階1＋長時間探索/中断）。
         if optimize:
-            self._publish_status("opt phase=time iter=0 prog=5")
+            self._publish_status("opt phase=search iter=0 best=0.00")
             if self.use_moveit:
                 # 衝突回避経路を scaling=1 で計画→完了時に _optimize_and_publish で再タイム付け発行。
                 self.plan_with_moveit(names, start, goal, req_budget, req_ratio,
@@ -694,6 +705,8 @@ class KmxPlannerNode(Node):
         # 失敗はリトライ／成功は貯めて最短経路を採用。マッピング(out/moveit名)は session に閉じて持ち回る
         # （self._pending_* だと並行要求で上書きされ誤変換するため）。
         self._plan_session += 1
+        if optimize:
+            self._cancel_requested = False   # 新しい探索セッション開始時に中断フラグをクリア
         # Unity 指定(req_*)が >0 ならそれを、無ければ node 既定を使う。
         budget = req_budget if req_budget > 0 else float(self.get_parameter('plan_time_budget_sec').value)
         good_ratio = req_ratio if req_ratio > 0 else float(self.get_parameter('plan_good_ratio').value)
@@ -703,11 +716,15 @@ class KmxPlannerNode(Node):
             'out_names': list(kmx_names[:n]),
             'moveit_names': list(mj),
             'attempts': 0,
-            'max_attempts': max(1, int(self.get_parameter('plan_retries').value)),
+            # 登録最適化は「予算いっぱい探索し続ける」ので回数上限では止めない（時間 or 中断で確定）。
+            'max_attempts': (10**9 if optimize else max(1, int(self.get_parameter('plan_retries').value))),
             'deadline_ns': (self.get_clock().now().nanoseconds + int(budget * 1e9)) if budget > 0 else None,
             'good_ratio': good_ratio,
             'best_traj': None,
             'best_cost': None,
+            'best_time': 0.0,   # 現在の最良経路の総時間[秒]（opt phase=search の best= 表示用）
+            'last_prog_ns': 0,      # 探索進捗を最後に publish した時刻（スロットル用）
+            'last_prog_best': -1.0,  # 最後に publish した best（更新検知用）
             'successes': 0,
             'last_error': 0,   # 直近試行の MoveItErrorCodes.val（最終失敗時の理由に使う）
             'optimize': optimize,       # 登録最適化モード（完了時に再タイム付けして発行）
@@ -751,6 +768,8 @@ class KmxPlannerNode(Node):
                 if session['best_cost'] is None or cost < session['best_cost']:
                     session['best_traj'] = traj
                     session['best_cost'] = cost
+                    last = traj.points[-1].time_from_start   # 最良経路の総時間[秒]（search 進捗の best=）
+                    session['best_time'] = last.sec + last.nanosec * 1e-9
             else:
                 session['last_error'] = -2   # 計画成功だが変換/検証で無効（INVALID_MOTION_PLAN 相当）
         else:
@@ -762,13 +781,24 @@ class KmxPlannerNode(Node):
                        or self.get_clock().now().nanoseconds < session['deadline_ns'])
         within_attempts = session['attempts'] < session['max_attempts']
         # 十分短い経路が既に得られたか（直線距離の good_ratio 倍以下）。得られていれば粘らず終了。
+        # ★登録最適化(optimize)は「予算いっぱい探索し続ける」ので good_enough では止めない（中断/予算/回数で確定）。
         ratio = session['good_ratio']
-        good_enough = (session['best_cost'] is not None and ratio > 0.0
+        good_enough = (not session.get('optimize')
+                       and session['best_cost'] is not None and ratio > 0.0
                        and session['direct_cost'] > 1e-6
                        and session['best_cost'] <= ratio * session['direct_cost'])
-        if not good_enough and within_attempts and within_time:
-            if session.get('optimize'):   # 登録最適化：計画反復の途中経過
-                self._publish_status(f"opt phase=time iter={session['attempts']} prog=20")
+        cancelled = bool(session.get('optimize')) and bool(self._cancel_requested)
+        if not good_enough and within_attempts and within_time and not cancelled:
+            if session.get('optimize'):
+                # 探索の途中経過を publish（best 更新時 or 3秒ごと＝スロットル）。試行毎に出すと氾濫するため。
+                # 3秒間隔は Unity の無進捗 watchdog(既定20s) 内に収まる生存通知でもある。
+                now_ns = self.get_clock().now().nanoseconds
+                bt = session.get('best_time', 0.0)
+                if (now_ns - session.get('last_prog_ns', 0) >= int(3e9)
+                        or abs(bt - session.get('last_prog_best', -1.0)) > 1e-6):
+                    self._publish_status(f"opt phase=search iter={session['attempts']} best={bt:.2f}")
+                    session['last_prog_ns'] = now_ns
+                    session['last_prog_best'] = bt
             self._send_plan_attempt(session)   # 失敗はリトライ／大回りしか無いならより短い通り道を探し続ける
             return
         # 予算/回数を使い切った → 最良経路を（必要なら短縮して）発行

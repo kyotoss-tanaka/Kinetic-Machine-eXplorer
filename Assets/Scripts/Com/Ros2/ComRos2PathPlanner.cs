@@ -49,6 +49,10 @@ public class ComRos2PathPlanner : MonoBehaviour
     [SerializeField] private string planStatusTopic = "/kmx/plan_status";
     [Tooltip("計画中のまま軌道/失敗通知が来ない場合に失敗とみなす保険の秒数（time_budget より十分大きく）")]
     [SerializeField] private float planTimeoutSec = 20f;
+    [Tooltip("登録モードの探索予算(秒)。この間 ROS2 がリトライし続け、停止/予算到達でその間の最良(最短)を採用")]
+    [SerializeField] private float registerSearchBudgetSec = 600f;
+    [Tooltip("探索中断の通知トピック（std_msgs/String）。押下で ROS2 が現在の最良で確定")]
+    [SerializeField] private string planCancelTopic = "/kmx/plan_cancel";
     [Tooltip("経路プレビューの先端軌跡ライン色/幅")]
     [SerializeField] private Color previewLineColor = new Color(0.1f, 0.8f, 1f, 1f);
     [SerializeField] private float previewLineWidth = 0.01f;
@@ -86,7 +90,10 @@ public class ComRos2PathPlanner : MonoBehaviour
     private bool warnedMappingThisTraj;   // 軌道1本につきマップ失敗警告は1回だけ（毎フレーム spam 防止）
 
     // レビュー/プレビュー
-    private float planStartTime;                 // Planning に入った時刻（timeout 判定用）
+    private float planStartTime;                 // Planning/探索 に入った時刻（経過表示・timeout 判定用。探索中はリセットしない）
+    private bool optSearching;                    // 登録の最適化探索中か（停止ボタン表示・経過表示・timeout猶予に使う）
+    private float lastOptMsgTime;                 // 直近の opt 行受信時刻（探索中の「無進捗」タイムアウト判定用）
+    public bool OptSearching => optSearching;    // UI（停止ボタン表示）用
     private LineRenderer previewLine;            // 先端軌跡プレビュー
     private const string PreviewLineName = "Ros2PlanPreviewLine";
     private const string GhostNameSuffix = "_Ghost";   // ゴースト複製名の接尾辞（機種非依存 "<model>_Ghost"）
@@ -220,7 +227,8 @@ public class ComRos2PathPlanner : MonoBehaviour
     #region 要求
     /// <summary>始点/終点（度・jointNames と同数）を渡して経路生成を要求する。
     /// optimize=true は登録軌道の多目的最適化（targetTimeSec=目標所要秒・0=成り行き。REGISTER_OPTIMIZE_ROS2_SPEC.md）。</summary>
-    public void RequestPlan(double[] startDeg, double[] goalDeg, bool optimize = false, double targetTimeSec = 0.0)
+    public void RequestPlan(double[] startDeg, double[] goalDeg, bool optimize = false, double targetTimeSec = 0.0,
+                            double budgetSec = -1.0)
     {
         if (!started || transport == null)
         {
@@ -239,12 +247,15 @@ public class ComRos2PathPlanner : MonoBehaviour
         StopGhostPreview();
         HidePreviewLine();
         ResetOptProgress();
-        transport.PublishPlanRequest(planRequestTopic, jointNames, startDeg, goalDeg, planTimeBudget, planGoodRatio, robotId,
+        double budget = (budgetSec >= 0.0) ? budgetSec : planTimeBudget;   // 登録探索は大予算(600s等)を渡す
+        optSearching = optimize;                                           // 探索中フラグ（中断ボタン・経過表示・timeout猶予に使う）
+        transport.PublishPlanRequest(planRequestTopic, jointNames, startDeg, goalDeg, budget, planGoodRatio, robotId,
             optimize, targetTimeSec);
         planStartTime = Time.time;
-        SetState(PlanState.Planning, optimize ? "最適化中…" : "計画中…");
+        lastOptMsgTime = Time.time;
+        SetState(PlanState.Planning, optimize ? "最適化探索中…" : "計画中…");
         Debug.Log($"[ComRos2PathPlanner] plan要求 start=[{string.Join(",", startDeg)}] goal=[{string.Join(",", goalDeg)}] "
-            + $"time_budget={planTimeBudget} good_ratio={planGoodRatio} optimize={optimize} target_time={targetTimeSec:F3}");
+            + $"time_budget={budget} good_ratio={planGoodRatio} optimize={optimize} target_time={targetTimeSec:F3}");
     }
 
     /// <summary>現在の関節角を始点にして、終点までの経路生成を要求する。</summary>
@@ -253,24 +264,38 @@ public class ComRos2PathPlanner : MonoBehaviour
         RequestPlan(ReadCurrentDeg(), goalDeg);
     }
 
+    /// <summary>登録の最適化探索を停止し、ROS2 に現在の最良(最短)で確定させる（/kmx/plan_cancel）。</summary>
+    public void RequestStopSearch()
+    {
+        if (transport == null || !optSearching)
+        {
+            return;
+        }
+        transport.PublishPlanCancel(planCancelTopic);
+        SetState(PlanState.Planning, "確定処理中…（最良を採用）");
+        Debug.Log("[ComRos2PathPlanner] 探索停止要求 → ROS2 が現在の最良で確定");
+    }
+
     /// <summary>
     /// planning scene（障害物＋ヘッド）を先に送ってから経路生成を要求する。
     /// scene 反映は非同期（ROS2側が service で適用）なので、送信→少し待ち→plan の順にする。
     /// sendSceneBeforePlan=false や障害物コンポ非在時は通常の RequestPlan と同じ。
     /// </summary>
-    public void RequestPlanWithScene(double[] startDeg, double[] goalDeg, bool optimize = false, double targetTimeSec = 0.0)
+    public void RequestPlanWithScene(double[] startDeg, double[] goalDeg, bool optimize = false, double targetTimeSec = 0.0,
+                                     double budgetSec = -1.0)
     {
         if (sendSceneBeforePlan && obstacles != null && isActiveAndEnabled)
         {
-            StartCoroutine(SendSceneThenPlan(startDeg, goalDeg, optimize, targetTimeSec));
+            StartCoroutine(SendSceneThenPlan(startDeg, goalDeg, optimize, targetTimeSec, budgetSec));
         }
         else
         {
-            RequestPlan(startDeg, goalDeg, optimize, targetTimeSec);
+            RequestPlan(startDeg, goalDeg, optimize, targetTimeSec, budgetSec);
         }
     }
 
-    private IEnumerator SendSceneThenPlan(double[] startDeg, double[] goalDeg, bool optimize, double targetTimeSec)
+    private IEnumerator SendSceneThenPlan(double[] startDeg, double[] goalDeg, bool optimize, double targetTimeSec,
+                                          double budgetSec)
     {
         // 障害物とヘッド(ツール)を送って planning scene を更新。
         obstacles.SendObstacles();
@@ -281,7 +306,7 @@ public class ComRos2PathPlanner : MonoBehaviour
         {
             yield break;
         }
-        RequestPlan(startDeg, goalDeg, optimize, targetTimeSec);
+        RequestPlan(startDeg, goalDeg, optimize, targetTimeSec, budgetSec);
     }
 
     /// <summary>現在の関節角（度）を読む。タグにマップ済みなら ComRos2 経由（CRX後方互換）、
@@ -379,6 +404,7 @@ public class ComRos2PathPlanner : MonoBehaviour
             Debug.Log("[ComRos2PathPlanner] 軌道に関節名が無いため、設定 jointNames の順で index 対応します。");
         }
         traj = t;
+        optSearching = false;   // 軌道が届いた＝探索終了（停止ボタンを隠す）
         playT = 0d;
         playing = false;   // すぐ動かさない。承認(OK)まで待つ。
         warnedMappingThisTraj = false;
@@ -401,7 +427,8 @@ public class ComRos2PathPlanner : MonoBehaviour
         BuildPreviewLine(t);   // 先端の軌跡を3D表示
         if (requireApproval)
         {
-            SetState(PlanState.Preview, $"成功: {t.positions.Length}点 / {dur:F1}s（OK で実行 / Cancel で破棄）");
+            SetState(PlanState.Preview, $"成功: {t.positions.Length}点 / {dur:F1}s");
+            RefreshOptPreview();   // 最適化結果(opt done)が既に揃っていれば所要/最短表示へ上書き（順序非依存）
             StartGhostPreview();   // 半透明複製が経路をなぞる（ヘッドの当たり確認用）
         }
         else
@@ -416,17 +443,51 @@ public class ComRos2PathPlanner : MonoBehaviour
     private string optProgress = "";        // 表示用の途中経過テキスト
     private float optProgress01;            // 進捗 0..1（prog= から。バー用）
     private string optResultWarn = "";      // 完了時の警告（目標時間未達など）。無ければ空
-    /// <summary>最適化の途中経過を UI へ公開。</summary>
+    private bool optHasResult;              // opt done を受信済み（最短などの結果あり）
+    private double optAchieved;             // 最適化後の所要秒（achieved＝実際の再生時間）
+    private double optMinTime;              // 達成可能な最短秒（t_min）。target を守れた時も表示する
+    private bool optFeasible = true;        // target_time を満たせたか
+    /// <summary>最適化の途中経過/結果を UI へ公開。</summary>
     public bool OptActive => optActive;
     public string OptProgress => optProgress;
     public float OptProgress01 => optProgress01;
     public string OptResultWarn => optResultWarn;
+    public bool OptHasResult => optHasResult;
+    public double OptMinTime => optMinTime;
     private void ResetOptProgress()
     {
         optActive = false;
         optProgress = "";
         optProgress01 = 0f;
         optResultWarn = "";
+        optHasResult = false;
+        optAchieved = 0d;
+        optMinTime = 0d;
+        optFeasible = true;
+    }
+
+    /// <summary>登録最適化のプレビュー表示を更新（軌道と opt done が両方揃ったら 所要/最短/軸速% を表示）。順序非依存。</summary>
+    private void RefreshOptPreview()
+    {
+        if (!optHasResult || traj == null || State != PlanState.Preview || registerPending == null)
+        {
+            return;
+        }
+        string mk = registerPending.robot != null && registerPending.robot.Target != null
+            ? registerPending.robot.Target.ModelKey
+            : (target != null ? target.ModelKey : "");
+        // 所要・最短とも ROS2 の opt done 値(achieved / min_time)で一貫表示（軌道実時間だと丸めで逆転するため achieved を使う）。
+        float achMs = (float)((optAchieved > 0d ? optAchieved : optMinTime) * 1000.0);
+        double setSec = registerPending.step != null ? registerPending.step.time / 1000.0 : 0.0;
+        // 所要 > 設定（達成不能）＝ 最短(=所要)は冗長なので「設定◯s」を表示。守れた/成り行きは「最短◯s」。
+        bool infeasible = !optFeasible && setSec > 0d;
+        bool warn;
+        string rep = infeasible
+            ? AnalyzeTraj(traj, achMs, mk, out warn, optMinTime, "設定", setSec)
+            : AnalyzeTraj(traj, achMs, mk, out warn, optMinTime);
+        string wm = infeasible ? " ⚠目標未達" : "";
+        SetState(PlanState.Preview, $"最適化完了: {rep}{wm}");   // OK/NG はボタンにあるので繰り返さない
+        if (warn || infeasible) { Debug.LogWarning($"[ComRos2PathPlanner] 登録最適化: {rep}{wm}"); }
     }
 
     /// <summary>ROS2 の計画ステータス(std_msgs/String)を受けて状態を更新する。</summary>
@@ -445,6 +506,7 @@ public class ComRos2PathPlanner : MonoBehaviour
         // 例: "planning" / "succeeded:74:1.8" / "failed:no_solution"
         if (data.StartsWith("failed", StringComparison.OrdinalIgnoreCase))
         {
+            optSearching = false;
             string reason = data.Length > 6 ? data.Substring(6).TrimStart(':', ' ') : "";
             SetState(PlanState.Failed, string.IsNullOrEmpty(reason) ? "計画失敗" : $"計画失敗: {reason}");
         }
@@ -467,6 +529,7 @@ public class ComRos2PathPlanner : MonoBehaviour
     private void ParseOptStatus(string data)
     {
         Debug.Log($"[ComRos2PathPlanner] {data}");
+        lastOptMsgTime = Time.time;   // 進捗が来ている＝生存。無進捗 watchdog をリセット
         bool done = data.IndexOf("done", StringComparison.OrdinalIgnoreCase) >= 0;
         string phase = OptKv(data, "phase");
         double t = OptKvD(data, "time", double.NaN);
@@ -475,12 +538,26 @@ public class ComRos2PathPlanner : MonoBehaviour
         if (done)
         {
             optActive = false;
+            optSearching = false;   // 探索終了
             optProgress01 = 1f;
-            bool feasible = OptKvD(data, "feasible", 1.0) != 0.0;
-            double minTime = OptKvD(data, "min_time", 0.0);
-            optResultWarn = (!feasible && minTime > 0.0) ? $"⚠ 目標時間未達（達成可能 最小 {minTime:F2}s）" : "";
-            string at = double.IsNaN(t) ? "" : $" 所要{t:F2}s";
-            optProgress = "最適化完了" + at + (optResultWarn.Length > 0 ? "  " + optResultWarn : "");
+            optFeasible = OptKvD(data, "feasible", 1.0) != 0.0;
+            optMinTime = OptKvD(data, "min_time", 0.0);
+            optAchieved = double.IsNaN(t) ? 0.0 : t;
+            optHasResult = true;
+            // 時間を守れた場合も「最短」を併記（例: 所要3.00s（最短2.64s））。守れない時は警告。
+            string at = optAchieved > 0.0 ? $"所要{optAchieved:F2}s" : "";
+            string minS = optMinTime > 0.0 ? $"（最短{optMinTime:F2}s）" : "";
+            optResultWarn = (!optFeasible && optMinTime > 0.0) ? "⚠ 目標時間未達" : "";
+            optProgress = "最適化完了 " + at + minS + (optResultWarn.Length > 0 ? "  " + optResultWarn : "");
+            RefreshOptPreview();   // 軌道が先に届いていた場合（順序非依存）はここでプレビュー表示を更新
+        }
+        else if (phase == "search")
+        {
+            // 長時間探索フェーズ：現在の最良(最短)を表示。経過時間は Panel が毎フレーム付加。
+            optActive = true;
+            double best = OptKvD(data, "best", double.NaN);
+            string bestStr = double.IsNaN(best) ? "" : $" 最良{best:F2}s";
+            optProgress = $"探索中{bestStr} ({iter}回)";
         }
         else
         {
@@ -521,9 +598,18 @@ public class ComRos2PathPlanner : MonoBehaviour
             return;
         }
         // 計画中に軌道も失敗通知も来ないまま時間超過 → 失敗扱い（だんまり防止の保険）。
-        if (State == PlanState.Planning && Time.time - planStartTime > planTimeoutSec)
+        // 登録の長時間探索中は総経過でなく「無進捗(opt行が来ない)」で判定（10分探索でも誤タイムアウトしない）。
+        if (State == PlanState.Planning)
         {
-            SetState(PlanState.Failed, $"タイムアウト（{planTimeoutSec:F0}s 応答なし）");
+            float since = optSearching ? (Time.time - lastOptMsgTime) : (Time.time - planStartTime);
+            if (since > planTimeoutSec)
+            {
+                string tmsg = optSearching
+                    ? $"探索応答なし（{planTimeoutSec:F0}s 進捗なし）"
+                    : $"タイムアウト（{planTimeoutSec:F0}s 応答なし）";
+                optSearching = false;
+                SetState(PlanState.Failed, tmsg);
+            }
         }
 
         // robotSteps シーケンス：自動再生モードのみ、start タグの立ち上がりを監視して順次実行。
@@ -818,7 +904,7 @@ public class ComRos2PathPlanner : MonoBehaviour
         // キャッシュ再生（承認スキップ・ゴースト無し）
         traj = BuildTrajFromCache(cache);
         SetSeqPlaySpeed(s.step, traj.timesSec[traj.timesSec.Length - 1]);
-        string rep = AnalyzeTraj(traj, s.step.time, s.robot.Target != null ? s.robot.Target.ModelKey : "", out bool warn);
+        string rep = AnalyzeTraj(traj, s.step.time, s.robot.Target != null ? s.robot.Target.ModelKey : "", out bool warn, cache.minTimeSec);
         playT = 0d;
         playing = true;
         SetState(PlanState.Playing, $"再生(ｷｬｯｼｭ): {s.step.name} {rep}");
@@ -899,8 +985,11 @@ public class ComRos2PathPlanner : MonoBehaviour
             com.ApplyValue(jointNames[j], startDeg[j]);
         }
         // 登録は多目的最適化を要求（優先度 時間>ジャーク>トルク）。time は ms→秒（0=成り行き）。
+        // 大きな探索予算(registerSearchBudgetSec・既定10分)で回し続け、ユーザーが「停止」するか予算到達で
+        // その間の最良(最短)を採用する（ROS2側 optimize は good_enough 早期終了せず継続）。
         double targetTimeSec = steps[stepIndex].time / 1000.0;
-        RequestPlanWithScene(startDeg, endDeg, optimize: true, targetTimeSec: targetTimeSec);   // 受信→プレビュー（OK で SaveRegisteredCache）
+        RequestPlanWithScene(startDeg, endDeg, optimize: true, targetTimeSec: targetTimeSec,
+            budgetSec: registerSearchBudgetSec);   // 受信→プレビュー（OK で SaveRegisteredCache）
     }
 
     /// <summary>登録キャッシュを削除（再登録可能に）。</summary>
@@ -961,7 +1050,7 @@ public class ComRos2PathPlanner : MonoBehaviour
         {
             tSec = psteps[stepIndex].time;
         }
-        string rep = AnalyzeTraj(traj, tSec, r.Target != null ? r.Target.ModelKey : "", out bool warn);
+        string rep = AnalyzeTraj(traj, tSec, r.Target != null ? r.Target.ModelKey : "", out bool warn, cache.minTimeSec);
         SetState(PlanState.Preview, $"ｺﾞｰｽﾄ再生 step#{stepIndex}: {rep}（NGで停止）");
         if (warn) { Debug.LogWarning($"[ComRos2PathPlanner] step#{stepIndex}: {rep}"); }
         StartGhostPreview();           // Update がゴーストを軌道でループ再生
@@ -983,6 +1072,7 @@ public class ComRos2PathPlanner : MonoBehaviour
             startDeg = new List<float>(registerStartDeg ?? new float[0]),
             endDeg = new List<float>(registerEndDeg ?? new float[0]),
             jointNames = new List<string>(traj.jointNames ?? jointNames),
+            minTimeSec = (float)optMinTime,   // ROS2 最適化の達成可能最短（再生/再登録レビュー表示用）
         };
         for (int p = 0; p < traj.positions.Length; p++)
         {
@@ -1006,7 +1096,7 @@ public class ComRos2PathPlanner : MonoBehaviour
         }
         string mk = registerPending.robot.Target != null ? registerPending.robot.Target.ModelKey : "";
         float tSec = registerPending.step != null ? registerPending.step.time : 0f;
-        string rep = AnalyzeTraj(traj, tSec, mk, out bool warn);
+        string rep = AnalyzeTraj(traj, tSec, mk, out bool warn, optMinTime);
         Debug.Log($"[ComRos2PathPlanner] 登録: {e.robotId} step#{e.stepIndex} ({e.positions.Count}点) {rep}");
         if (warn) { Debug.LogWarning($"[ComRos2PathPlanner] 登録 {e.name}: {rep}"); }
         StopGhostPreview();
@@ -1041,8 +1131,12 @@ public class ComRos2PathPlanner : MonoBehaviour
         return t;
     }
 
-    /// <summary>軌道の各軸ピーク角速度・定格比・時間達成可否を解析して短い要約を返す（Step A）。warn=超過。</summary>
-    private string AnalyzeTraj(Ros2Trajectory tr, float timeMs, string modelKey, out bool warn)
+    /// <summary>軌道の所要/軸速%を解析（Step A）。warn=超過。
+    /// minTimeDisplay&gt;0 で局所の時間超過判定を無効化（最適化軌道は ROS2 が feasible 判定済）。
+    /// 括弧内は既定「最短(=minTimeDisplay or 軌道時間)」。parenValue≥0 なら parenLabel＋parenValue に差し替え
+    /// （例：達成不能時は「設定◯s」）。速度計算・所要は従来どおり。</summary>
+    private string AnalyzeTraj(Ros2Trajectory tr, float timeMs, string modelKey, out bool warn,
+                               double minTimeDisplay = 0d, string parenLabel = "最短", double parenValue = -1d)
     {
         warn = false;
         if (tr == null || tr.timesSec == null || tr.timesSec.Length < 2
@@ -1085,17 +1179,83 @@ public class ComRos2PathPlanner : MonoBehaviour
             double ratio = (lim > 0d) ? peak[j] / lim : 0d;
             if (ratio > maxRatio) { maxRatio = ratio; worst = j; }
         }
+        double showMin = (minTimeDisplay > 0d) ? minTimeDisplay : nativeDur;   // 既定の「最短」（最適化時は ROS2 の t_min）
+        double parenShown = (parenValue >= 0d) ? parenValue : showMin;         // 括弧内の値（設定◯s に差し替え可）
         bool overSpeed = maxRatio > 1.0d;
-        bool overTime = timeSec > 0f && nativeDur > 0d && timeSec < nativeDur - 1e-3;
+        // 最適化軌道(minTimeDisplay>0)は ROS2 が feasible 判定済なので局所の時間超過判定はしない。
+        bool overTime = (minTimeDisplay <= 0d) && timeSec > 0f && nativeDur > 0d && timeSec < nativeDur - 1e-3;
         warn = overSpeed || overTime;
-        string s = $"所要{effDur:F2}s(最短{nativeDur:F2}s) 軸速{maxRatio * 100d:F0}%";
+        string s = $"所要{effDur:F2}s({parenLabel}{parenShown:F2}s) 軸速{maxRatio * 100d:F0}%";
         if (worst >= 0)
         {
             s += $"(J{worst + 1})";
         }
+        double g = PeakTipAccelG(tr, scale, out bool hasG);   // ヘッド先端のピーク加速度(G)
+        if (hasG) { s += $" 加速{g:F2}G"; }
         if (overTime) { s += " ⚠時間<最短"; }
         if (overSpeed) { s += " ⚠速度超過"; }
         return s;
+    }
+
+    private readonly List<double[]> accelJ16Buf = new();
+    private readonly List<Vector3> accelTipBuf = new();
+    /// <summary>ヘッド先端の world 座標を FK で出し（全点・間引きなし）、2階差分でピーク加速度を求め G(=÷9.80665)で返す。
+    /// scale(=nativeDur/effDur) で再生タイミングに合わせて a∝scale² を掛ける。1 Unity単位=1m 前提。target 必須。</summary>
+    private double PeakTipAccelG(Ros2Trajectory tr, double scale, out bool ok)
+    {
+        ok = false;
+        if (target == null || tr == null || tr.timesSec == null || tr.positions == null || tr.timesSec.Length < 3)
+        {
+            return 0d;
+        }
+        // 全点を jointNames 順へ写像（プレビュー線と違い間引きしない＝加速度の精度確保）。
+        accelJ16Buf.Clear();
+        var names = tr.jointNames;
+        for (int p = 0; p < tr.positions.Length; p++)
+        {
+            var src = tr.positions[p];
+            var w = new double[jointNames.Length];
+            if (src != null)
+            {
+                for (int k = 0; k < jointNames.Length; k++)
+                {
+                    int idx = k;
+                    if (names != null && names.Length > 0)
+                    {
+                        idx = Array.IndexOf(names, jointNames[k]);
+                        if (idx < 0) { idx = k; }
+                    }
+                    w[k] = (idx >= 0 && idx < src.Length) ? src[idx] : 0d;
+                }
+            }
+            accelJ16Buf.Add(w);
+        }
+        accelTipBuf.Clear();
+        target.SampleTipWorld(accelJ16Buf, accelTipBuf);
+        if (accelTipBuf.Count != tr.timesSec.Length || accelTipBuf.Count < 3)
+        {
+            return 0d;
+        }
+        double scaleAcc = scale * scale;
+        double u = (obstacles != null && obstacles.UnitScale > 0f) ? obstacles.UnitScale : 1.0d;   // Unity単位→m
+        double peak = 0d;
+        int last = tr.timesSec.Length - 1;
+        for (int p = 1; p < last; p++)
+        {
+            double dtA = tr.timesSec[p] - tr.timesSec[p - 1];
+            double dtB = tr.timesSec[p + 1] - tr.timesSec[p];
+            if (dtA <= 1e-6 || dtB <= 1e-6)
+            {
+                continue;
+            }
+            Vector3 vA = (accelTipBuf[p] - accelTipBuf[p - 1]) / (float)dtA;
+            Vector3 vB = (accelTipBuf[p + 1] - accelTipBuf[p]) / (float)dtB;
+            Vector3 acc = (vB - vA) / (float)((dtA + dtB) * 0.5d);
+            double m = acc.magnitude * scaleAcc * u;   // Unity単位/s² → m/s²
+            if (m > peak) { peak = m; }
+        }
+        ok = true;
+        return peak / 9.80665d;   // m/s² → G
     }
 
     private bool ReadTagOn(SeqEntry s, string tag)

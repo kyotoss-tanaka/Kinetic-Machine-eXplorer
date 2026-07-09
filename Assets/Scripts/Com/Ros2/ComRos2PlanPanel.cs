@@ -55,7 +55,7 @@ public class ComRos2PlanPanel : MonoBehaviour
     private Button startBtn, stopBtn, restartBtn;                     // 起動/停止/再起動
     private Slider[] sliders = new Slider[0];
     private InputField[] sliderInputs = new InputField[0];   // 角度の直接入力（関節数ぶん）
-    private Button setGoalBtn, planBtn, okBtn, ngBtn;
+    private Button setGoalBtn, planBtn, okBtn, ngBtn, stopSearchBtn;
     private const int IconPlay = 0xe037;                             // MaterialIcons play_arrow
     private const int IconPause = 0xe034;                            // MaterialIcons pause
     private Slider seekSlider;                                       // ゴースト再生のシーク（経路スクラブ確認・Preview中のみ）
@@ -224,7 +224,8 @@ public class ComRos2PlanPanel : MonoBehaviour
         {
             if (planner.OptActive)
             {
-                statusText.text = planner.OptProgress;   // 例: 最適化中[ジャーク] 60% iter42 所要1.85s
+                // 探索/最適化の途中経過＋総経過時間（毎フレーム更新）。例: 探索中 最良3.20s (42回) 経過18s
+                statusText.text = $"{planner.OptProgress} 経過{planner.PlanElapsedSec:F0}s";
             }
             else
             {
@@ -233,6 +234,8 @@ public class ComRos2PlanPanel : MonoBehaviour
                     ? $"計画中…  残り {Mathf.Max(0f, (float)displayBudgetSec - el):F1}s"
                     : $"計画中…  {el:F1}s 経過";
             }
+            // 探索中は停止ボタンを表示（OptSearching は状態遷移なしで変わり得るため毎フレーム反映）。
+            if (stopSearchBtn != null) { stopSearchBtn.gameObject.SetActive(planner.OptSearching); }
         }
     }
 
@@ -361,6 +364,10 @@ public class ComRos2PlanPanel : MonoBehaviour
         y -= 40f;
         // 計画/再生の状態＋Step A 速度解析（空のときは非表示同然）。OK/NG の直上に置く。
         statusText = MakeLabel(panel, "status", "", 14, new Vector2(8f, y), W - 16f, 22f);
+        // 解析結果は長くなりがち（所要/設定/軸速/加速G/警告）。枠からはみ出さないよう自動縮小。
+        statusText.resizeTextForBestFit = true;
+        statusText.resizeTextMinSize = 9;
+        statusText.resizeTextMaxSize = 14;
         y -= 24f;
         // ゴースト再生の 再生/一時停止 ＋ シークバー（経路スクラブ確認）。Preview 中のみ表示。
         seekPlayBtn = MakeButton(panel, "seekPlay", "▶", new Vector2(8f, y), 34f, 18f, OnSeekPlayToggle);
@@ -388,6 +395,9 @@ public class ComRos2PlanPanel : MonoBehaviour
         y -= 24f;
         okBtn = MakeButton(panel, "OK", "OK 実行", new Vector2(8f, y), 168f, 34f, OnOk);
         ngBtn = MakeButton(panel, "NG", "NG 破棄", new Vector2(184f, y), 168f, 34f, OnNg);
+        // 登録の長時間探索中に表示（OK/NG と排他）。押すと現在の最良(最短)で確定。
+        stopSearchBtn = MakeButton(panel, "StopSearch", "探索停止（最良を採用）", new Vector2(8f, y), W - 16f, 34f, OnStopSearch);
+        stopSearchBtn.gameObject.SetActive(false);
         y -= 44f;
 
         // --- robotSteps シーケンス（自動再生／登録モード切替＋ステップ一覧） ---
@@ -846,6 +856,15 @@ public class ComRos2PlanPanel : MonoBehaviour
         planner.CancelPlan();
     }
 
+    /// <summary>探索停止：ROS2 に現在の最良(最短)で確定させる（登録の長時間探索中のみ）。</summary>
+    private void OnStopSearch()
+    {
+        if (planner != null)
+        {
+            planner.RequestStopSearch();   // 二重送信されても ROS2 側は無害（既に確定処理中）
+        }
+    }
+
     /// <summary>シークバー操作：ゴーストを 0..1 の位置へ手動スクラブ（＝一時停止）。</summary>
     private void OnSeek(float v)
     {
@@ -887,6 +906,9 @@ public class ComRos2PlanPanel : MonoBehaviour
         if (seekSlider != null) { seekSlider.gameObject.SetActive(preview); }   // シークバーは Preview 中のみ
         if (seekPlayBtn != null) { seekPlayBtn.gameObject.SetActive(preview); }   // 再生/一時停止も Preview 中のみ
         if (planBtn != null) { planBtn.interactable = s != ComRos2PathPlanner.PlanState.Planning; }
+        // 停止ボタンは「登録の探索中」のみ表示（実際の可視制御は Update でも毎フレーム更新）。
+        bool searching = s == ComRos2PathPlanner.PlanState.Planning && planner != null && planner.OptSearching;
+        if (stopSearchBtn != null) { stopSearchBtn.gameObject.SetActive(searching); }
     }
 
     /// <summary>起動/停止/再起動ボタンの活性のみ更新（状態表示は commText に統合）。</summary>
