@@ -206,6 +206,10 @@ public class CanvasMenuInfoScript : KssBaseScript
         if (btnRoboPath != null)
         {
             btnRoboPath.interactable = globalSetting.GetComponent<ComRos2PlanPanel>() != null;
+            // F5 リロードでは ComRos2PlanPanel が破棄・再生成され必ず非表示で始まる（Start→SetVisible(false)）。
+            // 一方この押下状態(黄色)は本スクリプトに残り生き残るため、非表示に合わせてリセットし食い違いを防ぐ。
+            visibleRoboPath = false;
+            SetButtonColor(btnRoboPath, false);
         }
     }
 
