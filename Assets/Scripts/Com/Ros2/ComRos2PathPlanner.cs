@@ -218,8 +218,9 @@ public class ComRos2PathPlanner : MonoBehaviour
 #endif
 
     #region 要求
-    /// <summary>始点/終点（度・jointNames と同数）を渡して経路生成を要求する。</summary>
-    public void RequestPlan(double[] startDeg, double[] goalDeg)
+    /// <summary>始点/終点（度・jointNames と同数）を渡して経路生成を要求する。
+    /// optimize=true は登録軌道の多目的最適化（targetTimeSec=目標所要秒・0=成り行き。REGISTER_OPTIMIZE_ROS2_SPEC.md）。</summary>
+    public void RequestPlan(double[] startDeg, double[] goalDeg, bool optimize = false, double targetTimeSec = 0.0)
     {
         if (!started || transport == null)
         {
@@ -231,17 +232,19 @@ public class ComRos2PathPlanner : MonoBehaviour
             Debug.LogWarning($"[ComRos2PathPlanner] start/goal は {jointNames.Length} 要素（度）で渡してください。");
             return;
         }
-        // 新しい要求。前の再生/プレビュー/ゴーストは破棄して計画中へ。
+        // 新しい要求。前の再生/プレビュー/ゴースト・最適化途中経過は破棄して計画中へ。
         playing = false;
         traj = null;
         ghostReviewOnly = false;
         StopGhostPreview();
         HidePreviewLine();
-        transport.PublishPlanRequest(planRequestTopic, jointNames, startDeg, goalDeg, planTimeBudget, planGoodRatio, robotId);
+        ResetOptProgress();
+        transport.PublishPlanRequest(planRequestTopic, jointNames, startDeg, goalDeg, planTimeBudget, planGoodRatio, robotId,
+            optimize, targetTimeSec);
         planStartTime = Time.time;
-        SetState(PlanState.Planning, "計画中…");
+        SetState(PlanState.Planning, optimize ? "最適化中…" : "計画中…");
         Debug.Log($"[ComRos2PathPlanner] plan要求 start=[{string.Join(",", startDeg)}] goal=[{string.Join(",", goalDeg)}] "
-            + $"time_budget={planTimeBudget} good_ratio={planGoodRatio}");
+            + $"time_budget={planTimeBudget} good_ratio={planGoodRatio} optimize={optimize} target_time={targetTimeSec:F3}");
     }
 
     /// <summary>現在の関節角を始点にして、終点までの経路生成を要求する。</summary>
@@ -255,19 +258,19 @@ public class ComRos2PathPlanner : MonoBehaviour
     /// scene 反映は非同期（ROS2側が service で適用）なので、送信→少し待ち→plan の順にする。
     /// sendSceneBeforePlan=false や障害物コンポ非在時は通常の RequestPlan と同じ。
     /// </summary>
-    public void RequestPlanWithScene(double[] startDeg, double[] goalDeg)
+    public void RequestPlanWithScene(double[] startDeg, double[] goalDeg, bool optimize = false, double targetTimeSec = 0.0)
     {
         if (sendSceneBeforePlan && obstacles != null && isActiveAndEnabled)
         {
-            StartCoroutine(SendSceneThenPlan(startDeg, goalDeg));
+            StartCoroutine(SendSceneThenPlan(startDeg, goalDeg, optimize, targetTimeSec));
         }
         else
         {
-            RequestPlan(startDeg, goalDeg);
+            RequestPlan(startDeg, goalDeg, optimize, targetTimeSec);
         }
     }
 
-    private IEnumerator SendSceneThenPlan(double[] startDeg, double[] goalDeg)
+    private IEnumerator SendSceneThenPlan(double[] startDeg, double[] goalDeg, bool optimize, double targetTimeSec)
     {
         // 障害物とヘッド(ツール)を送って planning scene を更新。
         obstacles.SendObstacles();
@@ -278,7 +281,7 @@ public class ComRos2PathPlanner : MonoBehaviour
         {
             yield break;
         }
-        RequestPlan(startDeg, goalDeg);
+        RequestPlan(startDeg, goalDeg, optimize, targetTimeSec);
     }
 
     /// <summary>現在の関節角（度）を読む。タグにマップ済みなら ComRos2 経由（CRX後方互換）、
@@ -408,11 +411,35 @@ public class ComRos2PathPlanner : MonoBehaviour
         }
     }
 
+    // --- 登録軌道 多目的最適化の途中経過（/kmx/plan_status の "opt ..." 行。REGISTER_OPTIMIZE_ROS2_SPEC.md） ---
+    private bool optActive;                 // 最適化の進捗行を受信中か（UI が進捗表示に使う）
+    private string optProgress = "";        // 表示用の途中経過テキスト
+    private float optProgress01;            // 進捗 0..1（prog= から。バー用）
+    private string optResultWarn = "";      // 完了時の警告（目標時間未達など）。無ければ空
+    /// <summary>最適化の途中経過を UI へ公開。</summary>
+    public bool OptActive => optActive;
+    public string OptProgress => optProgress;
+    public float OptProgress01 => optProgress01;
+    public string OptResultWarn => optResultWarn;
+    private void ResetOptProgress()
+    {
+        optActive = false;
+        optProgress = "";
+        optProgress01 = 0f;
+        optResultWarn = "";
+    }
+
     /// <summary>ROS2 の計画ステータス(std_msgs/String)を受けて状態を更新する。</summary>
     private void OnPlanStatus(string data)
     {
         if (destroyed || string.IsNullOrEmpty(data))
         {
+            return;
+        }
+        // 最適化の途中経過/結果： "opt phase=jerk iter=42 time=1.85 prog=60" / "opt done time=.. feasible=0 min_time=.."
+        if (data.StartsWith("opt", StringComparison.OrdinalIgnoreCase))
+        {
+            ParseOptStatus(data);
             return;
         }
         // 例: "planning" / "succeeded:74:1.8" / "failed:no_solution"
@@ -434,6 +461,57 @@ public class ComRos2PathPlanner : MonoBehaviour
         {
             Debug.Log($"[ComRos2PathPlanner] plan_status: {data}");
         }
+    }
+
+    /// <summary>"opt ..." 進捗/結果行をパースして UI 公開値を更新する。</summary>
+    private void ParseOptStatus(string data)
+    {
+        Debug.Log($"[ComRos2PathPlanner] {data}");
+        bool done = data.IndexOf("done", StringComparison.OrdinalIgnoreCase) >= 0;
+        string phase = OptKv(data, "phase");
+        double t = OptKvD(data, "time", double.NaN);
+        double prog = OptKvD(data, "prog", double.NaN);
+        int iter = (int)OptKvD(data, "iter", 0);
+        if (done)
+        {
+            optActive = false;
+            optProgress01 = 1f;
+            bool feasible = OptKvD(data, "feasible", 1.0) != 0.0;
+            double minTime = OptKvD(data, "min_time", 0.0);
+            optResultWarn = (!feasible && minTime > 0.0) ? $"⚠ 目標時間未達（達成可能 最小 {minTime:F2}s）" : "";
+            string at = double.IsNaN(t) ? "" : $" 所要{t:F2}s";
+            optProgress = "最適化完了" + at + (optResultWarn.Length > 0 ? "  " + optResultWarn : "");
+        }
+        else
+        {
+            optActive = true;
+            if (!double.IsNaN(prog)) { optProgress01 = Mathf.Clamp01((float)(prog / 100.0)); }
+            string phaseJa = phase == "time" ? "時間" : phase == "jerk" ? "ジャーク" : phase == "torque" ? "トルク" : phase;
+            string progStr = double.IsNaN(prog) ? "" : $"{prog:F0}% ";
+            string tStr = double.IsNaN(t) ? "" : $" 所要{t:F2}s";
+            optProgress = $"最適化中[{phaseJa}] {progStr}iter{iter}{tStr}";
+        }
+    }
+
+    /// <summary>"key=value" を空白区切り文字列から取り出す（無ければ空）。</summary>
+    private static string OptKv(string data, string key)
+    {
+        var tokens = data.Split(' ');
+        foreach (var tk in tokens)
+        {
+            int eq = tk.IndexOf('=');
+            if (eq > 0 && string.Equals(tk.Substring(0, eq), key, StringComparison.OrdinalIgnoreCase))
+            {
+                return tk.Substring(eq + 1);
+            }
+        }
+        return "";
+    }
+    private static double OptKvD(string data, string key, double fallback)
+    {
+        string v = OptKv(data, key);
+        return double.TryParse(v, System.Globalization.NumberStyles.Float,
+            System.Globalization.CultureInfo.InvariantCulture, out var d) ? d : fallback;
     }
 
     private void Update()
@@ -820,7 +898,9 @@ public class ComRos2PathPlanner : MonoBehaviour
         {
             com.ApplyValue(jointNames[j], startDeg[j]);
         }
-        RequestPlanWithScene(startDeg, endDeg);   // 受信→プレビュー（OK で SaveRegisteredCache）
+        // 登録は多目的最適化を要求（優先度 時間>ジャーク>トルク）。time は ms→秒（0=成り行き）。
+        double targetTimeSec = steps[stepIndex].time / 1000.0;
+        RequestPlanWithScene(startDeg, endDeg, optimize: true, targetTimeSec: targetTimeSec);   // 受信→プレビュー（OK で SaveRegisteredCache）
     }
 
     /// <summary>登録キャッシュを削除（再登録可能に）。</summary>

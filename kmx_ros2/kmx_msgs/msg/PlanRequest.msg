@@ -9,3 +9,8 @@ float64 time_budget   # 計画の総時間予算(秒)。難しい姿勢は大き
 float64 good_ratio    # 大回り回避の許容倍率(始点→終点の直線関節距離比)。小さいほど短経路を要求。0以下=既定 plan_good_ratio
 # --- 複数ロボット対応（MULTI_ROBOT_ROS2_SPEC.md）。空="" なら受信側の既定ロボ/group（後方互換） ---
 string robot_id       # どのロボット/機種で計画するか。ROS2 側 robot_map のキーと一致させる（例 "crx30ia_1"）
+# --- 登録軌道の多目的最適化（REGISTER_OPTIMIZE_ROS2_SPEC.md）。optimize=false/0 なら通常計画（後方互換） ---
+bool optimize          # true=登録最適化(優先度 時間>ジャーク>トルク)。false/未設定=通常計画
+float64 target_time    # 目標所要時間[秒]。0以下=成り行き（時間制約なし＝ジャーク/トルクのみ最適化）
+float64 payload_mass   # 段階2(トルク)用ペイロード質量[kg]（ツール込み）。0以下=既定
+float64[] payload_com  # 段階2 ペイロード重心[m]（フランジ相対 x,y,z）。空=既定

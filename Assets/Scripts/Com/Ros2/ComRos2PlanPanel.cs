@@ -218,13 +218,21 @@ public class ComRos2PlanPanel : MonoBehaviour
                 if (seekPauseIcon != null) { seekPauseIcon.SetActive(gplaying); }   // 再生中=||バー
             }
         }
-        // 計画中の表示。予算>0 なら残り時間、0(ROS2既定で総量不明)なら経過時間。
+        // 計画中の表示。登録最適化の途中経過(opt行)受信中はそれを優先表示、
+        // それ以外は 予算>0 なら残り時間、0(ROS2既定で総量不明)なら経過時間。
         if (planner.State == ComRos2PathPlanner.PlanState.Planning && statusText != null)
         {
-            float el = planner.PlanElapsedSec;
-            statusText.text = displayBudgetSec > 0.0
-                ? $"計画中…  残り {Mathf.Max(0f, (float)displayBudgetSec - el):F1}s"
-                : $"計画中…  {el:F1}s 経過";
+            if (planner.OptActive)
+            {
+                statusText.text = planner.OptProgress;   // 例: 最適化中[ジャーク] 60% iter42 所要1.85s
+            }
+            else
+            {
+                float el = planner.PlanElapsedSec;
+                statusText.text = displayBudgetSec > 0.0
+                    ? $"計画中…  残り {Mathf.Max(0f, (float)displayBudgetSec - el):F1}s"
+                    : $"計画中…  {el:F1}s 経過";
+            }
         }
     }
 

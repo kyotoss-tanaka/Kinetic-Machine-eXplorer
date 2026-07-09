@@ -636,9 +636,12 @@ public interface IRos2Transport
     /// <summary>
     /// 始点/終点(度)を kmx_msgs/PlanRequest で発行する。
     /// timeBudget(秒)/goodRatio は任意で計画の粘り具合を要求ごとに指定（0以下=ROS2ノード既定）。
+    /// optimize=true で登録軌道の多目的最適化を要求（targetTimeSec=目標所要秒・0=成り行き、payload=段階2トルク用）。
     /// </summary>
     void PublishPlanRequest(string topic, string[] names, double[] startDeg, double[] goalDeg,
-                            double timeBudget = 0.0, double goodRatio = 0.0, string robotId = "");
+                            double timeBudget = 0.0, double goodRatio = 0.0, string robotId = "",
+                            bool optimize = false, double targetTimeSec = 0.0,
+                            double payloadMass = 0.0, double[] payloadCom = null);
     /// <summary>trajectory_msgs/JointTrajectory を購読し Ros2Trajectory(度) に変換して渡す。</summary>
     void SubscribeTrajectory(string topic, Action<Ros2Trajectory> onTrajectory);
     /// <summary>計画ステータス(std_msgs/String, 例 "planning"/"succeeded:.."/"failed:..")を購読する。</summary>
@@ -667,7 +670,9 @@ public sealed class NullRos2Transport : IRos2Transport
     public void Subscribe(string topic, Action<string[], double[]> onMessage) { }
     public void RegisterPlanRequestPublisher(string topic) { }
     public void PublishPlanRequest(string topic, string[] names, double[] startDeg, double[] goalDeg,
-                                   double timeBudget = 0.0, double goodRatio = 0.0, string robotId = "") { }
+                                   double timeBudget = 0.0, double goodRatio = 0.0, string robotId = "",
+                                   bool optimize = false, double targetTimeSec = 0.0,
+                                   double payloadMass = 0.0, double[] payloadCom = null) { }
     public void SubscribeTrajectory(string topic, Action<Ros2Trajectory> onTrajectory) { }
     public void SubscribePlanStatus(string topic, Action<string> onStatus) { }
     public void RegisterObstaclesPublisher(string topic) { }
