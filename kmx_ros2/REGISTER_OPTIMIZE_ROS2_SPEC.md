@@ -127,6 +127,20 @@ float64[] payload_com   # ペイロード重心[m]（フランジ相対 x,y,z。
 - [ ] joint_limits.yaml の 速度/加減速/ジャーク上限を Unity `Ros2MotorLimits` と一致（**CRX-30iA は暫定値・要差し替え**）。
 - [ ] 角度=度、時間=秒 を厳守。
 
+## ROS2側 実装（段階1・実装済 2026-07-09）
+`kmx_planner`（planner_node.py）に実装・動作確認済み：
+- **PlanRequest 拡張を反映**：optimize/target_time/payload_mass/payload_com/robot_id を sync＋kmx_msgs 再ビルド済。
+- **optimize 分岐**：`on_request` が optimize=true を検出→ `plan_with_moveit(..., optimize=True, target_time=)`。通常計画(false)は現状のまま（後方互換）。
+- **① 時間（ハード制約）**：計画は **scaling=1** で実施し、得た軌道総時間を **t_min（≒TOTG 限界最短＝Unity 表示「最短」と同基準）** とする。
+  `target_time≥t_min`→ `feasible=1`・achieved=`target_time`。`target_time<t_min`→ **`feasible=0`・`min_time=t_min`** を返し達成可能な最短(t_min)で出力。`target_time=0`＝成り行き→ t_min。
+- **② ジャーク**：achieved_time へ **smootherstep（6u⁵−15u⁴+10u³）の S字時間法**で arc-length 再タイム付け（端点で速度/加速度/ジャーク=0＝関節ジャーク低減）。
+  ※**厳密な per-joint ジャーク制限(Ruckig)は段階1.5の改良点**（ruckig の Python 未導入のため段階1は S字で代替。厳密化は `pip install ruckig` or MoveIt Ruckig 経路）。
+- **衝突回避**：既存 planning scene（/kmx/obstacles＋/kmx/attached）で回避したまま最適化（流用）。
+- **途中経過**：`/kmx/plan_status` に `opt phase=<time|jerk> iter=<n> time=<s> prog=<0..100>` を publish。
+- **応答**：軌道→`/kmx/trajectory`(度)、完了行 `opt done time=<s> feasible=<0|1> min_time=<s> jerk=<v>`。標準の `planning`/`succeeded:<pts>:<ratio>` も併存。
+- **検証（空シーン）**：target_time=3.0→`opt done time=3.000 feasible=1 min_time=2.641 jerk=143.96`／target_time=1.0→`feasible=0 min_time=2.640 achieved=2.640 jerk=211.22`。軌道121点発行・進捗行 OK・遅い方が低ジャーク。
+- **段階2（トルク・Pinocchio 逆動力学）は未実装**（payload_mass/payload_com は受領するが未使用＝将来）。
+
 ## 関連
 - 現状の Unity 側 robotSteps / 登録・キャッシュ / Step A(速度・時間解析) は実装済（`ComRos2PathPlanner` / `ComRos2PlanPanel` / `Ros2TrajCacheStore` / `Ros2MotorLimits`）。
 - 「最短時間」の基準＝MoveIt が返す軌道の総時間（TOTG＋vel/accel scaling）。トルク推定(Step B)は未実装で本 spec に統合。

@@ -27,6 +27,18 @@ namespace RosMessageTypes.Kmx
         //  計画の総時間予算(秒)。難しい姿勢は大きく、簡単なら小さく。0以下=既定 plan_time_budget_sec
         public double good_ratio;
         //  大回り回避の許容倍率(始点→終点の直線関節距離比)。小さいほど短経路を要求。0以下=既定 plan_good_ratio
+        //  --- 複数ロボット対応。空="" なら受信側の既定ロボ/group（後方互換） ---
+        public string robot_id;
+        //  どのロボット/機種で計画するか。ROS2 側 robot_map のキーと一致させる（例 "crx30ia_1"）
+        //  --- 登録軌道の多目的最適化。optimize=false/0 なら通常計画（後方互換） ---
+        public bool optimize;
+        //  true=登録最適化(優先度 時間>ジャーク>トルク)。false/未設定=通常計画
+        public double target_time;
+        //  目標所要時間[秒]。0以下=成り行き（時間制約なし）
+        public double payload_mass;
+        //  段階2(トルク)用ペイロード質量[kg]（ツール込み）。0以下=既定
+        public double[] payload_com;
+        //  段階2 ペイロード重心[m]（フランジ相対 x,y,z）。空=既定
 
         public PlanRequestMsg()
         {
@@ -35,15 +47,25 @@ namespace RosMessageTypes.Kmx
             this.goal = new double[0];
             this.time_budget = 0.0;
             this.good_ratio = 0.0;
+            this.robot_id = "";
+            this.optimize = false;
+            this.target_time = 0.0;
+            this.payload_mass = 0.0;
+            this.payload_com = new double[0];
         }
 
-        public PlanRequestMsg(string[] names, double[] start, double[] goal, double time_budget, double good_ratio)
+        public PlanRequestMsg(string[] names, double[] start, double[] goal, double time_budget, double good_ratio, string robot_id, bool optimize, double target_time, double payload_mass, double[] payload_com)
         {
             this.names = names;
             this.start = start;
             this.goal = goal;
             this.time_budget = time_budget;
             this.good_ratio = good_ratio;
+            this.robot_id = robot_id;
+            this.optimize = optimize;
+            this.target_time = target_time;
+            this.payload_mass = payload_mass;
+            this.payload_com = payload_com;
         }
 
         public static PlanRequestMsg Deserialize(MessageDeserializer deserializer) => new PlanRequestMsg(deserializer);
@@ -55,6 +77,11 @@ namespace RosMessageTypes.Kmx
             deserializer.Read(out this.goal, sizeof(double), deserializer.ReadLength());
             deserializer.Read(out this.time_budget);
             deserializer.Read(out this.good_ratio);
+            deserializer.Read(out this.robot_id);
+            deserializer.Read(out this.optimize);
+            deserializer.Read(out this.target_time);
+            deserializer.Read(out this.payload_mass);
+            deserializer.Read(out this.payload_com, sizeof(double), deserializer.ReadLength());
         }
 
         public override void SerializeTo(MessageSerializer serializer)
@@ -67,6 +94,12 @@ namespace RosMessageTypes.Kmx
             serializer.Write(this.goal);
             serializer.Write(this.time_budget);
             serializer.Write(this.good_ratio);
+            serializer.Write(this.robot_id);
+            serializer.Write(this.optimize);
+            serializer.Write(this.target_time);
+            serializer.Write(this.payload_mass);
+            serializer.WriteLength(this.payload_com);
+            serializer.Write(this.payload_com);
         }
 
         public override string ToString()
@@ -76,7 +109,12 @@ namespace RosMessageTypes.Kmx
             "\nstart: " + System.String.Join(", ", start.ToList()) +
             "\ngoal: " + System.String.Join(", ", goal.ToList()) +
             "\ntime_budget: " + time_budget.ToString() +
-            "\ngood_ratio: " + good_ratio.ToString();
+            "\ngood_ratio: " + good_ratio.ToString() +
+            "\nrobot_id: " + robot_id.ToString() +
+            "\noptimize: " + optimize.ToString() +
+            "\ntarget_time: " + target_time.ToString() +
+            "\npayload_mass: " + payload_mass.ToString() +
+            "\npayload_com: " + System.String.Join(", ", payload_com.ToList());
         }
 
 #if UNITY_EDITOR

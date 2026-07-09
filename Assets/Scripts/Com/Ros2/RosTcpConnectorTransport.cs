@@ -115,17 +115,17 @@ public sealed class RosTcpConnectorTransport : IRos2Transport
         {
             RegisterPlanRequestPublisher(topic);   // 事前登録漏れ時のフォールバック（レースの可能性あり）
         }
-        // time_budget/good_ratio は 0以下 なら ROS2 ノード既定にフォールバック（後方互換）。
-        // ★robot_id / optimize / target_time / payload：PlanRequest.msg には追加済みだが、
-        //   生成物 Assets/RosMessages/Kmx/msg/PlanRequestMsg.cs にまだ該当プロパティが無い
-        //   （.msg 更新後の Generate ROS Messages が未反映）。反映を確認したら下記を初期化子へ追加して有効化：
-        //     robot_id = robotId, optimize = optimize, target_time = targetTimeSec,
-        //     payload_mass = payloadMass, payload_com = payloadCom ?? System.Array.Empty<double>(),
-        //   現状は受け取るだけ（送信は従来どおり＝後方互換）。
+        // すべて「0以下/空＝ROS2ノード既定＝後方互換」。robot_id/optimize/target_time/payload は
+        // PlanRequest.msg 追加＋生成物 PlanRequestMsg.cs 反映済みなので有効化。
         ros.Publish(topic, new PlanRequestMsg
         {
             names = names, start = startDeg, goal = goalDeg,
             time_budget = timeBudget, good_ratio = goodRatio,
+            robot_id = robotId,
+            optimize = optimize,
+            target_time = targetTimeSec,
+            payload_mass = payloadMass,
+            payload_com = payloadCom ?? System.Array.Empty<double>(),
         });
     }
 

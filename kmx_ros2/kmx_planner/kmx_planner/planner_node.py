@@ -290,10 +290,13 @@ class KmxPlannerNode(Node):
         # Unity から任意で計画の粘り具合を指定（>0 のときだけ有効。未設定/0 は node 既定）。
         req_budget = float(getattr(msg, 'time_budget', 0.0) or 0.0)
         req_ratio = float(getattr(msg, 'good_ratio', 0.0) or 0.0)
+        optimize = bool(getattr(msg, 'optimize', False))
+        target_time = float(getattr(msg, 'target_time', 0.0) or 0.0)
         self.get_logger().info(
             f"plan request: start={start} goal={goal} (deg), joints={names}"
             + (f" time_budget={req_budget}s" if req_budget > 0 else "")
-            + (f" good_ratio={req_ratio}" if req_ratio > 0 else ""))
+            + (f" good_ratio={req_ratio}" if req_ratio > 0 else "")
+            + (f" ★optimize target_time={target_time if target_time > 0 else '成り行き'}s" if optimize else ""))
 
         if len(start) != len(names) or len(goal) != len(names):
             self.get_logger().error("names / start / goal の長さが一致しません。")
@@ -301,6 +304,19 @@ class KmxPlannerNode(Node):
             return
 
         self._publish_status("planning")   # 計画開始（moveit / 補間 共通）
+
+        # ★登録軌道の多目的最適化（REGISTER_OPTIMIZE_ROS2_SPEC 段階1：時間充足＋ジャーク低減）。
+        if optimize:
+            self._publish_status("opt phase=time iter=0 prog=5")
+            if self.use_moveit:
+                # 衝突回避経路を scaling=1 で計画→完了時に _optimize_and_publish で再タイム付け発行。
+                self.plan_with_moveit(names, start, goal, req_budget, req_ratio,
+                                      optimize=True, target_time=target_time)
+            else:
+                base = self.plan_interpolate(names, start, goal)
+                self._optimize_and_publish(base, target_time)
+            return
+
         if self.use_moveit:
             self.plan_with_moveit(names, start, goal, req_budget, req_ratio)   # 非同期。完了時に発行＋status。
         else:
@@ -597,9 +613,12 @@ class KmxPlannerNode(Node):
         return traj
 
     # ---------------------------------------------------- MoveIt モード（本命）
-    def plan_with_moveit(self, kmx_names, start_deg, goal_deg, req_budget=0.0, req_ratio=0.0):
+    def plan_with_moveit(self, kmx_names, start_deg, goal_deg, req_budget=0.0, req_ratio=0.0,
+                         optimize=False, target_time=0.0):
         """move_group に MoveGroup アクション(plan_only)で joint 目標を投げる（非同期）。
-        req_budget/req_ratio が >0 ならその要求だけ node 既定を上書き（Unity から粘り具合を指定）。"""
+        req_budget/req_ratio が >0 ならその要求だけ node 既定を上書き（Unity から粘り具合を指定）。
+        optimize=True（登録最適化）: scaling=1 で衝突回避経路を計画し、完了時に _optimize_and_publish で
+        時間充足＋ジャーク低減の再タイム付けをして発行する（REGISTER_OPTIMIZE_ROS2_SPEC 段階1）。"""
         if self._ac is None:
             self.get_logger().error("ActionClient 未初期化。")
             return
@@ -639,8 +658,9 @@ class KmxPlannerNode(Node):
         req.planner_id = self.get_parameter('planner_id').value      # OMPL 最適化プランナ（軌跡最適化）
         req.num_planning_attempts = int(self.get_parameter('num_planning_attempts').value)
         req.allowed_planning_time = float(self.get_parameter('allowed_planning_time').value)
-        req.max_velocity_scaling_factor = float(self.get_parameter('vel_scale').value)
-        req.max_acceleration_scaling_factor = float(self.get_parameter('acc_scale').value)
+        # 登録最適化(optimize)は TOTG 限界最短(t_min)を得るため scaling=1。通常は node 既定 scaling。
+        req.max_velocity_scaling_factor = 1.0 if optimize else float(self.get_parameter('vel_scale').value)
+        req.max_acceleration_scaling_factor = 1.0 if optimize else float(self.get_parameter('acc_scale').value)
 
         # 始点（関節は絶対指定。is_diff=True でも joint_state の値は絶対値として適用される）
         # is_diff=False だと MoveIt がシーン現在状態の attached body を全消去した状態で計画し、
@@ -690,6 +710,8 @@ class KmxPlannerNode(Node):
             'best_cost': None,
             'successes': 0,
             'last_error': 0,   # 直近試行の MoveItErrorCodes.val（最終失敗時の理由に使う）
+            'optimize': optimize,       # 登録最適化モード（完了時に再タイム付けして発行）
+            'target_time': target_time, # 目標所要時間[秒]（0以下=成り行き）
             # 始点→終点の直線関節距離（度）。経路長の下限。大回り判定の基準に使う。
             'direct_cost': math.sqrt(sum((g - s) ** 2 for s, g in zip(start_deg[:n], goal_deg[:n]))),
         }
@@ -745,6 +767,8 @@ class KmxPlannerNode(Node):
                        and session['direct_cost'] > 1e-6
                        and session['best_cost'] <= ratio * session['direct_cost'])
         if not good_enough and within_attempts and within_time:
+            if session.get('optimize'):   # 登録最適化：計画反復の途中経過
+                self._publish_status(f"opt phase=time iter={session['attempts']} prog=20")
             self._send_plan_attempt(session)   # 失敗はリトライ／大回りしか無いならより短い通り道を探し続ける
             return
         # 予算/回数を使い切った → 最良経路を（必要なら短縮して）発行
@@ -755,6 +779,10 @@ class KmxPlannerNode(Node):
                 traj = self._shortcut_traj(traj, session['moveit_names'])
             post = self._traj_cost(traj)
             direct = max(session['direct_cost'], 1e-6)
+            # 登録最適化モード：通常発行の代わりに、時間充足＋ジャーク低減の再タイム付けをして発行。
+            if session.get('optimize'):
+                self._optimize_and_publish(traj, float(session.get('target_time', 0.0)))
+                return
             self.pub.publish(traj)
             self._publish_status(f"succeeded:{len(traj.points)}:{post / direct:.2f}")
             self.get_logger().info(
@@ -875,6 +903,120 @@ class KmxPlannerNode(Node):
             q.time_from_start = Duration(sec=int(t), nanosec=int(round((t - int(t)) * 1e9)))
             out.points.append(q)
         return out
+
+    # ============================ 登録軌道の多目的最適化（REGISTER_OPTIMIZE_ROS2_SPEC 段階1）
+    def _optimize_and_publish(self, base_traj, target_time):
+        """衝突回避済み経路 base_traj を「時間充足＋ジャーク低減」して発行する（段階1）。
+
+        優先順位（辞書式）: ①時間（≤ target_time・ハード制約）②ジャーク最小 ③トルク最小（段階2・未実装）。
+        - t_min = base_traj の総時間 ≒ TOTG(scaling=1) の限界最短（Unity 表示の「最短」と同基準）。
+        - target_time>0 かつ < t_min なら達成不能 → feasible=0・min_time=t_min を返し、達成可能な最短(t_min)で出す。
+        - それ以外は achieved=max(target_time,t_min) へ S字(smootherstep)時間法で再タイム付け（関節ジャーク低減）。
+        ※ 段階1は node 内の S字再タイムでジャーク低減。厳密な per-joint ジャーク制限(Ruckig)は段階1.5の改良点。
+        """
+        pts = base_traj.points
+        if not pts:
+            self._publish_status("failed:no_solution")
+            return
+        last = pts[-1].time_from_start
+        t_min = last.sec + last.nanosec * 1e-9
+        if t_min <= 1e-6:
+            t_min = float(self.get_parameter('duration_sec').value)
+        feasible = (target_time <= 0.0) or (target_time >= t_min)
+        achieved = t_min if (target_time <= 0.0 or not feasible) else target_time
+        self._publish_status(f"opt phase=jerk iter=1 time={achieved:.3f} prog=70")
+
+        path = [list(p.positions) for p in pts]
+        opt = self._smooth_retime(path, base_traj.joint_names, achieved)
+        jerk = self._jerk_metric(opt)
+
+        self.pub.publish(opt)
+        # 標準ステータスも従来どおり出す（Unity 既存フロー用）。ratio=経路長/直線。
+        direct = math.sqrt(sum((b - a) ** 2 for a, b in zip(path[0], path[-1]))) if len(path) >= 2 else 1.0
+        ratio = (self._traj_cost(opt) / direct) if direct > 1e-6 else 1.0
+        self._publish_status(f"succeeded:{len(opt.points)}:{ratio:.2f}")
+        self._publish_status(
+            f"opt done time={achieved:.3f} feasible={1 if feasible else 0} "
+            f"min_time={t_min:.3f} jerk={jerk:.2f}")
+        self.get_logger().info(
+            f"★登録最適化 発行: {len(opt.points)}点 achieved={achieved:.3f}s "
+            f"feasible={feasible}(min_time={t_min:.3f}s) jerk_max={jerk:.1f}deg/s^3"
+            + ("" if feasible else " ※target_time 達成不能→最短で出力"))
+
+    def _smooth_retime(self, path, joint_names, duration_s, samples=120):
+        """節点列 path(度) を arc-length に沿って S字時間法(smootherstep)で duration_s に再タイム付け。
+        端点で速度/加速度/ジャーク=0 の滑らかな単一動作＝関節ジャークを低減する（段階1の簡易ジャーク最適化）。"""
+        if len(path) < 2:
+            out = JointTrajectory()
+            out.joint_names = list(joint_names)
+            q = JointTrajectoryPoint()
+            q.positions = [float(v) for v in (path[0] if path else [])]
+            q.time_from_start = Duration(sec=0, nanosec=0)
+            out.points.append(q)
+            return out
+        # 密化（3度刻み）＋累積関節距離
+        dense = [list(path[0])]
+        for a, b in zip(path, path[1:]):
+            dmax = max((abs(y - x) for x, y in zip(a, b)), default=0.0)
+            n = max(1, int(math.ceil(dmax / 3.0)))
+            for k in range(1, n + 1):
+                t = k / n
+                dense.append([x + (y - x) * t for x, y in zip(a, b)])
+        cum = [0.0]
+        for a, b in zip(dense, dense[1:]):
+            cum.append(cum[-1] + math.sqrt(sum((y - x) ** 2 for x, y in zip(a, b))))
+        length = cum[-1] if cum[-1] > 1e-9 else 1.0
+        dur = max(float(duration_s), 1e-3)
+
+        def interp_at(s):     # arc-length s → config（dense 上を線形補間）
+            if s <= 0.0:
+                return dense[0]
+            if s >= length:
+                return dense[-1]
+            for i in range(1, len(cum)):
+                if cum[i] >= s:
+                    w = (s - cum[i - 1]) / max(cum[i] - cum[i - 1], 1e-9)
+                    return [x + (y - x) * w for x, y in zip(dense[i - 1], dense[i])]
+            return dense[-1]
+
+        out = JointTrajectory()
+        out.joint_names = list(joint_names)
+        for k in range(samples + 1):
+            u = k / samples
+            s_law = u * u * u * (u * (u * 6.0 - 15.0) + 10.0)   # smootherstep: 6u^5-15u^4+10u^3
+            cfg = interp_at(s_law * length)
+            q = JointTrajectoryPoint()
+            q.positions = [float(v) for v in cfg]
+            tt = dur * u
+            q.time_from_start = Duration(sec=int(tt), nanosec=int(round((tt - int(tt)) * 1e9)))
+            out.points.append(q)
+        return out
+
+    @staticmethod
+    def _jerk_metric(traj):
+        """関節ジャーク最大値(度/s^3)の概算（有限差分・報告用）。等時間サンプル前提。"""
+        pts = traj.points
+        if len(pts) < 4:
+            return 0.0
+
+        def tf(p):
+            return p.time_from_start.sec + p.time_from_start.nanosec * 1e-9
+        jmax = 0.0
+        ndof = len(pts[0].positions)
+        for i in range(len(pts) - 3):
+            dt = (tf(pts[i + 3]) - tf(pts[i])) / 3.0
+            if dt < 1e-6:
+                continue
+            inv = 1.0 / (dt ** 3)
+            for j in range(ndof):
+                p0 = pts[i].positions[j]
+                p1 = pts[i + 1].positions[j]
+                p2 = pts[i + 2].positions[j]
+                p3 = pts[i + 3].positions[j]
+                jerk = (p3 - 3.0 * p2 + 3.0 * p1 - p0) * inv
+                if abs(jerk) > jmax:
+                    jmax = abs(jerk)
+        return jmax
 
     # ------------------------------------------------- RRT*-Smart（Python実装・実験的バックエンド）
     def _on_robot_description(self, msg):
