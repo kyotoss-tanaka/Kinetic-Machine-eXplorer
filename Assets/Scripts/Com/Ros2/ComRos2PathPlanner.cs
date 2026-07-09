@@ -96,7 +96,34 @@ public class ComRos2PathPlanner : MonoBehaviour
     private readonly System.Collections.Generic.List<Vector3> tipBuf = new();
     private double previewT;                     // ゴースト再生の時刻（ループ）
     private bool ghostActive;                    // ゴースト再生中か
+    private bool ghostSeek;                      // シークバーで手動スクラブ中（自動送り停止）
     [SerializeField] private float ghostLoopPauseSec = 0.6f;   // ループ末で一瞬止める
+
+    // ===== robotSteps シーケンス駆動（自動再生／登録モード） =====
+    public enum SeqMode { Auto, Register }
+    /// <summary>自動再生(既定)／登録 モード。登録モード中はロボの自動再生(タグ駆動)を止める。</summary>
+    public SeqMode Mode { get; private set; } = SeqMode.Auto;
+    private const float SeqPoseTolDeg = 1.0f;    // 開始点一致の許容(±度)
+
+    private sealed class SeqEntry
+    {
+        public Ros2PlanTargetRegistry.RegisteredRobot robot;
+        public int index;
+        public Parameters.Ros2RobotStep step;
+        public bool prevOn;                       // 前フレームの start タグ状態（立ち上がり検出）
+        public string db = "";                    // タグ読み書き用 database（解決済み）
+        public string mech = "";                  // タグ読み書き用 mechId（解決済み）
+    }
+    private readonly List<SeqEntry> seqEntries = new();
+    private bool seqBuilt;
+    private readonly Queue<SeqEntry> seqQueue = new();
+    private SeqEntry activeSeq;                   // 実行中（完了で end タグ）。null=空き
+    private bool seqAwaitingPlan;                 // ズレ時の自動計画の軌道待ち（受信で自動再生）
+    private float seqPlaySpeed = 1f;              // step.time 再スケール用（playT の進行倍率）
+    private SeqEntry registerPending;             // 登録モード：教示中の保留（承認で保存）
+    private float[] registerStartDeg;             // 教示の開始姿勢（＝前step終了）
+    private float[] registerEndDeg;               // 教示の終了姿勢（＝step.poseDeg）
+    private bool ghostReviewOnly;                 // 「再生」でゴーストレビュー中（OK で実機再生しない）
 
     private void Start()
     {
@@ -207,6 +234,7 @@ public class ComRos2PathPlanner : MonoBehaviour
         // 新しい要求。前の再生/プレビュー/ゴーストは破棄して計画中へ。
         playing = false;
         traj = null;
+        ghostReviewOnly = false;
         StopGhostPreview();
         HidePreviewLine();
         transport.PublishPlanRequest(planRequestTopic, jointNames, startDeg, goalDeg, planTimeBudget, planGoodRatio, robotId);
@@ -354,6 +382,19 @@ public class ComRos2PathPlanner : MonoBehaviour
         double dur = t.timesSec[t.timesSec.Length - 1];
         Debug.Log($"[ComRos2PathPlanner] 軌道受信: {t.positions.Length}点 / {(t.jointNames != null ? t.jointNames.Length : 0)}軸 / 所要 {dur:F2}s");
 
+        // シーケンスの自動計画（開始点ズレ/キャッシュ無効時）＝承認スキップで即再生（キャッシュ保存はしない）。
+        if (seqAwaitingPlan && activeSeq != null)
+        {
+            seqAwaitingPlan = false;
+            SetSeqPlaySpeed(activeSeq.step, dur);
+            string rep = AnalyzeTraj(t, activeSeq.step.time, activeSeq.robot.Target != null ? activeSeq.robot.Target.ModelKey : "", out bool warn);
+            playT = 0d;
+            playing = true;
+            SetState(PlanState.Playing, $"再生(自動計画): {activeSeq.step.name} {rep}");
+            if (warn) { Debug.LogWarning($"[ComRos2PathPlanner] {activeSeq.step.name}: {rep}"); }
+            return;
+        }
+
         BuildPreviewLine(t);   // 先端の軌跡を3D表示
         if (requireApproval)
         {
@@ -407,17 +448,26 @@ public class ComRos2PathPlanner : MonoBehaviour
             SetState(PlanState.Failed, $"タイムアウト（{planTimeoutSec:F0}s 応答なし）");
         }
 
+        // robotSteps シーケンス：自動再生モードのみ、start タグの立ち上がりを監視して順次実行。
+        if (Mode == SeqMode.Auto)
+        {
+            PollSequence();
+        }
+
         // プレビュー中：ゴースト(半透明複製)を軌道でループ再生（実機モデルは動かさない）。
         if (ghostActive && State == PlanState.Preview && traj != null && target != null)
         {
             var gt = traj.timesSec;
             double gtotal = gt[gt.Length - 1];
-            previewT += Time.deltaTime;
-            if (gtotal <= 0d || previewT > gtotal + ghostLoopPauseSec)
+            if (!ghostSeek)   // シーク中は自動送りを止め、シーク位置で固定表示（スクラブ確認）。
             {
-                previewT = 0d;   // 先頭へ（末尾で少しポーズしてループ）
+                previewT += Time.deltaTime;
+                if (gtotal <= 0d || previewT > gtotal + ghostLoopPauseSec)
+                {
+                    previewT = 0d;   // 先頭へ（末尾で少しポーズしてループ）
+                }
             }
-            double sampleT = previewT < gtotal ? previewT : gtotal;
+            double sampleT = previewT < 0d ? 0d : (previewT < gtotal ? previewT : gtotal);
             target.PoseGhostDeg(SamplePoseJ16(sampleT));
         }
 
@@ -434,7 +484,8 @@ public class ComRos2PathPlanner : MonoBehaviour
         int last = times.Length - 1;
         double total = times[last];
 
-        playT += Time.deltaTime;
+        // シーケンス実行中で step.time>0 のときは、軌道を step.time 秒に再スケール（進行倍率）。
+        playT += Time.deltaTime * ((activeSeq != null && seqPlaySpeed > 0f) ? seqPlaySpeed : 1f);
 
         double[] pos;
         if (playT >= total || last == 0)
@@ -448,6 +499,7 @@ public class ComRos2PathPlanner : MonoBehaviour
             {
                 playing = false;       // 最終姿勢で停止
                 SetState(PlanState.Idle, "再生完了");
+                OnSeqPlaybackDone();   // シーケンス実行中なら end タグに 1 を書いて完了・次へ
             }
         }
         else
@@ -525,6 +577,16 @@ public class ComRos2PathPlanner : MonoBehaviour
             Debug.LogWarning("[ComRos2PathPlanner] 承認する軌道がありません。");
             return;
         }
+        if (ghostReviewOnly)
+        {
+            return;   // 「再生」ゴーストレビュー中の OK は無効（実機は動かさない）
+        }
+        // 登録モードの教示承認 → 軌道をキャッシュへ保存（実機は動かさない）。
+        if (registerPending != null)
+        {
+            SaveRegisteredCache();
+            return;
+        }
         StopGhostPreview();   // ゴーストを消して実機モデルで再生する
         HidePreviewLine();
         playT = 0d;
@@ -540,8 +602,498 @@ public class ComRos2PathPlanner : MonoBehaviour
         traj = null;
         StopGhostPreview();
         HidePreviewLine();
+        // シーケンス/登録の保留も破棄（end タグは書かない＝完了扱いにしない）。
+        registerPending = null;
+        seqAwaitingPlan = false;
+        activeSeq = null;
+        ghostReviewOnly = false;
         SetState(PlanState.Idle, "キャンセル");
     }
+
+    #region robotSteps シーケンス駆動（自動再生／登録）
+    /// <summary>モード切替（UI から）。登録モードに入るとロボの自動再生(タグ駆動)だけ止める（他ユニットは動く）。</summary>
+    public void SetMode(SeqMode m)
+    {
+        if (Mode == m)
+        {
+            return;
+        }
+        Mode = m;
+        // どちらへ切り替えても進行中の再生/計画/ゴースト/レビューは片付ける
+        //（登録解除でゴーストが残らないように）。
+        playing = false;
+        traj = null;
+        seqAwaitingPlan = false;
+        activeSeq = null;
+        ghostReviewOnly = false;
+        seqQueue.Clear();
+        StopGhostPreview();
+        HidePreviewLine();
+        SetState(PlanState.Idle, m == SeqMode.Register ? "登録モード" : "自動再生モード");
+    }
+
+    /// <summary>監視対象（レジストリ各ロボの robotSteps）を構築する（ロード後1回）。</summary>
+    private void BuildSequence()
+    {
+        seqEntries.Clear();
+        if (registry == null)
+        {
+            registry = GetComponent<Ros2PlanTargetRegistry>();
+        }
+        if (registry == null)
+        {
+            return;
+        }
+        var robots = registry.Robots;
+        foreach (var r in robots)
+        {
+            var steps = r != null && r.Target != null ? r.Target.PlanSteps : null;
+            if (steps == null)
+            {
+                continue;
+            }
+            GlobalScript.TryResolveUnitDb(r.Target.UnitName, out var db, out var mech);
+            for (int i = 0; i < steps.Count; i++)
+            {
+                if (steps[i] == null || string.IsNullOrEmpty(steps[i].start))
+                {
+                    continue;
+                }
+                seqEntries.Add(new SeqEntry { robot = r, index = i, step = steps[i], db = db ?? "", mech = mech ?? "" });
+            }
+        }
+        seqBuilt = true;
+        if (seqEntries.Count > 0)
+        {
+            Debug.Log($"[ComRos2PathPlanner] robotSteps 監視 {seqEntries.Count}件");
+        }
+    }
+
+    /// <summary>start タグの立ち上がりを監視し、空いていれば順次実行（1台1計画＝キュー）。</summary>
+    private void PollSequence()
+    {
+        if (com == null || !com.IsReady || !GlobalScript.isLoaded)
+        {
+            return;
+        }
+        if (!seqBuilt)
+        {
+            if (registry == null)
+            {
+                registry = GetComponent<Ros2PlanTargetRegistry>();
+            }
+            if (registry == null || !registry.IsBuilt)
+            {
+                return;
+            }
+            BuildSequence();
+        }
+        foreach (var s in seqEntries)
+        {
+            bool on = ReadTagOn(s, s.step.start);
+            if (on && !s.prevOn && s != activeSeq && !seqQueue.Contains(s))
+            {
+                seqQueue.Enqueue(s);   // 立ち上がり → キュー投入
+            }
+            s.prevOn = on;
+        }
+        if (activeSeq == null && !playing && State != PlanState.Planning && seqQueue.Count > 0)
+        {
+            StartSeqStep(seqQueue.Dequeue());
+        }
+    }
+
+    /// <summary>1ステップ開始：キャッシュ再生／開始点ズレ・poseDeg変更時は自動計画／未登録はスキップ。</summary>
+    private void StartSeqStep(SeqEntry s)
+    {
+        activeSeq = s;
+        WriteTag(s, s.step.end, 0);   // 実行開始＝end を落とす
+
+        SetTarget(s.robot);            // 対象ロボへ切替（jointNames/robot_id）
+        var goal = ToDoubleArray(s.step.poseDeg);
+        if (goal == null || goal.Length == 0)
+        {
+            Debug.LogWarning($"[ComRos2PathPlanner] step '{s.step.name}'(#{s.index}) poseDeg 空 → スキップ。");
+            SkipStep(s);
+            return;
+        }
+        var cache = Ros2TrajCacheStore.Get(s.robot.RobotId, s.index);
+        if (cache == null)
+        {
+            Debug.LogWarning($"[ComRos2PathPlanner] step '{s.step.name}'(#{s.index}) キャッシュ未登録 → スキップ。");
+            SkipStep(s);
+            return;
+        }
+        var cur = ReadCurrentDeg();
+        if (!ApproxEqual(cache.endDeg, goal, SeqPoseTolDeg))
+        {
+            Debug.Log($"[ComRos2PathPlanner] step '{s.step.name}' poseDeg 変更でキャッシュ無効 → 自動計画。");
+            AutoPlanStep(cur, goal);
+            return;
+        }
+        if (!ApproxEqual(cache.startDeg, cur, SeqPoseTolDeg))
+        {
+            Debug.Log($"[ComRos2PathPlanner] step '{s.step.name}' 開始点ズレ → 自動計画。");
+            AutoPlanStep(cur, goal);
+            return;
+        }
+        // キャッシュ再生（承認スキップ・ゴースト無し）
+        traj = BuildTrajFromCache(cache);
+        SetSeqPlaySpeed(s.step, traj.timesSec[traj.timesSec.Length - 1]);
+        string rep = AnalyzeTraj(traj, s.step.time, s.robot.Target != null ? s.robot.Target.ModelKey : "", out bool warn);
+        playT = 0d;
+        playing = true;
+        SetState(PlanState.Playing, $"再生(ｷｬｯｼｭ): {s.step.name} {rep}");
+        if (warn) { Debug.LogWarning($"[ComRos2PathPlanner] {s.step.name}: {rep}"); }
+    }
+
+    private void AutoPlanStep(double[] cur, double[] goal)
+    {
+        seqAwaitingPlan = true;                 // 受信で OnTrajectory→承認スキップ自動再生
+        RequestPlanWithScene(cur, goal);
+    }
+
+    private void SkipStep(SeqEntry s)
+    {
+        WriteTag(s, s.step.end, 1);             // サイクルを止めない（未登録/空はスキップ扱い）
+        activeSeq = null;
+    }
+
+    /// <summary>シーケンス再生の完了処理（Update から）。end タグに 1 を書いて次へ。</summary>
+    private void OnSeqPlaybackDone()
+    {
+        if (activeSeq == null)
+        {
+            return;
+        }
+        WriteTag(activeSeq, activeSeq.step.end, 1);
+        activeSeq = null;
+        seqPlaySpeed = 1f;
+    }
+
+    private void SetSeqPlaySpeed(Parameters.Ros2RobotStep step, double nativeDur)
+    {
+        double timeSec = (step != null) ? step.time / 1000d : 0d;   // time は ms
+        seqPlaySpeed = (timeSec > 0d && nativeDur > 0d) ? (float)(nativeDur / timeSec) : 1f;
+    }
+
+    // --- 登録モード（教示） ---
+    /// <summary>指定 step を教示登録：開始点(前step終了・循環)→poseDeg を計画しゴーストプレビュー。OK で保存。</summary>
+    public void RegisterStep(int robotIndex, int stepIndex)
+    {
+        if (registry == null)
+        {
+            registry = GetComponent<Ros2PlanTargetRegistry>();
+        }
+        if (registry == null)
+        {
+            return;
+        }
+        var robots = registry.Robots;
+        if (robotIndex < 0 || robotIndex >= robots.Count)
+        {
+            return;
+        }
+        var r = robots[robotIndex];
+        var steps = r != null && r.Target != null ? r.Target.PlanSteps : null;
+        if (steps == null || stepIndex < 0 || stepIndex >= steps.Count)
+        {
+            return;
+        }
+        SetTarget(r);
+        var endDeg = ToDoubleArray(steps[stepIndex].poseDeg);
+        if (endDeg == null || endDeg.Length == 0)
+        {
+            Debug.LogWarning("[ComRos2PathPlanner] poseDeg 空で登録不可。");
+            return;
+        }
+        var startDeg = ToDoubleArray(PrevPoseDeg(steps, stepIndex));   // 前stepの終了(循環)
+        if (startDeg == null || startDeg.Length != endDeg.Length)
+        {
+            startDeg = ReadCurrentDeg();
+        }
+        registerPending = new SeqEntry { robot = r, index = stepIndex, step = steps[stepIndex] };
+        registerStartDeg = ToFloat(startDeg);
+        registerEndDeg = ToFloat(endDeg);
+        // ロボを開始姿勢へ置いてから計画（教示の始点を揃える）。
+        for (int j = 0; j < jointNames.Length && j < startDeg.Length; j++)
+        {
+            com.ApplyValue(jointNames[j], startDeg[j]);
+        }
+        RequestPlanWithScene(startDeg, endDeg);   // 受信→プレビュー（OK で SaveRegisteredCache）
+    }
+
+    /// <summary>登録キャッシュを削除（再登録可能に）。</summary>
+    public void DeleteStepCache(int robotIndex, int stepIndex)
+    {
+        if (registry == null)
+        {
+            registry = GetComponent<Ros2PlanTargetRegistry>();
+        }
+        if (registry == null || robotIndex < 0 || robotIndex >= registry.Robots.Count)
+        {
+            return;
+        }
+        Ros2TrajCacheStore.Delete(registry.Robots[robotIndex].RobotId, stepIndex);
+        Debug.Log($"[ComRos2PathPlanner] キャッシュ削除: robot#{robotIndex} step#{stepIndex}");
+    }
+
+    /// <summary>ステップにキャッシュ登録済みか（UI 表示用）。</summary>
+    public bool HasStepCache(int robotIndex, int stepIndex)
+    {
+        if (registry == null)
+        {
+            registry = GetComponent<Ros2PlanTargetRegistry>();
+        }
+        if (registry == null || robotIndex < 0 || robotIndex >= registry.Robots.Count)
+        {
+            return false;
+        }
+        return Ros2TrajCacheStore.Get(registry.Robots[robotIndex].RobotId, stepIndex) != null;
+    }
+
+    /// <summary>登録済みステップの軌道を「ゴースト(半透明複製)」でループ再生（実機は動かさない・レビュー用）。</summary>
+    public void PlayStepGhost(int robotIndex, int stepIndex)
+    {
+        if (registry == null)
+        {
+            registry = GetComponent<Ros2PlanTargetRegistry>();
+        }
+        if (registry == null || robotIndex < 0 || robotIndex >= registry.Robots.Count)
+        {
+            return;
+        }
+        var r = registry.Robots[robotIndex];
+        var cache = Ros2TrajCacheStore.Get(r.RobotId, stepIndex);
+        if (cache == null)
+        {
+            Debug.LogWarning($"[ComRos2PathPlanner] step#{stepIndex} 未登録のためゴースト再生できません。");
+            return;
+        }
+        SetTarget(r);                  // 対象ロボへ（ゴーストもこのロボで作る）。playing/traj/ghost はリセット
+        playing = false;               // 実機は動かさない
+        traj = BuildTrajFromCache(cache);
+        ghostReviewOnly = true;        // レビュー中：OK は無効化
+        BuildPreviewLine(traj);        // 先端の軌跡も表示
+        float tSec = 0f;
+        var psteps = r.Target != null ? r.Target.PlanSteps : null;
+        if (psteps != null && stepIndex < psteps.Count && psteps[stepIndex] != null)
+        {
+            tSec = psteps[stepIndex].time;
+        }
+        string rep = AnalyzeTraj(traj, tSec, r.Target != null ? r.Target.ModelKey : "", out bool warn);
+        SetState(PlanState.Preview, $"ｺﾞｰｽﾄ再生 step#{stepIndex}: {rep}（NGで停止）");
+        if (warn) { Debug.LogWarning($"[ComRos2PathPlanner] step#{stepIndex}: {rep}"); }
+        StartGhostPreview();           // Update がゴーストを軌道でループ再生
+    }
+
+    /// <summary>ApprovePlan から：教示中の軌道をキャッシュ保存し、ロボを終了姿勢へ置く。</summary>
+    private void SaveRegisteredCache()
+    {
+        if (registerPending == null || traj == null)
+        {
+            registerPending = null;
+            return;
+        }
+        var e = new Ros2TrajCacheStore.Entry
+        {
+            robotId = registerPending.robot.RobotId,
+            stepIndex = registerPending.index,
+            name = registerPending.step != null ? registerPending.step.name : "",
+            startDeg = new List<float>(registerStartDeg ?? new float[0]),
+            endDeg = new List<float>(registerEndDeg ?? new float[0]),
+            jointNames = new List<string>(traj.jointNames ?? jointNames),
+        };
+        for (int p = 0; p < traj.positions.Length; p++)
+        {
+            e.timesSec.Add((float)traj.timesSec[p]);
+            var row = new List<float>();
+            var pp = traj.positions[p];
+            for (int j = 0; j < pp.Length; j++)
+            {
+                row.Add((float)pp[j]);
+            }
+            e.positions.Add(row);
+        }
+        Ros2TrajCacheStore.Put(e);
+        // ロボを終了姿勢へ（次stepの開始点＝この終了点を揃える）。
+        if (registerEndDeg != null)
+        {
+            for (int j = 0; j < jointNames.Length && j < registerEndDeg.Length; j++)
+            {
+                com.ApplyValue(jointNames[j], registerEndDeg[j]);
+            }
+        }
+        string mk = registerPending.robot.Target != null ? registerPending.robot.Target.ModelKey : "";
+        float tSec = registerPending.step != null ? registerPending.step.time : 0f;
+        string rep = AnalyzeTraj(traj, tSec, mk, out bool warn);
+        Debug.Log($"[ComRos2PathPlanner] 登録: {e.robotId} step#{e.stepIndex} ({e.positions.Count}点) {rep}");
+        if (warn) { Debug.LogWarning($"[ComRos2PathPlanner] 登録 {e.name}: {rep}"); }
+        StopGhostPreview();
+        HidePreviewLine();
+        registerPending = null;
+        SetState(PlanState.Idle, "登録完了");
+    }
+
+    // --- ヘルパ ---
+    private Ros2Trajectory BuildTrajFromCache(Ros2TrajCacheStore.Entry e)
+    {
+        var t = new Ros2Trajectory
+        {
+            jointNames = (e.jointNames != null && e.jointNames.Count > 0) ? e.jointNames.ToArray() : jointNames,
+            timesSec = new double[e.timesSec.Count],
+            positions = new double[e.positions.Count][],
+        };
+        for (int i = 0; i < e.timesSec.Count; i++)
+        {
+            t.timesSec[i] = e.timesSec[i];
+        }
+        for (int i = 0; i < e.positions.Count; i++)
+        {
+            var row = e.positions[i];
+            var d = new double[row.Count];
+            for (int j = 0; j < row.Count; j++)
+            {
+                d[j] = row[j];
+            }
+            t.positions[i] = d;
+        }
+        return t;
+    }
+
+    /// <summary>軌道の各軸ピーク角速度・定格比・時間達成可否を解析して短い要約を返す（Step A）。warn=超過。</summary>
+    private string AnalyzeTraj(Ros2Trajectory tr, float timeMs, string modelKey, out bool warn)
+    {
+        warn = false;
+        if (tr == null || tr.timesSec == null || tr.timesSec.Length < 2
+            || tr.positions == null || tr.positions.Length < 2 || tr.positions[0] == null)
+        {
+            return "";
+        }
+        double timeSec = timeMs / 1000d;   // time は ms
+        int last = tr.timesSec.Length - 1;
+        double nativeDur = tr.timesSec[last];
+        double effDur = (timeSec > 0d) ? timeSec : nativeDur;
+        if (effDur <= 0d)
+        {
+            effDur = (nativeDur > 0d) ? nativeDur : 1d;
+        }
+        double scale = (nativeDur > 0d && effDur > 0d) ? nativeDur / effDur : 1d;   // 再生速度倍率
+        int nj = tr.positions[0].Length;
+        var limits = Ros2MotorLimits.MaxJointSpeedDeg(modelKey, nj);
+        var peak = new double[nj];
+        for (int p = 1; p <= last; p++)
+        {
+            double dt = tr.timesSec[p] - tr.timesSec[p - 1];
+            if (dt <= 1e-6 || tr.positions[p] == null || tr.positions[p - 1] == null)
+            {
+                continue;
+            }
+            var a = tr.positions[p];
+            var b = tr.positions[p - 1];
+            for (int j = 0; j < nj && j < a.Length && j < b.Length; j++)
+            {
+                double w = System.Math.Abs(a[j] - b[j]) / dt * scale;   // 実効角速度(°/s)
+                if (w > peak[j]) { peak[j] = w; }
+            }
+        }
+        double maxRatio = 0d;
+        int worst = -1;
+        for (int j = 0; j < nj; j++)
+        {
+            double lim = (limits != null && j < limits.Length && limits[j] > 0f) ? limits[j] : 0d;
+            double ratio = (lim > 0d) ? peak[j] / lim : 0d;
+            if (ratio > maxRatio) { maxRatio = ratio; worst = j; }
+        }
+        bool overSpeed = maxRatio > 1.0d;
+        bool overTime = timeSec > 0f && nativeDur > 0d && timeSec < nativeDur - 1e-3;
+        warn = overSpeed || overTime;
+        string s = $"所要{effDur:F2}s(最短{nativeDur:F2}s) 軸速{maxRatio * 100d:F0}%";
+        if (worst >= 0)
+        {
+            s += $"(J{worst + 1})";
+        }
+        if (overTime) { s += " ⚠時間<最短"; }
+        if (overSpeed) { s += " ⚠速度超過"; }
+        return s;
+    }
+
+    private bool ReadTagOn(SeqEntry s, string tag)
+    {
+        if (string.IsNullOrEmpty(tag) || string.IsNullOrEmpty(s.db) || string.IsNullOrEmpty(s.mech))
+        {
+            return false;
+        }
+        return GlobalScript.GetTagData(s.db, s.mech, tag) >= 1;
+    }
+
+    private void WriteTag(SeqEntry s, string tag, int value)
+    {
+        if (string.IsNullOrEmpty(tag) || string.IsNullOrEmpty(s.db) || string.IsNullOrEmpty(s.mech))
+        {
+            return;
+        }
+        var info = GlobalScript.GetTagInfo(s.db, s.mech, tag);
+        if (info != null)
+        {
+            GlobalScript.SetTagData(info, value);
+        }
+    }
+
+    private static double[] ToDoubleArray(List<float> l)
+    {
+        if (l == null)
+        {
+            return null;
+        }
+        var d = new double[l.Count];
+        for (int i = 0; i < l.Count; i++)
+        {
+            d[i] = l[i];
+        }
+        return d;
+    }
+
+    private static float[] ToFloat(double[] d)
+    {
+        if (d == null)
+        {
+            return null;
+        }
+        var f = new float[d.Length];
+        for (int i = 0; i < d.Length; i++)
+        {
+            f[i] = (float)d[i];
+        }
+        return f;
+    }
+
+    private static List<float> PrevPoseDeg(IReadOnlyList<Parameters.Ros2RobotStep> steps, int index)
+    {
+        if (steps == null || steps.Count == 0)
+        {
+            return null;
+        }
+        int prev = (index - 1 + steps.Count) % steps.Count;   // 循環：先頭の前は最終step
+        return steps[prev] != null ? steps[prev].poseDeg : null;
+    }
+
+    private static bool ApproxEqual(List<float> a, double[] b, float tolDeg)
+    {
+        if (a == null || b == null || a.Count != b.Length)
+        {
+            return false;
+        }
+        for (int i = 0; i < b.Length; i++)
+        {
+            if (Math.Abs(a[i] - b[i]) > tolDeg)
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+    #endregion robotSteps シーケンス駆動
 
     private void SetState(PlanState s, string msg)
     {
@@ -585,13 +1137,58 @@ public class ComRos2PathPlanner : MonoBehaviour
         }
         t.CreateGhost();
         previewT = 0d;
+        ghostSeek = false;   // 再生開始時は自動ループから
         ghostActive = true;
+    }
+
+    /// <summary>ゴースト再生の進捗(0..1)。シークバー表示用。</summary>
+    public float GhostPreviewT01
+    {
+        get
+        {
+            if (traj == null || traj.timesSec == null || traj.timesSec.Length == 0)
+            {
+                return 0f;
+            }
+            double gtotal = traj.timesSec[traj.timesSec.Length - 1];
+            return gtotal > 0d ? Mathf.Clamp01((float)(previewT / gtotal)) : 0f;
+        }
+    }
+
+    /// <summary>ゴースト再生中か（シークバーの表示可否に使う）。</summary>
+    public bool GhostActive => ghostActive;
+
+    /// <summary>シークバーからゴーストを 0..1 の位置へ手動スクラブする（自動送りは停止）。</summary>
+    public void SetGhostSeek(float t01)
+    {
+        if (!ghostActive || traj == null || traj.timesSec == null || traj.timesSec.Length == 0 || target == null)
+        {
+            return;
+        }
+        ghostSeek = true;   // シーク＝一時停止（自動送り停止）
+        double gtotal = traj.timesSec[traj.timesSec.Length - 1];
+        previewT = Mathf.Clamp01(t01) * gtotal;
+        target.PoseGhostDeg(SamplePoseJ16(previewT));
+    }
+
+    /// <summary>ゴースト再生中か（再生ボタンのラベル判定用）。true=自動送り中。</summary>
+    public bool GhostPlaying => ghostActive && !ghostSeek;
+
+    /// <summary>ゴースト再生の 再生/一時停止。再生=現在位置から自動送り再開／一時停止=現在位置で保持。</summary>
+    public void SetGhostPlaying(bool play)
+    {
+        if (!ghostActive)
+        {
+            return;
+        }
+        ghostSeek = !play;   // 再生=自動送り(false) / 一時停止=保持(true)
     }
 
     /// <summary>ゴーストを消してプレビュー再生を止める。</summary>
     private void StopGhostPreview()
     {
         ghostActive = false;
+        ghostSeek = false;
         if (target != null)
         {
             target.DestroyGhost();

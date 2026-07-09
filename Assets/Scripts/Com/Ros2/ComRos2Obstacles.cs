@@ -293,10 +293,24 @@ public class ComRos2Obstacles : MonoBehaviour
                 {
                     continue;   // 選択ロボ自身は障害物にしない
                 }
+                // 他ロボのヘッド(ツール)は Collider が多い(CAD 150+)ので、そのまま送ると重い＆過剰。
+                // 選択ロボ自身のヘッドと同様に「簡略化」し、ヘッド配下は個別送信せず world AABB を 1 箱にまとめる
+                // （避けたいだけなので把持開口は不要＝1箱が安全・軽量）。
+                var otherHead = reg.Target.GetHeadObject();
+                Transform otherHeadTf = otherHead != null ? otherHead.transform : null;
+                bool haveHeadAabb = false;
+                Vector3 hMin = Vector3.zero, hMax = Vector3.zero;
                 foreach (var col in reg.Target.GetBodyColliders())
                 {
                     if (col == null || col.transform == baseT || col.transform.IsChildOf(baseT))
                     {
+                        continue;
+                    }
+                    if (otherHeadTf != null && (col.transform == otherHeadTf || col.transform.IsChildOf(otherHeadTf)))
+                    {
+                        // ヘッド配下 → world AABB に集約（後で 1 箱化）。
+                        if (!haveHeadAabb) { hMin = col.bounds.min; hMax = col.bounds.max; haveHeadAabb = true; }
+                        else { hMin = Vector3.Min(hMin, col.bounds.min); hMax = Vector3.Max(hMax, col.bounds.max); }
                         continue;
                     }
                     if (col.bounds.Contains(baseT.position))
@@ -308,6 +322,22 @@ public class ComRos2Obstacles : MonoBehaviour
                     {
                         list.Add(ob);
                         others++;
+                    }
+                }
+                // 集約したヘッドを 1 箱(world AABB)で追加（簡略化ヘッド）。
+                if (haveHeadAabb)
+                {
+                    var hb = new Bounds();
+                    hb.SetMinMax(hMin, hMax);
+                    if (!hb.Contains(baseT.position))
+                    {
+                        string hid = (otherHead != null ? otherHead.name : reg.DisplayName) + "#otherhead";
+                        var hob = BoxFromWorldAabb(hid, hb.center, hb.size, baseT, baseCalibrationEuler);
+                        if (hob != null && seenIds.Add(hob.id))
+                        {
+                            list.Add(hob);
+                            others++;
+                        }
                     }
                 }
             }
@@ -378,11 +408,13 @@ public class ComRos2Obstacles : MonoBehaviour
             Debug.LogWarning("[ComRos2Obstacles] ヘッド(HeadObject)が見つかりません。headRoot を割当てるか Kinematics6D.HeadObject を確認してください。");
             return false;
         }
-        // 参照フレーム＝フランジ。名前指定を優先し、無ければヘッドの親（arm6 に parent 済み）を使う。
-        var flange = FindTransformByName(flangeNameContains);
+        // 参照フレーム＝フランジ。複数ロボットでは名前検索(FindTransformByName)がシーン全体を走査し、
+        // 別ロボの同名フランジ(例 J6FLANGE)を先に掴んでヘッドが別ロボ位置に付く不具合になる。
+        // → 選択ロボの「ヘッドの親(=そのロボの arm6/フランジに parent 済み)」を最優先。無い時だけ名前検索へ。
+        var flange = head.parent;
         if (flange == null)
         {
-            flange = head.parent;
+            flange = FindTransformByName(flangeNameContains);
         }
         if (flange == null)
         {

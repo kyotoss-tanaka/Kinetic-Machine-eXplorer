@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.EventSystems;
@@ -48,13 +49,25 @@ public class ComRos2PlanPanel : MonoBehaviour
     private double[] goalDeg = new double[6];       // 長さは jointNames.Length に追従
 
     private Text statusText;
-    private Text goalText;
-    private Text commText;                                            // ROS通信状態（タイトルバー右）
-    private Text launchStateText;                                     // ROS2 起動状態（stopped/starting/running_full）
+    private Text goalText;                                            // 旧ゴール表示（撤去・未使用）
+    private Text curText;                                             // ロボットの現在関節角（ライブ表示・旧ゴール行の位置）
+    private Text commText;                                            // ROS 状態（ROS2起動＋TCP接続 統合・タイトルバー右）
     private Button startBtn, stopBtn, restartBtn;                     // 起動/停止/再起動
     private Slider[] sliders = new Slider[0];
     private InputField[] sliderInputs = new InputField[0];   // 角度の直接入力（関節数ぶん）
     private Button setGoalBtn, planBtn, okBtn, ngBtn;
+    private const int IconPlay = 0xe037;                             // MaterialIcons play_arrow
+    private const int IconPause = 0xe034;                            // MaterialIcons pause
+    private Slider seekSlider;                                       // ゴースト再生のシーク（経路スクラブ確認・Preview中のみ）
+    private Button seekPlayBtn;                                      // 再生/一時停止（シークバー左）
+    private Text seekPlayLabel;                                      // ▶（一時停止中に表示・再生アイコン）
+    private GameObject seekPauseIcon;                                // 一時停止アイコン（縦2本バー・MaterialIcons未取得時のフォールバック）
+    private bool seekUseIconFont;                                    // MaterialIcons で / を使うか
+    private Toggle registerModeToggle;                               // 自動再生/登録 の切替
+    private Text registerModeLabel;                                  // トグルのラベル（選択テーブル名を表示）
+    private int selectedStep = 0;                                    // 登録モードで選択中のテーブル（既定=先頭）
+    private readonly List<GameObject> stepRows = new();              // ステップ一覧の行（登録モードで表示）
+    private readonly List<Text> stepStatusTexts = new();             // 各行の登録状態ラベル
     private Text robotNameText;                     // 選択中ロボット名（◀ 名前 ▶）
     private Button robotPrevBtn, robotNextBtn;
     private InputField budgetInput, ratioInput;                       // 時間予算/大回り許容比の入力
@@ -138,17 +151,72 @@ public class ComRos2PlanPanel : MonoBehaviour
             InitGoalFromCurrent();
             goalInitialized = true;
         }
-        // ROS通信状態（タイトルバー右）。
+        // ロボットの現在関節角（ライブ）を表示（旧ゴール行の位置）。
+        if (curText != null && GlobalScript.isLoaded)
+        {
+            var cur = planner.ReadCurrentDeg();
+            var sb = new System.Text.StringBuilder("現在: ");
+            if (cur != null)
+            {
+                for (int i = 0; i < cur.Length; i++)
+                {
+                    if (i > 0) { sb.Append(','); }
+                    sb.Append(cur[i].ToString("F0"));
+                }
+            }
+            curText.text = sb.ToString();
+        }
+        // ROS 状態（タイトルバー右）：ROS2 起動状態＋TCP接続 を1つに統合表示。
         if (commText != null)
         {
             bool up = planner.IsLinkUp;
-            commText.text = up ? "ROS ●接続" : "ROS ●未接続";
-            commText.color = up ? new Color(0.3f, 1f, 0.4f) : new Color(1f, 0.45f, 0.45f);
+            string lbl;
+            Color c;
+            if (launcher != null)
+            {
+                switch (launcher.State)
+                {
+                    case ComRos2Launcher.LaunchState.RunningFull:
+                        lbl = up ? "ROS2 ●稼働・接続" : "ROS2 ●稼働・未接続";
+                        c = up ? new Color(0.3f, 1f, 0.4f) : new Color(1f, 0.85f, 0.2f);
+                        break;
+                    case ComRos2Launcher.LaunchState.Starting:
+                        lbl = "ROS2 ●起動中…"; c = new Color(1f, 0.85f, 0.2f); break;
+                    case ComRos2Launcher.LaunchState.Stopped:
+                        lbl = "ROS2 ●停止"; c = new Color(0.7f, 0.7f, 0.7f); break;
+                    default:
+                        lbl = "ROS2 ●不明"; c = new Color(0.6f, 0.6f, 0.6f); break;
+                }
+                if (launcher.Busy) { lbl += "(処理中)"; }
+            }
+            else
+            {
+                lbl = up ? "ROS ●接続" : "ROS ●未接続";
+                c = up ? new Color(0.3f, 1f, 0.4f) : new Color(1f, 0.45f, 0.45f);
+            }
+            commText.text = lbl;
+            commText.color = c;
         }
-        // ROS2 起動状態ランプ＋ボタン活性（起動中は押下抑止）。
-        if (launcher != null && launchStateText != null)
+        // ROS2 起動/停止/再起動ボタンの活性のみ更新（状態表示は上の commText に統合）。
+        if (launcher != null)
         {
             UpdateLaunchUi();
+        }
+        // ゴースト再生シークバーを進捗に追従（手動スクラブ/一時停止中はその位置で固定）＋再生ボタン表示更新。
+        if (planner.State == ComRos2PathPlanner.PlanState.Preview && planner.GhostActive)
+        {
+            if (seekSlider != null) { seekSlider.SetValueWithoutNotify(planner.GhostPreviewT01); }
+            bool gplaying = planner.GhostPlaying;
+            if (seekUseIconFont)
+            {
+                // MaterialIcons: 再生中=pause() / 一時停止中=play_arrow()
+                if (seekPlayLabel != null) { seekPlayLabel.text = gplaying ? ((char)IconPause).ToString() : ((char)IconPlay).ToString(); }
+            }
+            else
+            {
+                if (seekPlayLabel != null) { seekPlayLabel.enabled = !gplaying; }   // 一時停止中=▶
+                if (seekPauseIcon != null) { seekPauseIcon.SetActive(gplaying); }   // 再生中=||バー
+            }
         }
         // 計画中の表示。予算>0 なら残り時間、0(ROS2既定で総量不明)なら経過時間。
         if (planner.State == ComRos2PathPlanner.PlanState.Planning && statusText != null)
@@ -226,15 +294,12 @@ public class ComRos2PlanPanel : MonoBehaviour
             startBtn = MakeButton(panel, "RosStart", "起動", new Vector2(8f, y), 60f, 26f, OnStartRos2);
             stopBtn = MakeButton(panel, "RosStop", "停止", new Vector2(72f, y), 60f, 26f, OnStopRos2);
             restartBtn = MakeButton(panel, "RosRestart", "再起動", new Vector2(136f, y), 72f, 26f, OnRestartRos2);
-            launchStateText = MakeLabel(panel, "RosState", "ROS2: -", 13, new Vector2(214f, y), W - 222f, 26f);
-            launchStateText.alignment = TextAnchor.MiddleRight;
             y -= 32f;
         }
 
-        statusText = MakeLabel(panel, "status", "待機", 16, new Vector2(8f, y), W - 16f, 24f);
-        y -= 28f;
-        goalText = MakeLabel(panel, "goal", "ゴール: -", 13, new Vector2(8f, y), W - 16f, 20f);
-        y -= 26f;
+        // ロボットの現在関節角（ライブ）。スライダー=ゴール、この行=現在 の対比用。
+        curText = MakeLabel(panel, "cur", "現在: -", 13, new Vector2(8f, y), W - 16f, 20f);
+        y -= 24f;
 
         // 関節スライダー＋直接入力（選択ロボの関節数ぶん・可変。6軸以上）
         int nJoints = (jointNames != null && jointNames.Length > 0) ? jointNames.Length : DefaultJointNames.Length;
@@ -286,8 +351,47 @@ public class ComRos2PlanPanel : MonoBehaviour
         setGoalBtn = MakeButton(panel, "SetGoal", "ゴール設定", new Vector2(8f, y), 168f, 34f, ToggleGoalSet);
         planBtn = MakeButton(panel, "Plan", "計画", new Vector2(184f, y), 168f, 34f, OnPlan);
         y -= 40f;
+        // 計画/再生の状態＋Step A 速度解析（空のときは非表示同然）。OK/NG の直上に置く。
+        statusText = MakeLabel(panel, "status", "", 14, new Vector2(8f, y), W - 16f, 22f);
+        y -= 24f;
+        // ゴースト再生の 再生/一時停止 ＋ シークバー（経路スクラブ確認）。Preview 中のみ表示。
+        seekPlayBtn = MakeButton(panel, "seekPlay", "▶", new Vector2(8f, y), 34f, 18f, OnSeekPlayToggle);
+        seekPlayLabel = seekPlayBtn.GetComponentInChildren<Text>();
+        var iconFont = GetIconFont();
+        if (iconFont != null)
+        {
+            // MaterialIcons で play_arrow()/pause() を表示。
+            seekUseIconFont = true;
+            seekPlayLabel.font = iconFont;
+            seekPlayLabel.fontSize = 18;
+            seekPlayLabel.text = "";
+        }
+        else
+        {
+            // フォント未取得時のフォールバック：▶(テキスト)＋一時停止は縦2本バー(Image)。
+            seekPauseIcon = MakePauseIcon((RectTransform)seekPlayBtn.transform);
+            seekPauseIcon.SetActive(false);
+        }
+        seekSlider = MakeSlider(panel, "seek", new Vector2(46f, y), W - 16f - 38f, 18f);
+        seekSlider.minValue = 0f;
+        seekSlider.maxValue = 1f;
+        seekSlider.value = 0f;
+        seekSlider.onValueChanged.AddListener(OnSeek);
+        y -= 24f;
         okBtn = MakeButton(panel, "OK", "OK 実行", new Vector2(8f, y), 168f, 34f, OnOk);
         ngBtn = MakeButton(panel, "NG", "NG 破棄", new Vector2(184f, y), 168f, 34f, OnNg);
+        y -= 44f;
+
+        // --- robotSteps シーケンス（自動再生／登録モード切替＋ステップ一覧） ---
+        var seqSep = MakeLabel(panel, "seqSep", "― ステップ再生 ―", 13, new Vector2(8f, y), W - 16f, 20f);
+        seqSep.alignment = TextAnchor.MiddleCenter;
+        y -= 24f;
+        registerModeToggle = MakeToggle(panel, "togRegister", "登録モード（ロボ停止・教示）", false,
+            new Vector2(8f, y), OnRegisterModeChanged);
+        registerModeLabel = registerModeToggle.GetComponentInChildren<Text>();   // ラベル（選択テーブル名を出す）
+        y -= 28f;
+        BuildStepRows(panel, ref y);
+        UpdateRegisterLabel();
 
         // 内容に合わせて背景の高さを確定（下の余白を詰める）
         panel.sizeDelta = new Vector2(W, -y + 34f + 8f);
@@ -345,6 +449,25 @@ public class ComRos2PlanPanel : MonoBehaviour
         if (f == null) { f = Resources.GetBuiltinResource<Font>("Arial.ttf"); }
         if (f == null) { f = Font.CreateDynamicFontFromOSFont("Arial", 14); }
         return f;
+    }
+
+    private static Font iconFontCache;
+    /// <summary>MaterialIcons フォントを実行時取得（プレハブ等で読込済みのものを探す）。無ければ null。</summary>
+    private static Font GetIconFont()
+    {
+        if (iconFontCache != null)
+        {
+            return iconFontCache;
+        }
+        foreach (var f in Resources.FindObjectsOfTypeAll<Font>())
+        {
+            if (f != null && f.name.IndexOf("MaterialIcons", System.StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                iconFontCache = f;
+                return f;
+            }
+        }
+        return null;   // 未検出（フォールバックへ）
     }
 
     private static RectTransform MakeRect(string name, Transform parent)
@@ -510,11 +633,62 @@ public class ComRos2PlanPanel : MonoBehaviour
         rt.offsetMin = Vector2.zero;
         rt.offsetMax = Vector2.zero;
     }
+
+    /// <summary>一時停止アイコン（縦2本バー）を Image で作りボタン中央に置く（フォント非依存）。</summary>
+    private GameObject MakePauseIcon(RectTransform parent)
+    {
+        var go = MakeRect("PauseIcon", parent);
+        go.anchorMin = new Vector2(0.5f, 0.5f);
+        go.anchorMax = new Vector2(0.5f, 0.5f);
+        go.pivot = new Vector2(0.5f, 0.5f);
+        go.anchoredPosition = Vector2.zero;
+        go.sizeDelta = new Vector2(12f, 12f);
+        for (int k = 0; k < 2; k++)
+        {
+            var bar = MakeRect("bar", go);
+            bar.anchorMin = new Vector2(0.5f, 0.5f);
+            bar.anchorMax = new Vector2(0.5f, 0.5f);
+            bar.pivot = new Vector2(0.5f, 0.5f);
+            bar.anchoredPosition = new Vector2(k == 0 ? -3f : 3f, 0f);
+            bar.sizeDelta = new Vector2(3.5f, 12f);
+            var img = bar.gameObject.AddComponent<Image>();
+            img.color = Color.white;
+            img.raycastTarget = false;   // クリックはボタン本体で拾う
+        }
+        return go.gameObject;
+    }
     #endregion UI 構築
 
     #region 操作
     private void ToggleGoalSet()
     {
+        // 登録モード：選択テーブルの ゴール位置(poseDeg) と 開始位置(前step終了) をトグルで切替表示して確認。
+        //   1回目＝ゴール姿勢 / もう一度＝解除して開始姿勢へ戻す。
+        if (registerModeToggle != null && registerModeToggle.isOn)
+        {
+            if (planner != null) { planner.CancelPlan(); }   // ゴースト消去
+            EnsureKin();
+            goalSetMode = !goalSetMode;
+            var steps = SelectedSteps();
+            if (steps != null && steps.Count > 0 && selectedStep >= 0 && selectedStep < steps.Count)
+            {
+                if (goalSetMode)
+                {
+                    // ゴール姿勢（このテーブルの終了姿勢）
+                    PoseRobotAt(steps[selectedStep] != null ? steps[selectedStep].poseDeg : null);
+                }
+                else
+                {
+                    // 解除 → 開始姿勢（前stepの終了・循環）へ戻す
+                    int prev = (selectedStep - 1 + steps.Count) % steps.Count;
+                    PoseRobotAt(steps[prev] != null ? steps[prev].poseDeg : null);
+                }
+            }
+            SetButtonColor(setGoalBtn, goalSetMode
+                ? new Color(0.8f, 0.5f, 0.1f, 0.95f)     // ゴール表示中=オレンジ
+                : new Color(0.2f, 0.4f, 0.7f, 0.95f));   // 開始表示=通常
+            return;
+        }
         goalSetMode = !goalSetMode;
         EnsureKin();
         if (goalSetMode)
@@ -555,7 +729,7 @@ public class ComRos2PlanPanel : MonoBehaviour
         goalDeg[i] = v;
         if (sliderInputs[i] != null) { sliderInputs[i].SetTextWithoutNotify(v.ToString("F1")); }
         UpdateGoalText();
-        if (goalSetMode && targetKin != null)
+        if ((goalSetMode || (registerModeToggle != null && registerModeToggle.isOn)) && targetKin != null)
         {
             targetKin.SetManualJointsDeg(goalDeg);   // 目標姿勢を実機モデルに表示
         }
@@ -571,7 +745,7 @@ public class ComRos2PlanPanel : MonoBehaviour
             if (sliders[i] != null) { sliders[i].SetValueWithoutNotify(val); }
             if (sliderInputs[i] != null) { sliderInputs[i].SetTextWithoutNotify(val.ToString("F1")); }
             UpdateGoalText();
-            if (goalSetMode && targetKin != null)
+            if ((goalSetMode || (registerModeToggle != null && registerModeToggle.isOn)) && targetKin != null)
             {
                 targetKin.SetManualJointsDeg(goalDeg);
             }
@@ -664,13 +838,37 @@ public class ComRos2PlanPanel : MonoBehaviour
         planner.CancelPlan();
     }
 
+    /// <summary>シークバー操作：ゴーストを 0..1 の位置へ手動スクラブ（＝一時停止）。</summary>
+    private void OnSeek(float v)
+    {
+        if (planner != null)
+        {
+            planner.SetGhostSeek(v);   // シーク使用時は一時停止（自動送り停止）
+        }
+    }
+
+    /// <summary>再生/一時停止トグル（シークバー左のボタン）。</summary>
+    private void OnSeekPlayToggle()
+    {
+        if (planner != null)
+        {
+            planner.SetGhostPlaying(!planner.GhostPlaying);
+        }
+    }
+
     private void OnPlanState(ComRos2PathPlanner.PlanState s, string msg)
     {
         if (statusText != null && s != ComRos2PathPlanner.PlanState.Planning)
         {
-            statusText.text = msg;   // Planning は Update で残り時間を出すのでここでは上書きしない
+            // Idle（待機/モード切替/キャンセル/完了）は空表示。計画中/成功/再生+速度のみ出す。
+            statusText.text = (s == ComRos2PathPlanner.PlanState.Idle) ? "" : msg;
         }
         RefreshButtons(s);
+        // 登録モードなら、登録/削除の反映（状態遷移＝保存完了 等）でステップ状態を更新。
+        if (registerModeToggle != null && registerModeToggle.isOn)
+        {
+            RefreshStepRows();
+        }
     }
 
     private void RefreshButtons(ComRos2PathPlanner.PlanState s)
@@ -678,31 +876,16 @@ public class ComRos2PlanPanel : MonoBehaviour
         bool preview = s == ComRos2PathPlanner.PlanState.Preview;
         if (okBtn != null) { okBtn.gameObject.SetActive(preview); }
         if (ngBtn != null) { ngBtn.gameObject.SetActive(preview); }
+        if (seekSlider != null) { seekSlider.gameObject.SetActive(preview); }   // シークバーは Preview 中のみ
+        if (seekPlayBtn != null) { seekPlayBtn.gameObject.SetActive(preview); }   // 再生/一時停止も Preview 中のみ
         if (planBtn != null) { planBtn.interactable = s != ComRos2PathPlanner.PlanState.Planning; }
     }
 
-    /// <summary>ROS2 起動状態ランプ＋起動/停止/再起動ボタンの活性を更新する。</summary>
+    /// <summary>起動/停止/再起動ボタンの活性のみ更新（状態表示は commText に統合）。</summary>
     private void UpdateLaunchUi()
     {
         bool busy = launcher.Busy;
         var st = launcher.State;
-        string label;
-        Color c;
-        switch (st)
-        {
-            case ComRos2Launcher.LaunchState.RunningFull:
-                label = "ROS2: ●稼働中"; c = new Color(0.3f, 1f, 0.4f); break;
-            case ComRos2Launcher.LaunchState.Starting:
-                label = "ROS2: ●起動中…"; c = new Color(1f, 0.85f, 0.2f); break;
-            case ComRos2Launcher.LaunchState.Stopped:
-                label = "ROS2: ●停止"; c = new Color(0.7f, 0.7f, 0.7f); break;
-            default:
-                label = "ROS2: ●不明"; c = new Color(0.6f, 0.6f, 0.6f); break;
-        }
-        if (busy) { label += " (処理中)"; }
-        launchStateText.text = label;
-        launchStateText.color = c;
-
         if (startBtn != null) { startBtn.interactable = !busy && st != ComRos2Launcher.LaunchState.RunningFull; }
         if (stopBtn != null) { stopBtn.interactable = !busy && st != ComRos2Launcher.LaunchState.Stopped; }
         if (restartBtn != null) { restartBtn.interactable = !busy; }
@@ -742,16 +925,11 @@ public class ComRos2PlanPanel : MonoBehaviour
         if (obstacles != null) { obstacles.SetTarget(sel); }
         targetKin = sel.Target;
         var names = sel.JointNames ?? DefaultJointNames;
-        if (jointNames == null || names.Length != jointNames.Length)
-        {
-            jointNames = names;
-            BuildUI();   // 関節数が変わったら全再構築（末尾で UpdateRobotRow も呼ぶ）
-        }
-        else
-        {
-            jointNames = names;
-            UpdateRobotRow();
-        }
+        jointNames = names;
+        // 関節数・ステップ一覧を選択ロボに追従させるため毎回全再構築（表示状態は復元）。
+        bool wasVisible = IsVisible;
+        BuildUI();
+        SetVisible(wasVisible);
         InitGoalFromCurrent();
         RefreshButtons(planner.State);
     }
@@ -783,6 +961,206 @@ public class ComRos2PlanPanel : MonoBehaviour
             sb.Append(goalDeg[i].ToString("F0"));
         }
         goalText.text = sb.ToString();
+    }
+
+    // --- ステップ再生（自動再生／登録モード） ---
+    private void OnRegisterModeChanged(bool on)
+    {
+        if (planner != null)
+        {
+            planner.SetMode(on ? ComRos2PathPlanner.SeqMode.Register : ComRos2PathPlanner.SeqMode.Auto);
+        }
+        SetStepRowsVisible(on);
+        EnsureKin();
+        if (on)
+        {
+            RefreshStepRows();
+            var steps = SelectedSteps();
+            if (steps != null && steps.Count > 0)
+            {
+                if (selectedStep < 0 || selectedStep >= steps.Count) { selectedStep = 0; }
+                OnSelectStep(selectedStep);   // 実位置でなくテーブル位置(選択=既定先頭の開始点)へ＋ラベル更新
+            }
+            else
+            {
+                UpdateRegisterLabel();
+            }
+        }
+        else
+        {
+            // 自動再生へ戻る：手動姿勢を解除して実位置へ（ゴーストは SetMode 側で消える）。
+            if (targetKin != null) { targetKin.SetManual(false); }
+            goalSetMode = false;
+            SetButtonColor(setGoalBtn, new Color(0.2f, 0.4f, 0.7f, 0.95f));
+            UpdateRegisterLabel();
+        }
+    }
+
+    /// <summary>テーブル名クリック：そのテーブルを選択し、ロボを開始点(前step終了)へ置いて確認する。</summary>
+    private void OnSelectStep(int stepIdx)
+    {
+        selectedStep = stepIdx;
+        if (planner != null) { planner.CancelPlan(); }   // 再生中のゴーストを消して実機表示へ
+        EnsureKin();
+        goalSetMode = false;
+        SetButtonColor(setGoalBtn, new Color(0.2f, 0.4f, 0.7f, 0.95f));
+        var steps = SelectedSteps();
+        if (steps != null && steps.Count > 0 && stepIdx >= 0 && stepIdx < steps.Count)
+        {
+            int prev = (stepIdx - 1 + steps.Count) % steps.Count;   // 開始点＝前stepの終了（循環）
+            PoseRobotAt(steps[prev] != null ? steps[prev].poseDeg : null);
+        }
+        UpdateRegisterLabel();
+    }
+
+    private void OnRegisterStep(int robotIdx, int stepIdx)
+    {
+        if (planner != null)
+        {
+            planner.RegisterStep(robotIdx, stepIdx);   // 計画→ゴーストプレビュー→OK で保存
+        }
+    }
+
+    private void OnDeleteStep(int robotIdx, int stepIdx)
+    {
+        if (planner != null)
+        {
+            planner.DeleteStepCache(robotIdx, stepIdx);   // 解除（登録キャッシュ削除）
+        }
+        RefreshStepRows();
+    }
+
+    private void OnPlayStep(int robotIdx, int stepIdx)
+    {
+        if (planner != null)
+        {
+            planner.PlayStepGhost(robotIdx, stepIdx);   // ゴーストでレビュー再生（実機は動かさない）
+        }
+    }
+
+    /// <summary>選択ロボの robotSteps 行を構築（登録モードで表示）。</summary>
+    private void BuildStepRows(RectTransform panel, ref float y)
+    {
+        stepRows.Clear();
+        stepStatusTexts.Clear();
+        const float W = 360f;
+        var sel = registry != null ? registry.Selected : null;
+        var steps = (sel != null && sel.Target != null) ? sel.Target.PlanSteps : null;
+        int robotIdx = registry != null ? registry.SelectedIndex : -1;
+        if (steps == null || steps.Count == 0)
+        {
+            var none = MakeLabel(panel, "stepNone", "（このロボにステップ未定義）", 12, new Vector2(8f, y), W - 16f, 20f);
+            stepRows.Add(none.gameObject);
+            y -= 22f;
+            SetStepRowsVisible(false);
+            return;
+        }
+        if (selectedStep < 0 || selectedStep >= steps.Count) { selectedStep = 0; }   // 既定=先頭
+        for (int i = 0; i < steps.Count; i++)
+        {
+            int si = i;
+            var row = MakeRect($"stepRow{i}", panel);
+            row.anchorMin = new Vector2(0f, 1f);
+            row.anchorMax = new Vector2(0f, 1f);
+            row.pivot = new Vector2(0f, 1f);
+            row.anchoredPosition = new Vector2(0f, y);
+            row.sizeDelta = new Vector2(W, 24f);
+            string nm = (steps[i] != null && !string.IsNullOrEmpty(steps[i].name)) ? steps[i].name : $"step{i}";
+            MakeLabel(row, "no", i.ToString(), 12, new Vector2(8f, 0f), 18f, 24f);
+            MakeButton(row, "nm", nm, new Vector2(26f, 1f), 90f, 22f, () => OnSelectStep(si));   // 名前クリック=開始点へ
+            var st = MakeLabel(row, "st", "", 12, new Vector2(118f, 0f), 42f, 24f);
+            MakeButton(row, "reg", "登録", new Vector2(162f, 1f), 62f, 22f, () => OnRegisterStep(robotIdx, si));
+            MakeButton(row, "rel", "解除", new Vector2(226f, 1f), 62f, 22f, () => OnDeleteStep(robotIdx, si));
+            MakeButton(row, "play", "再生", new Vector2(290f, 1f), 62f, 22f, () => OnPlayStep(robotIdx, si));
+            stepRows.Add(row.gameObject);
+            stepStatusTexts.Add(st);
+            y -= 26f;
+        }
+        RefreshStepRows();
+        SetStepRowsVisible(false);   // 既定=自動再生モードなので隠す
+    }
+
+    /// <summary>各ステップ行の登録状態（登録済/未登録）を更新する。</summary>
+    private void RefreshStepRows()
+    {
+        int robotIdx = registry != null ? registry.SelectedIndex : -1;
+        for (int i = 0; i < stepStatusTexts.Count; i++)
+        {
+            bool has = planner != null && planner.HasStepCache(robotIdx, i);
+            if (stepStatusTexts[i] != null)
+            {
+                stepStatusTexts[i].text = has ? "登録済" : "未登録";
+                stepStatusTexts[i].color = has ? new Color(0.3f, 1f, 0.4f) : new Color(1f, 0.6f, 0.3f);
+            }
+        }
+    }
+
+    private void SetStepRowsVisible(bool v)
+    {
+        foreach (var g in stepRows)
+        {
+            if (g != null)
+            {
+                g.SetActive(v);
+            }
+        }
+    }
+
+    private IReadOnlyList<Parameters.Ros2RobotStep> SelectedSteps()
+    {
+        var sel = registry != null ? registry.Selected : null;
+        return (sel != null && sel.Target != null) ? sel.Target.PlanSteps : null;
+    }
+
+    /// <summary>指定関節角(度)にロボを表示し、J1~J6 スライダー/入力/goalDeg も同値に更新する
+    /// （確認用。以後スライダーを触ると微調整でき、ロボも追従する）。</summary>
+    private void PoseRobotAt(List<float> poseDeg)
+    {
+        EnsureKin();
+        if (poseDeg == null || poseDeg.Count == 0)
+        {
+            return;
+        }
+        int n = (jointNames != null && jointNames.Length > 0) ? jointNames.Length : 6;
+        if (goalDeg == null || goalDeg.Length != n)
+        {
+            goalDeg = new double[n];
+        }
+        for (int i = 0; i < n; i++)
+        {
+            double v = (i < poseDeg.Count) ? poseDeg[i] : 0d;
+            goalDeg[i] = v;
+            if (i < sliders.Length && sliders[i] != null) { sliders[i].SetValueWithoutNotify((float)v); }
+            if (i < sliderInputs.Length && sliderInputs[i] != null) { sliderInputs[i].SetTextWithoutNotify(v.ToString("F1")); }
+        }
+        if (targetKin != null)
+        {
+            targetKin.SetManual(true);
+            targetKin.SetManualJointsDeg(goalDeg);
+        }
+    }
+
+    /// <summary>登録モードのラベルを "登録モード(ロボ停止・教示)：テーブル名" に更新する。</summary>
+    private void UpdateRegisterLabel()
+    {
+        if (registerModeLabel == null)
+        {
+            return;
+        }
+        bool on = registerModeToggle != null && registerModeToggle.isOn;
+        if (!on)
+        {
+            registerModeLabel.text = "登録モード（ロボ停止・教示）";
+            return;
+        }
+        var steps = SelectedSteps();
+        string nm = "-";
+        if (steps != null && selectedStep >= 0 && selectedStep < steps.Count)
+        {
+            var st = steps[selectedStep];
+            nm = (st != null && !string.IsNullOrEmpty(st.name)) ? st.name : $"step{selectedStep}";
+        }
+        registerModeLabel.text = $"登録モード(ロボ停止・教示)：{nm}";
     }
 
     private void EnsureKin()

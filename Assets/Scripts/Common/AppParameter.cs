@@ -666,6 +666,26 @@ namespace Parameters
         public Vector3 startPos { get; set; }
     }
 
+    /// <summary>
+    /// ROS2 経路計画の1ステップ（ロボをタイムチャートに載せる）。RobotSetting.robotSteps に列で持つ。
+    /// start タグ ON でこのステップ開始 → poseDeg(関節角) へ MoveIt 計画/再生 → 到達で end タグに 1。
+    /// KMX Tool で編集し RobotInfo.json に格納。
+    /// </summary>
+    [Serializable]
+    public class Ros2RobotStep
+    {
+        /// <summary>表示名（任意）</summary>
+        public string name { get; set; } = "";
+        /// <summary>開始タグ（ON でこのステップ開始）</summary>
+        public string start { get; set; } = "";
+        /// <summary>終了タグ（到達で 1 を書く）</summary>
+        public string end { get; set; } = "";
+        /// <summary>再生時間(秒)。>0 なら軌道をこの時間へ再スケール（0 は軌道の元時間）</summary>
+        public float time { get; set; }
+        /// <summary>終了姿勢＝関節角 J1..Jn(度)</summary>
+        public List<float> poseDeg { get; set; } = new();
+    }
+
     [Serializable]
     public class RobotSetting
     {
@@ -705,6 +725,10 @@ namespace Parameters
         /// タイムチャートユニット
         /// </summary>
         public List<string> tmUnitNames { get; set; } = new();
+        /// <summary>
+        /// ROS2 経路計画ステップ列（開始タグ→終了姿勢→終了タグ）。KMX Tool で編集・RobotInfo.json に格納。
+        /// </summary>
+        public List<Ros2RobotStep> robotSteps { get; set; } = new();
         /// <summary>
         /// ヘッドユニット設定
         /// </summary>

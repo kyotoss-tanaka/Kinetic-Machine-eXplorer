@@ -20,6 +20,9 @@ public interface IRos2PlanTarget
     /// <summary>関節数（経路生成対象は 6 以上）。</summary>
     int JointCount { get; }
 
+    /// <summary>この機体の経路計画ステップ列（RobotInfo.json robotSteps）。無ければ null/空。</summary>
+    IReadOnlyList<Parameters.Ros2RobotStep> PlanSteps { get; }
+
     /// <summary>現在の関節角(度)を返す（arm transform から逆算）。null は返さない。</summary>
     double[] GetCurrentJointsDeg();
 

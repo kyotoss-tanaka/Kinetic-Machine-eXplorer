@@ -103,6 +103,9 @@ public class Kinematics6D : Kinematics3D, IRos2PlanTarget
     /// <summary>関節数。</summary>
     public int JointCount => JointNames.Length;
 
+    /// <summary>経路計画ステップ列（RobotInfo.json robotSteps）。robo 未設定なら null。</summary>
+    public IReadOnlyList<Ros2RobotStep> PlanSteps => robo != null ? robo.robotSteps : null;
+
     /// <summary>現在の関節角(度)。既定はゼロ（arm 逆算はサブクラスで実装）。</summary>
     public virtual double[] GetCurrentJointsDeg() => new double[JointCount];
 
