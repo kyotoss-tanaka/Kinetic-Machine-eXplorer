@@ -57,9 +57,9 @@ public class MainProcess : KssBaseScript
         }
         else
         {
-            // Windows
+            // Windows：60fps で十分（vSync無効にして targetFrameRate を効かせる）。
             QualitySettings.vSyncCount = 0;
-            Application.targetFrameRate = 120;
+            Application.targetFrameRate = 60;
             // ovr.gameObject.SetActive(false);
         }
 

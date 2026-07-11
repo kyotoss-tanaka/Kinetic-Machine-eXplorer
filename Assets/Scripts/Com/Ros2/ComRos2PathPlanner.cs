@@ -51,6 +51,8 @@ public class ComRos2PathPlanner : MonoBehaviour
     [SerializeField] private float planTimeoutSec = 20f;
     [Tooltip("登録モードの探索予算(秒)。この間 ROS2 がリトライし続け、停止/予算到達でその間の最良(最短)を採用")]
     [SerializeField] private float registerSearchBudgetSec = 600f;
+    [Tooltip("探索中の『無進捗』失敗判定(秒)。計画試行1回が長い場合 opt行が間遠になるため通常より大きく。手動停止あり")]
+    [SerializeField] private float searchTimeoutSec = 90f;
     [Tooltip("探索中断の通知トピック（std_msgs/String）。押下で ROS2 が現在の最良で確定")]
     [SerializeField] private string planCancelTopic = "/kmx/plan_cancel";
     [Tooltip("経路プレビューの先端軌跡ライン色/幅")]
@@ -94,6 +96,8 @@ public class ComRos2PathPlanner : MonoBehaviour
     private bool optSearching;                    // 登録の最適化探索中か（停止ボタン表示・経過表示・timeout猶予に使う）
     private float lastOptMsgTime;                 // 直近の opt 行受信時刻（探索中の「無進捗」タイムアウト判定用）
     public bool OptSearching => optSearching;    // UI（停止ボタン表示）用
+    /// <summary>登録の保留中か（登録ボタン押下→OK保存/NGキャンセルで解除）。UIでステップ操作を無効化するのに使う。</summary>
+    public bool RegisterPending => registerPending != null;
     private LineRenderer previewLine;            // 先端軌跡プレビュー
     private const string PreviewLineName = "Ros2PlanPreviewLine";
     private const string GhostNameSuffix = "_Ghost";   // ゴースト複製名の接尾辞（機種非依存 "<model>_Ghost"）
@@ -313,6 +317,14 @@ public class ComRos2PathPlanner : MonoBehaviour
     /// 無ければ計画対象ロボットの kinematics から直接読む。UI がゴール初期値/start に使う。</summary>
     public double[] ReadCurrentDeg()
     {
+        // 複数ロボ時はタグ名(J1..J6)衝突で com.TryReadValue が別ロボ(robot2)の値を返すため、
+        // 対象ロボの Kinematics から直接読む。単一ロボは従来どおりタグ優先（/kmx/state と一致）。
+        if (registry == null) { registry = GetComponent<Ros2PlanTargetRegistry>(); }
+        if (registry != null && registry.Robots != null && registry.Robots.Count > 1)
+        {
+            var tt = EnsureTarget();
+            return (tt != null) ? tt.GetCurrentJointsDeg() : new double[jointNames.Length];
+        }
         var a = new double[jointNames.Length];
         bool allTagged = jointNames.Length > 0;
         for (int j = 0; j < jointNames.Length; j++)
@@ -601,12 +613,14 @@ public class ComRos2PathPlanner : MonoBehaviour
         // 登録の長時間探索中は総経過でなく「無進捗(opt行が来ない)」で判定（10分探索でも誤タイムアウトしない）。
         if (State == PlanState.Planning)
         {
+            // 探索中は「無進捗(opt行が来ない)」で判定＋大きめ猶予(searchTimeoutSec)。通常計画は総経過(planTimeoutSec)。
+            float limit = optSearching ? searchTimeoutSec : planTimeoutSec;
             float since = optSearching ? (Time.time - lastOptMsgTime) : (Time.time - planStartTime);
-            if (since > planTimeoutSec)
+            if (since > limit)
             {
                 string tmsg = optSearching
-                    ? $"探索応答なし（{planTimeoutSec:F0}s 進捗なし）"
-                    : $"タイムアウト（{planTimeoutSec:F0}s 応答なし）";
+                    ? $"探索応答なし（{limit:F0}s 進捗なし）"
+                    : $"タイムアウト（{limit:F0}s 応答なし）";
                 optSearching = false;
                 SetState(PlanState.Failed, tmsg);
             }
@@ -697,6 +711,29 @@ public class ComRos2PathPlanner : MonoBehaviour
     {
         if (pos == null)
         {
+            return;
+        }
+        // 複数ロボ時は /kmx state の関節名(J1..J6)がタグで衝突し、com.ApplyValue が別ロボ(最後に登録された
+        // robot2)へ漏れる。その場合は対象ロボの Kinematics を直接駆動して漏れを防ぐ（軌道の関節順→対象ロボ順に
+        // 並べ替え。SetManual(true) でタグ駆動の上書きも防止）。単一ロボは従来どおりタグ経由（/kmx/state 同期を維持）。
+        if (registry == null) { registry = GetComponent<Ros2PlanTargetRegistry>(); }
+        bool multiRobot = registry != null && registry.Robots != null && registry.Robots.Count > 1;
+        if (multiRobot && target != null)
+        {
+            var tn = traj != null ? traj.jointNames : null;
+            var ordered = new double[jointNames.Length];
+            for (int k = 0; k < jointNames.Length; k++)
+            {
+                int idx = k;
+                if (tn != null && tn.Length > 0)
+                {
+                    idx = Array.IndexOf(tn, jointNames[k]);
+                    if (idx < 0) { idx = k; }
+                }
+                ordered[k] = (idx >= 0 && idx < pos.Length) ? pos[idx] : 0d;
+            }
+            target.SetManual(true);
+            target.SetManualJointsDeg(ordered);
             return;
         }
         var names = traj.jointNames;
@@ -980,9 +1017,13 @@ public class ComRos2PathPlanner : MonoBehaviour
         registerStartDeg = ToFloat(startDeg);
         registerEndDeg = ToFloat(endDeg);
         // ロボを開始姿勢へ置いてから計画（教示の始点を揃える）。
-        for (int j = 0; j < jointNames.Length && j < startDeg.Length; j++)
+        // ★対象ロボの Kinematics を直接 manual で置く。com.ApplyValue は subByName が関節名(J1..J6)キーで
+        //   複数ロボを区別できず、別ロボ(非manual側)へ書込みが漏れるため使わない。SetManual(true) で
+        //   タグ駆動の上書きも防ぐ（パネルの PoseRobotAt と同じ方式）。
+        if (target != null)
         {
-            com.ApplyValue(jointNames[j], startDeg[j]);
+            target.SetManual(true);
+            target.SetManualJointsDeg(startDeg);
         }
         // 登録は多目的最適化を要求（優先度 時間>ジャーク>トルク）。time は ms→秒（0=成り行き）。
         // 大きな探索予算(registerSearchBudgetSec・既定10分)で回し続け、ユーザーが「停止」するか予算到達で
@@ -1086,13 +1127,14 @@ public class ComRos2PathPlanner : MonoBehaviour
             e.positions.Add(row);
         }
         Ros2TrajCacheStore.Put(e);
-        // ロボを終了姿勢へ（次stepの開始点＝この終了点を揃える）。
-        if (registerEndDeg != null)
+        // ロボを終了姿勢へ（次stepの開始点＝この終了点を揃える）。対象ロボ固有に置く（別ロボへ漏らさない）。
+        var regTarget = registerPending.robot != null ? registerPending.robot.Target : target;
+        if (registerEndDeg != null && regTarget != null)
         {
-            for (int j = 0; j < jointNames.Length && j < registerEndDeg.Length; j++)
-            {
-                com.ApplyValue(jointNames[j], registerEndDeg[j]);
-            }
+            var endD = new double[registerEndDeg.Length];
+            for (int j = 0; j < endD.Length; j++) { endD[j] = registerEndDeg[j]; }
+            regTarget.SetManual(true);
+            regTarget.SetManualJointsDeg(endD);
         }
         string mk = registerPending.robot.Target != null ? registerPending.robot.Target.ModelKey : "";
         float tSec = registerPending.step != null ? registerPending.step.time : 0f;
@@ -1394,6 +1436,19 @@ public class ComRos2PathPlanner : MonoBehaviour
             return gtotal > 0d ? Mathf.Clamp01((float)(previewT / gtotal)) : 0f;
         }
     }
+
+    /// <summary>ゴースト再生の現在時刻[秒]（軌道タイムライン上・0..総時間）。UIの再生時間表示用。</summary>
+    public float GhostTimeSec
+    {
+        get
+        {
+            float dur = GhostDurationSec;
+            return dur > 0f ? Mathf.Clamp((float)previewT, 0f, dur) : 0f;
+        }
+    }
+    /// <summary>ゴースト軌道の総時間[秒]（＝最終点の time_from_start）。</summary>
+    public float GhostDurationSec => (traj != null && traj.timesSec != null && traj.timesSec.Length > 0)
+        ? (float)traj.timesSec[traj.timesSec.Length - 1] : 0f;
 
     /// <summary>ゴースト再生中か（シークバーの表示可否に使う）。</summary>
     public bool GhostActive => ghostActive;

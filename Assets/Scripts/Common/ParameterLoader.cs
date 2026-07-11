@@ -792,7 +792,7 @@ namespace Parameters
             GlobalScript.isLoading = false;
             GlobalScript.isLoaded = true;
             // ロード完了後、実行時フレームレートに戻す。WebGLモード(実機 or EditorのWebGLテストトグルON)は
-            // WebGlSetting.targetFrameRate(既定30)、それ以外(Windows/Android/通常Editor)は120。
+            // WebGlSetting.targetFrameRate(既定30)、Quest(XR)は120、それ以外(Windows/通常Editor)は60。
 #if UNITY_WEBGL && !UNITY_EDITOR
             bool webglMode = true;
 #elif UNITY_EDITOR
@@ -807,7 +807,8 @@ namespace Parameters
             }
             else
             {
-                Application.targetFrameRate = 120;
+                // Quest(XR)はVR快適性のため120維持、Windows/通常Editorは60で十分。
+                Application.targetFrameRate = GlobalScript.isXRMode ? 120 : 60;
             }
             Debug.Log($"[FrameRate] 実行時 targetFrameRate={Application.targetFrameRate} (webglMode={webglMode})");
             CommonFunction.DebugLog($"***** Load Finished *****", true);

@@ -49,6 +49,7 @@ public class ComRos2PlanPanel : MonoBehaviour
     private double[] goalDeg = new double[6];       // 長さは jointNames.Length に追従
 
     private Text statusText;
+    private Text seekTimeLabel;   // 再生中の時間（現在/総 秒）。シークバー右
     private Text goalText;                                            // 旧ゴール表示（撤去・未使用）
     private Text curText;                                             // ロボットの現在関節角（ライブ表示・旧ゴール行の位置）
     private Text commText;                                            // ROS 状態（ROS2起動＋TCP接続 統合・タイトルバー右）
@@ -56,6 +57,7 @@ public class ComRos2PlanPanel : MonoBehaviour
     private Slider[] sliders = new Slider[0];
     private InputField[] sliderInputs = new InputField[0];   // 角度の直接入力（関節数ぶん）
     private Button setGoalBtn, planBtn, okBtn, ngBtn, stopSearchBtn;
+    private bool stopSearchLatched;   // 探索停止押下→データ返信まで再押下を無効化するラッチ
     private const int IconPlay = 0xe037;                             // MaterialIcons play_arrow
     private const int IconPause = 0xe034;                            // MaterialIcons pause
     private Slider seekSlider;                                       // ゴースト再生のシーク（経路スクラブ確認・Preview中のみ）
@@ -68,6 +70,7 @@ public class ComRos2PlanPanel : MonoBehaviour
     private int selectedStep = 0;                                    // 登録モードで選択中のテーブル（既定=先頭）
     private readonly List<GameObject> stepRows = new();              // ステップ一覧の行（登録モードで表示）
     private readonly List<Text> stepStatusTexts = new();             // 各行の登録状態ラベル
+    private readonly List<Button> stepButtons = new();               // 各行の 登録/解除/再生 ボタン（登録保留中は無効化）
     private Text robotNameText;                     // 選択中ロボット名（◀ 名前 ▶）
     private Button robotPrevBtn, robotNextBtn;
     private InputField budgetInput, ratioInput;                       // 時間予算/大回り許容比の入力
@@ -206,6 +209,7 @@ public class ComRos2PlanPanel : MonoBehaviour
         if (planner.State == ComRos2PathPlanner.PlanState.Preview && planner.GhostActive)
         {
             if (seekSlider != null) { seekSlider.SetValueWithoutNotify(planner.GhostPreviewT01); }
+            if (seekTimeLabel != null) { seekTimeLabel.text = $"{planner.GhostTimeSec:F1}/{planner.GhostDurationSec:F1}s"; }
             bool gplaying = planner.GhostPlaying;
             if (seekUseIconFont)
             {
@@ -235,7 +239,23 @@ public class ComRos2PlanPanel : MonoBehaviour
                     : $"計画中…  {el:F1}s 経過";
             }
             // 探索中は停止ボタンを表示（OptSearching は状態遷移なしで変わり得るため毎フレーム反映）。
-            if (stopSearchBtn != null) { stopSearchBtn.gameObject.SetActive(planner.OptSearching); }
+            // 停止押下後(ラッチ)はデータ返信まで無効化。探索が終われば(OptSearching=false)ラッチ解除。
+            if (!planner.OptSearching) { stopSearchLatched = false; }
+            if (stopSearchBtn != null)
+            {
+                stopSearchBtn.gameObject.SetActive(planner.OptSearching);
+                stopSearchBtn.interactable = planner.OptSearching && !stopSearchLatched;
+            }
+        }
+
+        // 登録の保留中（登録押下→OK実行/NGキャンセルまで）は 登録/解除/再生 を無効化（多重実行・誤操作防止）。
+        if (stepButtons.Count > 0)
+        {
+            bool lockSteps = planner != null && planner.RegisterPending;
+            for (int i = 0; i < stepButtons.Count; i++)
+            {
+                if (stepButtons[i] != null) { stepButtons[i].interactable = !lockSteps; }
+            }
         }
     }
 
@@ -387,11 +407,15 @@ public class ComRos2PlanPanel : MonoBehaviour
             seekPauseIcon = MakePauseIcon((RectTransform)seekPlayBtn.transform);
             seekPauseIcon.SetActive(false);
         }
-        seekSlider = MakeSlider(panel, "seek", new Vector2(46f, y), W - 16f - 38f, 18f);
+        // シークバー（右に再生時間ラベル 52px 分を確保して幅を詰める）。
+        seekSlider = MakeSlider(panel, "seek", new Vector2(46f, y), W - 16f - 38f - 52f, 18f);
         seekSlider.minValue = 0f;
         seekSlider.maxValue = 1f;
         seekSlider.value = 0f;
         seekSlider.onValueChanged.AddListener(OnSeek);
+        // 再生中の時間（現在/総 秒）。スライダー右端。
+        seekTimeLabel = MakeLabel(panel, "seekTime", "", 12, new Vector2(W - 56f, y), 52f, 18f);
+        seekTimeLabel.alignment = TextAnchor.MiddleRight;
         y -= 24f;
         okBtn = MakeButton(panel, "OK", "OK 実行", new Vector2(8f, y), 168f, 34f, OnOk);
         ngBtn = MakeButton(panel, "NG", "NG 破棄", new Vector2(184f, y), 168f, 34f, OnNg);
@@ -861,8 +885,11 @@ public class ComRos2PlanPanel : MonoBehaviour
     {
         if (planner != null)
         {
-            planner.RequestStopSearch();   // 二重送信されても ROS2 側は無害（既に確定処理中）
+            planner.RequestStopSearch();
         }
+        // 確定→軌道受信まで少し掛かるので、その間は再押下不可にする（二重送信・誤操作防止）。
+        stopSearchLatched = true;
+        if (stopSearchBtn != null) { stopSearchBtn.interactable = false; }
     }
 
     /// <summary>シークバー操作：ゴーストを 0..1 の位置へ手動スクラブ（＝一時停止）。</summary>
@@ -905,10 +932,16 @@ public class ComRos2PlanPanel : MonoBehaviour
         if (ngBtn != null) { ngBtn.gameObject.SetActive(preview); }
         if (seekSlider != null) { seekSlider.gameObject.SetActive(preview); }   // シークバーは Preview 中のみ
         if (seekPlayBtn != null) { seekPlayBtn.gameObject.SetActive(preview); }   // 再生/一時停止も Preview 中のみ
+        if (seekTimeLabel != null) { seekTimeLabel.gameObject.SetActive(preview); }   // 再生時間も Preview 中のみ
         if (planBtn != null) { planBtn.interactable = s != ComRos2PathPlanner.PlanState.Planning; }
         // 停止ボタンは「登録の探索中」のみ表示（実際の可視制御は Update でも毎フレーム更新）。
         bool searching = s == ComRos2PathPlanner.PlanState.Planning && planner != null && planner.OptSearching;
-        if (stopSearchBtn != null) { stopSearchBtn.gameObject.SetActive(searching); }
+        if (!searching) { stopSearchLatched = false; }   // 探索終了でラッチ解除（次回は押せる）
+        if (stopSearchBtn != null)
+        {
+            stopSearchBtn.gameObject.SetActive(searching);
+            stopSearchBtn.interactable = searching && !stopSearchLatched;
+        }
     }
 
     /// <summary>起動/停止/再起動ボタンの活性のみ更新（状態表示は commText に統合）。</summary>
@@ -1073,6 +1106,7 @@ public class ComRos2PlanPanel : MonoBehaviour
     {
         stepRows.Clear();
         stepStatusTexts.Clear();
+        stepButtons.Clear();
         const float W = 360f;
         var sel = registry != null ? registry.Selected : null;
         var steps = (sel != null && sel.Target != null) ? sel.Target.PlanSteps : null;
@@ -1099,9 +1133,9 @@ public class ComRos2PlanPanel : MonoBehaviour
             MakeLabel(row, "no", i.ToString(), 12, new Vector2(8f, 0f), 18f, 24f);
             MakeButton(row, "nm", nm, new Vector2(26f, 1f), 90f, 22f, () => OnSelectStep(si));   // 名前クリック=開始点へ
             var st = MakeLabel(row, "st", "", 12, new Vector2(118f, 0f), 42f, 24f);
-            MakeButton(row, "reg", "登録", new Vector2(162f, 1f), 62f, 22f, () => OnRegisterStep(robotIdx, si));
-            MakeButton(row, "rel", "解除", new Vector2(226f, 1f), 62f, 22f, () => OnDeleteStep(robotIdx, si));
-            MakeButton(row, "play", "再生", new Vector2(290f, 1f), 62f, 22f, () => OnPlayStep(robotIdx, si));
+            stepButtons.Add(MakeButton(row, "reg", "登録", new Vector2(162f, 1f), 62f, 22f, () => OnRegisterStep(robotIdx, si)));
+            stepButtons.Add(MakeButton(row, "rel", "解除", new Vector2(226f, 1f), 62f, 22f, () => OnDeleteStep(robotIdx, si)));
+            stepButtons.Add(MakeButton(row, "play", "再生", new Vector2(290f, 1f), 62f, 22f, () => OnPlayStep(robotIdx, si)));
             stepRows.Add(row.gameObject);
             stepStatusTexts.Add(st);
             y -= 26f;
