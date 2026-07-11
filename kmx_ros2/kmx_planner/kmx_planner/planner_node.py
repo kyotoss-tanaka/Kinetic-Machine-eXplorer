@@ -21,9 +21,21 @@ MoveIt モードの前提:
   Unity 側の関節名（J1..J6）と MoveIt 側の関節名は moveit_joint_names の「インデックス対応」で紐づける。
 """
 import math
+import os
 import random
 import re
 import threading
+
+import yaml   # 登録最適化(段階1.5)：joint_limits.yaml から vel/acc/jerk 上限を読む
+
+# 動的ショートカット(段階1.5+)の steering に使う。★単一ターゲット state-to-state のみ＝ローカル動作
+# （intermediate_positions は OSS だとクラウド送信＝使わない）。未導入でも動的SCを無効化して起動できる。
+try:
+    from ruckig import Ruckig as _Ruckig, InputParameter as _RkInput, \
+        Trajectory as _RkTraj, Result as _RkResult
+    _RUCKIG_OK = True
+except Exception:   # noqa: BLE001
+    _RUCKIG_OK = False
 
 import rclpy
 from rclpy.node import Node
@@ -168,13 +180,46 @@ class KmxPlannerNode(Node):
         # plan_good_ratio 倍以下なら十分短いとみなし、予算を待たず即採用。超えていれば予算/回数まで
         # 「より短い通り道」を探し続ける（稀な大迂回ホモトピーで妥協しない）。0以下で無効（常に予算使用）。
         self.declare_parameter('plan_good_ratio', 2.0)
+        # ★登録最適化(optimize)の再タイム方式（REGISTER_OPTIMIZE 段階1/1.5）：
+        #   'jerk'  （段階1.5・既定）＝純Python double-S(7区間)で per-joint 速度/加速度/ジャーク上限を厳守した最短再タイム。
+        #   'scurve'（段階1）      ＝node内 S字(smootherstep)固定形（簡易ジャーク低減・上限は厳守しない）。
+        #   'scale'               ＝MoveIt Ruckig 済 base_traj の一様時間スケール（要 MoveIt 側 Ruckig アダプタ）。
+        self.declare_parameter('optimize_retime', 'jerk')
+        # ★段階1.5 角分割：障害物を縫う折れ線経路の“角”(関節速度の向きが急変する点)は単一 double-S でも
+        #   ジャークがスパイク＋一様スケールで経路全体が律速される。_jerk_retime は経路をこの角で分割し、
+        #   各サブ経路を rest-to-rest double-S で個別に計時（角ごとに局所減速）。閾値＝隣接方向の変化角。
+        self.declare_parameter('jerk_corner_min_deg', 5.0)   # この角度超で分割点＝角（未満は同一直線区間に統合）
+        # ★角丸め：発行前に折れ線の角を制約付き Laplacian で丸める試み。ただし「角で停止する区間double-S」とは
+        #   相性が悪い（丸めると1つの鋭角が複数の緩いキンク>min_deg に広がり分割＝停止が増える）ため**既定オフ**。
+        #   角を速度維持で通すには曲率対応の時間割り当て（Ruckig/3次TOPP）が必要＝今後の改良方針。コードは温存。
+        self.declare_parameter('jerk_corner_round', 0)       # 角丸め反復上限(0=無効・既定)。
+        self.declare_parameter('jerk_corner_lambda', 0.5)    # 角丸めの強さ(0..1)
         # ★経路短縮（RRT*-Smart の Path Optimization 相当）：発行前に、非隣接ウェイポイント間を
         #   直結できる（間の直線補間が衝突しない）なら中間点を捨てて経路を短くする。衝突判定は
         #   /check_state_validity を経路上だけに使う（attachヘッド＋障害物込み）。冗長な迂回を除去。
         self.declare_parameter('path_shortcut', True)
-        self.declare_parameter('shortcut_step_deg', 4.0)          # 直線補間の衝突チェック刻み(度)
+        # 直線補間の衝突チェック刻み(度)。★安全：粗いとトンネリング／ハグ経路のグレージング（隣接サンプル間で
+        #   薄い障害物・爪をすり抜け）。ショートカットが導入する straight をこの刻みで検証＝発行前ゲート解像度に
+        #   合わせて細かくしないと擦る straight を採ってしまう。0.6°(≈2cm掃引)＋obstacle_margin_m=2cm で
+        #   タイト箱でも発行軌道 衝突0（301点中点込）を実測。offline register 前提の細刻み。
+        self.declare_parameter('shortcut_step_deg', 0.6)
         self.declare_parameter('shortcut_output_step_deg', 5.0)   # 出力の再サンプル刻み(度)
+        # ★動的ショートカット（Hauser 2010・軌道空間）：min-time 軌道上でランダム2時刻の状態 (q,v,a) を
+        #   非ゼロ境界速度の jerk 制限 state-to-state(ローカル Ruckig)で直結→衝突検証して短ければ置換。
+        #   クリアランスのある角は自動で丸まり停止が消える／無い角は棄却で停止のまま（安全）。offline register 用。
+        #   ★既定オフ(0)：現状は (q,v,a) を有限差分で得ており加速度が不正確→繋ぎ目でジャーク違反(実測1.56)。
+        #   軌道が解析的 (q,v,a) を保持する実装に直してから有効化する（次段）。
+        self.declare_parameter('dynamic_shortcut_iters', 0)
         self.declare_parameter('state_validity_service', '/check_state_validity')
+        # 安全マージン：world 障害物を各面 obstacle_margin_m 膨張。★既定0＝無効。
+        #   当初は擦り防止に 2cm 入れたが、cluttered 実シーンでは start/goal 姿勢がヘッドごと障害物の 2cm 以内
+        #   にあり、膨張で端点が衝突→GOAL_STATE_INVALID(-27) で計画不能になった（実測）。安全は
+        #   「細ショートカット(shortcut_step_deg=0.6°)＋発行前ゲート(_traj_collision_free)」で担保できるため
+        #   マージンは既定0。狭所でないシーンで余裕が欲しい時だけ小さく（<最小端点クリアランス）設定する。
+        self.declare_parameter('obstacle_margin_m', 0.0)
+        # 発行直前に最終軌道の全点＋隣接中点を /check_state_validity で一括検証（validate-what-you-publish）。
+        #   衝突が残れば発行中止（failed:collision）＝擦る軌道を Unity に流さない。offline register の安全ゲート。
+        self.declare_parameter('final_collision_check', True)
         # ★経路生成バックエンド。'moveit'=現行(OMPL RRTConnect+retry+shortcut, 既定)。
         #   'rrtstar_smart'=Python実装のRRT*-Smart（実験的）。衝突判定は check_state_validity 経由の
         #   ため速度は控えめ。時間予算(plan_time_budget_sec / PlanRequest.time_budget)内で最良を返す。
@@ -185,6 +230,39 @@ class KmxPlannerNode(Node):
         self.declare_parameter('rrt_rewire_radius_deg', 45.0) # RRT* 近傍リワイヤ半径(度)
         self.declare_parameter('rrt_beacon_bias', 0.35)       # RRT*-Smart: 経路近傍サンプル確率
         self.declare_parameter('rrt_beacon_radius_deg', 25.0) # ビーコン近傍サンプル半径(度)
+        # ★登録(optimize)バックエンド：'legacy'(既定・現行 shortcut/raw + _opt_retime)／
+        #   'stomp'(②③ 再設計＝pin+coal オラクル上で STOMP-lite で C² 経路最適化→単一 double-S ジャーク制限 retime)。
+        #   stomp は失敗/衝突/例外/import不可なら legacy へ自動フォールバック＝安全。復帰(optimize=false)は不変。
+        #   詳細は register_redesign/HANDOFF_register_redesign.md。pin/coal/numpy2 は ~/.local（node と共存確認済）。
+        self.declare_parameter('register_backend', 'stomp')
+        # ★stomp_K＝clamped cubic B-spline 制御点数。小さいほど構造的に滑らか＝低曲率＝retime が速く一貫。
+        #   実測(実 clutter・同一base×3seed)：K=6→19s / K=8→21s / K=10→25s / K=12→30s（全て衝突フリー）。
+        #   K を上げると狭所を縫う自由度は増すが曲率が増え遅くなる。既定8＝速度と threading の均衡。
+        self.declare_parameter('stomp_K', 8)
+        self.declare_parameter('stomp_M', 60)             # コスト評価サンプル数
+        self.declare_parameter('stomp_d_safe', 0.03)      # clearance ソフト帯(m)
+        self.declare_parameter('stomp_rollouts', 20)      # STOMP rollout 数/反復
+        self.declare_parameter('stomp_budget_sec', 8.0)   # 最適化の時間予算(anytime・cancel対応)
+        self.declare_parameter('stomp_dense_n', 1500)     # retime へ渡す密サンプル数(≥600＝頂点artifact回避)
+        self.declare_parameter('stomp_clearance', 'margin')   # 'margin'(高速量子化)/'exact'(厳密・低速)
+        self.declare_parameter('stomp_w_clear', 25.0)     # コスト重み: clearance 不足²
+        self.declare_parameter('stomp_w_length', 1.0)     #             経路長
+        self.declare_parameter('stomp_w_smooth', 3.0)     #             関節加速度²
+        self.declare_parameter('stomp_w_grav', 1.0)       #             重力トルク(g/effort)²
+        self.declare_parameter('stomp_w_tip', 2.0)        #             先端Cartesian加速度²
+        # ★登録の候補ベース数：BITstar は run 毎に別ホモトピー/長さの経路を返す。最短1本に賭けず
+        #   上位 N 本を保持し、register 発行時に「短い順に STOMP 最適化→発行前ゲート」を試し、最初に
+        #   衝突フリーで通った経路を発行する（＝最短でなく“衝突しない中で最短”）。1本が縫えなくても
+        #   別ホモトピーで通る＝成功率が上がる。オラクル(pin+coal)は1回だけ構築して全候補で使い回す。
+        self.declare_parameter('register_candidates', 5)
+        # ★登録探索の試行回数上限：optimize は従来「予算(time_budget=600s)いっぱい BITstar を数百回」
+        #   呼んでいたが、OMPL BITstar は稀に solve/publishSolution で SIGSEGV し move_group が落ちる
+        #   （OMPL 既知バグ・回数に比例して踏む）。候補方式では上位数本あれば十分なので、この回数で
+        #   探索を打ち切り crash 露出を下げる（＋register も速くなる）。time_budget/cancel より先に効く。
+        #   もっと短い base を粘りたいなら増やす。0以下で無制限（従来動作）。
+        #   ★既定0＝無制限（BITstar pruning 無効化で crash 根治済みのため回数制限は不要・ユーザー要望2026-07-11）。
+        #   BITstar が再びクラッシュするようなら >0 にして露出を抑える保険として残す。
+        self.declare_parameter('register_search_attempts', 0)
         self.declare_parameter('robot_description_topic', '/robot_description')
         # 補間モード用
         self.declare_parameter('duration_sec', 3.0)
@@ -229,6 +307,8 @@ class KmxPlannerNode(Node):
         # 反映後は plan_only（/kmx/plan_request）が障害物を回避した軌道を返す。
         self._obstacle_ids = set()   # 前回反映した world 障害物 id 集合（消し込み用）
         self._attached_ids = set()   # 前回反映した attached(ツール) id 集合
+        self._last_world_msg = None      # ★最後に受けた障害物/ヘッド（scene 乖離時の再適用用・安全）
+        self._last_attached_msg = None
         self.attach_link = self.get_parameter('attach_link').value
         self.attached_touch_links = list(self.get_parameter('attached_touch_links').value)
         self._scene_cli = None
@@ -252,7 +332,8 @@ class KmxPlannerNode(Node):
             # （_obstacle_ids が空のままだと消し込み差分が出ず、古い箱が残る）。move_group 未起動なら
             # サービス未準備なので、タイマーで数回リトライしてから諦める（非ブロック）。
             self._get_scene_cli = self.create_client(
-                GetPlanningScene, self.get_parameter('get_scene_service').value)
+                GetPlanningScene, self.get_parameter('get_scene_service').value,
+                callback_group=MutuallyExclusiveCallbackGroup())   # sync .call() を別スレッドで安全に
             self._synced_existing = False
             self._sync_tries = 0
             self._sync_timer = self.create_timer(2.0, self._sync_existing_ids)
@@ -320,12 +401,14 @@ class KmxPlannerNode(Node):
         if optimize:
             self._publish_status("opt phase=search iter=0 best=0.00")
             if self.use_moveit:
+                # ★安全：move_group respawn で scene が空になっていたらキャッシュ再適用（無障害での誤成功を防ぐ）。
+                self._resync_scene_if_diverged()
                 # 衝突回避経路を scaling=1 で計画→完了時に _optimize_and_publish で再タイム付け発行。
                 self.plan_with_moveit(names, start, goal, req_budget, req_ratio,
                                       optimize=True, target_time=target_time)
             else:
                 base = self.plan_interpolate(names, start, goal)
-                self._optimize_and_publish(base, target_time)
+                self._optimize_and_publish(base, target_time, names)
             return
 
         if self.use_moveit:
@@ -348,10 +431,12 @@ class KmxPlannerNode(Node):
         frame = msg.frame_id if msg.frame_id else 'base_link'
         self.get_logger().info(
             f"obstacles received: {len(msg.items)} items, frame_id='{frame}'")
+        self._last_world_msg = msg   # scene 乖離時の再適用用にキャッシュ
 
         scene = PlanningScene()
         scene.is_diff = True
 
+        mrg = float(self.get_parameter('obstacle_margin_m').value)
         new_ids = set()
         for item in msg.items:
             new_ids.add(item.id)
@@ -360,7 +445,15 @@ class KmxPlannerNode(Node):
             co.id = item.id
             sp = SolidPrimitive()
             sp.type = int(item.type)            # 1=BOX,2=SPHERE,3=CYLINDER
-            sp.dimensions = [float(d) for d in item.dimensions]
+            dims = [float(d) for d in item.dimensions]
+            if mrg > 0.0:                        # ★安全マージン：各面 mrg 膨張（ハグ経路の擦り防止）
+                if sp.type == SolidPrimitive.BOX:
+                    dims = [d + 2.0 * mrg for d in dims]                      # [x,y,z]
+                elif sp.type == SolidPrimitive.SPHERE and dims:
+                    dims[0] += mrg                                            # radius
+                elif sp.type == SolidPrimitive.CYLINDER and len(dims) >= 2:
+                    dims[0] += 2.0 * mrg; dims[1] += mrg                      # [height, radius]
+            sp.dimensions = dims
             co.primitives.append(sp)
             co.primitive_poses.append(item.pose)
             co.operation = CollisionObject.ADD
@@ -403,6 +496,7 @@ class KmxPlannerNode(Node):
                 f"attached(head): {len(msg.items)}個が全て原点(pose≒0)＝縮退。Unity 送信不良の疑いにより"
                 "この更新を破棄し前回のヘッドを維持します（HEAD_POSE_ZERO_UNITY_SPEC）。")
             return
+        self._last_attached_msg = msg   # scene 乖離時の再適用用にキャッシュ（縮退ガード通過後）
 
         scene = PlanningScene()
         scene.is_diff = True
@@ -604,6 +698,35 @@ class KmxPlannerNode(Node):
         except Exception as e:   # noqa: BLE001
             self.get_logger().warn(f"GetPlanningScene 失敗（scene 同期スキップ）: {e}")
 
+    def _resync_scene_if_diverged(self):
+        """★安全（Fable 指摘）：move_group が SEGV→respawn すると planning scene が空になり、以降
+        「障害物なし」で計画が平然と成功する（無人の登録モードでは致命的）。optimize セッション開始時に
+        world 個数を照合し、期待(_obstacle_ids)より少なければ scene 消失とみなし、キャッシュした
+        obstacles/attached を再適用する。get_scene 未準備/未送信なら何もしない（非致命）。"""
+        if self._get_scene_cli is None or not self._get_scene_cli.service_is_ready():
+            return
+        expected = len(self._obstacle_ids)
+        if expected == 0 and self._last_world_msg is None and self._last_attached_msg is None:
+            return   # そもそも何も送られていない
+        try:
+            req = GetPlanningScene.Request()
+            req.components.components = PlanningSceneComponents.WORLD_OBJECT_NAMES
+            res = self._get_scene_cli.call(req)
+            actual = len({co.id for co in res.scene.world.collision_objects})
+        except Exception as e:   # noqa: BLE001
+            self.get_logger().warn(f"scene 照合失敗（再適用スキップ）: {e}")
+            return
+        if actual < expected:
+            self.get_logger().warn(
+                f"★planning scene 乖離検知: world {actual}個 < 期待 {expected}個"
+                "（move_group respawn で scene 消失の疑い）→ キャッシュした障害物/ヘッドを再適用。")
+            self._obstacle_ids = set()      # 全 ADD させるため id をリセット
+            self._attached_ids = set()
+            if self._last_world_msg is not None:
+                self.on_obstacles(self._last_world_msg)
+            if self._last_attached_msg is not None:
+                self.on_attached(self._last_attached_msg)
+
     # -------------------------------------------------- 補間モード（MoveIt不要）
     def plan_interpolate(self, names, start_deg, goal_deg):
         """関節空間の線形補間（度のまま）。smoothstep で加減速っぽく。障害物回避なし。"""
@@ -667,7 +790,10 @@ class KmxPlannerNode(Node):
         req.group_name = self.get_parameter('planning_group').value
         req.pipeline_id = self.get_parameter('planning_pipeline').value
         req.planner_id = self.get_parameter('planner_id').value      # OMPL 最適化プランナ（軌跡最適化）
-        req.num_planning_attempts = int(self.get_parameter('num_planning_attempts').value)
+        # ★optimize は npa=1（ParallelPlan 不使用）。OMPL BITstar×ParallelPlan は use-after-free で SEGV
+        #   （ompl#779/#1146）＝optimize の多数回リプランで踏む。逐次リトライループ(_maybe_retry_or_finish)で
+        #   best-of-N は担保＝オフラインなら並列8と逐次8は品質等価・クラッシュ0（Fable 助言）。通常計画は既定のまま。
+        req.num_planning_attempts = 1 if optimize else int(self.get_parameter('num_planning_attempts').value)
         req.allowed_planning_time = float(self.get_parameter('allowed_planning_time').value)
         # 登録最適化(optimize)は TOTG 限界最短(t_min)を得るため scaling=1。通常は node 既定 scaling。
         req.max_velocity_scaling_factor = 1.0 if optimize else float(self.get_parameter('vel_scale').value)
@@ -716,12 +842,16 @@ class KmxPlannerNode(Node):
             'out_names': list(kmx_names[:n]),
             'moveit_names': list(mj),
             'attempts': 0,
-            # 登録最適化は「予算いっぱい探索し続ける」ので回数上限では止めない（時間 or 中断で確定）。
-            'max_attempts': (10**9 if optimize else max(1, int(self.get_parameter('plan_retries').value))),
+            # 登録最適化：回数上限 register_search_attempts で打ち切り（BITstar SIGSEGV 露出を抑制）。
+            #   0以下なら従来どおり無制限（time_budget/cancel で確定）。
+            'max_attempts': ((int(self.get_parameter('register_search_attempts').value)
+                              if int(self.get_parameter('register_search_attempts').value) > 0 else 10**9)
+                             if optimize else max(1, int(self.get_parameter('plan_retries').value))),
             'deadline_ns': (self.get_clock().now().nanoseconds + int(budget * 1e9)) if budget > 0 else None,
             'good_ratio': good_ratio,
             'best_traj': None,
             'best_cost': None,
+            'candidates': [],   # 登録用: 上位N本 [(cost, traj)]（最短1本に賭けず衝突フリーを探す）
             'best_time': 0.0,   # 現在の最良経路の総時間[秒]（opt phase=search の best= 表示用）
             'last_prog_ns': 0,      # 探索進捗を最後に publish した時刻（スロットル用）
             'last_prog_best': -1.0,  # 最後に publish した best（更新検知用）
@@ -739,6 +869,17 @@ class KmxPlannerNode(Node):
 
     def _send_plan_attempt(self, session):
         session['attempts'] += 1
+        # ★登録探索：各試行を送る“前”にハートビート publish（試行中は move_group アクション待ちで
+        #   ブロックし publish できない＝1試行が長いと opt 行が途絶え Unity の無進捗 watchdog が誤発火する）。
+        #   best 更新 or 2秒経過でスロットル（易しいシーンの氾濫を防ぐ）。長い試行はその直前の1行でカバー。
+        if session.get('optimize'):
+            now_ns = self.get_clock().now().nanoseconds
+            bt = session.get('best_time', 0.0)
+            if (now_ns - session.get('last_prog_ns', 0) >= int(2e9)
+                    or abs(bt - session.get('last_prog_best', -1.0)) > 1e-6):
+                self._publish_status(f"opt phase=search iter={session['attempts']} best={bt:.2f}")
+                session['last_prog_ns'] = now_ns
+                session['last_prog_best'] = bt
         self._ac.send_goal_async(session['goal']).add_done_callback(
             lambda fut: self._on_goal_response(fut, session))
 
@@ -765,6 +906,12 @@ class KmxPlannerNode(Node):
             if traj is not None and len(traj.points) > 0:
                 cost = self._traj_cost(traj)
                 session['successes'] += 1
+                # 上位N候補を cost 昇順で保持（登録：最短1本でなく“衝突しない中で最短”を選ぶため）
+                cands = session['candidates']
+                cands.append((cost, traj))
+                cands.sort(key=lambda c: c[0])
+                ncand = max(1, int(self.get_parameter('register_candidates').value))
+                del cands[ncand:]
                 if session['best_cost'] is None or cost < session['best_cost']:
                     session['best_traj'] = traj
                     session['best_cost'] = cost
@@ -789,30 +936,26 @@ class KmxPlannerNode(Node):
                        and session['best_cost'] <= ratio * session['direct_cost'])
         cancelled = bool(session.get('optimize')) and bool(self._cancel_requested)
         if not good_enough and within_attempts and within_time and not cancelled:
-            if session.get('optimize'):
-                # 探索の途中経過を publish（best 更新時 or 3秒ごと＝スロットル）。試行毎に出すと氾濫するため。
-                # 3秒間隔は Unity の無進捗 watchdog(既定20s) 内に収まる生存通知でもある。
-                now_ns = self.get_clock().now().nanoseconds
-                bt = session.get('best_time', 0.0)
-                if (now_ns - session.get('last_prog_ns', 0) >= int(3e9)
-                        or abs(bt - session.get('last_prog_best', -1.0)) > 1e-6):
-                    self._publish_status(f"opt phase=search iter={session['attempts']} best={bt:.2f}")
-                    session['last_prog_ns'] = now_ns
-                    session['last_prog_best'] = bt
+            # 進捗 publish は _send_plan_attempt 冒頭のハートビート（試行の直前）に集約した。
             self._send_plan_attempt(session)   # 失敗はリトライ／大回りしか無いならより短い通り道を探し続ける
             return
-        # 予算/回数を使い切った → 最良経路を（必要なら短縮して）発行
+        # 予算/回数を使い切った → 最良経路を発行
         if session['best_traj'] is not None:
-            traj = session['best_traj']
             raw_cost = session['best_cost']
+            # 登録最適化：生の best_traj を渡す（ショートカット＋生経路フォールバック＋発行前ゲートは
+            #   _optimize_and_publish 内で行う＝擦る軌道を出さず、擦ったら生の move_group 経路で発行）。
+            if session.get('optimize'):
+                cand_trajs = [t for _, t in session.get('candidates', [])] or [session['best_traj']]
+                self._optimize_and_publish(cand_trajs,
+                                           float(session.get('target_time', 0.0)),
+                                           session['moveit_names'])
+                return
+            # 通常計画：従来どおりショートカットして発行。
+            traj = session['best_traj']
             if bool(self.get_parameter('path_shortcut').value):
                 traj = self._shortcut_traj(traj, session['moveit_names'])
             post = self._traj_cost(traj)
             direct = max(session['direct_cost'], 1e-6)
-            # 登録最適化モード：通常発行の代わりに、時間充足＋ジャーク低減の再タイム付けをして発行。
-            if session.get('optimize'):
-                self._optimize_and_publish(traj, float(session.get('target_time', 0.0)))
-                return
             self.pub.publish(traj)
             self._publish_status(f"succeeded:{len(traj.points)}:{post / direct:.2f}")
             self.get_logger().info(
@@ -849,11 +992,10 @@ class KmxPlannerNode(Node):
 
     # ------------------------------------------- 経路短縮（RRT*-Smart の Path Optimization 相当）
     def _shortcut_traj(self, traj, moveit_names):
-        """発行前の経路短縮：非隣接ウェイポイント間を直結できるなら中間を捨てる（貪欲）。
-
-        衝突判定は /check_state_validity を経路上の補間点だけに使う（attachヘッド＋障害物込み）。
-        MoveIt 側の簡易ショートカットで残った冗長な迂回を、より積極的に除去する。
-        """
+        """発行前の経路短縮：非隣接ウェイポイント間を直結できるなら中間を捨てる（貪欲・単一パス）。
+        入力は密な点列なので、貪欲に「最も遠い衝突しない点」まで飛ぶことで直線区間はまとめ、
+        角(障害物の影)の手前だけがノードに残る＝「直線で動けるところは直線」化。
+        衝突判定は /check_state_validity を経路上の補間点だけに使う（attachヘッド＋障害物込み）。"""
         if self._sv_cli is None or not self._sv_cli.service_is_ready():
             return traj
         pts = [list(p.positions) for p in traj.points]   # deg, out_names(J1..J6)順
@@ -905,6 +1047,30 @@ class KmxPlannerNode(Node):
             self.get_logger().warn(f"check_state_validity 失敗（短縮を保守的に中止）: {e}")
             return False   # 検証不能 → 直結しない（元の経路を保つ＝安全側）
 
+    def _traj_collision_free(self, traj, moveit_names):
+        """★発行直前ゲート（validate-what-you-publish）：発行する離散軌道そのものの全点＋隣接中点を
+        /check_state_validity で検証。全点衝突無しなら True。無効点があれば False（＝擦る軌道は発行しない）。
+        sv 未準備 or final_collision_check=false なら検証せず True（従来動作を壊さない）。"""
+        if not bool(self.get_parameter('final_collision_check').value):
+            return True
+        if self._sv_cli is None or not self._sv_cli.service_is_ready():
+            return True
+        pts = [list(p.positions) for p in traj.points]
+        n = 0
+        for i, q in enumerate(pts):
+            n += 1
+            if not self._state_valid(q, moveit_names):
+                self.get_logger().error(f"★発行前検証：点{i}/{len(pts)} が衝突。")
+                return False
+            if i < len(pts) - 1:
+                mid = [(a + b) * 0.5 for a, b in zip(q, pts[i + 1])]
+                n += 1
+                if not self._state_valid(mid, moveit_names):
+                    self.get_logger().error(f"★発行前検証：点{i}-{i + 1} 中点が衝突。")
+                    return False
+        self.get_logger().info(f"  発行前検証: 全{n}点(中点込) 衝突なし ✓")
+        return True
+
     def _densify_retime(self, keep, orig_traj):
         """短縮後の節点列を再サンプル(度刻み)し、累積関節距離に比例して再タイミングする。"""
         out_step = float(self.get_parameter('shortcut_output_step_deg').value)
@@ -934,44 +1100,316 @@ class KmxPlannerNode(Node):
             out.points.append(q)
         return out
 
-    # ============================ 登録軌道の多目的最適化（REGISTER_OPTIMIZE_ROS2_SPEC 段階1）
-    def _optimize_and_publish(self, base_traj, target_time):
-        """衝突回避済み経路 base_traj を「時間充足＋ジャーク低減」して発行する（段階1）。
+    def _densify_traj(self, traj, max_step_deg):
+        """★発行前密化（validate-what-you-publish 完成）：隣接点の最大関節差が max_step_deg 以下になるよう
+        点を挿入（位置/時刻は線形補間）。Unity は点間を線形再生するので、粗いと弦が経路の角を切って障害物に
+        食い込む（＝生 move_group 経路でも擦る主因）。密化で「発行する離散点列そのもの」を経路に沿わせる。"""
+        pts = traj.points
+        if len(pts) < 2 or max_step_deg <= 0:
+            return traj
+        def tf(p):
+            return p.time_from_start.sec + p.time_from_start.nanosec * 1e-9
+        out = JointTrajectory()
+        out.joint_names = list(traj.joint_names)
+        first = JointTrajectoryPoint()
+        first.positions = list(pts[0].positions)
+        first.time_from_start = pts[0].time_from_start
+        out.points.append(first)
+        for a, b in zip(pts, pts[1:]):
+            qa, qb = a.positions, b.positions
+            ta, tb = tf(a), tf(b)
+            dmax = max((abs(y - x) for x, y in zip(qa, qb)), default=0.0)
+            n = max(1, int(math.ceil(dmax / max_step_deg)))
+            for k in range(1, n + 1):
+                w = k / n
+                q = [x + (y - x) * w for x, y in zip(qa, qb)]
+                t = ta + (tb - ta) * w
+                p = JointTrajectoryPoint()
+                p.positions = [float(v) for v in q]
+                p.time_from_start = Duration(sec=int(t), nanosec=int(round((t - int(t)) * 1e9)))
+                out.points.append(p)
+        return out
 
-        優先順位（辞書式）: ①時間（≤ target_time・ハード制約）②ジャーク最小 ③トルク最小（段階2・未実装）。
-        - t_min = base_traj の総時間 ≒ TOTG(scaling=1) の限界最短（Unity 表示の「最短」と同基準）。
-        - target_time>0 かつ < t_min なら達成不能 → feasible=0・min_time=t_min を返し、達成可能な最短(t_min)で出す。
-        - それ以外は achieved=max(target_time,t_min) へ S字(smootherstep)時間法で再タイム付け（関節ジャーク低減）。
-        ※ 段階1は node 内の S字再タイムでジャーク低減。厳密な per-joint ジャーク制限(Ruckig)は段階1.5の改良点。
-        """
+    # ============================ 登録軌道の多目的最適化（REGISTER_OPTIMIZE_ROS2_SPEC 段階1）
+    def _opt_retime(self, base_traj, target_time, mn):
+        """1本の衝突回避経路 base_traj を再タイム付けして (opt, t_min, achieved, feasible) を返す。
+        mode='jerk'＝区間double-S＋動的SC（既定）／'scurve','scale'＝段階1。発行/ゲートは呼び側。"""
         pts = base_traj.points
-        if not pts:
+        path = [list(p.positions) for p in pts]
+        mode = str(self.get_parameter('optimize_retime').value)
+        if mode == 'jerk':
+            last = pts[-1].time_from_start
+            t_totg = last.sec + last.nanosec * 1e-9
+            opt, t_min, _, _ = self._jerk_retime(
+                path, base_traj.joint_names, 0.0, floor_time=t_totg, moveit_names=mn)
+            opt, t_min = self._dynamic_shortcut(opt, mn)
+            feasible = (target_time <= 0.0) or (target_time >= t_min - 1e-6)
+            achieved = t_min if (target_time <= 0.0 or not feasible) else float(target_time)
+            if abs(achieved - t_min) > 1e-6 and t_min > 1e-9:
+                opt = self._time_scale_traj(opt, achieved / t_min)
+        else:
+            last = pts[-1].time_from_start
+            t_min = last.sec + last.nanosec * 1e-9
+            if t_min <= 1e-6:
+                t_min = float(self.get_parameter('duration_sec').value)
+            feasible = (target_time <= 0.0) or (target_time >= t_min)
+            achieved = t_min if (target_time <= 0.0 or not feasible) else target_time
+            opt = (self._scale_retime(base_traj, achieved) if mode == 'scale'
+                   else self._smooth_retime(path, base_traj.joint_names, achieved))
+            # 段階1(scurve/scale)は出力が粗いことがあるので密化（jerk は _jerk_retime 内で経路上密サンプル済）。
+            opt = self._densify_traj(opt, float(self.get_parameter('shortcut_step_deg').value))
+        return opt, t_min, achieved, feasible
+
+    def _optimize_and_publish(self, candidates, target_time, moveit_names=None):
+        """登録軌道を発行。candidates＝候補ベース列（短い順・単一 traj も可）。
+        register_backend='stomp'：pin+coal オラクルを1回だけ構築し、候補を短い順に
+        STOMP→③double-S retime→発行前ゲートに掛け、**最初に衝突フリーで通った経路を発行**
+        （＝最短でなく“衝突しない中で最短”）。全候補が未発行なら legacy へフォールバック。
+        validate-what-you-publish（発行前に離散軌道を service で検証）は各候補で維持。"""
+        if not isinstance(candidates, (list, tuple)):
+            candidates = [candidates]
+        cands = [c for c in candidates if c is not None and c.points]
+        if not cands:
             self._publish_status("failed:no_solution")
             return
-        last = pts[-1].time_from_start
-        t_min = last.sec + last.nanosec * 1e-9
-        if t_min <= 1e-6:
-            t_min = float(self.get_parameter('duration_sec').value)
-        feasible = (target_time <= 0.0) or (target_time >= t_min)
-        achieved = t_min if (target_time <= 0.0 or not feasible) else target_time
-        self._publish_status(f"opt phase=jerk iter=1 time={achieved:.3f} prog=70")
+        mn = (moveit_names or list(cands[0].joint_names))
+        # ★cancel は「探索停止」用。ここ（最適化/発行フェーズ）に入った時点で探索は終わっているので
+        #   フラグを clear し、候補の STOMP 最適化を必ず走らせる。旧: cancel が STOMP まで残ると
+        #   should_cancel が即 True→0 反復→infeasible シードのまま全候補「解なし」→failed:collision だった。
+        #   「探索停止＝現在の best を最適化して確定」の意図に合わせる（最適化中の新規 cancel は別途有効）。
+        self._cancel_requested = False
+        if str(self.get_parameter('register_backend').value) == 'stomp':
+            S = None
+            try:
+                S = self._build_stomp_oracle()
+            except Exception as e:   # noqa: BLE001
+                self.get_logger().warn(f"★登録[stomp] オラクル構築例外({e})→legacy へ。")
+            if S is not None:
+                # ★全候補を STOMP＋③retime まで処理し、衝突フリーな中から「最終実行時間(achieved)が最小」を採用。
+                #   関節距離が最短でも、角が多いと減速/曲率律速で最終時間が伸びる＝距離でなく“実行が速い”で選ぶ。
+                #   achieved 同値(target_time クランプ)なら min_time→jerk をタイブレーク。
+                results = []
+                for ci, base in enumerate(cands):
+                    tag = f"cand{ci + 1}/{len(cands)}"
+                    try:
+                        r = self._stomp_build(S, base, target_time, mn, tag)
+                    except Exception as e:   # noqa: BLE001
+                        self.get_logger().warn(f"★登録[stomp] {tag} 例外({e})→次候補。")
+                        r = None
+                    if r is not None:
+                        results.append(r)
+                if results:
+                    best_r = min(results, key=lambda r: (round(r['achieved'], 3),
+                                                         round(r['min_time'], 3), r['jerk']))
+                    self.get_logger().info(
+                        f"★登録[stomp] 衝突フリー {len(results)}/{len(cands)} 候補→最終時間 最小の "
+                        f"[{best_r['tag']}] 採用 (achieved={best_r['achieved']:.2f}s・"
+                        f"各候補={[round(r['achieved'], 1) for r in results]})")
+                    self._publish_stomp_result(best_r)
+                    return
+                self.get_logger().warn(
+                    f"★登録[stomp] 全{len(cands)}候補で未発行→legacy へフォールバック。")
+        self._optimize_and_publish_legacy(cands[0], target_time, mn)
 
-        path = [list(p.positions) for p in pts]
-        opt = self._smooth_retime(path, base_traj.joint_names, achieved)
-        jerk = self._jerk_metric(opt)
-
-        self.pub.publish(opt)
-        # 標準ステータスも従来どおり出す（Unity 既存フロー用）。ratio=経路長/直線。
-        direct = math.sqrt(sum((b - a) ** 2 for a, b in zip(path[0], path[-1]))) if len(path) >= 2 else 1.0
-        ratio = (self._traj_cost(opt) / direct) if direct > 1e-6 else 1.0
-        self._publish_status(f"succeeded:{len(opt.points)}:{ratio:.2f}")
-        self._publish_status(
-            f"opt done time={achieved:.3f} feasible={1 if feasible else 0} "
-            f"min_time={t_min:.3f} jerk={jerk:.2f}")
+    def _publish_stomp_result(self, r):
+        """勝者候補（最終時間 最小）の軌道を発行＋ plan_status。"""
+        out = r['out']
+        self._publish_status(f"opt phase=stomp {r['tag']} time={r['achieved']:.3f} prog=90")
+        self.pub.publish(out)
+        self._publish_status(f"succeeded:{len(out.points)}:{r['ratio']:.2f}")
+        self._publish_status(f"opt done time={r['achieved']:.3f} feasible={1 if r['feasible'] else 0} "
+                             f"min_time={r['min_time']:.3f} jerk={r['jerk']:.2f}")
         self.get_logger().info(
-            f"★登録最適化 発行: {len(opt.points)}点 achieved={achieved:.3f}s "
-            f"feasible={feasible}(min_time={t_min:.3f}s) jerk_max={jerk:.1f}deg/s^3"
-            + ("" if feasible else " ※target_time 達成不能→最短で出力"))
+            f"★登録[stomp] 発行({r['tag']}): {len(out.points)}点 achieved={r['achieved']:.3f}s "
+            f"feasible={r['feasible']}(min_time={r['min_time']:.3f}s) jerk_max={r['jerk']:.1f}deg/s^3 "
+            f"len {r['it0']:.3f}->{r['itb']:.3f}rad")
+
+    def _optimize_and_publish_legacy(self, base_traj_raw, target_time, mn):
+        """legacy 登録：ショートカット/生 move_group 経路を区間double-S で再タイム→発行前ゲート→発行。
+        （register_backend='legacy'、または stomp 全候補が未発行のときのフォールバック）。"""
+        use_sc = bool(self.get_parameter('path_shortcut').value) and \
+            self._sv_cli is not None and self._sv_cli.service_is_ready()
+        cands = []
+        if use_sc:
+            cands.append(('shortcut', self._shortcut_traj(base_traj_raw, mn)))
+        cands.append(('raw', base_traj_raw))   # フォールバック：move_group 経路そのもの
+        for label, cand in cands:
+            if not cand.points:
+                continue
+            opt, t_min, achieved, feasible = self._opt_retime(cand, target_time, mn)
+            if not self._traj_collision_free(opt, mn):
+                self.get_logger().warn(
+                    f"★登録[legacy]：候補[{label}]の発行軌道が衝突→次候補へ。")
+                continue
+            jerk = self._jerk_metric(opt)
+            self._publish_status(f"opt phase=jerk iter=1 time={achieved:.3f} prog=80")
+            self.pub.publish(opt)
+            path0 = [list(cand.points[0].positions), list(cand.points[-1].positions)]
+            direct = math.sqrt(sum((b - a) ** 2 for a, b in zip(path0[0], path0[1])))
+            ratio = (self._traj_cost(opt) / direct) if direct > 1e-6 else 1.0
+            self._publish_status(f"succeeded:{len(opt.points)}:{ratio:.2f}")
+            self._publish_status(
+                f"opt done time={achieved:.3f} feasible={1 if feasible else 0} "
+                f"min_time={t_min:.3f} jerk={jerk:.2f}")
+            self.get_logger().info(
+                f"★登録[legacy] 発行([{label}]): {len(opt.points)}点 achieved={achieved:.3f}s "
+                f"feasible={feasible}(min_time={t_min:.3f}s) jerk_max={jerk:.1f}deg/s^3"
+                + ("" if feasible else " ※target_time 達成不能→最短で出力")
+                + ("" if label == 'shortcut' else " ※ショートカット版が擦ったので生経路で発行"))
+            return
+        self.get_logger().error("★登録：全候補の発行軌道が衝突。発行中止（failed:collision）。")
+        self._publish_status("failed:collision")
+
+    # ================= 登録バックエンド stomp（②③ 再設計・register_backend='stomp'）=================
+    def _register_paths(self):
+        """pin+coal オラクル用の (urdf, srdf, pkg) を解決（キャッシュ）。"""
+        if getattr(self, '_reg_paths', None) is not None:
+            return self._reg_paths
+        from ament_index_python.packages import get_package_share_directory
+        urdf = os.path.join(get_package_share_directory('kmx_planner'),
+                            'register', 'crx30ia_clean.urdf')
+        srdf = os.path.join(get_package_share_directory('fanuc_moveit_config'),
+                            'srdf', 'crx30ia.srdf')
+        pkg = [os.path.dirname(get_package_share_directory('fanuc_crx_description'))]
+        self._reg_paths = (urdf, srdf, pkg)
+        return self._reg_paths
+
+    def _get_full_scene(self):
+        """GetPlanningScene(world geometry + attached objects) を同期取得。scene or None。"""
+        if self._get_scene_cli is None or not self._get_scene_cli.service_is_ready():
+            return None
+        try:
+            req = GetPlanningScene.Request()
+            req.components.components = (PlanningSceneComponents.WORLD_OBJECT_GEOMETRY |
+                                         PlanningSceneComponents.ROBOT_STATE_ATTACHED_OBJECTS)
+            res = self._get_scene_cli.call(req)
+            return res.scene
+        except Exception as e:   # noqa: BLE001
+            self.get_logger().warn(f"★登録[stomp] GetPlanningScene 失敗: {e}")
+            return None
+
+    def _build_stomp_oracle(self):
+        """現在の planning scene から pin+coal 衝突/距離オラクル PinScene を構築（候補間で使い回す）。
+        None=構築不可（呼び側が legacy へ）。"""
+        from .register.pin_scene import PinScene
+        scene = self._get_full_scene()
+        if scene is None:
+            self.get_logger().warn("★登録[stomp] planning scene 取得不可→フォールバック。")
+            return None
+        urdf, srdf, pkg = self._register_paths()
+        try:
+            S = PinScene(urdf=urdf, srdf=srdf, pkg=pkg)
+            S.sync_from_scene(scene)
+            S.finalize()
+        except Exception as e:   # noqa: BLE001
+            self.get_logger().warn(f"★登録[stomp] PinScene 構築失敗({e})→フォールバック。")
+            return None
+        self.get_logger().info(f"★登録[stomp] {S.summary()}")
+        return S
+
+    def _stomp_build(self, S, base_traj_raw, target_time, mn, tag=""):
+        """1本の候補ベースを STOMP-lite(オラクル S)で C² 最適化→③double-S retime→発行前ゲート。
+        発行はせず、結果 dict(out, achieved, min_time, feasible, jerk, ratio, tag, it0, itb) を返す。
+        feasible解なし/ゲート衝突は None（呼び側が除外）。呼び側が全候補から最終時間 最小を選び発行する。
+        base は度・mn 順。pin は rad・JOINTS(J1..J6) 順で扱い、出力は度・mn 順へ戻す。"""
+        import numpy as np
+        from .register.pin_scene import JOINTS
+        from .register.stomp_lite import StompLite
+        from .register.retime import retime_double_s
+        pts = base_traj_raw.points
+        if len(pts) < 2:
+            return None
+        d2r = math.pi / 180.0
+        # base 幾何(度・mn 順) → rad・JOINTS 順
+        try:
+            idx = [mn.index(j) for j in JOINTS]
+        except ValueError:
+            self.get_logger().warn(f"★登録[stomp] 関節名不一致 mn={mn}→スキップ。")
+            return None
+        base_rad = np.array([[p.positions[i] for i in idx] for p in pts]) * d2r
+        start_r, goal_r = base_rad[0].copy(), base_rad[-1].copy()
+        w = dict(clear=float(self.get_parameter('stomp_w_clear').value),
+                 length=float(self.get_parameter('stomp_w_length').value),
+                 smooth=float(self.get_parameter('stomp_w_smooth').value),
+                 grav=float(self.get_parameter('stomp_w_grav').value),
+                 tip=float(self.get_parameter('stomp_w_tip').value))
+        opt = StompLite(S,
+                        K=int(self.get_parameter('stomp_K').value),
+                        M=int(self.get_parameter('stomp_M').value),
+                        d_safe=float(self.get_parameter('stomp_d_safe').value),
+                        clearance=str(self.get_parameter('stomp_clearance').value),
+                        weights=w,
+                        rollouts=int(self.get_parameter('stomp_rollouts').value))
+        self._publish_status(f"opt phase=stomp {tag} prog=10")
+        budget = float(self.get_parameter('stomp_budget_sec').value)
+        best, info = opt.optimize(start_r, goal_r, base_rad, budget_sec=budget,
+                                  should_cancel=lambda: self._cancel_requested, verbose=False)
+        if not best.get('feasible'):
+            self.get_logger().warn(f"★登録[stomp] {tag} feasible 解なし→除外。")
+            return None
+        # 密 C² 経路(rad・JOINTS 順) → double-S retime（rad で計時＝standalone 検証と同一・単位一貫）
+        n_dense = int(self.get_parameter('stomp_dense_n').value)
+        c2 = opt.dense_path(best['Pint'], start_r, goal_r, n=n_dense)   # (n,6) rad
+        lim = self._load_kine_limits()   # name -> (v,a,j) deg
+        big = (600.0, 600.0, 6000.0)
+        vlim = np.array([lim.get(j, big)[0] for j in JOINTS]) * d2r
+        alim = np.array([lim.get(j, big)[1] for j in JOINTS]) * d2r
+        jlim = np.array([lim.get(j, big)[2] for j in JOINTS]) * d2r
+        rt = retime_double_s(c2, vlim, alim, jlim, target_time=float(target_time),
+                             step=math.radians(float(self.get_parameter('shortcut_step_deg').value)))
+        # JointTrajectory(度・mn 順)を組み立て（rad→deg）
+        r2d = 180.0 / math.pi
+        out = JointTrajectory()
+        out.joint_names = list(mn)
+        back = [JOINTS.index(j) for j in mn]
+        P, V, A, T = rt['pos'], rt['vel'], rt['acc'], rt['times']
+        for k in range(len(P)):
+            q = JointTrajectoryPoint()
+            q.positions = [float(P[k][back[c]]) * r2d for c in range(len(mn))]
+            q.velocities = [float(V[k][back[c]]) * r2d for c in range(len(mn))]
+            q.accelerations = [float(A[k][back[c]]) * r2d for c in range(len(mn))]
+            tt = float(T[k])
+            q.time_from_start = Duration(sec=int(tt), nanosec=int(round((tt - int(tt)) * 1e9)))
+            out.points.append(q)
+        # validate-what-you-publish（service 最終ゲート）
+        if not self._traj_collision_free(out, mn):
+            self.get_logger().warn(f"★登録[stomp] {tag} 発行軌道が衝突→除外。")
+            return None
+        achieved, t_min = rt['achieved'], rt['min_time']
+        feasible = (float(target_time) <= 0.0) or (float(target_time) >= t_min - 1e-6)
+        jerk = self._jerk_metric(out)
+        direct = math.sqrt(sum((b - a) ** 2 for a, b in zip(pts[0].positions, pts[-1].positions)))
+        ratio = (self._traj_cost(out) / direct) if direct > 1e-6 else 1.0
+        self.get_logger().info(
+            f"★登録[stomp] {tag} 候補OK: {len(out.points)}点 achieved={achieved:.3f}s "
+            f"min_time={t_min:.3f}s jerk={jerk:.1f}deg/s^3")
+        return dict(out=out, achieved=achieved, min_time=t_min, feasible=feasible,
+                    jerk=jerk, ratio=ratio, tag=tag,
+                    it0=info['init_terms']['length'], itb=best['terms']['length'])
+
+    def _scale_retime(self, base_traj, duration_s):
+        """段階1.5：MoveIt が返した base_traj（★Ruckig 平滑化アダプタ有効前提でジャーク制限済）を
+        duration_s へ一様時間スケールして返す。位置列はそのまま、time_from_start を k=duration_s/t0 倍。
+        jerk は 1/k^3 で増減するので achieved≥t_min（k≥1）なら base_traj のジャーク上限内を維持する。
+        base_traj が退化（総時間0/点不足）なら S字にフォールバック。"""
+        pts = base_traj.points
+        if len(pts) < 2:
+            return self._smooth_retime([list(p.positions) for p in pts], base_traj.joint_names, duration_s)
+        last = pts[-1].time_from_start
+        t0 = last.sec + last.nanosec * 1e-9
+        if t0 <= 1e-6:
+            return self._smooth_retime([list(p.positions) for p in pts], base_traj.joint_names, duration_s)
+        k = max(float(duration_s), 1e-3) / t0
+        out = JointTrajectory()
+        out.joint_names = list(base_traj.joint_names)
+        for p in pts:
+            q = JointTrajectoryPoint()
+            q.positions = [float(v) for v in p.positions]
+            tp = p.time_from_start.sec + p.time_from_start.nanosec * 1e-9
+            tt = tp * k
+            q.time_from_start = Duration(sec=int(tt), nanosec=int(round((tt - int(tt)) * 1e9)))
+            out.points.append(q)
+        return out
 
     def _smooth_retime(self, path, joint_names, duration_s, samples=120):
         """節点列 path(度) を arc-length に沿って S字時間法(smootherstep)で duration_s に再タイム付け。
@@ -1047,6 +1485,548 @@ class KmxPlannerNode(Node):
                 if abs(jerk) > jmax:
                     jmax = abs(jerk)
         return jmax
+
+    def _load_kine_limits(self):
+        """joint_limits.yaml から各関節の (vmax, amax, jmax) を「度」単位で読む（段階1.5・キャッシュ）。
+        move_group と同じ config を使い整合させる。読めなければ空dict（呼び側で大きめ既定にフォールバック）。"""
+        if getattr(self, '_kine_limits', None) is not None:
+            return self._kine_limits
+        lim = {}
+        try:
+            from ament_index_python.packages import get_package_share_directory
+            p = os.path.join(get_package_share_directory('fanuc_moveit_config'), 'config', 'joint_limits.yaml')
+            y = yaml.safe_load(open(p)) or {}
+            r2d = 180.0 / math.pi
+            for name, e in (y.get('joint_limits', {}) or {}).items():
+                v = float(e.get('max_velocity', 3.14))
+                a = float(e.get('max_acceleration', 1.0))
+                jk = float(e.get('max_jerk', 0.0)) or (a * 10.0)   # jerk 未定義なら accel×10[rad/s^3]
+                lim[name] = (v * r2d, a * r2d, jk * r2d)
+            self.get_logger().info(f"段階1.5: joint_limits から vel/acc/jerk 読込 {len(lim)}軸（{p}）")
+        except Exception as e:   # noqa: BLE001
+            self.get_logger().warn(f"joint_limits.yaml 読込失敗({e}) → 大きめ既定でジャーク制限を代用。")
+        self._kine_limits = lim
+        return lim
+
+    @staticmethod
+    def _jerk_limited_time_law(L, vmax, amax, jmax):
+        """rest-to-rest 0→L の double-S（ジャーク制限）時間法。(T, phases) を返す。
+        phases: [(t0, dur, s0, v0, a0, jerk), ...]（各区間の開始時刻/長さ/開始位置速度加速度と一定ジャーク）。"""
+        L = float(L)
+        if L <= 1e-9 or vmax <= 0 or amax <= 0 or jmax <= 0:
+            return 0.0, []
+
+        def th_of_v(v):     # 0→v の加速ハーフ所要時間（対称double-Sなので距離=v/2*th）
+            if v <= amax * amax / jmax:
+                return 2.0 * math.sqrt(v / jmax)
+            return amax / jmax + v / amax
+
+        if L >= vmax * th_of_v(vmax):          # vmax に到達（巡航あり）
+            vpk = vmax
+            tv = (L - vmax * th_of_v(vmax)) / vmax
+        else:                                   # vmax 未達
+            vtri = (L * math.sqrt(jmax) / 2.0) ** (2.0 / 3.0)   # 三角加速（amax 未到達）仮定
+            if vtri <= amax * amax / jmax:
+                vpk = vtri
+            else:                               # 台形加速（amax 到達・vmax 未達）：v^2/amax + (amax/jmax)v - L = 0
+                A = 1.0 / amax
+                B = amax / jmax
+                vpk = (-B + math.sqrt(B * B + 4.0 * A * L)) / (2.0 * A)
+            tv = 0.0
+        if vpk <= amax * amax / jmax + 1e-12:
+            tj = math.sqrt(vpk / jmax)
+            tc = 0.0
+        else:
+            tj = amax / jmax
+            tc = vpk / amax - tj
+        segs = [(tj, jmax), (tc, 0.0), (tj, -jmax), (tv, 0.0),
+                (tj, -jmax), (tc, 0.0), (tj, jmax)]
+        phases = []
+        t0 = s0 = v0 = a0 = 0.0
+        for dur, jk in segs:
+            if dur <= 1e-12:
+                continue
+            phases.append((t0, dur, s0, v0, a0, jk))
+            s0 = s0 + v0 * dur + a0 * dur * dur / 2.0 + jk * dur ** 3 / 6.0
+            v0 = v0 + a0 * dur + jk * dur * dur / 2.0
+            a0 = a0 + jk * dur
+            t0 = t0 + dur
+        return t0, phases
+
+    @staticmethod
+    def _eval_s(phases, t):
+        """time law の位置 s(t)（区間ごとの3次式で評価）。"""
+        if not phases:
+            return 0.0
+        for i, (t0, dur, s0, v0, a0, jk) in enumerate(phases):
+            if t < t0 + dur or i == len(phases) - 1:
+                tau = max(0.0, min(t - t0, dur))
+                return s0 + v0 * tau + a0 * tau * tau / 2.0 + jk * tau ** 3 / 6.0
+        return phases[-1][2]
+
+    @staticmethod
+    def _eval_sva(phases, t):
+        """time law の (s, ṡ, s̈)（弧長・弧長速度・弧長加速度）を返す。解析的 (q,v,a) 算出用。"""
+        if not phases:
+            return 0.0, 0.0, 0.0
+        for i, (t0, dur, s0, v0, a0, jk) in enumerate(phases):
+            if t < t0 + dur or i == len(phases) - 1:
+                tau = max(0.0, min(t - t0, dur))
+                s = s0 + v0 * tau + a0 * tau * tau / 2.0 + jk * tau ** 3 / 6.0
+                sd = v0 + a0 * tau + jk * tau * tau / 2.0
+                sdd = a0 + jk * tau
+                return s, sd, sdd
+        return phases[-1][2], 0.0, 0.0
+
+    @staticmethod
+    def _max_turn_deg(pts):
+        """折れ線の隣接区間ベクトルのなす最大角(度)＝最も鋭い角。丸め要否/収束判定用。"""
+        worst = 0.0
+        for i in range(1, len(pts) - 1):
+            u = [pts[i][d] - pts[i - 1][d] for d in range(len(pts[i]))]
+            v = [pts[i + 1][d] - pts[i][d] for d in range(len(pts[i]))]
+            nu = math.sqrt(sum(x * x for x in u))
+            nv = math.sqrt(sum(x * x for x in v))
+            if nu < 1e-9 or nv < 1e-9:
+                continue
+            c = sum(a * b for a, b in zip(u, v)) / (nu * nv)
+            worst = max(worst, math.degrees(math.acos(max(-1.0, min(1.0, c)))))
+        return worst
+
+    def _round_corners(self, pts, moveit_names):
+        """発行前の角丸め：折れ線の角を制約付き Laplacian（端点固定・`p_i += λ(0.5(p_{i-1}+p_{i+1})−p_i)`）で
+        丸め、区間分割＝角での一旦停止を減らす。**各点を個別に衝突検証**（attachヘッド＋障害物）し、
+        丸めた位置が valid な点だけ採用＝**余裕のある角は丸め、狭所で丸めきれない角は残す**（＝そこは停止のまま安全）。
+        最大角が jerk_corner_min_deg 未満になれば終了。sv 未準備/緩い角なら丸めず原経路。返り値 (pts, 適用反復数)。"""
+        iters = int(self.get_parameter('jerk_corner_round').value)
+        if (iters <= 0 or len(pts) < 3 or moveit_names is None
+                or self._sv_cli is None or not self._sv_cli.service_is_ready()):
+            return pts, 0
+        lam = float(self.get_parameter('jerk_corner_lambda').value)
+        min_deg = float(self.get_parameter('jerk_corner_min_deg').value)
+        ndof = len(pts[0])
+        cur = [list(p) for p in pts]
+        before = self._max_turn_deg(cur)
+        applied = 0
+        nchk = 0
+        for _ in range(iters):
+            prev_turn = self._max_turn_deg(cur)
+            if prev_turn < min_deg:
+                break   # もう鋭い角なし＝分割されない
+            trial = [list(p) for p in cur]
+            for i in range(1, len(cur) - 1):   # 端点(start/goal)は固定
+                cand = [cur[i][d] + lam * (0.5 * (cur[i - 1][d] + cur[i + 1][d]) - cur[i][d])
+                        for d in range(ndof)]
+                nchk += 1
+                if self._state_valid(cand, moveit_names):   # 個別検証＝衝突しない点だけ丸める
+                    trial[i] = cand
+            # 最も鋭い角が緩まないなら（狭所で丸めきれない）採用しない＝緩い部分を均して曲率を足すのを防ぐ。
+            if self._max_turn_deg(trial) > prev_turn - 0.5:
+                break
+            cur = trial
+            applied += 1
+        if applied:
+            self.get_logger().info(
+                f"  段階1.5 角丸め: {applied}反復適用（最大角 {before:.0f}°→{self._max_turn_deg(cur):.0f}°"
+                f"・衝突チェック{nchk}回）")
+        return cur, applied
+
+    def _ruckig_steer(self, q1, v1, a1, q2, v2, a2, vmax, amax, jmax, pmin, pmax):
+        """ローカル Ruckig 単一ターゲット state-to-state（intermediate 不使用＝クラウド行かない）。
+        入出力は度。(q,v,a) 境界を満たす jerk 制限時間最適セグメントを返す（Trajectory・rad）。不能は None。"""
+        d2r = math.pi / 180.0
+        dof = len(q1)
+        inp = _RkInput(dof)
+        inp.current_position = [x * d2r for x in q1]
+        inp.current_velocity = [x * d2r for x in v1]
+        inp.current_acceleration = [x * d2r for x in a1]
+        inp.target_position = [x * d2r for x in q2]
+        inp.target_velocity = [x * d2r for x in v2]
+        inp.target_acceleration = [x * d2r for x in a2]
+        inp.max_velocity = [x * d2r for x in vmax]
+        inp.max_acceleration = [x * d2r for x in amax]
+        inp.max_jerk = [x * d2r for x in jmax]
+        try:                                   # 関節可動域も渡す（非ゼロ境界はオーバーシュートし得る＝Fable 追2）
+            inp.min_position = [x * d2r for x in pmin]
+            inp.max_position = [x * d2r for x in pmax]
+        except Exception:   # noqa: BLE001
+            pass
+        try:
+            otg = _Ruckig(dof)
+            tr = _RkTraj(dof)
+            res = otg.calculate(inp, tr)
+        except Exception:   # noqa: BLE001
+            return None
+        if res not in (_RkResult.Working, _RkResult.Finished):
+            return None
+        return tr
+
+    def _resample_uniform(self, traj, n, total=None):
+        """traj を等時間 n+1 点へ再サンプル（線形補間）。total 指定で総時間をそこへ一様スケール。"""
+        pts = traj.points
+        if len(pts) < 2:
+            return traj
+        def tf(p):
+            return p.time_from_start.sec + p.time_from_start.nanosec * 1e-9
+        T = [tf(p) for p in pts]
+        Q = [list(p.positions) for p in pts]
+        dur = T[-1]
+        if dur <= 1e-9:
+            return traj
+        sc = (float(total) / dur) if total else 1.0
+        out = JointTrajectory()
+        out.joint_names = list(traj.joint_names)
+        j = 0
+        for k in range(n + 1):
+            t = dur * k / n
+            while j < len(T) - 2 and T[j + 1] < t:
+                j += 1
+            w = min(max((t - T[j]) / max(T[j + 1] - T[j], 1e-9), 0.0), 1.0)
+            q = [a + (b - a) * w for a, b in zip(Q[j], Q[j + 1])]
+            tt = t * sc
+            p = JointTrajectoryPoint()
+            p.positions = [float(x) for x in q]
+            p.time_from_start = Duration(sec=int(tt), nanosec=int(round((tt - int(tt)) * 1e9)))
+            out.points.append(p)
+        return out
+
+    def _time_scale_traj(self, traj, k):
+        """時間 ×k 一様スケール（位置そのまま・v×1/k・a×1/k²・time×k）。k≥1 で低ジャーク延伸。"""
+        out = JointTrajectory()
+        out.joint_names = list(traj.joint_names)
+        for p in traj.points:
+            q = JointTrajectoryPoint()
+            q.positions = list(p.positions)
+            if len(p.velocities):
+                q.velocities = [v / k for v in p.velocities]
+            if len(p.accelerations):
+                q.accelerations = [a / (k * k) for a in p.accelerations]
+            tp = p.time_from_start.sec + p.time_from_start.nanosec * 1e-9
+            tt = tp * k
+            q.time_from_start = Duration(sec=int(tt), nanosec=int(round((tt - int(tt)) * 1e9)))
+            out.points.append(q)
+        return out
+
+    def _dynamic_shortcut(self, traj, moveit_names):
+        """★動的ショートカット（Hauser 2010・軌道空間）。min-time 軌道 traj(度) を短縮して返す (traj, 総時間s)。
+        ランダム2時刻の状態 (q,v,a) をローカル Ruckig で直結→実経路を衝突検証し、短ければ置換（単調短縮）。
+        クリアランスのある角は自動で丸まり停止が消える／無い角は棄却で停止のまま（安全側）。"""
+        def total_of(t):
+            last = t.points[-1].time_from_start
+            return last.sec + last.nanosec * 1e-9
+        iters = int(self.get_parameter('dynamic_shortcut_iters').value)
+        if (not _RUCKIG_OK or iters <= 0 or moveit_names is None
+                or self._sv_cli is None or not self._sv_cli.service_is_ready()
+                or len(traj.points) < 4):
+            return traj, total_of(traj)
+
+        def tf(p):
+            return p.time_from_start.sec + p.time_from_start.nanosec * 1e-9
+        T = [tf(p) for p in traj.points]
+        Q = [list(p.positions) for p in traj.points]      # deg
+        dof = len(Q[0])
+        # ★点が持つ解析的 v,a を使う（有限差分の加速度はゴミ＝以前の違反原因）。無ければ 0。
+        V = [list(p.velocities) if len(p.velocities) == dof else [0.0] * dof for p in traj.points]
+        A = [list(p.accelerations) if len(p.accelerations) == dof else [0.0] * dof for p in traj.points]
+        names = list(traj.joint_names)
+        lim = self._load_kine_limits()
+        big = (1e6, 1e6, 1e6)
+        vmax = [lim.get(names[j], big)[0] for j in range(dof)]
+        amax = [lim.get(names[j], big)[1] for j in range(dof)]
+        jmax = [lim.get(names[j], big)[2] for j in range(dof)]
+        jl = self._jl(names)                             # (lo,hi) deg（URDF 由来・無ければ±180）
+        pmin = [jl[j][0] for j in range(dof)]
+        pmax = [jl[j][1] for j in range(dof)]
+        maxv = max(vmax) if vmax else 60.0
+        step = float(self.get_parameter('shortcut_step_deg').value)
+        d2r = math.pi / 180.0
+
+        def idx_at(t):                                   # T[lo] <= t < T[lo+1] の lo（二分）
+            if t <= T[0]:
+                return 0
+            if t >= T[-1]:
+                return len(T) - 2
+            lo, hi = 0, len(T) - 1
+            while hi - lo > 1:
+                mid = (lo + hi) // 2
+                if T[mid] <= t:
+                    lo = mid
+                else:
+                    hi = mid
+            return lo
+
+        def sample(t):                                   # (q,v,a) 度 を線形補間（v,a は解析値の補間＝正確）
+            i = idx_at(t)
+            w = min(max((t - T[i]) / max(T[i + 1] - T[i], 1e-9), 0.0), 1.0)
+            q = [a + (b - a) * w for a, b in zip(Q[i], Q[i + 1])]
+            v = [a + (b - a) * w for a, b in zip(V[i], V[i + 1])]
+            ac = [a + (b - a) * w for a, b in zip(A[i], A[i + 1])]
+            return q, v, ac
+
+        eps = 0.02
+        accepted = 0
+        nchk = [0]
+        for _ in range(iters):
+            L = T[-1]
+            if L < 0.1 or len(T) < 4:
+                break
+            t1 = random.uniform(0.0, L)
+            t2 = random.uniform(0.0, L)
+            if t1 > t2:
+                t1, t2 = t2, t1
+            if t2 - t1 < max(0.05, 0.03 * L):
+                continue
+            q1, v1, a1 = sample(t1)
+            q2, v2, a2 = sample(t2)
+            tr = self._ruckig_steer(q1, v1, a1, q2, v2, a2, vmax, amax, jmax, pmin, pmax)
+            if tr is None:
+                continue
+            d = tr.duration
+            if d >= (t2 - t1) - eps * (t2 - t1):
+                continue                                 # 十分短くない
+            nseg = max(3, min(400, int(math.ceil(d * maxv / max(step, 0.5)))))
+            seg = []                                     # (tau, qdeg, vdeg, adeg)
+            ok = True
+            for k in range(nseg + 1):
+                tau = d * k / nseg
+                pp, vv, aa = tr.at_time(tau)
+                pdeg = [x / d2r for x in pp]
+                seg.append((tau, pdeg, [x / d2r for x in vv], [x / d2r for x in aa]))
+                nchk[0] += 1
+                if not self._state_valid(pdeg, moveit_names):
+                    ok = False
+                    break
+            if not ok:
+                continue
+            shift = d - (t2 - t1)                         # <0（短縮）
+            nT, nQ, nV, nA = [], [], [], []
+            for tt, qq, vv, aa in zip(T, Q, V, A):
+                if tt < t1 - 1e-6:
+                    nT.append(tt); nQ.append(qq); nV.append(vv); nA.append(aa)
+            for tau, qq, vv, aa in seg:
+                nT.append(t1 + tau); nQ.append(qq); nV.append(vv); nA.append(aa)
+            for tt, qq, vv, aa in zip(T, Q, V, A):
+                if tt > t2 + 1e-6:
+                    nT.append(tt + shift); nQ.append(qq); nV.append(vv); nA.append(aa)
+            T2, Q2, V2, A2 = [nT[0]], [nQ[0]], [nV[0]], [nA[0]]     # 時刻単調化
+            for tt, qq, vv, aa in zip(nT[1:], nQ[1:], nV[1:], nA[1:]):
+                if tt > T2[-1] + 1e-6:
+                    T2.append(tt); Q2.append(qq); V2.append(vv); A2.append(aa)
+            T, Q, V, A = T2, Q2, V2, A2
+            accepted += 1
+        out = JointTrajectory()
+        out.joint_names = names
+        for tt, qq, vv, aa in zip(T, Q, V, A):
+            p = JointTrajectoryPoint()
+            p.positions = [float(x) for x in qq]
+            p.velocities = [float(x) for x in vv]
+            p.accelerations = [float(x) for x in aa]
+            p.time_from_start = Duration(sec=int(tt), nanosec=int(round((tt - int(tt)) * 1e9)))
+            out.points.append(p)
+        self.get_logger().info(
+            f"  動的ショートカット: {iters}試行/{accepted}採用 "
+            f"{total_of(traj):.2f}s→{T[-1]:.2f}s（衝突チェック{nchk[0]}回）")
+        return out, T[-1]
+
+    def _jerk_retime(self, path, joint_names, target_time, samples=150, floor_time=0.0,
+                     moveit_names=None):
+        """段階1.5：経路 path(度) を joint_limits(vel/acc/jerk) 準拠に再タイム付け。返り値 (traj, min_time, achieved, feasible)。
+        ★区間 double-S 方式：経路を“角”(隣接方向変化 > jerk_corner_min_deg)で分割し、各サブ経路を rest-to-rest の
+        double-S(7区間ジャーク制限)で計時。角では一旦減速(v=0,a=0)して通過＝**角ごとに局所減速**するので、以前の
+        「単一 double-S＋一様スケール」で1つの角が経路全体を律速していた過剰減速を解消。各区間は per-joint ジャーク
+        上限を厳守し、境界も a=0 で滑らか。直線1本なら分割されず単一 double-S＝従来挙動(無回帰)。
+        min_time=max(Σ区間時間, floor_time)（floor_time=TOTG時間＝物理下限）。target_time≥min_time なら achieved へ
+        一様延伸（更に低ジャーク）、未満なら feasible=0＋min_time。geometry は不変＝衝突安全（角丸めは不要に）。"""
+        out = JointTrajectory()
+        out.joint_names = list(joint_names)
+        if len(path) < 2:
+            q = JointTrajectoryPoint()
+            q.positions = [float(v) for v in (path[0] if path else [])]
+            q.time_from_start = Duration(sec=0, nanosec=0)
+            out.points.append(q)
+            return out, 0.0, max(float(target_time), 0.0), True
+        lim = self._load_kine_limits()
+        big = (1e6, 1e6, 1e6)
+        ndof = len(path[0])
+        limits = [lim.get(joint_names[jdx], big) if jdx < len(joint_names) else big
+                  for jdx in range(ndof)]
+        min_turn = float(self.get_parameter('jerk_corner_min_deg').value)
+
+        # ★角丸め（発行前）：折れ線の角を衝突検証つき Laplacian で丸め、角度を緩める。緩んで min_turn 未満に
+        #   なった角は下の分割で「角」とみなされず＝一旦停止せず滑らかに通過＝速くなる。狭所で丸めきれない角は
+        #   残り従来どおり停止（安全）。geometry を動かすので `/check_state_validity` で必ず衝突再検証する。
+        path, _ = self._round_corners(path, moveit_names)
+
+        # 経路を“角”（隣接方向の変化 > min_turn）で分割。角の間はほぼ直線＝1本の rest-to-rest double-S。
+        # 角では一旦減速(v=0,a=0)して通過＝各区間が per-joint ジャーク上限を厳守し、区間境界も a=0 で滑らか。
+        # 直線1本なら分割されず単一 double-S＝従来挙動（無回帰）。角ごとの局所減速で一様スロー化を回避。
+        splits = [0]
+        for i in range(1, len(path) - 1):
+            u = [path[i][j] - path[i - 1][j] for j in range(ndof)]
+            v = [path[i + 1][j] - path[i][j] for j in range(ndof)]
+            nu = math.sqrt(sum(x * x for x in u))
+            nv = math.sqrt(sum(x * x for x in v))
+            if nu < 1e-9 or nv < 1e-9:
+                continue
+            c = sum(a * b for a, b in zip(u, v)) / (nu * nv)
+            if math.degrees(math.acos(max(-1.0, min(1.0, c)))) > min_turn:
+                splits.append(i)
+        splits.append(len(path) - 1)
+
+        segs = []   # (pts, cum, L, phases, t_seg)
+        for a_idx, b_idx in zip(splits, splits[1:]):
+            pts = [list(p) for p in path[a_idx:b_idx + 1]]
+            cum = [0.0]
+            for a, b in zip(pts, pts[1:]):
+                cum.append(cum[-1] + math.sqrt(sum((y - x) ** 2 for x, y in zip(a, b))))
+            Lk = cum[-1]
+            if Lk <= 1e-9:
+                continue
+            g = [1e-9] * ndof
+            for a, b in zip(pts, pts[1:]):
+                ds = math.sqrt(sum((y - x) ** 2 for x, y in zip(a, b)))
+                if ds <= 1e-9:
+                    continue
+                for j in range(ndof):
+                    g[j] = max(g[j], abs(b[j] - a[j]) / ds)
+            vcap = amaxcap = jcap = float('inf')
+            for j in range(ndof):
+                gj = max(g[j], 1e-9)
+                vcap = min(vcap, limits[j][0] / gj)
+                amaxcap = min(amaxcap, limits[j][1] / gj)
+                jcap = min(jcap, limits[j][2] / gj)
+            tk, phases = self._jerk_limited_time_law(Lk, vcap, amaxcap, jcap)
+            if tk <= 1e-6 or not phases:
+                continue
+            segs.append((pts, cum, Lk, phases, tk))
+        if not segs:
+            q = JointTrajectoryPoint()
+            q.positions = [float(v) for v in path[0]]
+            q.time_from_start = Duration(sec=0, nanosec=0)
+            out.points.append(q)
+            return out, 0.0, max(float(target_time), 0.0), True
+
+        t_phys = sum(s[4] for s in segs)
+
+        def sub_interp(pts, cum, Lk, s):
+            if s <= 0.0:
+                return pts[0]
+            if s >= Lk:
+                return pts[-1]
+            for i in range(1, len(cum)):
+                if cum[i] >= s:
+                    w = (s - cum[i - 1]) / max(cum[i] - cum[i - 1], 1e-9)
+                    return [x + (y - x) * w for x, y in zip(pts[i - 1], pts[i])]
+            return pts[-1]
+
+        def sub_interp_tangent(pts, cum, Lk, s):   # 位置＋局所単位接線 dq/ds（弧長で正規化）
+            if len(cum) < 2:
+                return list(pts[0]), [0.0] * ndof
+            s = min(max(s, 0.0), Lk)
+            for i in range(1, len(cum)):
+                if cum[i] >= s or i == len(cum) - 1:
+                    dseg = max(cum[i] - cum[i - 1], 1e-9)
+                    w = (s - cum[i - 1]) / dseg
+                    pos = [x + (y - x) * w for x, y in zip(pts[i - 1], pts[i])]
+                    tan = [(y - x) / dseg for x, y in zip(pts[i - 1], pts[i])]   # |tan|=1（cum=関節弧長）
+                    return pos, tan
+            return list(pts[-1]), [0.0] * ndof
+
+        def positions_at(total):   # 総時間 total（t_phys を一様スケール）で等時間サンプルした位置列
+            sc = total / t_phys if t_phys > 1e-9 else 1.0
+            bnds = [0.0]
+            for s in segs:
+                bnds.append(bnds[-1] + s[4] * sc)
+            pos = []
+            mm = 0
+            for k in range(samples + 1):
+                tt = total * k / samples
+                while mm < len(segs) - 1 and tt > bnds[mm + 1]:
+                    mm += 1
+                pts, cum, Lk, phases, tk = segs[mm]
+                s = self._eval_s(phases, (tt - bnds[mm]) / sc)   # phases は未スケール tk 基準
+                pos.append(sub_interp(pts, cum, Lk, min(max(s, 0.0), Lk)))
+            return pos
+
+        def states_at(total, ns):   # 等時間 ns+1 サンプルの (pos, vel, acc)。各点は sub_interp＝polyline 上。
+            sc = total / t_phys if t_phys > 1e-9 else 1.0
+            bnds = [0.0]
+            for s in segs:
+                bnds.append(bnds[-1] + s[4] * sc)
+            states = []
+            mm = 0
+            for k in range(ns + 1):
+                tt = total * k / ns
+                while mm < len(segs) - 1 and tt > bnds[mm + 1]:
+                    mm += 1
+                pts, cum, Lk, phases, tk = segs[mm]
+                s, sd, sdd = self._eval_sva(phases, (tt - bnds[mm]) / sc)
+                pos, tan = sub_interp_tangent(pts, cum, Lk, s)
+                # 時間スケール sc：実 ṡ=sd/sc, s̈=sdd/sc²。速度/加速度=接線×(ṡ/s̈)。
+                vel = [d * sd / sc for d in tan]
+                acc = [d * sdd / (sc * sc) for d in tan]
+                states.append((pos, vel, acc))
+            return states
+
+        # 安全弁：区間 double-S は各区間の g_j(接線)で計時するが、区間内の緩い曲率で実 a/jerk が僅かに超え得る。
+        # 出力を実測し超過なら一様に時間延伸（通常は無補正 k≈1）。局所計時が主で、これは最終保証のみ。
+        bind_desc = "なし"
+        for _ in range(6):
+            posv = positions_at(t_phys)
+            dt = t_phys / samples
+            rv = ra = rj = 0.0
+            bv = ba = bj = 0
+            for jdx in range(ndof):
+                vj, aj, jj = limits[jdx]
+                for i in range(len(posv) - 1):
+                    val = abs(posv[i + 1][jdx] - posv[i][jdx]) / dt / max(vj, 1e-9)
+                    if val > rv:
+                        rv, bv = val, jdx
+                for i in range(len(posv) - 2):
+                    val = abs(posv[i + 2][jdx] - 2.0 * posv[i + 1][jdx] + posv[i][jdx]) \
+                        / (dt * dt) / max(aj, 1e-9)
+                    if val > ra:
+                        ra, ba = val, jdx
+                for i in range(len(posv) - 3):
+                    val = abs(posv[i + 3][jdx] - 3.0 * posv[i + 2][jdx]
+                              + 3.0 * posv[i + 1][jdx] - posv[i][jdx]) / (dt ** 3) / max(jj, 1e-9)
+                    if val > rj:
+                        rj, bj = val, jdx
+            typ, sc_r, bjoint = max((('速度', rv, bv), ('加速度', ra ** 0.5, ba),
+                                     ('ジャーク', rj ** (1.0 / 3.0), bj)), key=lambda c: c[1])
+            bind_desc = f"{typ} J{bjoint + 1}"
+            # 停止判定は「生の超過比」で（時間スケール指数で正規化した比で見ると生で数%超過を見逃す）。
+            if max(rv, ra, rj) <= 1.005:
+                break
+            t_phys = t_phys * sc_r   # 律速拘束を上限へ合わせる時間スケール（v:1, a:½, jerk:⅓ 乗）
+        # min_time＝区間 double-S（＋安全弁）が保証する物理最短 t_phys。
+        # ※ floor_time（＝ショートカット“前”の base_traj の TOTG 時間）でのクランプは撤去（Fable 助言）。
+        #    ショートカットで幾何が短くなった後は floor は過保守な下限になり不要（実測 t_phys<floor で無駄に遅化）。
+        #    参考値としてログ表示のみ。同一幾何なら TOTG(jerk無視)≤double-S のはずで、逆転はリタイマのバグ検知に使える。
+        t_min = t_phys
+        feasible = (target_time <= 0.0) or (target_time >= t_min - 1e-6)
+        achieved = t_min if (target_time <= 0.0 or not feasible) else float(target_time)
+
+        # ★発行点列は「経路上に」密サンプル：各点は sub_interp＝polyline 上なので、点数を弧長/ステップから
+        #   十分多く取れば、点間の線形補間(Unity 再生)が経路の角を切って障害物に食い込むのを防げる
+        #   （＝一様時間150点では fast 区間で頂点をスキップし弦が擦る主因を解消）。×3 は一様時間の粗密ムラ吸収。
+        step = float(self.get_parameter('shortcut_step_deg').value)
+        L_total = sum(s[2] for s in segs)
+        ns_out = max(samples, min(4000, int(math.ceil(L_total / max(step, 0.1) * 3.0))))
+        states = states_at(achieved, ns_out)
+        for k, (cfg, vel, acc) in enumerate(states):
+            t_out = achieved * k / ns_out
+            q = JointTrajectoryPoint()
+            q.positions = [float(v) for v in cfg]
+            q.velocities = [float(v) for v in vel]
+            q.accelerations = [float(v) for v in acc]
+            q.time_from_start = Duration(sec=int(t_out), nanosec=int(round((t_out - int(t_out)) * 1e9)))
+            out.points.append(q)
+        self.get_logger().info(
+            f"  段階1.5 retime(区間double-S): {len(segs)}区間(角{len(segs) - 1}) "
+            f"t_phys={t_phys:.2f}s(律速={bind_desc}) [参考 SC前TOTG={float(floor_time):.2f}s] "
+            f"→ min_time={t_min:.2f}s achieved={achieved:.2f}s 出力{len(out.points)}点")
+        return out, t_min, achieved, feasible
 
     # ------------------------------------------------- RRT*-Smart（Python実装・実験的バックエンド）
     def _on_robot_description(self, msg):

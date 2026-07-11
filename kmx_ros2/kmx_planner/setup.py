@@ -14,6 +14,9 @@ setup(
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
         (os.path.join('share', package_name, 'launch'), glob('launch/*.launch.py')),
+        # register-mode: clean URDF for the pin+coal collision oracle (STOMP-lite backend)
+        (os.path.join('share', package_name, 'register'),
+            glob('kmx_planner/register/*.urdf')),
     ],
     install_requires=['setuptools'],
     zip_safe=True,

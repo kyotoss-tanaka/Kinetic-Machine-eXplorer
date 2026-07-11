@@ -157,10 +157,16 @@ ros2 run kmx_planner kmx_planner --ros-args -p use_moveit:=true -p planning_grou
 - **★登録軌道の多目的最適化（optimize モード）＝ROS2側 段階1 実装済(2026-07-09)**（要望書 `REGISTER_OPTIMIZE_ROS2_SPEC.md`）:
   PlanRequest に `optimize`/`target_time`/`payload_mass`/`payload_com`（＋既存 `robot_id`）追加＝sync＋kmx_msgs 再ビルド済。
   `optimize=true`→ `plan_with_moveit(optimize=True)`：**scaling=1 で衝突回避経路→総時間を t_min(≒TOTG限界最短)とし target_time 達成可否判定
-  →smootherstep(6u⁵-15u⁴+10u³) S字時間法で achieved_time へ再タイム付け(関節ジャーク低減)**→`/kmx/trajectory`(度)＋`/kmx/plan_status` に
+  →**段階1.5＝node内 純Python double-S(7区間ジャーク制限)時間法で achieved へ再タイム(既定 `optimize_retime=jerk`)**→`/kmx/trajectory`(度)＋`/kmx/plan_status` に
   `opt phase=<time|jerk> …`／`opt done time= feasible= min_time= jerk=`（標準 planning/succeeded も併存）。`target_time<t_min`→`feasible=0`＋`min_time`。
-  検証済(空シーン)：3.0s→feasible=1・1.0s→feasible=0(達成最短2.64s)・軌道121点。**厳密per-jointジャーク制限(Ruckig)＝段階1.5(ruckig-python未導入)／
-  トルク最小(Pinocchio逆動力学)＝段階2 未実装**（payload_* は受領のみ）。
+  **★段階1.5＝厳密 per-joint ジャーク制限 実装済(2026-07-09)**：`_jerk_retime`＝path 3°密化→弧長L→各関節寄与 g_j→弧長上限 ṡ/s̈/s⃛=min_j(lim_j/g_j)→double-S で
+  t_jerk(ジャーク律速最短)→achieved へ一様スケール。`_load_kine_limits`＝fanuc_moveit_config/joint_limits.yaml(move_group と同一)を rad→度で読む(CRX max_jerk J1-3=4.0/J4-6=10.0)。**ruckig/pip 依存なし**。
+  検証済(空シーン home→[0,40,-30,0,70,0])：拘束=J2→実ジャーク J2=228.8(≒上限229)/J5=400.5(≤573)/J3=172＝**全軸上限内**。target 1.0(<最短)→feasible=0 min_time=2.743 jerk=401／3.0→feasible=1 jerk=306。
+  **★角のある経路(障害物迂回)の過剰減速＝修正済(2026-07-09・区間double-S)**：経路全体を単一 double-S+一様スケールで計時すると1つの鋭い角が経路全体を律速し激遅(実測 TOTG5.7s の動作が26.89s・jerk は低いのに)。
+  修正＝**経路を"角"(隣接方向変化>`jerk_corner_min_deg`=5°)で分割し各サブ経路を rest-to-rest double-S で個別計時**(角で一旦v=0,a=0で通過＝局所減速・境界a=0で滑らか・per-joint上限厳守)。直線1本なら分割されず単一double-S＝**無回帰**。geometry不変＝衝突安全(角丸め不要)。
+  末尾に**実測安全弁**(出力の per-joint v/a/jerk 実測→僅超過のみ一様延伸・通常無補正)。min_time=max(Σ区間, TOTG時間)。検証(角3の迂回)：**26.89s→7.08s(3.8倍速・TOTG1.16倍)** J1/J2 jerk 229/229・全軸内。直線2.74s無回帰。target延伸も低ジャーク。
+  ※角で一旦停止する(winding は角ごと小休止)＝狭所register で妥当。角速度通過(止めない)は第3次TOPP/Ruckig が本筋(将来)。試作の2次TOPPは接線ジャーク非制限で直線11s悪化＝不採用。
+  旧 smootherstep は `optimize_retime=scurve`(段階1)で選べる。**トルク最小(Pinocchio逆動力学)＝段階2 未実装**（payload_* は受領のみ）。
   **長時間探索/中断（§追加要望）も実装済**：optimize は good_enough で止めず `time_budget` いっぱい探索、`opt phase=search iter= best=<最短s>` を best更新+3秒ごとに throttle publish、
   **`/kmx/plan_cancel`(std_msgs/String) 購読→現在の best で即確定**（検証：budget30sで4s後cancel→1s確定）。通常計画(optimize=false)は不変・後方互換。
 - **★並列 best-of-N 計画＝採用・既定化(2026-07-07)**: `num_planning_attempts` 既定 1→**8**（OMPL ParallelPlan が

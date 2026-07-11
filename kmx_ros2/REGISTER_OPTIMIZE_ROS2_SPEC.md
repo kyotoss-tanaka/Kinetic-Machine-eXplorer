@@ -134,7 +134,7 @@ float64[] payload_com   # ペイロード重心[m]（フランジ相対 x,y,z。
 - **① 時間（ハード制約）**：計画は **scaling=1** で実施し、得た軌道総時間を **t_min（≒TOTG 限界最短＝Unity 表示「最短」と同基準）** とする。
   `target_time≥t_min`→ `feasible=1`・achieved=`target_time`。`target_time<t_min`→ **`feasible=0`・`min_time=t_min`** を返し達成可能な最短(t_min)で出力。`target_time=0`＝成り行き→ t_min。
 - **② ジャーク**：achieved_time へ **smootherstep（6u⁵−15u⁴+10u³）の S字時間法**で arc-length 再タイム付け（端点で速度/加速度/ジャーク=0＝関節ジャーク低減）。
-  ※**厳密な per-joint ジャーク制限(Ruckig)は段階1.5の改良点**（ruckig の Python 未導入のため段階1は S字で代替。厳密化は `pip install ruckig` or MoveIt Ruckig 経路）。
+  ※**厳密な per-joint ジャーク制限は段階1.5で実装済**（下記「段階1.5」＝node 内 double-S・既定 `optimize_retime=jerk`）。この smootherstep は `optimize_retime=scurve` で選べる旧挙動。
 - **衝突回避**：既存 planning scene（/kmx/obstacles＋/kmx/attached）で回避したまま最適化（流用）。
 - **途中経過**：`/kmx/plan_status` に `opt phase=<time|jerk> iter=<n> time=<s> prog=<0..100>` を publish。
 - **応答**：軌道→`/kmx/trajectory`(度)、完了行 `opt done time=<s> feasible=<0|1> min_time=<s> jerk=<v>`。標準の `planning`/`succeeded:<pts>:<ratio>` も併存。
@@ -152,7 +152,8 @@ float64[] payload_com   # ペイロード重心[m]（フランジ相対 x,y,z。
 - 登録の計画要求は `time_budget = registerSearchBudgetSec`（既定600s）＋`optimize=true`。
 - 進捗行 `opt phase=search iter=N best=X.XX` を「**探索中 最良X.XXs (N回) 経過Ys**」と表示（経過は毎フレーム更新）。
 - **「探索停止（最良を採用）」ボタン** → `/kmx/plan_cancel`（std_msgs/String, data="cancel"）を publish。
-- **無進捗 watchdog**：`opt` 行が `planTimeoutSec` 来なければ失敗（総経過ではなく“進捗が止まったら”で判定＝10分探索でも誤タイムアウトしない）。
+- **無進捗 watchdog**：探索中は `searchTimeoutSec`（既定**90s**・通常計画は `planTimeoutSec`=20s）の間 `opt` 行が来なければ失敗（“進捗が止まったら”判定）。計画試行1回が長いと opt 行が間遠になるため大きめ。
+  ※**ROS2 は各計画試行の“前”にハートビート `opt phase=search` を publish**すること（試行中は Python がブロックし publish できない＝best 更新時＋3秒スロットルだけだと長い試行で 20〜数十s 沈黙→誤失敗する。実測: best 発見後に沈黙し 25s 前後で `探索応答なし(20s)`）。
 - ヘッド先端**加速度を G 表記**で表示（FK で先端 world→2階差分→÷9.80665、`unitScale` 適用）。`軸速%` は速度のみ。
 
 ### ROS2 側（要実装）
@@ -165,6 +166,47 @@ float64[] payload_com   # ペイロード重心[m]（フランジ相対 x,y,z。
 - 時間を守れた候補の**トップ5**を残し、各の **ジャーク / 加速度(G) / 軸速% / 所要** を Unity に返す。
 - Unity は候補一覧を表示 → 各をゴーストでプレビュー → **ユーザーが選んで登録**。
 - 契約変更が要る（軌道を複数返す or 1メッセージに N候補）＋選択UI。**まずコア（単一最良）を確定後に検討**。
+
+## 段階1.5（厳密 per-joint ジャーク制限・実装済 2026-07-09）
+段階1の S字(smootherstep)固定形は簡易ジャーク低減で per-joint ジャーク上限を**厳密には守らない**（たまたま下回るだけ）。
+段階1.5 は **node 内の純Python double-S（7区間ジャーク制限）時間法**で、各関節の速度/加速度/**ジャーク上限を厳密に満たす最短再タイム**を生成する。
+**Ruckig / pip 依存は不要**（ruckig の Python 未導入・pip/ensurepip 無効環境のため、外部依存を足さず自前実装）。MoveIt の request_adapters 変更も不要。
+
+### 原理（`_jerk_retime`）＝★区間 double-S 方式（2026-07-09 改訂）
+経路全体を単一 double-S で計時すると、1つの鋭い角の律速が経路全体に波及し（一様スケール）、**TOTG が局所減速で通せる動作を数倍遅く**する。
+そこで**経路を“角”で分割し、各サブ経路を個別に double-S** で計時する（角ごとに局所減速）:
+1. joint_limits を読む（`_load_kine_limits`）。
+2. **角検出**：path の各内部点で隣接セグメントのなす角を計算し、**`jerk_corner_min_deg`(既定5°)超**を分割点＝角とする（未満は同一直線区間に統合）。
+3. **各サブ経路**（角の間＝ほぼ直線）について：弧長 L_k、寄与 `g_j=max|Δq_j|/Δs`、弧長上限 `ṡ/s̈/s⃛=min_j(lim_j/g_j)` を求め、
+   **rest-to-rest の double-S（`_jerk_limited_time_law`・7区間ジャーク制限）**で区間時間 t_k と s プロファイルを得る。
+4. **角では一旦減速（v=0,a=0）して通過** ＝ 各区間が per-joint 速度/加速度/ジャーク上限を厳守し、区間境界も **a=0 で滑らか**（ジャークスパイクなし）。
+   経路 geometry は不変なので**衝突安全**（角丸め・平滑化は不要）。直線1本なら分割されず単一 double-S＝**従来挙動（無回帰）**。
+5. `t_phys = Σ t_k`。**安全弁**：区間内の緩い曲率で実 a/jerk が僅かに超え得るので、出力を実測（有限差分 per-joint v/a/jerk）し
+   超過時のみ一様延伸（`k=max(rv,√ra,∛rj)`・通常は無補正 k≈1）。
+6. **min_time = max(t_phys, floor_time)**（`floor_time`=base_traj の TOTG 時間＝物理下限クランプ・探索 best と一致）。
+7. `feasible = (target_time≤0) or (target_time ≥ min_time)`。`achieved = target_time`（実現可）else `min_time`。全区間を `achieved/t_phys` 倍に一様スケールして発行（延伸ほど低ジャーク）。
+
+### joint_limits の取得（`_load_kine_limits`）
+- **`fanuc_moveit_config/config/joint_limits.yaml`** を読む（**move_group と同一 config** ＝整合）。`max_velocity`/`max_acceleration`/`max_jerk`（rad→度換算）。
+- `max_jerk` 未定義の関節は `max_acceleration×10` で代用。ファイル読めなければ大きめ既定（実質無制限）にフォールバック。
+- **CRX-30iA 暫定 max_jerk**：J1–J3 = 4.0 rad/s³（=229°/s³）, J4–J6 = 10.0 rad/s³（=573°/s³）。※要データシート値。
+
+### node（実装済 `planner_node.py`）
+- param **`optimize_retime`**：**`jerk`（段階1.5・既定＝区間 double-S）** / `scurve`(段階1 smootherstep) / `scale`(一様スケールのみ)。
+- param **`jerk_corner_min_deg`(=5.0)**：この角度超で区間分割点＝角（未満は直線区間に統合）。
+- `_optimize_and_publish(base_traj, target_time, moveit_names)` が mode で分岐。`jerk` は `_jerk_retime(..., floor_time=TOTG時間)`→(traj, min_time, achieved, feasible)。
+- 完了行 `opt done time= feasible= min_time=<物理最短> jerk=`。診断ログ `段階1.5 retime(区間double-S): N区間(角M) t_phys= TOTG下限= → min_time= achieved=`。
+
+### 検証（`/kmx/trajectory` を購読し per-joint 実測。上限 J1-3=229 / J4-6=573°/s³）
+- **空シーン（直線 home→[0,40,-30,0,70,0]）＝無回帰**：1区間(角0) `min_time=2.74s`・J2 jerk=229/229(拘束)・全軸上限内。`target 1.0(<最短)→feasible=0`／`3.0→feasible=1 jerk=306`。
+- **★角のある経路（障害物で迂回・角3）＝旧・単一double-Sは 26.89s（1角が全体を律速・jerk は低いのに遅い）**。区間 double-S：
+  **4区間(角3) min_time=7.08s**・J1&J2 jerk=229/229(拘束)・全軸上限内。TOTG下限 6.1s の **1.16倍**（旧 26.89s の **3.8倍速**）。
+  `target=12`（延伸）→ feasible=1・全軸比≤0.36（更に低ジャーク）。
+- **設計変遷**：単一double-S+一様スケール（角で全体律速＝遅い）→ 2次TOPP試作（接線ジャーク非制限で**直線が11s に悪化**・不採用）→ **区間double-S（採用）**＝直線無回帰かつ角経路も TOTG 近傍。
+
+### 注意 / 将来
+- **角では一旦停止（v=0,a=0）して通過**する（局所減速の代わりに完全停止）。狭所 register では安全side で妥当だが、winding 経路では角ごとに小休止が入る。
+- より滑らかに（角で止めず角速度で通過）したいなら、境界速度付き S-curve（第3次 TOPP／Ruckig）が本筋。まずは区間 double-S で「無回帰＋角経路も実用速度＋厳密ジャーク＋依存無し」を優先。
 
 ## 関連
 - 現状の Unity 側 robotSteps / 登録・キャッシュ / Step A(速度・時間解析) は実装済（`ComRos2PathPlanner` / `ComRos2PlanPanel` / `Ros2TrajCacheStore` / `Ros2MotorLimits`）。

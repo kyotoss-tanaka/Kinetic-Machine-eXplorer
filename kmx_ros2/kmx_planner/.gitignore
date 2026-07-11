@@ -1,0 +1,4 @@
+# Python bytecode / caches（生成物はコミットしない）
+__pycache__/
+*.pyc
+*.pyo
