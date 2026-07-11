@@ -14,3 +14,6 @@ bool optimize          # true=登録最適化(優先度 時間>ジャーク>ト�
 float64 target_time    # 目標所要時間[秒]。0以下=成り行き（時間制約なし＝ジャーク/トルクのみ最適化）
 float64 payload_mass   # 段階2(トルク)用ペイロード質量[kg]（ツール込み）。0以下=既定
 float64[] payload_com  # 段階2 ペイロード重心[m]（フランジ相対 x,y,z）。空=既定
+# --- 復帰(通常計画)の速度倍率（RETURN_SPEED_UNITY_SPEC.md）。v/a/j 上限を一律スケール＝N%の速さで厳守。 ---
+# 復帰モード(optimize=false)のみ有効。0以下/未設定=ROS2 既定 return_speed_scale(0.25)。登録(optimize=true)は target_time で制御するため無視。
+float64 speed_scale    # 復帰モードの速度倍率(0<scale≤1.0)。小さいほど遅く安全。0以下=既定

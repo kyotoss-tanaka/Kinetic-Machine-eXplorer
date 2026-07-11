@@ -41,6 +41,8 @@ public class ComRos2PathPlanner : MonoBehaviour
     [SerializeField] private double planTimeBudget = 0.0;
     [Tooltip("大回り回避の許容倍率(始点→終点の直線関節距離比)。小さいほど短経路を要求(例1.5)。0=ROS2既定(plan_good_ratio)")]
     [SerializeField] private double planGoodRatio = 0.0;
+    [Tooltip("復帰(通常計画)の速度倍率(0.05〜1.0)。v/a/j 上限を一律スケール。登録(optimize)には送らない。実行中も UI で調整可")]
+    [SerializeField, Range(0.05f, 1.0f)] private float returnSpeedScale = 0.25f;
 
     [Header("計画のレビュー（計画中表示／成否／経路プレビュー→OK/Cancel）")]
     [Tooltip("軌道受信後すぐ動かさず、3Dプレビュー表示して OK(ApprovePlan)/Cancel(CancelPlan) を待つ")]
@@ -98,6 +100,8 @@ public class ComRos2PathPlanner : MonoBehaviour
     public bool OptSearching => optSearching;    // UI（停止ボタン表示）用
     /// <summary>登録の保留中か（登録ボタン押下→OK保存/NGキャンセルで解除）。UIでステップ操作を無効化するのに使う。</summary>
     public bool RegisterPending => registerPending != null;
+    /// <summary>復帰(通常計画)の速度倍率(0.05〜1.0)。UI/Inspectorから設定。復帰プランに speed_scale で送る。</summary>
+    public float ReturnSpeedScale { get => returnSpeedScale; set => returnSpeedScale = Mathf.Clamp(value, 0.05f, 1f); }
     private LineRenderer previewLine;            // 先端軌跡プレビュー
     private const string PreviewLineName = "Ros2PlanPreviewLine";
     private const string GhostNameSuffix = "_Ghost";   // ゴースト複製名の接尾辞（機種非依存 "<model>_Ghost"）
@@ -253,8 +257,10 @@ public class ComRos2PathPlanner : MonoBehaviour
         ResetOptProgress();
         double budget = (budgetSec >= 0.0) ? budgetSec : planTimeBudget;   // 登録探索は大予算(600s等)を渡す
         optSearching = optimize;                                           // 探索中フラグ（中断ボタン・経過表示・timeout猶予に使う）
+        // 復帰(通常計画)のみ速度倍率を送る。登録(optimize)は target_time で時間制御するため送らない(0)。
+        double speedScale = optimize ? 0.0 : returnSpeedScale;
         transport.PublishPlanRequest(planRequestTopic, jointNames, startDeg, goalDeg, budget, planGoodRatio, robotId,
-            optimize, targetTimeSec);
+            optimize, targetTimeSec, speedScale: speedScale);
         planStartTime = Time.time;
         lastOptMsgTime = Time.time;
         SetState(PlanState.Planning, optimize ? "最適化探索中…" : "計画中…");

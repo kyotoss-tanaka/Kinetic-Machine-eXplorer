@@ -105,7 +105,8 @@ public sealed class RosTcpConnectorTransport : IRos2Transport
     public void PublishPlanRequest(string topic, string[] names, double[] startDeg, double[] goalDeg,
                                    double timeBudget = 0.0, double goodRatio = 0.0, string robotId = "",
                                    bool optimize = false, double targetTimeSec = 0.0,
-                                   double payloadMass = 0.0, double[] payloadCom = null)
+                                   double payloadMass = 0.0, double[] payloadCom = null,
+                                   double speedScale = 0.0)
     {
         if (ros == null)
         {
@@ -126,6 +127,7 @@ public sealed class RosTcpConnectorTransport : IRos2Transport
             target_time = targetTimeSec,
             payload_mass = payloadMass,
             payload_com = payloadCom ?? System.Array.Empty<double>(),
+            speed_scale = speedScale,
         });
     }
 

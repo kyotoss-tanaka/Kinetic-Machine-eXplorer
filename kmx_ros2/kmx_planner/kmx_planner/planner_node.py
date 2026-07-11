@@ -156,6 +156,11 @@ class KmxPlannerNode(Node):
         self.declare_parameter('allowed_planning_time', 3.0)
         self.declare_parameter('vel_scale', 0.3)
         self.declare_parameter('acc_scale', 0.3)
+        # ★復帰モードの速度倍率(2026-07-11)：復帰は距離比例再タイム(_densify_retime)で加速度/ジャークを
+        #   守っていなかった→登録と同じ per-joint double-S(_jerk_retime)で厳守化。この倍率で v/a/j 上限を
+        #   一律スケールして計時＝「N% の速さ」で動く（スケール後の上限＝フル上限内なので厳守は保証）。
+        #   既定0.25（25%・ゆっくり安全）。1.0 で最速(全上限使用)。ros2 param set で live 調整可。
+        self.declare_parameter('return_speed_scale', 0.25)
         # 軌跡最適化（設計1・ROS2側固定。Unity/PlanRequest は無変更）。ros2 param set で live 調整可。
         # planner_id: OMPL プランナ。既定 BITstar（informed 最適化。狭所の実測で cost 1.5〜2.0倍・
         #   成功率 7〜8/10。失敗分は下のリトライ＋plan_fallback_planner で吸収し実質毎回成功）。
@@ -384,10 +389,12 @@ class KmxPlannerNode(Node):
         req_ratio = float(getattr(msg, 'good_ratio', 0.0) or 0.0)
         optimize = bool(getattr(msg, 'optimize', False))
         target_time = float(getattr(msg, 'target_time', 0.0) or 0.0)
+        req_speed = float(getattr(msg, 'speed_scale', 0.0) or 0.0)   # 復帰の速度倍率。0以下=node既定
         self.get_logger().info(
             f"plan request: start={start} goal={goal} (deg), joints={names}"
             + (f" time_budget={req_budget}s" if req_budget > 0 else "")
             + (f" good_ratio={req_ratio}" if req_ratio > 0 else "")
+            + (f" speed_scale={req_speed}" if (req_speed > 0 and not optimize) else "")
             + (f" ★optimize target_time={target_time if target_time > 0 else '成り行き'}s" if optimize else ""))
 
         if len(start) != len(names) or len(goal) != len(names):
@@ -412,7 +419,8 @@ class KmxPlannerNode(Node):
             return
 
         if self.use_moveit:
-            self.plan_with_moveit(names, start, goal, req_budget, req_ratio)   # 非同期。完了時に発行＋status。
+            self.plan_with_moveit(names, start, goal, req_budget, req_ratio,
+                                  req_speed_scale=req_speed)   # 非同期。完了時に発行＋status。
         else:
             traj = self.plan_interpolate(names, start, goal)
             direct = math.sqrt(sum((g - s) ** 2 for s, g in zip(start[:len(names)], goal[:len(names)])))
@@ -748,7 +756,7 @@ class KmxPlannerNode(Node):
 
     # ---------------------------------------------------- MoveIt モード（本命）
     def plan_with_moveit(self, kmx_names, start_deg, goal_deg, req_budget=0.0, req_ratio=0.0,
-                         optimize=False, target_time=0.0):
+                         optimize=False, target_time=0.0, req_speed_scale=0.0):
         """move_group に MoveGroup アクション(plan_only)で joint 目標を投げる（非同期）。
         req_budget/req_ratio が >0 ならその要求だけ node 既定を上書き（Unity から粘り具合を指定）。
         optimize=True（登録最適化）: scaling=1 で衝突回避経路を計画し、完了時に _optimize_and_publish で
@@ -859,6 +867,8 @@ class KmxPlannerNode(Node):
             'last_error': 0,   # 直近試行の MoveItErrorCodes.val（最終失敗時の理由に使う）
             'optimize': optimize,       # 登録最適化モード（完了時に再タイム付けして発行）
             'target_time': target_time, # 目標所要時間[秒]（0以下=成り行き）
+            'speed_scale': float(req_speed_scale or 0.0),  # 復帰の速度倍率（0以下=node既定 return_speed_scale）
+
             # 始点→終点の直線関節距離（度）。経路長の下限。大回り判定の基準に使う。
             'direct_cost': math.sqrt(sum((g - s) ** 2 for s, g in zip(start_deg[:n], goal_deg[:n]))),
         }
@@ -950,18 +960,28 @@ class KmxPlannerNode(Node):
                                            float(session.get('target_time', 0.0)),
                                            session['moveit_names'])
                 return
-            # 通常計画：従来どおりショートカットして発行。
-            traj = session['best_traj']
-            if bool(self.get_parameter('path_shortcut').value):
-                traj = self._shortcut_traj(traj, session['moveit_names'])
+            # 復帰計画：経路を短縮→ per-joint double-S(_jerk_retime) で速度倍率 return_speed_scale で計時。
+            #   ★速度/加速度/ジャークを厳守（旧 _densify_retime の距離比例＝一定速で角/端点の加速度が上限
+            #   超過し得た問題を解消）。角では一旦停止＝復帰の「角停止OK」方針とも整合。geometry は短縮経路のまま
+            #   （jerk_corner_round=0 既定で角丸め無し＝衝突安全）。scale=1.0 で最速、既定0.25で25%速。
+            traj0 = session['best_traj']
+            mn = session['moveit_names']
+            keep = self._shortcut_keep(traj0, mn) if bool(self.get_parameter('path_shortcut').value) else None
+            path = keep if keep is not None else [list(p.positions) for p in traj0.points]
+            # 速度倍率：Unity 要求(session['speed_scale'])>0 ならそれ、無ければ node 既定 return_speed_scale。
+            rscale = float(session.get('speed_scale', 0.0) or 0.0)
+            if rscale <= 0.0:
+                rscale = float(self.get_parameter('return_speed_scale').value)
+            traj, _tmin, _ach, _feas = self._jerk_retime(
+                path, traj0.joint_names, 0.0, moveit_names=mn, scale=rscale)
             post = self._traj_cost(traj)
             direct = max(session['direct_cost'], 1e-6)
             self.pub.publish(traj)
             self._publish_status(f"succeeded:{len(traj.points)}:{post / direct:.2f}")
             self.get_logger().info(
-                f"published best trajectory: {len(traj.points)} points "
-                f"(moveit, cost {raw_cost:.1f}→{post:.1f}, 直線={session['direct_cost']:.1f} "
-                f"[{post / direct:.1f}倍], {session['successes']}/{session['attempts']} 成功)")
+                f"published best trajectory (復帰・jerk厳守 scale={rscale}): {len(traj.points)}点 "
+                f"総時間={_tmin:.2f}s cost {raw_cost:.1f}→{post:.1f} 直線={session['direct_cost']:.1f}"
+                f"[{post / direct:.1f}倍] {session['successes']}/{session['attempts']} 成功")
         else:
             # ★保険: 主プランナ（既定 BITstar）が全滅なら、fallback プランナで1回だけ最終試行。
             #   予算超過でも実行する（「経路が返らない」のが最悪のため）。以降のリトライ判定は
@@ -991,16 +1011,15 @@ class KmxPlannerNode(Node):
         return total
 
     # ------------------------------------------- 経路短縮（RRT*-Smart の Path Optimization 相当）
-    def _shortcut_traj(self, traj, moveit_names):
-        """発行前の経路短縮：非隣接ウェイポイント間を直結できるなら中間を捨てる（貪欲・単一パス）。
-        入力は密な点列なので、貪欲に「最も遠い衝突しない点」まで飛ぶことで直線区間はまとめ、
-        角(障害物の影)の手前だけがノードに残る＝「直線で動けるところは直線」化。
-        衝突判定は /check_state_validity を経路上の補間点だけに使う（attachヘッド＋障害物込み）。"""
+    def _shortcut_keep(self, traj, moveit_names):
+        """発行前の経路短縮の“節点列(keep, deg)”を返す。非隣接点を直結できるなら中間を捨てる（貪欲）。
+        衝突判定は /check_state_validity を経路上の補間点だけに使う（attachヘッド＋障害物込み）。
+        sv 未準備 or 点少なら None（呼び側は元経路を使う）。"""
         if self._sv_cli is None or not self._sv_cli.service_is_ready():
-            return traj
+            return None
         pts = [list(p.positions) for p in traj.points]   # deg, out_names(J1..J6)順
         if len(pts) < 3:
-            return traj
+            return None
         step = float(self.get_parameter('shortcut_step_deg').value)
         nchk = [0]
         keep = [pts[0]]
@@ -1011,11 +1030,15 @@ class KmxPlannerNode(Node):
                 j -= 1
             keep.append(pts[j])
             i = j
-        out = self._densify_retime(keep, traj)
-        self.get_logger().info(
-            f"  経路短縮: {len(pts)}点→{len(keep)}節→{len(out.points)}点 "
-            f"(衝突チェック{nchk[0]}回)")
-        return out
+        self.get_logger().info(f"  経路短縮: {len(pts)}点→{len(keep)}節 (衝突チェック{nchk[0]}回)")
+        return keep
+
+    def _shortcut_traj(self, traj, moveit_names):
+        """短縮＋距離比例再タイム（旧経路。登録legacy の候補生成等で使用）。keep 無しなら元経路。"""
+        keep = self._shortcut_keep(traj, moveit_names)
+        if keep is None:
+            return traj
+        return self._densify_retime(keep, traj)
 
     def _segment_free(self, a, b, moveit_names, step, nchk):
         """a→b の関節空間直線を step(度)刻みで補間し、各点が衝突しないか検証。"""
@@ -1829,7 +1852,7 @@ class KmxPlannerNode(Node):
         return out, T[-1]
 
     def _jerk_retime(self, path, joint_names, target_time, samples=150, floor_time=0.0,
-                     moveit_names=None):
+                     moveit_names=None, scale=1.0):
         """段階1.5：経路 path(度) を joint_limits(vel/acc/jerk) 準拠に再タイム付け。返り値 (traj, min_time, achieved, feasible)。
         ★区間 double-S 方式：経路を“角”(隣接方向変化 > jerk_corner_min_deg)で分割し、各サブ経路を rest-to-rest の
         double-S(7区間ジャーク制限)で計時。角では一旦減速(v=0,a=0)して通過＝**角ごとに局所減速**するので、以前の
@@ -1848,7 +1871,8 @@ class KmxPlannerNode(Node):
         lim = self._load_kine_limits()
         big = (1e6, 1e6, 1e6)
         ndof = len(path[0])
-        limits = [lim.get(joint_names[jdx], big) if jdx < len(joint_names) else big
+        sc = max(1e-3, float(scale))   # 速度倍率：v/a/j 上限を一律スケール（<1 で遅く・厳守は保たれる）
+        limits = [tuple(x * sc for x in (lim.get(joint_names[jdx], big) if jdx < len(joint_names) else big))
                   for jdx in range(ndof)]
         min_turn = float(self.get_parameter('jerk_corner_min_deg').value)
 

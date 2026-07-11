@@ -50,6 +50,8 @@ public class ComRos2PlanPanel : MonoBehaviour
 
     private Text statusText;
     private Text seekTimeLabel;   // 再生中の時間（現在/総 秒）。シークバー右
+    private Slider returnSpeedSlider;   // 復帰(通常計画)の速度倍率スライダー（実行中に調整可）
+    private Text returnSpeedLabel;      // 「復帰速度 XX%」
     private Text goalText;                                            // 旧ゴール表示（撤去・未使用）
     private Text curText;                                             // ロボットの現在関節角（ライブ表示・旧ゴール行の位置）
     private Text commText;                                            // ROS 状態（ROS2起動＋TCP接続 統合・タイトルバー右）
@@ -378,6 +380,16 @@ public class ComRos2PlanPanel : MonoBehaviour
                 new Vector2(8f, y), v => { if (obstacles != null) { obstacles.HeadAsSingleBox = v; } });
             y -= 28f;
         }
+
+        // 復帰(通常計画)の速度倍率。実行中も調整可。計画発行時に speed_scale として送る（登録には送らない）。
+        float rs = planner != null ? planner.ReturnSpeedScale : 0.25f;
+        returnSpeedLabel = MakeLabel(panel, "retSpdLbl", $"復帰速度 {rs * 100f:F0}%", 13, new Vector2(8f, y), 108f, 22f);
+        returnSpeedSlider = MakeSlider(panel, "retSpd", new Vector2(118f, y), W - 16f - 110f, 18f);
+        returnSpeedSlider.minValue = 0.05f;
+        returnSpeedSlider.maxValue = 1.0f;
+        returnSpeedSlider.SetValueWithoutNotify(rs);
+        returnSpeedSlider.onValueChanged.AddListener(OnReturnSpeedChanged);
+        y -= 28f;
 
         // ボタン
         setGoalBtn = MakeButton(panel, "SetGoal", "ゴール設定", new Vector2(8f, y), 168f, 34f, ToggleGoalSet);
@@ -894,6 +906,13 @@ public class ComRos2PlanPanel : MonoBehaviour
         // 確定→軌道受信まで少し掛かるので、その間は再押下不可にする（二重送信・誤操作防止）。
         stopSearchLatched = true;
         if (stopSearchBtn != null) { stopSearchBtn.interactable = false; }
+    }
+
+    /// <summary>復帰速度スライダー：復帰(通常計画)の速度倍率を実行中に設定（次の計画発行から反映）。</summary>
+    private void OnReturnSpeedChanged(float v)
+    {
+        if (planner != null) { planner.ReturnSpeedScale = v; }
+        if (returnSpeedLabel != null) { returnSpeedLabel.text = $"復帰速度 {v * 100f:F0}%"; }
     }
 
     /// <summary>シークバー操作：ゴーストを 0..1 の位置へ手動スクラブ（＝一時停止）。</summary>

@@ -39,6 +39,9 @@ namespace RosMessageTypes.Kmx
         //  段階2(トルク)用ペイロード質量[kg]（ツール込み）。0以下=既定
         public double[] payload_com;
         //  段階2 ペイロード重心[m]（フランジ相対 x,y,z）。空=既定
+        //  --- 復帰(通常計画)の速度倍率（RETURN_SPEED_UNITY_SPEC.md）。optimize=false のみ有効 ---
+        public double speed_scale;
+        //  復帰モードの速度倍率(0<scale≤1.0)。v/a/j 上限を一律スケール。0以下=既定 return_speed_scale(0.25)
 
         public PlanRequestMsg()
         {
@@ -52,9 +55,10 @@ namespace RosMessageTypes.Kmx
             this.target_time = 0.0;
             this.payload_mass = 0.0;
             this.payload_com = new double[0];
+            this.speed_scale = 0.0;
         }
 
-        public PlanRequestMsg(string[] names, double[] start, double[] goal, double time_budget, double good_ratio, string robot_id, bool optimize, double target_time, double payload_mass, double[] payload_com)
+        public PlanRequestMsg(string[] names, double[] start, double[] goal, double time_budget, double good_ratio, string robot_id, bool optimize, double target_time, double payload_mass, double[] payload_com, double speed_scale)
         {
             this.names = names;
             this.start = start;
@@ -66,6 +70,7 @@ namespace RosMessageTypes.Kmx
             this.target_time = target_time;
             this.payload_mass = payload_mass;
             this.payload_com = payload_com;
+            this.speed_scale = speed_scale;
         }
 
         public static PlanRequestMsg Deserialize(MessageDeserializer deserializer) => new PlanRequestMsg(deserializer);
@@ -82,6 +87,7 @@ namespace RosMessageTypes.Kmx
             deserializer.Read(out this.target_time);
             deserializer.Read(out this.payload_mass);
             deserializer.Read(out this.payload_com, sizeof(double), deserializer.ReadLength());
+            deserializer.Read(out this.speed_scale);
         }
 
         public override void SerializeTo(MessageSerializer serializer)
@@ -100,6 +106,7 @@ namespace RosMessageTypes.Kmx
             serializer.Write(this.payload_mass);
             serializer.WriteLength(this.payload_com);
             serializer.Write(this.payload_com);
+            serializer.Write(this.speed_scale);
         }
 
         public override string ToString()
@@ -114,7 +121,8 @@ namespace RosMessageTypes.Kmx
             "\noptimize: " + optimize.ToString() +
             "\ntarget_time: " + target_time.ToString() +
             "\npayload_mass: " + payload_mass.ToString() +
-            "\npayload_com: " + System.String.Join(", ", payload_com.ToList());
+            "\npayload_com: " + System.String.Join(", ", payload_com.ToList()) +
+            "\nspeed_scale: " + speed_scale.ToString();
         }
 
 #if UNITY_EDITOR

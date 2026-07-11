@@ -641,7 +641,8 @@ public interface IRos2Transport
     void PublishPlanRequest(string topic, string[] names, double[] startDeg, double[] goalDeg,
                             double timeBudget = 0.0, double goodRatio = 0.0, string robotId = "",
                             bool optimize = false, double targetTimeSec = 0.0,
-                            double payloadMass = 0.0, double[] payloadCom = null);
+                            double payloadMass = 0.0, double[] payloadCom = null,
+                            double speedScale = 0.0);
     /// <summary>trajectory_msgs/JointTrajectory を購読し Ros2Trajectory(度) に変換して渡す。</summary>
     void SubscribeTrajectory(string topic, Action<Ros2Trajectory> onTrajectory);
     /// <summary>計画ステータス(std_msgs/String, 例 "planning"/"succeeded:.."/"failed:..")を購読する。</summary>
@@ -674,7 +675,8 @@ public sealed class NullRos2Transport : IRos2Transport
     public void PublishPlanRequest(string topic, string[] names, double[] startDeg, double[] goalDeg,
                                    double timeBudget = 0.0, double goodRatio = 0.0, string robotId = "",
                                    bool optimize = false, double targetTimeSec = 0.0,
-                                   double payloadMass = 0.0, double[] payloadCom = null) { }
+                                   double payloadMass = 0.0, double[] payloadCom = null,
+                                   double speedScale = 0.0) { }
     public void SubscribeTrajectory(string topic, Action<Ros2Trajectory> onTrajectory) { }
     public void SubscribePlanStatus(string topic, Action<string> onStatus) { }
     public void PublishPlanCancel(string topic) { }
