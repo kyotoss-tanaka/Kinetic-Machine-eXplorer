@@ -941,7 +941,7 @@ public class ComRos2PathPlanner : MonoBehaviour
         // キャッシュ再生（承認スキップ・ゴースト無し）
         traj = BuildTrajFromCache(cache);
         SetSeqPlaySpeed(s.step, traj.timesSec[traj.timesSec.Length - 1]);
-        string rep = AnalyzeTraj(traj, s.step.time, s.robot.Target != null ? s.robot.Target.ModelKey : "", out bool warn, cache.minTimeSec);
+        string rep = AnalyzeStepDisplay(traj, s.step.time / 1000.0, cache.minTimeSec, s.robot.Target != null ? s.robot.Target.ModelKey : "", out bool warn);
         playT = 0d;
         playing = true;
         SetState(PlanState.Playing, $"再生(ｷｬｯｼｭ): {s.step.name} {rep}");
@@ -1091,7 +1091,7 @@ public class ComRos2PathPlanner : MonoBehaviour
         {
             tSec = psteps[stepIndex].time;
         }
-        string rep = AnalyzeTraj(traj, tSec, r.Target != null ? r.Target.ModelKey : "", out bool warn, cache.minTimeSec);
+        string rep = AnalyzeStepDisplay(traj, tSec / 1000.0, cache.minTimeSec, r.Target != null ? r.Target.ModelKey : "", out bool warn);
         SetState(PlanState.Preview, $"ｺﾞｰｽﾄ再生 step#{stepIndex}: {rep}（NGで停止）");
         if (warn) { Debug.LogWarning($"[ComRos2PathPlanner] step#{stepIndex}: {rep}"); }
         StartGhostPreview();           // Update がゴーストを軌道でループ再生
@@ -1138,7 +1138,7 @@ public class ComRos2PathPlanner : MonoBehaviour
         }
         string mk = registerPending.robot.Target != null ? registerPending.robot.Target.ModelKey : "";
         float tSec = registerPending.step != null ? registerPending.step.time : 0f;
-        string rep = AnalyzeTraj(traj, tSec, mk, out bool warn, optMinTime);
+        string rep = AnalyzeStepDisplay(traj, tSec / 1000.0, optMinTime, mk, out bool warn);
         Debug.Log($"[ComRos2PathPlanner] 登録: {e.robotId} step#{e.stepIndex} ({e.positions.Count}点) {rep}");
         if (warn) { Debug.LogWarning($"[ComRos2PathPlanner] 登録 {e.name}: {rep}"); }
         StopGhostPreview();
@@ -1171,6 +1171,17 @@ public class ComRos2PathPlanner : MonoBehaviour
             t.positions[i] = d;
         }
         return t;
+    }
+
+    /// <summary>登録軌道の再生/登録用の解析文字列を「動作時間ルール」で作る（設定と最短の大小で所要/括弧を切替）。
+    /// 規約：最短&gt;設定→所要=最短(設定:XX) ／ 設定≥最短→所要=設定(最短:XX)。所要=大きい方＝実動作時間(achieved)。
+    /// 所要は軌道の実時間(timeMs=0→effDur=nativeDur=achieved)を使う。</summary>
+    private string AnalyzeStepDisplay(Ros2Trajectory tr, double setSec, double minSec, string modelKey, out bool warn)
+    {
+        bool minGtSet = minSec > 0d && setSec > 0d && minSec > setSec + 0.05d;   // 最短 > 設定（＝目標未達）
+        return minGtSet
+            ? AnalyzeTraj(tr, 0f, modelKey, out warn, minSec, "設定", setSec)   // 所要=最短, 括弧=設定
+            : AnalyzeTraj(tr, 0f, modelKey, out warn, minSec);                  // 所要=設定(or最短), 括弧=最短
     }
 
     /// <summary>軌道の所要/軸速%を解析（Step A）。warn=超過。
@@ -1446,9 +1457,10 @@ public class ComRos2PathPlanner : MonoBehaviour
             return dur > 0f ? Mathf.Clamp((float)previewT, 0f, dur) : 0f;
         }
     }
-    /// <summary>ゴースト軌道の総時間[秒]（＝最終点の time_from_start）。</summary>
+    /// <summary>ゴースト軌道の総時間[秒]（＝最終点の time_from_start＝動作時間 achieved）。</summary>
     public float GhostDurationSec => (traj != null && traj.timesSec != null && traj.timesSec.Length > 0)
         ? (float)traj.timesSec[traj.timesSec.Length - 1] : 0f;
+
 
     /// <summary>ゴースト再生中か（シークバーの表示可否に使う）。</summary>
     public bool GhostActive => ghostActive;

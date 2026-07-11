@@ -209,6 +209,7 @@ public class ComRos2PlanPanel : MonoBehaviour
         if (planner.State == ComRos2PathPlanner.PlanState.Preview && planner.GhostActive)
         {
             if (seekSlider != null) { seekSlider.SetValueWithoutNotify(planner.GhostPreviewT01); }
+            // 現在 / 所要時間(=動作時間)。種別ラベル(設定/最短)は付けない（ステータス行に出る）。
             if (seekTimeLabel != null) { seekTimeLabel.text = $"{planner.GhostTimeSec:F1}/{planner.GhostDurationSec:F1}s"; }
             bool gplaying = planner.GhostPlaying;
             if (seekUseIconFont)
@@ -407,15 +408,18 @@ public class ComRos2PlanPanel : MonoBehaviour
             seekPauseIcon = MakePauseIcon((RectTransform)seekPlayBtn.transform);
             seekPauseIcon.SetActive(false);
         }
-        // シークバー（右に再生時間ラベル 52px 分を確保して幅を詰める）。
-        seekSlider = MakeSlider(panel, "seek", new Vector2(46f, y), W - 16f - 38f - 52f, 18f);
+        // シークバー（右に再生時間ラベル 68px 分を確保して幅を詰める。ラベルは 現在/種別+総 秒）。
+        seekSlider = MakeSlider(panel, "seek", new Vector2(46f, y), W - 16f - 38f - 68f, 18f);
         seekSlider.minValue = 0f;
         seekSlider.maxValue = 1f;
         seekSlider.value = 0f;
         seekSlider.onValueChanged.AddListener(OnSeek);
-        // 再生中の時間（現在/総 秒）。スライダー右端。
-        seekTimeLabel = MakeLabel(panel, "seekTime", "", 12, new Vector2(W - 56f, y), 52f, 18f);
+        // 再生中の時間（現在 / 動作時間[最短 or 設定]）。スライダー右端。長い時は自動縮小。
+        seekTimeLabel = MakeLabel(panel, "seekTime", "", 12, new Vector2(W - 72f, y), 68f, 18f);
         seekTimeLabel.alignment = TextAnchor.MiddleRight;
+        seekTimeLabel.resizeTextForBestFit = true;
+        seekTimeLabel.resizeTextMinSize = 8;
+        seekTimeLabel.resizeTextMaxSize = 12;
         y -= 24f;
         okBtn = MakeButton(panel, "OK", "OK 実行", new Vector2(8f, y), 168f, 34f, OnOk);
         ngBtn = MakeButton(panel, "NG", "NG 破棄", new Vector2(184f, y), 168f, 34f, OnNg);
