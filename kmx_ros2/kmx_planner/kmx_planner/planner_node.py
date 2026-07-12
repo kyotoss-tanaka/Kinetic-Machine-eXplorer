@@ -259,7 +259,16 @@ class KmxPlannerNode(Node):
         #   上位 N 本を保持し、register 発行時に「短い順に STOMP 最適化→発行前ゲート」を試し、最初に
         #   衝突フリーで通った経路を発行する（＝最短でなく“衝突しない中で最短”）。1本が縫えなくても
         #   別ホモトピーで通る＝成功率が上がる。オラクル(pin+coal)は1回だけ構築して全候補で使い回す。
-        self.declare_parameter('register_candidates', 5)
+        # ★CONSULT4 Tier0(2026-07-12)：候補数 5→10（探索余剰予算を使い "衝突フリーな中で achieved 最小" を
+        #   引く確度↑。実測 単一base比 -25%・現行5比 期待-6%＋"遅い外れ"を7倍減〔全候補12s超 13%→2%〕。
+        #   計画時間は候補数に比例〔~2分〕。offline register なので許容。速さ優先なら下げる）。
+        self.declare_parameter('register_candidates', 10)
+        # ホモトピー重複排除しきい（度）：候補経路の arc-length 対応点間 最大距離がこの値未満なら同じ通り道と
+        #   みなし重複を捨てる（distinct な通り道だけ STOMP＝無駄削減）。0以下で dedup 無効。
+        self.declare_parameter('stomp_dedup_deg', 20.0)
+        # STOMP 経路長コストのメトリック：'euclid'(関節距離・既定)/'time'(d_T時間近似)。
+        #   ※実測で joint-to-joint 登録では d_T は achieved にほぼ不感（正味変位が端点固定）＝既定 euclid。
+        self.declare_parameter('stomp_length_metric', 'euclid')
         # ★登録探索の試行回数上限：optimize は従来「予算(time_budget=600s)いっぱい BITstar を数百回」
         #   呼んでいたが、OMPL BITstar は稀に solve/publishSolution で SIGSEGV し move_group が落ちる
         #   （OMPL 既知バグ・回数に比例して踏む）。候補方式では上位数本あれば十分なので、この回数で
@@ -1196,6 +1205,9 @@ class KmxPlannerNode(Node):
             self._publish_status("failed:no_solution")
             return
         mn = (moveit_names or list(cands[0].joint_names))
+        # ★Tier0(CONSULT4): ホモトピー重複排除＝distinct な通り道だけ残す（d_T 昇順）。BITstar は同じ通り道を
+        #   何本も返し得るので、重複を STOMP する無駄を省く（多様性も確保）。失敗時は元のまま。
+        cands = self._dedup_candidates(cands, mn)
         # ★cancel は「探索停止」用。ここ（最適化/発行フェーズ）に入った時点で探索は終わっているので
         #   フラグを clear し、候補の STOMP 最適化を必ず走らせる。旧: cancel が STOMP まで残ると
         #   should_cancel が即 True→0 反復→infeasible シードのまま全候補「解なし」→failed:collision だった。
@@ -1215,7 +1227,8 @@ class KmxPlannerNode(Node):
                 for ci, base in enumerate(cands):
                     tag = f"cand{ci + 1}/{len(cands)}"
                     try:
-                        r = self._stomp_build(S, base, target_time, mn, tag)
+                        r = self._stomp_build(S, base, target_time, mn, tag,
+                                              cand_i=ci, n_cands=len(cands))
                     except Exception as e:   # noqa: BLE001
                         self.get_logger().warn(f"★登録[stomp] {tag} 例外({e})→次候補。")
                         r = None
@@ -1311,6 +1324,29 @@ class KmxPlannerNode(Node):
             self.get_logger().warn(f"★登録[stomp] GetPlanningScene 失敗: {e}")
             return None
 
+    def _dedup_candidates(self, cands, mn):
+        """候補(JointTrajectory・度)をホモトピー重複排除し distinct な代表を d_T 昇順で返す（Tier0）。
+        しきい stomp_dedup_deg≤0 or 例外時は元のまま。"""
+        thresh = float(self.get_parameter('stomp_dedup_deg').value)
+        if thresh <= 0.0 or len(cands) < 2:
+            return cands
+        try:
+            import numpy as np
+            from .register.candidates import dedup_homotopies
+            lim = self._load_kine_limits()   # name -> (v,a,j) 度
+            big = (600.0, 600.0, 6000.0)
+            alim_deg = [lim.get(j, big)[1] for j in mn]   # deg/s²（base は度）
+            paths = [np.array([[p.positions[k] for k in range(len(mn))] for p in c.points]) for c in cands]
+            reps = dedup_homotopies(paths, alim_deg, thresh=thresh)
+            out = [cands[i] for i in reps]
+            if len(out) < len(cands):
+                self.get_logger().info(
+                    f"★登録[stomp] ホモトピー重複排除: {len(cands)}→{len(out)}本(distinct・d_T昇順)")
+            return out or cands
+        except Exception as e:   # noqa: BLE001
+            self.get_logger().warn(f"★登録[stomp] dedup 失敗({e})→元候補で続行。")
+            return cands
+
     def _build_stomp_oracle(self):
         """現在の planning scene から pin+coal 衝突/距離オラクル PinScene を構築（候補間で使い回す）。
         None=構築不可（呼び側が legacy へ）。"""
@@ -1330,7 +1366,7 @@ class KmxPlannerNode(Node):
         self.get_logger().info(f"★登録[stomp] {S.summary()}")
         return S
 
-    def _stomp_build(self, S, base_traj_raw, target_time, mn, tag=""):
+    def _stomp_build(self, S, base_traj_raw, target_time, mn, tag="", cand_i=0, n_cands=1):
         """1本の候補ベースを STOMP-lite(オラクル S)で C² 最適化→③double-S retime→発行前ゲート。
         発行はせず、結果 dict(out, achieved, min_time, feasible, jerk, ratio, tag, it0, itb) を返す。
         feasible解なし/ゲート衝突は None（呼び側が除外）。呼び側が全候補から最終時間 最小を選び発行する。
@@ -1356,17 +1392,32 @@ class KmxPlannerNode(Node):
                  smooth=float(self.get_parameter('stomp_w_smooth').value),
                  grav=float(self.get_parameter('stomp_w_grav').value),
                  tip=float(self.get_parameter('stomp_w_tip').value))
+        lim = self._load_kine_limits()   # name -> (v,a,j) 度
+        big = (600.0, 600.0, 6000.0)
+        alim_rad = np.array([lim.get(j, big)[1] for j in JOINTS]) * d2r   # rad/s²（STOMP は rad）
         opt = StompLite(S,
                         K=int(self.get_parameter('stomp_K').value),
                         M=int(self.get_parameter('stomp_M').value),
                         d_safe=float(self.get_parameter('stomp_d_safe').value),
                         clearance=str(self.get_parameter('stomp_clearance').value),
                         weights=w,
-                        rollouts=int(self.get_parameter('stomp_rollouts').value))
-        self._publish_status(f"opt phase=stomp {tag} prog=10")
+                        rollouts=int(self.get_parameter('stomp_rollouts').value),
+                        alim=alim_rad,
+                        length_metric=str(self.get_parameter('stomp_length_metric').value))
         budget = float(self.get_parameter('stomp_budget_sec').value)
+        # ★進捗（RETURN/REGISTER_PROGRESS）：候補 i/N と各 STOMP の経過で全体% を出す（10→95% を候補で按分）。
+        #   StompLite が ~1.5s ごとに progress_cb を呼ぶ→ここで throttle 済み plan_status を publish。
+        def _prog(pct):
+            return int(max(10, min(95, 10 + 85 * pct / max(n_cands, 1))))
+        self._publish_status(f"opt phase=stomp {tag} iter=0 prog={_prog(cand_i)}")
+
+        def _pcb(elapsed, bud, feas, it):
+            frac = min(1.0, elapsed / max(bud, 1e-3))
+            self._publish_status(
+                f"opt phase=stomp {tag} iter={it} feasible={1 if feas else 0} prog={_prog(cand_i + frac)}")
         best, info = opt.optimize(start_r, goal_r, base_rad, budget_sec=budget,
-                                  should_cancel=lambda: self._cancel_requested, verbose=False)
+                                  should_cancel=lambda: self._cancel_requested, verbose=False,
+                                  progress_cb=_pcb)
         if not best.get('feasible'):
             self.get_logger().warn(f"★登録[stomp] {tag} feasible 解なし→除外。")
             return None

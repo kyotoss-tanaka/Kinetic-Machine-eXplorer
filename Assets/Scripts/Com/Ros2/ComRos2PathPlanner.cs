@@ -571,11 +571,23 @@ public class ComRos2PathPlanner : MonoBehaviour
         }
         else if (phase == "search")
         {
-            // 長時間探索フェーズ：現在の最良(最短)を表示。経過時間は Panel が毎フレーム付加。
+            // 探索フェーズ（候補収集）：prog を持たないのでバーは低め固定(スピナー相当)。best/経過は Panel が付加。
             optActive = true;
+            optProgress01 = 0.05f;
             double best = OptKvD(data, "best", double.NaN);
             string bestStr = double.IsNaN(best) ? "" : $" 最良{best:F2}s";
             optProgress = $"探索中{bestStr} ({iter}回)";
+        }
+        else if (phase == "stomp")
+        {
+            // 候補ごとの STOMP 最適化フェーズ：prog(10→95)で進捗バー、候補K/N＋衝突フリー(feasible)を表示。
+            optActive = true;
+            if (!double.IsNaN(prog)) { optProgress01 = Mathf.Clamp01((float)(prog / 100.0)); }
+            string cand = OptToken(data, "cand");                 // "K/N"
+            bool feas = OptKvD(data, "feasible", 0.0) > 0.5;
+            string progStr = double.IsNaN(prog) ? "" : $"{prog:F0}% ";
+            string candStr = string.IsNullOrEmpty(cand) ? "" : $"候補{cand} ";
+            optProgress = $"最適化中 {progStr}{candStr}{(feas ? "✓衝突フリー" : "")}".TrimEnd();
         }
         else
         {
@@ -586,6 +598,21 @@ public class ComRos2PathPlanner : MonoBehaviour
             string tStr = double.IsNaN(t) ? "" : $" 所要{t:F2}s";
             optProgress = $"最適化中[{phaseJa}] {progStr}iter{iter}{tStr}";
         }
+    }
+
+    /// <summary>接頭辞で始まる非"key=value"トークン（例 "cand1/5"）の接頭辞以降（"1/5"）を返す。無ければ空。</summary>
+    private static string OptToken(string data, string prefix)
+    {
+        var tokens = data.Split(' ');
+        foreach (var tk in tokens)
+        {
+            if (tk.Length > prefix.Length && tk.IndexOf('=') < 0
+                && tk.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            {
+                return tk.Substring(prefix.Length);
+            }
+        }
+        return "";
     }
 
     /// <summary>"key=value" を空白区切り文字列から取り出す（無ければ空）。</summary>

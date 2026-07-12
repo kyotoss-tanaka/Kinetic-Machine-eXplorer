@@ -20,7 +20,7 @@ import numpy as np
 import pinocchio as pin
 try:
     from .bspline import basis_matrix, fit_control_points, resample_path
-except ImportError:                     # standalone (register_redesign dev) use
+except ImportError:
     from bspline import basis_matrix, fit_control_points, resample_path
 
 DEF_WEIGHTS = dict(clear=25.0, length=1.0, smooth=3.0, grav=1.0, tip=2.0)
@@ -30,12 +30,17 @@ class StompLite:
     def __init__(self, scene, *, K=12, M=60, d_safe=0.03,
                  clearance="margin", weights=None,
                  rollouts=20, sigma_deg=2.5, sigma_min_deg=0.4, anneal=0.94, h=10.0,
-                 seed=0):
+                 seed=0, alim=None, length_metric="euclid"):
         self.S = scene
         self.model = scene.model
         self.data = scene.model.createData()          # own data (FK/gravity), separate from oracle
         self.K, self.M, self.d_safe = K, M, d_safe
         self.w = dict(DEF_WEIGHTS, **(weights or {}))
+        # ★Tier0(CONSULT4)：'length' コストを「時間近似メトリック」に。加速度律速下では区間所要 ∝
+        #   max_j √(|Δq_j|/a_j) なので、Euclidean 関節距離でなく "実行時間そのもの" を幾何段で最小化する。
+        #   a_j[rad/s²]（高accel関節ほど動かして良い＝手首優遇）。length_metric='euclid' で従来の距離。
+        self.length_metric = length_metric
+        self.alim = np.asarray(alim if alim is not None else [0.8, 0.8, 0.8, 2.0, 2.0, 2.0], float)
         self.R = rollouts
         self.sigma0 = np.radians(sigma_deg)
         self.sigma_min = np.radians(sigma_min_deg)
@@ -93,7 +98,11 @@ class StompLite:
             if not feas:
                 nbad += 1
         dq = np.diff(Q, axis=0)
-        length = float(np.sum(np.linalg.norm(dq, axis=1)))
+        if self.length_metric == "time":
+            # 時間近似メトリック d_T=Σ_i max_j √(|Δq_ij|/a_j)（加速度律速の区間所要∝これ）
+            length = float(np.sum(np.max(np.sqrt(np.abs(dq) / self.alim), axis=1)))
+        else:
+            length = float(np.sum(np.linalg.norm(dq, axis=1)))   # 従来 Euclidean 関節距離
         acc = np.diff(Q, 2, axis=0)
         smooth = float(np.sum(acc ** 2))
         grav = 0.0
@@ -113,7 +122,7 @@ class StompLite:
 
     # ---------- optimize ----------
     def optimize(self, start, goal, base_path, *, budget_sec=8.0, max_iter=200,
-                 stall_iter=25, should_cancel=None, verbose=True):
+                 stall_iter=25, should_cancel=None, verbose=True, progress_cb=None):
         start = np.asarray(start, float)
         goal = np.asarray(goal, float)
         base = resample_path(base_path, max(self.M, 40))
@@ -136,6 +145,7 @@ class StompLite:
         cur_score = s0
         t0 = time.time()
         last_improve = 0
+        last_cb = 0.0
         it = 0
         while it < max_iter and (time.time() - t0) < budget_sec:
             if should_cancel is not None and should_cancel():
@@ -164,6 +174,12 @@ class StompLite:
                 last_improve = it
             sigma = max(self.sigma_min, sigma * self.anneal)
             it += 1
+            if progress_cb is not None and (time.time() - last_cb) > 1.5:
+                last_cb = time.time()
+                try:
+                    progress_cb(time.time() - t0, budget_sec, bool(best["feasible"]), it)
+                except Exception:
+                    pass
             if verbose and it % 10 == 0:
                 print(f"  it={it:3d} score={cur_score:.3f} best={best['score']:.3f} "
                       f"σ={np.degrees(sigma):.2f}° len={tc['length']:.3f} "

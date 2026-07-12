@@ -52,6 +52,7 @@ public class ComRos2PlanPanel : MonoBehaviour
     private Text seekTimeLabel;   // 再生中の時間（現在/総 秒）。シークバー右
     private Slider returnSpeedSlider;   // 復帰(通常計画)の速度倍率スライダー（実行中に調整可）
     private Text returnSpeedLabel;      // 「復帰速度 XX%」
+    private Slider progressBar;         // 登録最適化の進捗バー（探索/STOMP候補・OptProgress01連動）
     private Text goalText;                                            // 旧ゴール表示（撤去・未使用）
     private Text curText;                                             // ロボットの現在関節角（ライブ表示・旧ゴール行の位置）
     private Text commText;                                            // ROS 状態（ROS2起動＋TCP接続 統合・タイトルバー右）
@@ -249,6 +250,12 @@ public class ComRos2PlanPanel : MonoBehaviour
                 stopSearchBtn.gameObject.SetActive(planner.OptSearching);
                 stopSearchBtn.interactable = planner.OptSearching && !stopSearchLatched;
             }
+            // 進捗バー：opt行受信中(OptActive)のみ表示し OptProgress01(探索=低め/STOMP=prog%)を反映。
+            if (progressBar != null)
+            {
+                progressBar.gameObject.SetActive(planner.OptActive);
+                if (planner.OptActive) { progressBar.SetValueWithoutNotify(planner.OptProgress01); }
+            }
         }
 
         // 登録の保留中（登録押下→OK実行/NGキャンセルまで）は 登録/解除/再生 を無効化（多重実行・誤操作防止）。
@@ -401,7 +408,16 @@ public class ComRos2PlanPanel : MonoBehaviour
         statusText.resizeTextForBestFit = true;
         statusText.resizeTextMinSize = 9;
         statusText.resizeTextMaxSize = 14;
-        y -= 24f;
+        y -= 22f;
+        // 登録最適化の進捗バー（探索=低め固定/STOMP候補=prog%/完了=100%）。計画中(OptActive)のみ表示。ハンドルは隠す。
+        progressBar = MakeSlider(panel, "optProg", new Vector2(8f, y), W - 16f, 8f);
+        progressBar.minValue = 0f;
+        progressBar.maxValue = 1f;
+        progressBar.interactable = false;
+        progressBar.SetValueWithoutNotify(0f);
+        if (progressBar.handleRect != null) { progressBar.handleRect.gameObject.SetActive(false); }
+        progressBar.gameObject.SetActive(false);
+        y -= 14f;
         // ゴースト再生の 再生/一時停止 ＋ シークバー（経路スクラブ確認）。Preview 中のみ表示。
         seekPlayBtn = MakeButton(panel, "seekPlay", "▶", new Vector2(8f, y), 34f, 18f, OnSeekPlayToggle);
         seekPlayLabel = seekPlayBtn.GetComponentInChildren<Text>();
@@ -964,6 +980,11 @@ public class ComRos2PlanPanel : MonoBehaviour
         {
             stopSearchBtn.gameObject.SetActive(searching);
             stopSearchBtn.interactable = searching && !stopSearchLatched;
+        }
+        // 進捗バーは計画中(OptActive)のみ。状態遷移でまず隠し、Update が値を反映。
+        if (progressBar != null)
+        {
+            progressBar.gameObject.SetActive(s == ComRos2PathPlanner.PlanState.Planning && planner != null && planner.OptActive);
         }
     }
 
