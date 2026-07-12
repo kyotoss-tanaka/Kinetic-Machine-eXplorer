@@ -170,6 +170,19 @@ CLI だけで疎通確認する例は `RUN.md`「確認・デバッグ用コマ�
 ---
 
 ## 5. ハマりどころ（`RUN.md` / `ONBOARDING.md` / memory）
+- **【社内プロキシ / SSL インスペクション】** `curl: (60) SSL certificate problem: unable to get local issuer certificate` → ROS リポジトリが `NO_PUBKEY`（未署名）→ `ros-humble-desktop` が **Unable to locate package**。
+  - 原因：会社プロキシが HTTPS を**会社の証明書で再署名**しており、`curl`/`git`/`pip` がその証明書を検証できない（apt 本体は HTTP なので通る）。
+  - **恒久対策＝会社ルートCAを WSL に入れる**（この後の `git clone`/`pip` も HTTPS なので必須）：
+    ```bash
+    # 会社ルートCA(.crt/PEM)を IT から入手 or Windows の certmgr.msc → 信頼されたルート → 会社CA → Base-64(.cer) でエクスポート
+    sudo cp /mnt/c/Users/<user>/Downloads/corp-root-ca.crt /usr/local/share/ca-certificates/corp-root-ca.crt
+    sudo update-ca-certificates
+    git config --global http.sslCAInfo /etc/ssl/certs/ca-certificates.crt
+    export PIP_CERT=/etc/ssl/certs/ca-certificates.crt   # 必要なら ~/.bashrc へ
+    ```
+  - **暫定（キーだけ）**：Windows のブラウザで `https://raw.githubusercontent.com/ros/rosdistro/master/ros.key` を保存 →
+    `sudo cp /mnt/c/Users/<user>/Downloads/ros.key /usr/share/keyrings/ros-archive-keyring.gpg` → `sudo apt update`。
+    （急ぎは `sudo curl -sSLk … -o …` の `-k`=検証スキップも可・社内前提の自己責任）
 - **版固定**：ROS-TCP-Connector `#v0.7.0`（Unity UPM）／ endpoint `main-ros2` ブランチ。不一致は握手が `JSONDecodeError` で切断ループ。
 - **`KMX_ROS2` define** が無いビルドは「稼働中でも未接続」。
 - **`/mnt/c` でビルドしない**。symlink 衝突は `rm -rf build install log`。
