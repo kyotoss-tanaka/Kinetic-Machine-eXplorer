@@ -201,6 +201,8 @@ CLI だけで疎通確認する例は `RUN.md`「確認・デバッグ用コマ�
     → `git clone`(git) と `curl` はこれで通る。`ca-certificates` の再インストールだけでは直らない（標準バンドルに Zscaler は無い）。
   - **③ `rosdep`/`pip`(Python) がまだ `unable to get issuer certificate` で落ちる場合**：②は proxy が送る**中間**証明書までしか取れず、Python は**自己署名ルート**まで要求するため。**`rosdep` は依存を apt 導入済みなら不要＝スキップして `colcon build` に進んでOK**。どうしても Python HTTPS を通したいときだけ、Zscaler の**ルート**を入れる：Windows PowerShell で `Cert:\LocalMachine\Root` の `*Zscaler*`（自己署名ルート）を Base-64 エクスポート→`/usr/local/share/ca-certificates/` へ→`update-ca-certificates`。
   - 代替：Zscaler Client Connector を止められるなら止めてダウンロードを済ませてもよい（ROS 実行自体は HTTPS 不要）。
+- **【Unity側「ROS2 ●不明」】※新PCで必発**：ランチャ(`ComRos2Launcher`)の WSL ユーザー名が既定 `kyotoss` のため、新PC(`ky11249` 等)では `/home/kyotoss/ros2_ws/kmx_status.sh` を空振り→状態が **不明**。**再ビルド不要**：実行環境の `StreamingAssets/Datas/Ros2Info.json` に **`"wslUser": "<新PCユーザ名>"`**（必要なら `"wslDistro"`）を書いてアプリ再起動。事前確認は Windows で `wsl.exe -e bash -lc "/home/<user>/ros2_ws/kmx_status.sh"` が `stopped/running_full` を返すか。※計画のTCP接続(`127.0.0.1:10000`)は別系統なので、bringup さえ上がれば計画自体は投げられる。
+- **【RViz が黒画面/起動時フリーズ】WSLg の GPU(OpenGL)問題**（ログに `D3D12: Removing Device`）。ノートPCのハイブリッドGPU/古いドライバで顕著。**RViz は KMX に不要**（可視化はUnity）＝`fanuc_moveit.launch.py` の RViz を切ればフリーズも消える。見たい場合は `wsl --update`＋GPUドライバ更新、即席は `LIBGL_ALWAYS_SOFTWARE=1`（ソフト描画）。
 - **版固定**：ROS-TCP-Connector `#v0.7.0`（Unity UPM）／ endpoint `main-ros2` ブランチ。不一致は握手が `JSONDecodeError` で切断ループ。
 - **`KMX_ROS2` define** が無いビルドは「稼働中でも未接続」。
 - **`/mnt/c` でビルドしない**。symlink 衝突は `rm -rf build install log`。
