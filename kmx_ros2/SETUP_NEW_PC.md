@@ -90,13 +90,25 @@ cd ~/colcon_ws && colcon build && source install/setup.bash
 ```
 > ★`v0.7.0` タグは ROS1。必ず `main-ros2`（不一致は握手が JSONDecodeError で切断ループ）。
 
-**5) FANUC moveit_config（CRX-30iA）**
-本リポジトリには**含まれない**（WSL側で保持）。**旧PCからコピーが最短**：
+**5) FANUC パッケージ群（`fanuc_moveit_config` は単体では無い＝`fanuc_driver` に同梱）**
+⚠ `fanuc_moveit_config` は独立パッケージではなく **`fanuc_driver/fanuc_moveit_config/`**（URDF/SRDF/`config/joint_limits.yaml`/launch）。**本リポジトリには含まれない**（＝収録は `kmx_msgs`/`kmx_planner` のみ）。ROS2 バックエンドには次の FANUC 製パッケージ群が別途必要で、**旧PC（`kyotoss`）の `~/ros2_ws/src` にしか無い**：
+
+| パッケージ | 中身 | 備考 |
+|---|---|---|
+| `fanuc_driver`（**humble** 枝）| **`fanuc_moveit_config` 同梱**（joint_limits/srdf/launch）| **git-lfs＋submodule(sockpp) 必須** |
+| `fanuc_description`（**main** 枝）| ロボット記述 | |
+| `fanuc_crx_description` | CRX-30iA URDF/xacro | |
+| `fanuc_hardware_interface` | HW インターフェース | |
+
+**旧PCの `~/ros2_ws/src` を丸ごとコピーが最短・確実**（git-lfs/submodule 込みなので再clone より安全）：
 ```bash
 mkdir -p ~/ros2_ws/src
-cp -r <旧PC>/ros2_ws/src/fanuc_moveit_config ~/ros2_ws/src/
+# 旧PC側: tar czf ros2_src.tgz -C ~/ros2_ws/src fanuc_driver fanuc_description fanuc_crx_description fanuc_hardware_interface
+# 新PCへ転送 → tar xzf ros2_src.tgz -C ~/ros2_ws/src
 ```
-> 無ければ MoveIt Setup Assistant で CRX-30iA の config を作成。`config/joint_limits.yaml`（v/a/j 上限）が**最適化・復帰速度の基準**になる（`RETURN_SPEED_UNITY_SPEC.md` / 段階1.5）。
+> - **ワークスペースは2つ**：`~/colcon_ws`(ROS-TCP-Endpoint) と `~/ros2_ws`(FANUC＋kmx)。
+> - **ユーザ名ハードコードに注意**：起動スクリプト（`kmx_start.sh` 等の `WS=/home/kyotoss/ros2_ws`）と `kmx_planner/register/pin_scene.py` の SRDF 絶対パスが `kyotoss` 前提 → 新PCのユーザ名へ置換（`get_package_share_directory` 経由の箇所は自動解決）。
+> - `config/joint_limits.yaml`（v/a/j 上限）が**最適化・復帰速度の基準**（`RETURN_SPEED_UNITY_SPEC.md` / 段階1.5）。無ければ MoveIt Setup Assistant で自作も可だが SRDF/リンク名の整合が要る。
 
 ### 2-B. KMX パッケージ（このリポジトリから反映）
 
