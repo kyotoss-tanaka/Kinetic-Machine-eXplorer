@@ -38,28 +38,103 @@
 ---
 
 ## 2. ROS2 バックエンド（WSL2 or Linux・頭脳）
-既存ドキュメントは「環境がある前提」なので、**新PCでは土台の導入から**。Ubuntu 22.04 / ROS2 Humble 前提。
+**Ubuntu 22.04 + ROS2 Humble 固定**（24.04 は Jazzy になり移行作業が要る）。新PCでは土台の導入から。以下は**そのまま貼れるコマンド**。
+> `<REPO>` は新PCでの本リポジトリのパス。WSL2 例：`/mnt/c/Users/<user>/source/repos/Kinetic Machine eXplorer`（スペースを含むので必ずダブルクォート）。
 
 ### 2-A. 土台（初回だけ）
-1. **（WSL2の場合）** `wsl --install -d Ubuntu-22.04` → Ubuntu 起動
-2. **ROS2 Humble** を apt 導入（`ros-humble-desktop`）＋ `ros-dev-tools`
-3. **MoveIt**：`sudo apt install ros-humble-moveit`（旧PCが `~/ws_moveit` のソースビルドならそれに合わせる）
-4. **ROS-TCP-Endpoint**：`~/colcon_ws/src` に clone → **ブランチ `main-ros2`**（★`v0.7.0` タグは ROS1 なので使わない）→ `cd ~/colcon_ws && colcon build`
-5. **FANUC moveit_config（CRX-30iA）**：`fanuc_moveit_config` を `~/ros2_ws/src` へ（旧PCの `~/ros2_ws/src` からコピー or 入手元から）
+
+**1) （WSL2の場合）Ubuntu 22.04 を導入**（Windows の PowerShell/cmd 側）
+```powershell
+wsl --install -d Ubuntu-22.04
+```
+以降は **Ubuntu(WSL2) のターミナル**で実行。
+
+**2) ROS2 Humble**
+```bash
+# ロケール(UTF-8)
+sudo apt update && sudo apt install -y locales
+sudo locale-gen en_US en_US.UTF-8
+sudo update-locale LC_ALL=en_US.UTF-8 LANG=en_US.UTF-8; export LANG=en_US.UTF-8
+# リポジトリ登録
+sudo apt install -y software-properties-common curl
+sudo add-apt-repository -y universe
+sudo curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key \
+  -o /usr/share/keyrings/ros-archive-keyring.gpg
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] http://packages.ros.org/ros2/ubuntu $(. /etc/os-release && echo $UBUNTU_CODENAME) main" \
+  | sudo tee /etc/apt/sources.list.d/ros2.list > /dev/null
+# インストール
+sudo apt update && sudo apt upgrade -y
+sudo apt install -y ros-humble-desktop ros-dev-tools
+sudo rosdep init && rosdep update
+# 確認
+printenv ROS_DISTRO 2>/dev/null; source /opt/ros/humble/setup.bash; printenv ROS_DISTRO   # humble
+```
+
+**3) MoveIt ＋ register バックエンドの依存（Pinocchio / coal / numpy / yaml）**
+```bash
+sudo apt install -y ros-humble-moveit
+sudo apt install -y ros-humble-pinocchio python3-numpy python3-yaml
+# coal（衝突オラクル hpp-fcl の後継）：Pinocchio3 に同梱のことが多い。無ければ pip:
+python3 -c "import coal" 2>/dev/null && echo "coal OK" || pip install coal
+# 依存確認（register/ が import する）
+python3 -c "import pinocchio, coal, numpy, yaml; print('deps OK')"
+```
+> ※ `coal` は**旧PCと同じ導入方法**に合わせるのが確実（`pip freeze | grep -iE 'coal|pin'` で確認）。
+
+**4) ROS-TCP-Endpoint（Unity⇄ROS2 の橋・ブランチ `main-ros2`）**
+```bash
+mkdir -p ~/colcon_ws/src
+git clone -b main-ros2 https://github.com/Unity-Technologies/ROS-TCP-Endpoint.git \
+  ~/colcon_ws/src/ROS-TCP-Endpoint
+cd ~/colcon_ws && colcon build && source install/setup.bash
+```
+> ★`v0.7.0` タグは ROS1。必ず `main-ros2`（不一致は握手が JSONDecodeError で切断ループ）。
+
+**5) FANUC moveit_config（CRX-30iA）**
+本リポジトリには**含まれない**（WSL側で保持）。**旧PCからコピーが最短**：
+```bash
+mkdir -p ~/ros2_ws/src
+cp -r <旧PC>/ros2_ws/src/fanuc_moveit_config ~/ros2_ws/src/
+```
+> 無ければ MoveIt Setup Assistant で CRX-30iA の config を作成。`config/joint_limits.yaml`（v/a/j 上限）が**最適化・復帰速度の基準**になる（`RETURN_SPEED_UNITY_SPEC.md` / 段階1.5）。
 
 ### 2-B. KMX パッケージ（このリポジトリから反映）
-6. 新PCに**このリポジトリを clone**（`kmx_ros2/` が正本）
-7. `bash "<repo>/kmx_ros2/sync.sh"` で `~/ros2_ws/src` へ `kmx_msgs` / `kmx_planner` を反映（rsync）
-8. `cd ~/ros2_ws && colcon build --symlink-install && source install/setup.bash`
-9. 起動スクリプト `kmx_start.sh` / `kmx_stop.sh` / `kmx_restart.sh` / `kmx_status.sh` と `kmx_bringup.launch.py` を旧PCの `~/ros2_ws/` から持ってくる
-10. `~/.bashrc` 末尾に source を追加（新端末で即使えるように）:
-    ```bash
-    source /opt/ros/humble/setup.bash
-    source ~/colcon_ws/install/setup.bash   # ros_tcp_endpoint
-    source ~/ros2_ws/install/setup.bash     # kmx_msgs / kmx_planner
-    ```
 
-> ⚠ **`/mnt/c`（Windows側）で `colcon build` しない**（遅い・不安定）。必ずネイティブの `~/ros2_ws`。
+**6-7) リポジトリを clone → `kmx_msgs` / `kmx_planner` を反映**
+```bash
+# 新PCに本リポジトリを clone 済みとする（正本は kmx_ros2/）
+mkdir -p ~/ros2_ws/src
+bash "<REPO>/kmx_ros2/sync.sh"        # 正本を rsync（kmx_msgs, kmx_planner → ~/ros2_ws/src）
+# ↑が使えなければ手動コピー:
+# cp -r "<REPO>/kmx_ros2/kmx_msgs" "<REPO>/kmx_ros2/kmx_planner" ~/ros2_ws/src/
+```
+
+**8) 依存解決 → ビルド**
+```bash
+cd ~/ros2_ws
+rosdep install --from-paths src --ignore-src -r -y   # 解決できる依存を自動導入
+colcon build --symlink-install && source install/setup.bash
+```
+
+**9) 起動スクリプト**（旧PCの `~/ros2_ws/` から持ってくる）
+```bash
+cp <旧PC>/ros2_ws/kmx_start.sh <旧PC>/ros2_ws/kmx_stop.sh \
+   <旧PC>/ros2_ws/kmx_restart.sh <旧PC>/ros2_ws/kmx_status.sh ~/ros2_ws/
+chmod +x ~/ros2_ws/kmx_*.sh
+```
+> `kmx_bringup.launch.py` は `kmx_planner` に同梱（sync 済）。
+
+**10) `~/.bashrc` に source（新端末で自動）**
+```bash
+cat >> ~/.bashrc <<'EOS'
+source /opt/ros/humble/setup.bash
+source ~/colcon_ws/install/setup.bash   # ros_tcp_endpoint
+source ~/ros2_ws/install/setup.bash     # kmx_msgs / kmx_planner
+EOS
+source ~/.bashrc
+```
+
+> ⚠ **`/mnt/c`（Windows側）で `colcon build` しない**（遅い・不安定）。必ずネイティブの `~/ros2_ws`。symlink 衝突は `rm -rf build install log` 後に再ビルド。
 > ⚠ コードの正本は `kmx_ros2/`。WSL の複製を直接編集しても次の sync で消える（`ONBOARDING.md` 第6章）。
 
 ---
@@ -110,3 +185,6 @@ CLI だけで疎通確認する例は `RUN.md`「確認・デバッグ用コマ�
 - `RUN.md` … 起動手順・確認コマンド・版固定
 - `HANDOFF.md` … 開発引き継ぎ全体像
 - `LAUNCH_CONTROL_UNITY_SPEC.md` … Unity ボタンからの起動制御（`wsl.exe` 経由）
+- `REGISTER_OPTIMIZE_ROS2_SPEC.md` … 登録軌道の多目的最適化（register バックエンド）
+- `RETURN_SPEED_UNITY_SPEC.md` … 復帰(通常計画)の速度倍率 speed_scale
+- `PLAN_PROGRESS_UNITY_SPEC.md` … 登録最適化の進捗表示（opt phase=search/stomp）
