@@ -170,19 +170,25 @@ CLI だけで疎通確認する例は `RUN.md`「確認・デバッグ用コマ�
 ---
 
 ## 5. ハマりどころ（`RUN.md` / `ONBOARDING.md` / memory）
-- **【社内プロキシ / SSL インスペクション】** `curl: (60) SSL certificate problem: unable to get local issuer certificate` → ROS リポジトリが `NO_PUBKEY`（未署名）→ `ros-humble-desktop` が **Unable to locate package**。
-  - 原因：会社プロキシが HTTPS を**会社の証明書で再署名**しており、`curl`/`git`/`pip` がその証明書を検証できない（apt 本体は HTTP なので通る）。
-  - **恒久対策＝会社ルートCAを WSL に入れる**（この後の `git clone`/`pip` も HTTPS なので必須）：
+- **【社内プロキシ / SSL インスペクション】※CFFV5-001 で実際に発生・解決済**
+  症状：`curl/git/rosdep` が `SSL certificate problem: unable to get local issuer certificate` / `CERTIFICATE_VERIFY_FAILED`。`apt`(HTTP) は通るのに github/pip 等の HTTPS だけ全滅。ros.key も落とせず `NO_PUBKEY`→`ros-humble-desktop` が **Unable to locate package** になる。
+  - **原因**：会社プロキシ（当社は **Zscaler**）が HTTPS を**会社の証明書で再署名**しており、WSL がその CA を知らないため全 HTTPS を拒否する。※ゲスト網PC（`gi-guest`）は非対象なので、CFFV5-001 自身で対処する。
+  - **① まず犯人を特定**（`issuer=` に proxy 名が出る）：
     ```bash
-    # 会社ルートCA(.crt/PEM)を IT から入手 or Windows の certmgr.msc → 信頼されたルート → 会社CA → Base-64(.cer) でエクスポート
-    sudo cp /mnt/c/Users/<user>/Downloads/corp-root-ca.crt /usr/local/share/ca-certificates/corp-root-ca.crt
-    sudo update-ca-certificates
-    git config --global http.sslCAInfo /etc/ssl/certs/ca-certificates.crt
-    export PIP_CERT=/etc/ssl/certs/ca-certificates.crt   # 必要なら ~/.bashrc へ
+    openssl s_client -connect github.com:443 -servername github.com </dev/null 2>/dev/null | openssl x509 -noout -issuer
+    # issuer= ... O = Zscaler Inc. ... なら SSLインスペクション確定（Let's Encrypt/ISRG なら別問題→ ca-certificates 再インストール）
     ```
-  - **暫定（キーだけ）**：Windows のブラウザで `https://raw.githubusercontent.com/ros/rosdistro/master/ros.key` を保存 →
-    `sudo cp /mnt/c/Users/<user>/Downloads/ros.key /usr/share/keyrings/ros-archive-keyring.gpg` → `sudo apt update`。
-    （急ぎは `sudo curl -sSLk … -o …` の `-k`=検証スキップも可・社内前提の自己責任）
+  - **② 解決＝proxy の証明書チェーンを信頼リストへ（bashのみで完結・実証済）**：
+    ```bash
+    openssl s_client -connect github.com:443 -servername github.com -showcerts </dev/null 2>/dev/null \
+      | sed -n '/-----BEGIN CERTIFICATE-----/,/-----END CERTIFICATE-----/p' > /tmp/zs-chain.pem
+    sudo csplit -z -f /usr/local/share/ca-certificates/zscaler- -b '%02d.crt' /tmp/zs-chain.pem '/-----BEGIN CERTIFICATE-----/' '{*}'
+    sudo update-ca-certificates          # "N added: zscaler-00/01/02.pem" が出ればOK
+    curl -sS https://raw.githubusercontent.com/ros/rosdistro/master/ros.key -o /dev/null && echo "HTTPS OK"
+    ```
+    → `git clone`(git) と `curl` はこれで通る。`ca-certificates` の再インストールだけでは直らない（標準バンドルに Zscaler は無い）。
+  - **③ `rosdep`/`pip`(Python) がまだ `unable to get issuer certificate` で落ちる場合**：②は proxy が送る**中間**証明書までしか取れず、Python は**自己署名ルート**まで要求するため。**`rosdep` は依存を apt 導入済みなら不要＝スキップして `colcon build` に進んでOK**。どうしても Python HTTPS を通したいときだけ、Zscaler の**ルート**を入れる：Windows PowerShell で `Cert:\LocalMachine\Root` の `*Zscaler*`（自己署名ルート）を Base-64 エクスポート→`/usr/local/share/ca-certificates/` へ→`update-ca-certificates`。
+  - 代替：Zscaler Client Connector を止められるなら止めてダウンロードを済ませてもよい（ROS 実行自体は HTTPS 不要）。
 - **版固定**：ROS-TCP-Connector `#v0.7.0`（Unity UPM）／ endpoint `main-ros2` ブランチ。不一致は握手が `JSONDecodeError` で切断ループ。
 - **`KMX_ROS2` define** が無いビルドは「稼働中でも未接続」。
 - **`/mnt/c` でビルドしない**。symlink 衝突は `rm -rf build install log`。
