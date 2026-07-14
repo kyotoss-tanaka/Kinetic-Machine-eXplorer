@@ -78,6 +78,18 @@ public class ShapeScript : UseTagBaseScript
                 cube.transform.SetParent(transform, false);
                 cube.transform.localPosition = center;
                 cube.transform.localScale = size;   // 付属の BoxCollider も実寸にスケールされる
+                // マテリアルは Resources の Cube プレハブから借用する。CreatePrimitive 既定の Built-in
+                // Standard は URP ビルドで strip され不可視になるため、ビルド同梱の URP マテリアルを使う。
+                var rend = cube.GetComponent<Renderer>();
+                if (rend != null)
+                {
+                    var srcPrefab = Resources.Load<GameObject>("3DModel/Works/Cube");
+                    var srcRend = srcPrefab != null ? srcPrefab.GetComponentInChildren<Renderer>() : null;
+                    if (srcRend != null && srcRend.sharedMaterial != null)
+                    {
+                        rend.sharedMaterial = srcRend.sharedMaterial;
+                    }
+                }
             }
             else
             {
