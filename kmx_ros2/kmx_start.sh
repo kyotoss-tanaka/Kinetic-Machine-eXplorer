@@ -8,6 +8,8 @@ WS="/home/kyotoss/ros2_ws"
 PIDFILE="$WS/.kmx_bringup.pid"
 LOG="$WS/kmx_bringup.log"
 USE_MOVEIT="${1:-true}"
+RVIZ="${2:-0}"                  # 第2引数: RViz 表示 0/1（Ros2Info.json launchRviz 由来）。fanuc_moveit.launch.py が KMX_RVIZ を参照
+export KMX_RVIZ="$RVIZ"
 
 if pgrep -f "ros2 launch kmx_planner kmx_bringup" >/dev/null 2>&1; then
   echo "[kmx] already running（二重起動しません）"
@@ -18,6 +20,7 @@ fi
 source /opt/ros/humble/setup.bash 2>/dev/null
 source /home/kyotoss/colcon_ws/install/setup.bash 2>/dev/null
 source /home/kyotoss/ws_moveit/install/setup.bash 2>/dev/null
+source /opt/kmx_moveit/setup.bash 2>/dev/null      # 配布先: BITstar MoveIt（固定パス /opt/kmx_moveit）
 source "$WS/install/setup.bash" 2>/dev/null
 
 # 端末から切り離した新セッションで起動（wsl.exe が抜けても生存）。PID=セッションリーダ。

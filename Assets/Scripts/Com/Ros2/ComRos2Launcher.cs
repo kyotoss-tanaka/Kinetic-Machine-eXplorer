@@ -22,6 +22,7 @@ public sealed class ComRos2Launcher : MonoBehaviour
     [SerializeField] private string wslUser = "kyotoss";
     [SerializeField] private string wslDistro = "";
     [SerializeField] private bool useMoveit = true;
+    [SerializeField] private bool launchRviz = false;   // Ros2Info.json launchRviz。KMX_RVIZ 経由で launch に渡す
     [SerializeField] private float statusPollSec = 1.5f;
 
     /// <summary>最新の bringup 状態（メインスレッドで更新）。</summary>
@@ -66,6 +67,7 @@ public sealed class ComRos2Launcher : MonoBehaviour
                 if (!string.IsNullOrEmpty(cfg.wslUser)) { wslUser = cfg.wslUser; }
                 wslDistro = cfg.wslDistro ?? "";
                 useMoveit = cfg.launchUseMoveit;
+                launchRviz = cfg.launchRviz;
             }
         }
         catch { /* 無ければ既定値 */ }
@@ -110,13 +112,13 @@ public sealed class ComRos2Launcher : MonoBehaviour
 
     // ── 操作（UI から呼ぶ） ─────────────────────────────
     public void StartRos2()
-        => RunScriptAsync($"{WsDir}/kmx_start.sh {(useMoveit ? "true" : "false")}");
+        => RunScriptAsync($"{WsDir}/kmx_start.sh {(useMoveit ? "true" : "false")} {(launchRviz ? "1" : "0")}");
 
     public void StopRos2()
         => RunScriptAsync($"{WsDir}/kmx_stop.sh");
 
     public void RestartRos2()
-        => RunScriptAsync($"{WsDir}/kmx_restart.sh {(useMoveit ? "true" : "false")}");
+        => RunScriptAsync($"{WsDir}/kmx_restart.sh {(useMoveit ? "true" : "false")} {(launchRviz ? "1" : "0")}");
 
     // ── 内部：非同期実行 ─────────────────────────────
     private void RunScriptAsync(string scriptCmd)
@@ -172,11 +174,15 @@ public sealed class ComRos2Launcher : MonoBehaviour
         try
         {
             string distroArg = string.IsNullOrEmpty(wslDistro) ? "" : $"-d {wslDistro} ";
+            // 実行ユーザーを明示（-u）。既定ディストロ/既定ユーザーが対象と異なる環境でも、
+            // 対象ユーザーの ~/ros2_ws・~/.bashrc(ROS環境) を確実に使う（インストーラの -u と挙動を合わせる）。
+            // 例: 配布先に Ubuntu-24.04(既定) や docker-desktop があっても、wslDistro/wslUser で狙い撃つ。
+            string userArg = string.IsNullOrEmpty(wslUser) ? "" : $"-u {wslUser} ";
             var psi = new System.Diagnostics.ProcessStartInfo
             {
                 FileName = "wsl.exe",
                 // -l(ログインシェル) で ~/.bashrc 等の ROS 環境を確実に読む。
-                Arguments = $"{distroArg}-e bash -lc \"{scriptCmd}\"",
+                Arguments = $"{distroArg}{userArg}-e bash -lc \"{scriptCmd}\"",
                 UseShellExecute = false,
                 CreateNoWindow = true,
                 RedirectStandardOutput = true,

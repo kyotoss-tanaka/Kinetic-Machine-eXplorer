@@ -75,6 +75,7 @@ public class ComRos2 : MonoBehaviour, ITagCom
         public string wslUser = "kyotoss";       // WSL ユーザー（制御スクリプトは /home/<user>/ros2_ws/）
         public string wslDistro = "";            // 空=既定ディストロ。指定時は wsl -d <distro>
         public bool launchUseMoveit = true;      // 起動時に MoveIt 込み(true)/補間のみ(false)
+        public bool launchRviz = false;          // 起動時に RViz を開く(true)/開かない(false・既定)。KMX_RVIZ 経由で launch に渡す
 
         // ── 複数ロボット対応（MULTI_ROBOT_ROS2_SPEC.md）。空なら従来どおり単一ロボットで動作。──
         public List<Ros2RobotConfig> robots = new();

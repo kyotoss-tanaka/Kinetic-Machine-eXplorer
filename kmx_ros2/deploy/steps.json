@@ -1,0 +1,55 @@
+[
+  { "id": 0, "ctx": "win", "fn": "", "mode": "install",
+    "title": "前提チェック ＋ .wslconfig(mirrored)",
+    "desc": "WSL2 と Ubuntu-22.04 の存在を確認し、.wslconfig に mirrored ネットワークを設定（社内FW/VPN でも localhost が通る）。WSL 未導入なら管理者 PowerShell で 'wsl --install -d Ubuntu-22.04' を先に実行。",
+    "hint": "変更後は wsl --shutdown で再起動が要る場合があります。",
+    "cmd": "~/.wslconfig に [wsl2] networkingMode=mirrored / dnsTunneling=true / autoProxy=true を書き込み" },
+
+  { "id": 1, "ctx": "root", "fn": "s1", "mode": "install",
+    "title": "社内プロキシ / Zscaler SSL 証明書を WSL へ",
+    "desc": "社内プロキシ(Zscaler等)が HTTPS を再署名している環境向け。github の証明書チェーンを信頼ストアに取り込み git/curl/apt を通す。非対象環境では実質無害。",
+    "hint": "",
+    "cmd": "openssl s_client ... | csplit -> /usr/local/share/ca-certificates ; update-ca-certificates" },
+
+  { "id": 2, "ctx": "root", "fn": "s2", "mode": "install",
+    "title": "ROS2 Humble ＋ 依存を apt 導入",
+    "desc": "ROS2 Humble(desktop)・MoveIt・Pinocchio・coal・numpy・yaml・ros2_control 一式を apt 導入。回線次第で数分〜十数分。",
+    "hint": "手順1(証明書)が終わっていること。",
+    "cmd": "apt install ros-humble-desktop ros-humble-moveit ros-humble-pinocchio ros-humble-coal ros2-control ..." },
+
+  { "id": 3, "ctx": "root", "fn": "s3", "mode": "install",
+    "title": "BITstar 入り MoveIt を /opt/kmx_moveit へ展開",
+    "desc": "旧PCでビルド済みの BITstar/ABITstar/AITstar 入り MoveIt を、ユーザ非依存の固定パス /opt/kmx_moveit へ展開。再ビルド不要・スペック低下なし。",
+    "hint": "artifacts/kmx_moveit.tgz が必要。",
+    "cmd": "tar xzf kmx_moveit.tgz -C /opt" },
+
+  { "id": 4, "ctx": "user", "fn": "s4", "mode": "install",
+    "title": "fanuc / kmx / endpoint を展開・配置",
+    "desc": "旧PCの ~/ros2_ws/src(fanuc群＋kmx) と ROS-TCP-Endpoint を展開し、ユーザ名パス(kyotoss→自分)を置換。RViz非表示・slider削除も適用。",
+    "hint": "artifacts/ros2_src.tgz / endpoint_src.tgz が必要。",
+    "cmd": "tar x ros2_src.tgz -> ~/ros2_ws ; endpoint -> ~/colcon_ws ; sed kyotoss->USER ; RViz/slider" },
+
+  { "id": 5, "ctx": "user", "fn": "s5", "mode": "install",
+    "title": "colcon build（必要パッケージのみ）",
+    "desc": "endpoint(~/colcon_ws) と CRX に必要な kmx/fanuc 一式(~/ros2_ws)を BITstar MoveIt に対してビルド。サンプル等は対象外。数分。",
+    "hint": "",
+    "cmd": "colcon build --packages-up-to kmx_planner fanuc_moveit_config fanuc_hardware_interface slider_publisher" },
+
+  { "id": 6, "ctx": "user", "fn": "s6", "mode": "install",
+    "title": "設定（source / KMX_RVIZ）",
+    "desc": "~/.bashrc に3段 source（humble / colcon_ws / ros2_ws）＋ /opt/kmx_moveit(BITstar)＋ KMX_RVIZ=0 を追記。coal/pinocchio import 確認。",
+    "hint": "",
+    "cmd": "echo 'source ... ; source /opt/kmx_moveit/setup.bash ; export KMX_RVIZ=0' >> ~/.bashrc" },
+
+  { "id": 7, "ctx": "user", "fn": "s7", "mode": "install",
+    "title": "起動 ＋ BITstar 疎通確認",
+    "desc": "kmx_start.sh で bringup。running_full を確認し、Unity から計画→青線＋ゴーストが返れば完了。BITstar が使えるので Unknown planner は出ない。",
+    "hint": "Unity 側 Ros2Info.json の wslUser を自分のユーザ名に、launchRviz を false（既定）に。",
+    "cmd": "~/ros2_ws/kmx_start.sh true 0 ; ~/ros2_ws/kmx_status.sh" },
+
+  { "id": 8, "ctx": "user", "fn": "s8", "mode": "update",
+    "title": "コード アップデート（展開→ビルド→再起動）",
+    "desc": "既存環境に ROS2 コード更新(kmx_planner / register / config / kmx_msgs)だけを反映。artifacts の ros2_src.tgz を展開→ユーザ名置換→colcon build(kmx_msgs→kmx_planner ほか)→kmx_restart→running_full 待ち。BITstar MoveIt(/opt/kmx_moveit)・apt・証明書・.bashrc は触らない（数十秒）。",
+    "hint": "旧PC(ビルド機)で make_update.sh を回した最新 artifacts をこの KMX-Deploy フォルダに上書きしておくこと。msg を変えた場合のみ Unity で Generate ROS Messages を再生成。",
+    "cmd": "bash artifacts/apply_update.sh   （展開→build→kmx_restart→running_full）" }
+]

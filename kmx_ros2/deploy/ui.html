@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KMX Deploy ウィザード</title>
+<style>
+  :root{
+    --bg:#0f1115; --panel:#171a21; --panel2:#1e222b; --line:#2a2f3a;
+    --tx:#e6e9ef; --mut:#9aa3b2; --accent:#e8451e; --ok:#3fb950; --run:#d29922; --ng:#f85149;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:"Segoe UI",system-ui,sans-serif;background:var(--bg);color:var(--tx);
+       height:100vh;display:flex;flex-direction:column;overflow:hidden}
+  header{display:flex;align-items:center;gap:12px;padding:12px 18px;border-bottom:1px solid var(--line);background:var(--panel)}
+  header .torii{color:var(--accent);font-size:22px;font-weight:800;letter-spacing:.5px}
+  header .sub{color:var(--mut);font-size:12px}
+  header .prog{margin-left:auto;color:var(--mut);font-size:13px}
+  header .prog b{color:var(--ok)}
+  header .tabs{display:flex;gap:6px;margin-left:16px}
+  header .tab{background:#2a2f3a;color:var(--mut);border:1px solid var(--line);border-radius:7px;
+              padding:6px 13px;font-size:12.5px;font-weight:600;cursor:pointer}
+  header .tab.sel{background:var(--accent);color:#fff;border-color:var(--accent)}
+  main{flex:1;display:grid;grid-template-columns:320px 1fr;min-height:0}
+  /* step list */
+  .steps{border-right:1px solid var(--line);background:var(--panel);overflow:auto;padding:8px}
+  .step{display:flex;align-items:center;gap:10px;padding:11px 12px;border-radius:8px;cursor:pointer;border:1px solid transparent}
+  .step:hover{background:var(--panel2)}
+  .step.sel{background:var(--panel2);border-color:var(--line)}
+  .step .n{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;font-size:12px;
+           background:#2a2f3a;color:var(--mut);flex:none}
+  .step .t{font-size:13.5px;line-height:1.25}
+  .step .st{margin-left:auto;font-size:11px;padding:2px 7px;border-radius:999px;flex:none}
+  .st.pending{background:#2a2f3a;color:var(--mut)}
+  .st.running{background:rgba(210,153,34,.18);color:var(--run)}
+  .st.ran{background:rgba(210,153,34,.12);color:var(--run)}
+  .st.ok{background:rgba(63,185,80,.16);color:var(--ok)}
+  .st.ng{background:rgba(248,81,73,.16);color:var(--ng)}
+  .step.ok .n{background:rgba(63,185,80,.16);color:var(--ok)}
+  .step.ng .n{background:rgba(248,81,73,.16);color:var(--ng)}
+  /* detail */
+  .detail{display:flex;flex-direction:column;min-height:0;padding:18px 22px;gap:14px;overflow:auto}
+  .detail h2{margin:0;font-size:19px}
+  .detail .desc{color:var(--mut);font-size:13.5px;line-height:1.6;white-space:pre-wrap}
+  .cmd{background:#0b0d11;border:1px solid var(--line);border-radius:8px;padding:10px 12px;
+       font-family:Consolas,monospace;font-size:12px;color:#c9d1d9;overflow-x:auto;white-space:pre}
+  .row{display:flex;gap:10px;align-items:center}
+  button{font:inherit;border:0;border-radius:8px;padding:9px 16px;cursor:pointer;font-weight:600}
+  .run{background:var(--accent);color:#fff}
+  .verify{background:#2a2f3a;color:var(--tx)}
+  button:disabled{opacity:.45;cursor:not-allowed}
+  .badge{font-size:12px;color:var(--mut)}
+  .log{flex:1;min-height:160px;background:#0b0d11;border:1px solid var(--line);border-radius:8px;
+       padding:10px 12px;font-family:Consolas,monospace;font-size:12px;color:#b9c1cc;
+       overflow:auto;white-space:pre-wrap;line-height:1.5}
+  .log .err{color:#ff9a92}
+  .hint{font-size:12px;color:var(--mut);border-left:3px solid var(--accent);padding:4px 10px}
+  .foot{display:flex;gap:10px;align-items:center;padding:10px 18px;border-top:1px solid var(--line);background:var(--panel)}
+  .foot .sp{flex:1}
+</style>
+</head>
+<body>
+<header>
+  <span class="torii">⛩ KMX</span>
+  <span class="sub">ROS2 デプロイ ウィザード</span>
+  <div class="tabs" id="modeTabs">
+    <button class="tab sel" data-mode="install">新規インストール</button>
+    <button class="tab" data-mode="update">アップデート</button>
+  </div>
+  <span class="prog"><b id="okCount">0</b> / <span id="total">0</span> ステップ完了</span>
+</header>
+<main>
+  <nav class="steps" id="stepList"></nav>
+  <section class="detail">
+    <h2 id="dTitle">—</h2>
+    <div class="desc" id="dDesc"></div>
+    <div class="hint" id="dHint" style="display:none"></div>
+    <div class="cmd" id="dCmd" style="display:none"></div>
+    <div class="row">
+      <button class="run" id="btnRun">▶ 実行</button>
+      <button class="verify" id="btnVerify">✓ 確認</button>
+      <span class="badge" id="dBadge"></span>
+    </div>
+    <div class="log" id="dLog">（ここに実行ログが表示されます）</div>
+  </section>
+</main>
+<div class="foot">
+  <span class="badge" id="connBadge">● 接続確認中…</span>
+  <span class="sp"></span>
+  <button class="run" id="btnRunAll">▶▶ 順に自動実行（失敗で停止）</button>
+  <button class="verify" id="btnAllVerify">すべて確認</button>
+</div>
+<script>
+let STEPS=[], curMode='install', selId=null, poll=null;
+const $=id=>document.getElementById(id);
+const byId=id=>STEPS.find(s=>String(s.id)===String(id));
+const view=()=>STEPS.filter(s=>(s.mode||'install')===curMode);   // 現在タブのステップだけ
+
+async function api(path,body){
+  const o={method: body?'POST':'GET'};
+  if(body){o.headers={'Content-Type':'application/json'};o.body=JSON.stringify(body);}
+  const r=await fetch(path,o); return r.json();
+}
+function stClass(s){return s==='ok'?'ok':s==='running'?'running':s==='ng'?'ng':s==='ran'?'ran':'pending';}
+function stLabel(s){return s==='ok'?'OK':s==='running'?'実行中':s==='ng'?'失敗':s==='ran'?'実行済(要確認)':'未実行';}
+
+function renderTabs(){ document.querySelectorAll('#modeTabs .tab').forEach(b=>b.classList.toggle('sel',b.dataset.mode===curMode)); }
+
+function renderList(){
+  const el=$('stepList'); el.innerHTML='';
+  const vs=view(); let ok=0;
+  vs.forEach((s,i)=>{
+    if(s.status==='ok')ok++;
+    const d=document.createElement('div');
+    d.className='step '+(String(s.id)===String(selId)?'sel ':'')+(s.status==='ok'?'ok':s.status==='ng'?'ng':'');
+    d.onclick=()=>{selId=s.id;renderList();renderDetail();};
+    d.innerHTML=`<div class="n">${s.status==='ok'?'✓':s.status==='ng'?'!':i+1}</div>
+      <div class="t">${s.title}</div>
+      <div class="st ${stClass(s.status)}">${stLabel(s.status)}</div>`;
+    el.appendChild(d);
+  });
+  $('okCount').textContent=ok; $('total').textContent=vs.length;
+}
+function renderDetail(){
+  const s=byId(selId);
+  if(!s){ $('dTitle').textContent='—'; $('dDesc').textContent=''; $('dHint').style.display='none';
+          $('dCmd').style.display='none'; $('dBadge').textContent=''; $('dLog').textContent='（左のステップを選択）'; return; }
+  const vs=view(); const pos=vs.findIndex(x=>String(x.id)===String(s.id));
+  $('dTitle').textContent=`${pos+1}. ${s.title}`;
+  $('dDesc').textContent=s.desc||'';
+  if(s.hint){$('dHint').style.display='';$('dHint').textContent='⚠ '+s.hint;}else $('dHint').style.display='none';
+  if(s.cmd){$('dCmd').style.display='';$('dCmd').textContent=s.cmd;}else $('dCmd').style.display='none';
+  $('dBadge').textContent=stLabel(s.status);
+  $('dLog').textContent=(s.log==null||s.log==='')?'（ここに実行ログが表示されます）':(typeof s.log==='string'?s.log:JSON.stringify(s.log));
+  $('btnRun').disabled = s.status==='running';
+  $('btnVerify').disabled = s.status==='running';
+}
+async function refresh(){
+  const r=await api('/api/state');
+  if(r&&r.steps){STEPS=r.steps; $('connBadge').textContent='● エージェント接続 OK'; $('connBadge').style.color='var(--ok)';
+    if(!view().some(s=>String(s.id)===String(selId))){ const vs=view(); selId=vs.length?vs[0].id:null; }
+    renderList(); renderDetail();}
+}
+// run 完了(=running でなくなった)まで待ち、その後 自動で確認(verify)を実行する
+function pollThenVerify(stepId){ if(poll)clearInterval(poll); poll=setInterval(async()=>{
+  const r=await api('/api/state'); if(!(r&&r.steps))return;
+  STEPS=r.steps; renderList(); renderDetail();
+  const st=byId(stepId);
+  if(st && st.status!=='running'){ clearInterval(poll); poll=null;
+    $('dBadge').textContent='確認中…';
+    await api('/api/verify',{step:stepId}); await refresh(); }
+},1000); }
+
+$('btnRun').onclick=async()=>{ if(selId==null)return; const id=selId; await api('/api/run',{step:id}); await refresh(); pollThenVerify(id); };
+$('btnVerify').onclick=async()=>{ if(selId==null)return; $('dBadge').textContent='確認中…'; await api('/api/verify',{step:selId}); await refresh(); };
+$('btnAllVerify').onclick=async()=>{ for(const s of view()){await api('/api/verify',{step:s.id});} await refresh(); };
+
+// ---- 順に自動実行（現タブの未完了ステップから末尾まで・失敗で停止）----
+let runningAll=false;
+function waitDone(id){ return new Promise(res=>{ const iv=setInterval(async()=>{
+  const r=await api('/api/state'); if(r&&r.steps){ STEPS=r.steps; renderList(); renderDetail();
+    const st=byId(id); if(!st||st.status!=='running'){ clearInterval(iv); res(); } } },1000); }); }
+async function runAllFrom(ids){
+  if(runningAll)return; runningAll=true; if(poll){clearInterval(poll);poll=null;}
+  $('btnRunAll').disabled=true; $('btnRunAll').textContent='▶▶ 実行中…';
+  for(const id of ids){
+    selId=id; renderList(); renderDetail();
+    await api('/api/run',{step:id}); await refresh(); await waitDone(id);
+    await api('/api/verify',{step:id}); await refresh();
+    const st=byId(id); if(!st || st.status!=='ok'){ break; }   // 失敗したら停止
+  }
+  runningAll=false; $('btnRunAll').disabled=false; $('btnRunAll').textContent='▶▶ 順に自動実行（失敗で停止）';
+}
+$('btnRunAll').onclick=async()=>{ const vs=view(); let start=vs.findIndex(x=>x.status!=='ok'); if(start<0)start=0; await runAllFrom(vs.slice(start).map(x=>x.id)); };
+
+// ---- モード切替（新規インストール / アップデート）----
+document.querySelectorAll('#modeTabs .tab').forEach(b=>{ b.onclick=()=>{
+  curMode=b.dataset.mode; if(poll){clearInterval(poll);poll=null;}
+  const vs=view(); selId=vs.length?vs[0].id:null;
+  renderTabs(); renderList(); renderDetail();
+}; });
+
+renderTabs();
+refresh();
+</script>
+</body>
+</html>
