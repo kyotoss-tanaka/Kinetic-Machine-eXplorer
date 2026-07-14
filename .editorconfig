@@ -1,1 +1,19 @@
-﻿
+root = true
+
+# =====================================================================
+# Unity / レガシー依存に由来する“機能上は無害”なコンパイラ警告を抑制。
+# 実バグではないため none にして Console のノイズを減らす。
+# （将来ちゃんと直したくなったら該当行を消せば再び警告が出る）
+# =====================================================================
+[*.cs]
+
+# CS8632: #nullable 文脈外で ? 注釈を使用（SystemRecorder 等）。注釈のみで無害。
+dotnet_diagnostic.CS8632.severity = none
+
+# CS0618: 廃止予定API。
+#  - UnityWebRequest.isNetworkError / isHttpError（ComMicksApi/ComOpcUaApi/ComPostgres）
+#  - WWW（StandaloneFileBrowser のサンプル）
+#  - TreeView / TreeViewItem / TreeViewState（Editor/DataBase*）
+#  - OPC UA CoreClientUtils.SelectEndpoint（ComProtocolBase）
+# いずれも現状は動作するため一括抑制。
+dotnet_diagnostic.CS0618.severity = none
