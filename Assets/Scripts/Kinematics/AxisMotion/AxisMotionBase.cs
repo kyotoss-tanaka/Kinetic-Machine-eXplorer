@@ -686,12 +686,30 @@ public class AxisMotionBase : KinematicsBase
         {
             if (isShape)
             {
-                var instance = unitSetting.moveObject.GetComponent<ShapeScript>();
-                if (instance != null)
+                var sset = unitSetting.shapeSetting;
+                // auto: メッシュ(レンダラー)の起動時 Collider を削除（ShapeScript が mesh-bounds で張り直す）
+                if (sset.auto)
                 {
-                    foreach (var c in instance.GetComponents<Collider>())
+                    foreach (var r in unitSetting.moveObject.GetComponentsInChildren<Renderer>())
                     {
-                        Destroy(c);
+                        foreach (var c in r.GetComponents<Collider>())
+                        {
+                            Destroy(c);
+                        }
+                    }
+                }
+                // create が全て ON のシェイプは、初期設定の Collider を残したいので削除しない
+                bool allCreate = (sset.datas != null) && (sset.datas.Count > 0)
+                                 && sset.datas.TrueForAll(d => d.create);
+                if (!allCreate)
+                {
+                    var instance = unitSetting.moveObject.GetComponent<ShapeScript>();
+                    if (instance != null)
+                    {
+                        foreach (var c in instance.GetComponents<Collider>())
+                        {
+                            Destroy(c);
+                        }
                     }
                 }
             }

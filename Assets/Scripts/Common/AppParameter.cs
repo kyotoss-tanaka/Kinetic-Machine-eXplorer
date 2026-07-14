@@ -1126,6 +1126,10 @@ namespace Parameters
         /// </summary>
         public string name { get; set; }
         /// <summary>
+        /// ユニット名
+        /// </summary>
+        public bool auto { get; set; }
+        /// <summary>
         /// 形
         /// </summary>
         public List<UnitShape> datas { get; set; }
@@ -1137,7 +1141,7 @@ namespace Parameters
         /// <summary>
         /// 自動設定
         /// </summary>
-        public bool auto { get; set; }
+        public bool create { get; set; }
         /// <summary>
         /// 中心点
         /// </summary>
