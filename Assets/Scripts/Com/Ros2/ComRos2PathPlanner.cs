@@ -49,8 +49,8 @@ public class ComRos2PathPlanner : MonoBehaviour
     [SerializeField] private bool requireApproval = true;
     [Tooltip("計画ステータス(std_msgs/String)トピック。計画中/成功/失敗を受ける（ROS2側が publish）")]
     [SerializeField] private string planStatusTopic = "/kmx/plan_status";
-    [Tooltip("計画中のまま軌道/失敗通知が来ない場合に失敗とみなす保険の秒数（time_budget より十分大きく）")]
-    [SerializeField] private float planTimeoutSec = 20f;
+    [Tooltip("計画の進捗(ハートビート)が この秒数 途絶えたら失敗とみなすバックストップ。ROS は試行ごとに planning phase=... を publish するので、生きていれば都度リセットされ、予算/フォールバックの長さに依存しない。ROS は失敗時に必ず failed を送るので通常はそちらで確定する")]
+    [SerializeField] private float planTimeoutSec = 30f;
     [Tooltip("登録モードの探索予算(秒)。この間 ROS2 がリトライし続け、停止/予算到達でその間の最良(最短)を採用")]
     [SerializeField] private float registerSearchBudgetSec = 600f;
     [Tooltip("探索中の『無進捗』失敗判定(秒)。計画試行1回が長い場合 opt行が間遠になるため通常より大きく。手動停止あり")]
@@ -97,7 +97,11 @@ public class ComRos2PathPlanner : MonoBehaviour
     private float planStartTime;                 // Planning/探索 に入った時刻（経過表示・timeout 判定用。探索中はリセットしない）
     private bool optSearching;                    // 登録の最適化探索中か（停止ボタン表示・経過表示・timeout猶予に使う）
     private float lastOptMsgTime;                 // 直近の opt 行受信時刻（探索中の「無進捗」タイムアウト判定用）
+    private float lastPlanMsgTime;                // 直近の plan_status 受信時刻（通常計画の「無応答」判定＝ハートビートでリセット）
+    private string planPhaseText = "";           // 通常計画のフェーズ表示（経路計画1/2/後処理）。UI が表示に使う
     public bool OptSearching => optSearching;    // UI（停止ボタン表示）用
+    /// <summary>通常計画の現在フェーズ表示（"経路計画1 実行中 (2/4)" 等。無ければ空）。</summary>
+    public string PlanPhaseText => planPhaseText;
     /// <summary>登録の保留中か（登録ボタン押下→OK保存/NGキャンセルで解除）。UIでステップ操作を無効化するのに使う。</summary>
     public bool RegisterPending => registerPending != null;
     /// <summary>復帰(通常計画)の速度倍率(0.05〜1.0)。UI/Inspectorから設定。復帰プランに speed_scale で送る。</summary>
@@ -256,6 +260,8 @@ public class ComRos2PathPlanner : MonoBehaviour
         HidePreviewLine();
         ResetOptProgress();
         double budget = (budgetSec >= 0.0) ? budgetSec : planTimeBudget;   // 登録探索は大予算(600s等)を渡す
+        lastPlanMsgTime = Time.time;                                       // ハートビート watchdog の起点
+        planPhaseText = "";                                               // フェーズ表示をリセット
         optSearching = optimize;                                           // 探索中フラグ（中断ボタン・経過表示・timeout猶予に使う）
         // 復帰(通常計画)のみ速度倍率を送る。登録(optimize)は target_time で時間制御するため送らない(0)。
         double speedScale = optimize ? 0.0 : returnSpeedScale;
@@ -530,9 +536,29 @@ public class ComRos2PathPlanner : MonoBehaviour
         }
         else if (data.StartsWith("planning", StringComparison.OrdinalIgnoreCase))
         {
+            lastPlanMsgTime = Time.time;   // ハートビート＝生存。無応答 watchdog をリセット
+            // "planning phase=bitstar attempt=2/4" / "planning phase=rrtconnect" / "planning phase=postprocess"
+            string phase = OptKv(data, "phase");
+            string attempt = OptKv(data, "attempt");
+            if (string.Equals(phase, "bitstar", StringComparison.OrdinalIgnoreCase))
+            {
+                planPhaseText = string.IsNullOrEmpty(attempt) ? "経路計画1 実行中" : $"経路計画1 実行中 ({attempt})";
+            }
+            else if (string.Equals(phase, "rrtconnect", StringComparison.OrdinalIgnoreCase))
+            {
+                planPhaseText = "経路計画2 実行中";
+            }
+            else if (string.Equals(phase, "postprocess", StringComparison.OrdinalIgnoreCase))
+            {
+                planPhaseText = "後処理中";
+            }
+            else
+            {
+                planPhaseText = "";
+            }
             if (State != PlanState.Preview && State != PlanState.Playing)
             {
-                SetState(PlanState.Planning, "計画中…");
+                SetState(PlanState.Planning, string.IsNullOrEmpty(planPhaseText) ? "計画中…" : planPhaseText);
             }
         }
         // "succeeded" は軌道(OnTrajectory)受信でプレビュー遷移するので、ここでは状態を変えない
@@ -646,9 +672,11 @@ public class ComRos2PathPlanner : MonoBehaviour
         // 登録の長時間探索中は総経過でなく「無進捗(opt行が来ない)」で判定（10分探索でも誤タイムアウトしない）。
         if (State == PlanState.Planning)
         {
-            // 探索中は「無進捗(opt行が来ない)」で判定＋大きめ猶予(searchTimeoutSec)。通常計画は総経過(planTimeoutSec)。
+            // 通常計画/探索とも「最後の進捗(ハートビート)から limit 秒 無応答」で失敗とみなす（ハング検出）。
+            // ROS は通常計画では試行ごとに planning phase=... を、探索は opt ... を publish するので、
+            // 生きていれば都度リセットされ、予算やフォールバックの長さに関係なく誤タイムアウトしない。
             float limit = optSearching ? searchTimeoutSec : planTimeoutSec;
-            float since = optSearching ? (Time.time - lastOptMsgTime) : (Time.time - planStartTime);
+            float since = optSearching ? (Time.time - lastOptMsgTime) : (Time.time - lastPlanMsgTime);
             if (since > limit)
             {
                 string tmsg = optSearching

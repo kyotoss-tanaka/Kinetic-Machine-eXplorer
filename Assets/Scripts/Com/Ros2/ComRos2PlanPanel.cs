@@ -208,6 +208,12 @@ public class ComRos2PlanPanel : MonoBehaviour
         {
             UpdateLaunchUi();
         }
+        // ROS 未接続（TCP未確立）なら計画不可。毎フレーム IsLinkUp を反映して計画ボタンを活性/非活性。
+        if (planBtn != null)
+        {
+            planBtn.interactable = planner.IsLinkUp
+                && planner.State != ComRos2PathPlanner.PlanState.Planning;
+        }
         // ゴースト再生シークバーを進捗に追従（手動スクラブ/一時停止中はその位置で固定）＋再生ボタン表示更新。
         if (planner.State == ComRos2PathPlanner.PlanState.Preview && planner.GhostActive)
         {
@@ -238,9 +244,18 @@ public class ComRos2PlanPanel : MonoBehaviour
             else
             {
                 float el = planner.PlanElapsedSec;
-                statusText.text = displayBudgetSec > 0.0
-                    ? $"計画中…  残り {Mathf.Max(0f, (float)displayBudgetSec - el):F1}s"
-                    : $"計画中…  {el:F1}s 経過";
+                string phase = planner.PlanPhaseText;
+                if (!string.IsNullOrEmpty(phase))
+                {
+                    // ROS のフェーズ通知（経路計画1/2・後処理）＋総経過。
+                    statusText.text = $"{phase}  経過{el:F0}s";
+                }
+                else
+                {
+                    statusText.text = displayBudgetSec > 0.0
+                        ? $"計画中…  残り {Mathf.Max(0f, (float)displayBudgetSec - el):F1}s"
+                        : $"計画中…  {el:F1}s 経過";
+                }
             }
             // 探索中は停止ボタンを表示（OptSearching は状態遷移なしで変わり得るため毎フレーム反映）。
             // 停止押下後(ラッチ)はデータ返信まで無効化。探索が終われば(OptSearching=false)ラッチ解除。
@@ -860,6 +875,11 @@ public class ComRos2PlanPanel : MonoBehaviour
 
     private void OnPlan()
     {
+        // ROS 未接続では計画要求が届かないので実行しない（ボタンは無効化済みだが二重の保険）。
+        if (planner == null || !planner.IsLinkUp)
+        {
+            return;
+        }
         // 設定モードなら抜けて現在姿勢の表示へ（start=実機現在）。
         if (goalSetMode) { ToggleGoalSet(); }
         // ゴースト再生(プレビュー/再生)中に計画を押したら、まずキャンセルしてゴースト/プレビューを
@@ -972,7 +992,7 @@ public class ComRos2PlanPanel : MonoBehaviour
         if (seekSlider != null) { seekSlider.gameObject.SetActive(preview); }   // シークバーは Preview 中のみ
         if (seekPlayBtn != null) { seekPlayBtn.gameObject.SetActive(preview); }   // 再生/一時停止も Preview 中のみ
         if (seekTimeLabel != null) { seekTimeLabel.gameObject.SetActive(preview); }   // 再生時間も Preview 中のみ
-        if (planBtn != null) { planBtn.interactable = s != ComRos2PathPlanner.PlanState.Planning; }
+        if (planBtn != null) { planBtn.interactable = planner.IsLinkUp && s != ComRos2PathPlanner.PlanState.Planning; }
         // 停止ボタンは「登録の探索中」のみ表示（実際の可視制御は Update でも毎フレーム更新）。
         bool searching = s == ComRos2PathPlanner.PlanState.Planning && planner != null && planner.OptSearching;
         if (!searching) { stopSearchLatched = false; }   // 探索終了でラッチ解除（次回は押せる）
@@ -993,7 +1013,18 @@ public class ComRos2PlanPanel : MonoBehaviour
     {
         bool busy = launcher.Busy;
         var st = launcher.State;
-        if (startBtn != null) { startBtn.interactable = !busy && st != ComRos2Launcher.LaunchState.RunningFull; }
+        bool needStart = st != ComRos2Launcher.LaunchState.RunningFull;   // 未起動＝起動を促す
+        if (startBtn != null)
+        {
+            startBtn.interactable = !busy && needStart;
+            // 起動が必要なときは起動ボタンをオレンジで強調して押下を促す。稼働中は通常色。
+            if (startBtn.image != null)
+            {
+                startBtn.image.color = needStart
+                    ? new Color(1f, 0.5f, 0.1f, 0.98f)      // 未起動→オレンジで強調
+                    : new Color(0.2f, 0.4f, 0.7f, 0.95f);   // 稼働中→通常
+            }
+        }
         if (stopBtn != null) { stopBtn.interactable = !busy && st != ComRos2Launcher.LaunchState.Stopped; }
         if (restartBtn != null) { restartBtn.interactable = !busy; }
     }

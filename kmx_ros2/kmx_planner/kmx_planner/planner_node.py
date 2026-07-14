@@ -853,12 +853,17 @@ class KmxPlannerNode(Node):
         # Unity 指定(req_*)が >0 ならそれを、無ければ node 既定を使う。
         budget = req_budget if req_budget > 0 else float(self.get_parameter('plan_time_budget_sec').value)
         good_ratio = req_ratio if req_ratio > 0 else float(self.get_parameter('plan_good_ratio').value)
+        # 表示用の想定最大試行回数（予算/1試行の許容時間。予算<=0 は回数上限）。Unity の「n/m」の m。
+        _allow = max(0.1, float(self.get_parameter('allowed_planning_time').value))
+        _est_max = (max(1, int(math.ceil(budget / _allow))) if budget > 0
+                    else max(1, int(self.get_parameter('plan_retries').value)))
         session = {
             'id': self._plan_session,
             'goal': goal,
             'out_names': list(kmx_names[:n]),
             'moveit_names': list(mj),
             'attempts': 0,
+            'est_max': _est_max,   # 表示用の想定最大試行回数（Unity の n/m の m）
             # 登録最適化：回数上限 register_search_attempts で打ち切り（BITstar SIGSEGV 露出を抑制）。
             #   0以下なら従来どおり無制限（time_budget/cancel で確定）。
             'max_attempts': ((int(self.get_parameter('register_search_attempts').value)
@@ -899,6 +904,12 @@ class KmxPlannerNode(Node):
                 self._publish_status(f"opt phase=search iter={session['attempts']} best={bt:.2f}")
                 session['last_prog_ns'] = now_ns
                 session['last_prog_best'] = bt
+        else:
+            # 復帰計画：フェーズ＋試行回数のハートビート（Unity のステータス表示＋無応答watchdogリセット用）。
+            #   fallback_used が True の間は RRTConnect フォールバック試行なので phase=rrtconnect。
+            phase = 'rrtconnect' if session.get('fallback_used') else 'bitstar'
+            self._publish_status(
+                f"planning phase={phase} attempt={session['attempts']}/{session.get('est_max', session['max_attempts'])}")
         self._ac.send_goal_async(session['goal']).add_done_callback(
             lambda fut: self._on_goal_response(fut, session))
 
@@ -973,6 +984,7 @@ class KmxPlannerNode(Node):
             #   ★速度/加速度/ジャークを厳守（旧 _densify_retime の距離比例＝一定速で角/端点の加速度が上限
             #   超過し得た問題を解消）。角では一旦停止＝復帰の「角停止OK」方針とも整合。geometry は短縮経路のまま
             #   （jerk_corner_round=0 既定で角丸め無し＝衝突安全）。scale=1.0 で最速、既定0.25で25%速。
+            self._publish_status("planning phase=postprocess")   # 後処理(短縮＋再タイム)開始をUIへ
             traj0 = session['best_traj']
             mn = session['moveit_names']
             keep = self._shortcut_keep(traj0, mn) if bool(self.get_parameter('path_shortcut').value) else None
