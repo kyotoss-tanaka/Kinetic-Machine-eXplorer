@@ -27,21 +27,22 @@ namespace RosMessageTypes.Kmx
         //  計画の総時間予算(秒)。難しい姿勢は大きく、簡単なら小さく。0以下=既定 plan_time_budget_sec
         public double good_ratio;
         //  大回り回避の許容倍率(始点→終点の直線関節距離比)。小さいほど短経路を要求。0以下=既定 plan_good_ratio
-        //  --- 複数ロボット対応。空="" なら受信側の既定ロボ/group（後方互換） ---
+        //  --- 複数ロボット対応（MULTI_ROBOT_ROS2_SPEC.md）。空="" なら受信側の既定ロボ/group（後方互換） ---
         public string robot_id;
         //  どのロボット/機種で計画するか。ROS2 側 robot_map のキーと一致させる（例 "crx30ia_1"）
-        //  --- 登録軌道の多目的最適化。optimize=false/0 なら通常計画（後方互換） ---
+        //  --- 登録軌道の多目的最適化（REGISTER_OPTIMIZE_ROS2_SPEC.md）。optimize=false/0 なら通常計画（後方互換） ---
         public bool optimize;
         //  true=登録最適化(優先度 時間>ジャーク>トルク)。false/未設定=通常計画
         public double target_time;
-        //  目標所要時間[秒]。0以下=成り行き（時間制約なし）
+        //  目標所要時間[秒]。0以下=成り行き（時間制約なし＝ジャーク/トルクのみ最適化）
         public double payload_mass;
         //  段階2(トルク)用ペイロード質量[kg]（ツール込み）。0以下=既定
         public double[] payload_com;
         //  段階2 ペイロード重心[m]（フランジ相対 x,y,z）。空=既定
-        //  --- 復帰(通常計画)の速度倍率（RETURN_SPEED_UNITY_SPEC.md）。optimize=false のみ有効 ---
+        //  --- 復帰(通常計画)の速度倍率（RETURN_SPEED_UNITY_SPEC.md）。v/a/j 上限を一律スケール＝N%の速さで厳守。 ---
+        //  復帰モード(optimize=false)のみ有効。0以下/未設定=ROS2 既定 return_speed_scale(0.25)。登録(optimize=true)は target_time で制御するため無視。
         public double speed_scale;
-        //  復帰モードの速度倍率(0<scale≤1.0)。v/a/j 上限を一律スケール。0以下=既定 return_speed_scale(0.25)
+        //  復帰モードの速度倍率(0<scale≤1.0)。小さいほど遅く安全。0以下=既定
 
         public PlanRequestMsg()
         {

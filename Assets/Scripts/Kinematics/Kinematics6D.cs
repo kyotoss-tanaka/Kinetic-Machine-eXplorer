@@ -97,6 +97,9 @@ public class Kinematics6D : Kinematics3D, IRos2PlanTarget
     /// <summary>機種キー（robot_id 自動生成・機種別既定の索引）。サブクラスで上書き。既定は "robot"。</summary>
     public virtual string ModelKey => "robot";
 
+    /// <summary>コントローラIP（RobotInfo.json robotIp）。ロボット切替時の bringup 接続先。無ければ空。</summary>
+    public string ControllerIp => (robo != null && !string.IsNullOrEmpty(robo.robotIp)) ? robo.robotIp : "";
+
     private static readonly string[] DefaultJointNames = { "J1", "J2", "J3", "J4", "J5", "J6" };
     /// <summary>関節名（機種の既定。サブクラスで上書き可）。既定は J1..J6。</summary>
     public virtual string[] JointNames => DefaultJointNames;
@@ -111,6 +114,36 @@ public class Kinematics6D : Kinematics3D, IRos2PlanTarget
 
     /// <summary>ロボット基準(arm チェーンのルート) Transform。既定は null（サブクラスで実装）。</summary>
     public virtual Transform GetBaseTransform() => null;
+
+    /// <summary>DCS World 原点(0,0,0)に対応する world 位置。既定は base の位置（サブクラスで真の原点を上書き）。</summary>
+    public virtual Vector3 GetRobotOriginWorldPosition()
+    {
+        var b = GetBaseTransform();
+        return b != null ? b.position : Vector3.zero;
+    }
+
+    /// <summary>現在の TCP(先端) world 姿勢。既定は未対応（サブクラスで実装）。</summary>
+    public virtual bool GetTcpPoseWorld(out Vector3 pos, out Quaternion rot)
+    {
+        pos = Vector3.zero; rot = Quaternion.identity; return false;
+    }
+
+    /// <summary>数値IK: TCP world 姿勢→関節角(度)。既定は未対応（サブクラスで実装）。</summary>
+    public virtual bool TrySolveIkWorld(Vector3 targetPos, Quaternion targetRot, double[] seedDeg, out double[] result)
+    {
+        result = seedDeg; return false;
+    }
+
+    /// <summary>
+    /// ヘッド(ツール)オフセットを tip の向きで適用した TCP world 位置（Cartesian JOG/IK の TCP 定義用）。
+    /// offset は RobotSetting.offset 由来(offsetX/Y/Z)。6D は mm 規約とし /1000 で m に。TransformPoint ではなく
+    /// position + rotation*offset で親スケールに依らず「長さ量」として加算する。offset=0 なら tip.position と一致（後方互換）。
+    /// ★Cartesian 層専用。関節経路(6Dの SetTarget=関節角FK)には足さない（意味が壊れる）。
+    /// </summary>
+    protected Vector3 TcpWorldPos(Transform tip)
+    {
+        return tip.position + tip.rotation * (new Vector3(offsetX, offsetY, offsetZ) / 1000f);
+    }
 
     /// <summary>現在姿勢のボディコライダー（他ロボを障害物として送る用）。プレビュー用ゴースト複製は除外。</summary>
     public virtual IReadOnlyList<Collider> GetBodyColliders()

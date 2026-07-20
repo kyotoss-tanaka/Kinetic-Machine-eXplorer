@@ -58,6 +58,10 @@ namespace Parameters
         /// </summary>
         CRX_30iA,
         /// <summary>
+        /// FANUC M-20iD25
+        /// </summary>
+        M_20iD25,
+        /// <summary>
         /// 未定義
         /// </summary>
         UNDEFINED
@@ -310,6 +314,7 @@ namespace Parameters
         /// 物体形状設定
         /// </summary>
         public ShapeSetting shapeSetting;
+        public SafetyZoneSetting safetyZoneSetting;   // DCS安全ゾーン（可視化・読むだけ）
         /// <summary>
         /// スイッチ設定
         /// </summary>
@@ -635,6 +640,28 @@ namespace Parameters
         public decimal offTiming { get; set; }
     }
 
+    /// <summary>
+    /// 内部デバイス（仮想I/O）。実PLC/DBに無い、シミュレータ内部専用の名前付きI/O信号。
+    /// スイッチ出力(SwitchInfo.tag)とタイムチャート(ActionInfo start/end)を同一信号で内部結線するのに使う。
+    /// 通信モードに依存せず tagDatas に事前確保する（kmx_ros2 側 内部デバイス仕様書）。
+    /// </summary>
+    [Serializable]
+    public class InternalDeviceSetting
+    {
+        /// <summary>機番</summary>
+        public string mechId { get; set; }
+        /// <summary>内部デバイス名（基底名）</summary>
+        public string name { get; set; }
+        /// <summary>配列数（1で単一、2以上で配列）</summary>
+        public int count { get; set; }
+        /// <summary>true=ビット / false=ワード</summary>
+        public bool isBit { get; set; }
+        /// <summary>備考</summary>
+        public string remark { get; set; }
+        /// <summary>展開済みタグ名（ActionInfo/SwitchInfo の start/end/tag と完全一致。配列表記はツール側確定済み）</summary>
+        public List<string> tags { get; set; } = new();
+    }
+
     [Serializable]
     public class ChuckUnitSetting
     {
@@ -737,6 +764,10 @@ namespace Parameters
         /// ヘッドユニット設定
         /// </summary>
         public List<UnitSetting> tmUnits { get; set; } = new();
+        /// <summary>
+        /// コントローラIP
+        /// </summary>
+        public string robotIp {get;set;} = "127.0.0.1";
         /*
         /// <summary>
         /// ロボットタイプ
@@ -1150,6 +1181,34 @@ namespace Parameters
         /// サイズ
         /// </summary>
         public List<float> size { get; set; }
+    }
+
+    /// <summary>
+    /// DCS(Dual Check Safety)安全ゾーン設定（SafetyZoneInfo.json）。ロボットunitに紐づく。
+    /// DCSのカルテシアン安全ゾーン(直交箱)を KMX に取り込んで可視化するための読み取り専用データ。
+    /// 詳細: kmx_ros2/DCS_ZONE_IMPORT_SPEC.md。
+    /// </summary>
+    [Serializable]
+    public class SafetyZoneSetting
+    {
+        public string mechId { get; set; }              // どのロボットunitか（shapeSetting と同じ結線キー。JSON運用）
+        public string name { get; set; }                // ユニット名（結線キー）／表示名
+        public string robotId { get; set; }             // ROS受信時の robot_id（[[MULTI_ROBOT_ROS2_SPEC]]）。JSONでは通常空
+        public string frame { get; set; }               // "world"（ロボットWorld/base）等。DCS定義フレーム
+        public string unit { get; set; }                // "mm"（既定）。KMX側で ×0.001
+        public List<float> calibrationEuler { get; set; }   // 座標合わせ(度・任意)。空なら既定(0,-90,0)。§4.4 実測調整用
+        public List<float> calibrationOffset { get; set; }  // 座標合わせ(m・任意)。空なら(0,0,0)
+        public List<SafetyZone> zones { get; set; }
+    }
+
+    [Serializable]
+    public class SafetyZone
+    {
+        public string id { get; set; }              // 例 "CPC1"
+        public bool enabled { get; set; }
+        public bool insideAllowed { get; set; }     // true=箱の内側が安全域(居てよい・緑)/false=箱の内側が進入禁止(赤)
+        public List<float> min { get; set; }        // [xmin,ymin,zmin]（frame・unit準拠）
+        public List<float> max { get; set; }        // [xmax,ymax,zmax]
     }
 
     [Serializable]

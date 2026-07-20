@@ -23,10 +23,18 @@ public sealed class ComRos2Launcher : MonoBehaviour
     [SerializeField] private string wslDistro = "";
     [SerializeField] private bool useMoveit = true;
     [SerializeField] private bool launchRviz = false;   // Ros2Info.json launchRviz。KMX_RVIZ 経由で launch に渡す
+    [SerializeField] private bool useMock = true;       // Ros2Info.json launchUseMock。true=模擬 / false=実機・ROBOGUIDE
+    [SerializeField] private string robotIp = "192.168.1.100";  // Ros2Info.json robotIp。useMock=false 時の Stream Motion 接続先
     [SerializeField] private float statusPollSec = 1.5f;
+
+    [SerializeField] private string robotModel = "crx30ia";   // 既定の robot_model（機種未指定で起動する場合）
 
     /// <summary>最新の bringup 状態（メインスレッドで更新）。</summary>
     public LaunchState State { get; private set; } = LaunchState.Unknown;
+    /// <summary>ROS で現在稼働中の robot_model（`~/ros2_ws/.kmx_robot_model`）。ポーリングで更新。空=不明。</summary>
+    public string CurrentRobotModel { get; private set; } = "";
+    /// <summary>ROS で現在の dcs_host（`~/ros2_ws/.kmx_dcs_host`。ROS側で 127.0.0.1/localhost は "auto" に正規化済）。空=不明。</summary>
+    public string CurrentDcsHost { get; private set; } = "";
     /// <summary>start/stop/restart を実行中（多重起動抑止＆UIの押下抑止用）。</summary>
     public bool Busy => busy;
     /// <summary>直近スクリプトの stderr（あれば）。</summary>
@@ -37,6 +45,8 @@ public sealed class ComRos2Launcher : MonoBehaviour
     private volatile bool busy;
     private volatile bool polling;
     private volatile string polledStatus;    // ワーカーが書き、メイン Update が読む
+    private volatile string polledModel;     // 稼働中 robot_model（.kmx_robot_model）。ワーカーが書き、メインが読む
+    private volatile string polledDcsHost;   // 稼働中 dcs_host（.kmx_dcs_host）
     private volatile float nextPoll;          // 次にポーリングする unscaledTime（0=即時）
     private bool platformOk;
 
@@ -68,6 +78,8 @@ public sealed class ComRos2Launcher : MonoBehaviour
                 wslDistro = cfg.wslDistro ?? "";
                 useMoveit = cfg.launchUseMoveit;
                 launchRviz = cfg.launchRviz;
+                useMock = cfg.launchUseMock;
+                if (!string.IsNullOrEmpty(cfg.robotIp)) { robotIp = cfg.robotIp; }
             }
         }
         catch { /* 無ければ既定値 */ }
@@ -85,6 +97,10 @@ public sealed class ComRos2Launcher : MonoBehaviour
         {
             polledStatus = null;
             ApplyStatus(s);
+            var m = polledModel;
+            if (m != null) { CurrentRobotModel = m; }   // 稼働中モデルも反映（空=不明）
+            var d = polledDcsHost;
+            if (d != null) { CurrentDcsHost = d; }       // 稼働中 dcs_host も反映
         }
         // 定期ポーリング（実行中でなければ）。
         if (!polling && Time.unscaledTime >= nextPoll)
@@ -111,14 +127,37 @@ public sealed class ComRos2Launcher : MonoBehaviour
     }
 
     // ── 操作（UI から呼ぶ） ─────────────────────────────
-    public void StartRos2()
-        => RunScriptAsync($"{WsDir}/kmx_start.sh {(useMoveit ? "true" : "false")} {(launchRviz ? "1" : "0")}");
+    // 引数順 kmx_start.sh: <use_moveit> <rviz> <robot_model> <use_mock> <robot_ip> <dcs_host>（ROBOT_SWITCH_UNITY_SPEC.md §1）。
+    //   ・use_mock は CSV運用では常に true（Stream Motion 未使用）。robot_ip($5) も未使用。
+    //   ・dcs_host($6) に機体ごとの RobotInfo.json robotIp を渡す（ROBOGUIDE=127.0.0.1→ROS側で auto 読替／実機=コントローラIP）。
+    public void StartRos2(string model, string dcsHost)
+        => RunScriptAsync($"{WsDir}/kmx_start.sh {(useMoveit ? "true" : "false")} {(launchRviz ? "1" : "0")} {SafeArg(model, robotModel)} {(useMock ? "true" : "false")} {SafeArg(robotIp, "127.0.0.1")} {SafeArg(dcsHost, "auto")}");
+
+    /// <summary>既定 robot_model / dcs_host=auto で起動（機種未指定時）。</summary>
+    public void StartRos2() => StartRos2(robotModel, "auto");
 
     public void StopRos2()
         => RunScriptAsync($"{WsDir}/kmx_stop.sh");
 
-    public void RestartRos2()
-        => RunScriptAsync($"{WsDir}/kmx_restart.sh {(useMoveit ? "true" : "false")} {(launchRviz ? "1" : "0")}");
+    public void RestartRos2(string model, string dcsHost)
+        => RunScriptAsync($"{WsDir}/kmx_restart.sh {(useMoveit ? "true" : "false")} {(launchRviz ? "1" : "0")} {SafeArg(model, robotModel)} {(useMock ? "true" : "false")} {SafeArg(robotIp, "127.0.0.1")} {SafeArg(dcsHost, "auto")}");
+
+    public void RestartRos2() => RestartRos2(robotModel, "auto");
+
+    /// <summary>bash -lc の引用符内に入る引数を検証（空白/メタ文字を含む値は fallback＝コマンド破壊・注入防止）。</summary>
+    private static string SafeArg(string s, string fallback)
+    {
+        if (string.IsNullOrWhiteSpace(s)) { return fallback; }
+        s = s.Trim();
+        foreach (char c in s)
+        {
+            if (char.IsWhiteSpace(c) || c == '"' || c == '\'' || c == ';' || c == '$' || c == '`' || c == '&' || c == '|' || c == '<' || c == '>')
+            {
+                return fallback;
+            }
+        }
+        return s;
+    }
 
     // ── 内部：非同期実行 ─────────────────────────────
     private void RunScriptAsync(string scriptCmd)
@@ -149,8 +188,22 @@ public sealed class ComRos2Launcher : MonoBehaviour
         polling = true;
         StartWorker(() =>
         {
-            string outp = RunWslBlocking($"{WsDir}/kmx_status.sh", out _, out _, 8000);
-            polledStatus = string.IsNullOrEmpty(outp) ? "unknown" : outp.Trim();
+            // status / 稼働中 robot_model / dcs_host を1回の wsl 呼び出しで取得（出力: "running_full|crx30ia|auto"）。
+            // 二重引用符を含めないよう区切りは echo -n '|'（bash -lc の "" 内なので ' はそのまま使える）。
+            string outp = RunWslBlocking(
+                $"{WsDir}/kmx_status.sh; echo -n '|'; cat {WsDir}/.kmx_robot_model 2>/dev/null; echo -n '|'; cat {WsDir}/.kmx_dcs_host 2>/dev/null",
+                out _, out _, 8000);
+            string st = "unknown", md = "", dh = "";
+            if (!string.IsNullOrEmpty(outp))
+            {
+                string[] parts = outp.Split('|');
+                if (parts.Length > 0) { st = parts[0].Trim(); }
+                if (parts.Length > 1) { md = parts[1].Trim(); }
+                if (parts.Length > 2) { dh = parts[2].Trim(); }
+            }
+            polledStatus = string.IsNullOrEmpty(st) ? "unknown" : st;
+            polledModel = md;
+            polledDcsHost = dh;
             polling = false;
         });
     }

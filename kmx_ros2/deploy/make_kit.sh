@@ -63,7 +63,11 @@ cat > "$OUT/Ros2Info.json" <<'JSON'
   "wslUser": "kmxros",
   "wslDistro": "Ubuntu-22.04",
   "launchUseMoveit": true,
-  "launchRviz": false
+  "launchRviz": false,
+  "launchUseMock": true,
+  "robotIp": "192.168.1.100",
+  "lsSpeedPercent": 100,
+  "lsCnt": 100
 }
 JSON
 

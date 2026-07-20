@@ -1,0 +1,152 @@
+PROGRAM kmx_dcs_srv
+%COMMENT = 'KMX DCS reader'
+%NOLOCKGROUP
+%NOPAUSE = ERROR + COMMAND + TPENABLE
+%NOABORT = ERROR + COMMAND
+%NOBUSYLAMP
+-- ↑常駐(背景)実行向け: エラー/コマンド/TP無効/中断で止まらない・BUSYランプ消灯。
+--   ＋電源投入オートスタート($PWR_NORMAL 等)で完全ハンズフリー常駐（実機と同形）。
+%ENVIRONMENT SYSDEF
+%ENVIRONMENT FLBT
+%ENVIRONMENT MEMO
+%ENVIRONMENT REGOPE
+-- =====================================================================
+-- KMX DCS 安全ゾーン TCP サーバ（Karel 常駐・A案）
+--   $DCSS_CPC[1..32]（DCSS_CPC_T）を読み、接続してきた ROS ノードへ
+--   1行1ゾーンの CSV で吐く。ROS 側は kmx_dcs_reader（TCP クライアント）。
+--   仕様: DCS_ZONE_ROS2_LIVE_SPEC.md §3'/§4/§5。
+--
+-- ★ワイヤプロトコル（この .kl → kmx_dcs_reader・ASCII 行・改行終端）:
+--     "DCS <n>"                                                (任意・件数)
+--     "CPC,<idx>,<comment>,<enable>,<mode>,<grp>,<ufrm>,<x1>,<x2>,<y1>,<y2>,<z1>,<z2>"
+--        例: "CPC,1,KMX_TEST,1,1,1,0,300,900,-300,300,0,600"
+--     "END"                                                    (終端)
+--   ・単位 mm。X/Y は配列[1]/[2]、Z はスカラ $Z1/$Z2（非対称・§3'）。
+--   ・comment は ',' を含めないこと（含むなら Karel 側で '_' 置換）。
+--
+-- ★事前設定（コントローラ Host Comm）:
+--   Menu > SETUP > Host Comm > Servers で 1つのサーバタグ（例 S3:）を
+--     Protocol=SM(Socket Messaging) / Port=60011 / Startup=START(常駐)
+--   に設定し、本 Karel をそのタグ(TAG)で使う。ポートは kmx_dcs_reader の
+--   dcs_port(=60011) と一致させる。TAG 名は環境に合わせて下の TAG を変更。
+--
+-- ★注意: 本ファイルは ROBOGUIDE/実機での要検証リファレンス。
+--   WRITE の整数書式(::)や STRING への WRITE 挙動は版で差があり得る＝
+--   まず $DCSS_CPC[1] を1件出して kmx_dcs_reader のログで確認してから全件化。
+-- =====================================================================
+
+VAR
+  sock      : FILE
+  status    : INTEGER
+  entry     : INTEGER
+  i         : INTEGER
+  n_zones   : INTEGER
+  zenab     : INTEGER    -- $ENABLE（ENABLE は Karel 予約語なので改名）
+  zmode     : INTEGER    -- $MODE（MODE も念のため改名）
+  grp       : INTEGER
+  ufrm      : INTEGER
+  nvtx      : INTEGER
+  comment   : STRING[40]
+  x1, x2    : REAL
+  y1, y2    : REAL
+  z1, z2    : REAL
+  vname     : STRING[84]
+  TAG       : STRING[8]
+
+-- 小ヘルパ群（ローカルroutine＝定義順に並べる。前方宣言(FROM)は外部program用なので使わない）
+-- 変数名文字列 "$DCSS_CPC[<idx>]<field>" を vname に作る（field は ".$X[1]" 等）
+ROUTINE mk_name(idx : INTEGER; field : STRING) : STRING
+  VAR s : STRING[84]
+      istr : STRING[12]
+  BEGIN
+    CNV_INT_STR(idx, 0, 10, istr)               -- idx→文字列（0=最小幅）
+    s = '$DCSS_CPC[' + istr + ']' + field       -- Karel の文字列 '+' 連結
+    RETURN(s)
+  END mk_name
+
+ROUTINE gv_int(idx : INTEGER; field : STRING; val : INTEGER)
+  BEGIN
+    entry = 0                    -- 0=名前で毎回検索（entry 未初期化=INTP-311 回避）
+    vname = mk_name(idx, field)
+    GET_VAR(entry, '*SYSTEM*', vname, val, status)
+    IF status <> 0 THEN        -- 読めない時は未初期化を残さず 0
+      val = 0
+    ENDIF
+  END gv_int
+
+ROUTINE gv_real(idx : INTEGER; field : STRING; val : REAL)
+  BEGIN
+    entry = 0                    -- 0=名前で毎回検索（entry 未初期化=INTP-311 回避）
+    vname = mk_name(idx, field)
+    GET_VAR(entry, '*SYSTEM*', vname, val, status)
+    IF status <> 0 THEN
+      val = 0.0
+    ENDIF
+  END gv_real
+
+ROUTINE gv_str(idx : INTEGER; field : STRING; val : STRING)
+  BEGIN
+    entry = 0                    -- 0=名前で毎回検索（entry 未初期化=INTP-311 回避）
+    vname = mk_name(idx, field)
+    GET_VAR(entry, '*SYSTEM*', vname, val, status)
+    IF status <> 0 THEN
+      val = ''
+    ENDIF
+  END gv_str
+
+-- ゾーン1件を CSV 1行で出力 ---------------------------------------------
+ROUTINE dump_zone(idx : INTEGER)
+  BEGIN
+    zenab = 0 ; zmode = 0 ; grp = 0 ; ufrm = 0 ; comment = ''
+    x1 = 0 ; x2 = 0 ; y1 = 0 ; y2 = 0 ; z1 = 0 ; z2 = 0
+
+    gv_int(idx,  '.$ENABLE',   zenab)
+    gv_str(idx,  '.$COMMENT',  comment)
+    gv_int(idx,  '.$MODE',     zmode)
+    gv_int(idx,  '.$GRP_NUM',  grp)
+    gv_int(idx,  '.$UFRM_NUM', ufrm)
+    gv_real(idx, '.$X[1]',     x1)
+    gv_real(idx, '.$X[2]',     x2)
+    gv_real(idx, '.$Y[1]',     y1)
+    gv_real(idx, '.$Y[2]',     y2)
+    gv_real(idx, '.$Z1',       z1)
+    gv_real(idx, '.$Z2',       z2)
+
+    -- comment が空でも空フィールドで出す（ROS 側が空→"CPC<idx>" に自動変換）
+    WRITE sock('CPC,', idx::1, ',', comment, ',', zenab::1, ',', zmode::1, ',',
+               grp::1, ',', ufrm::1, ',',
+               x1::1::1, ',', x2::1::1, ',', y1::1::1, ',', y2::1::1, ',',
+               z1::1::1, ',', z2::1::1, CR)
+  END dump_zone
+
+-- メイン: 接続を待ち、全ゾーンを吐いて閉じる、を繰り返す -----------------
+BEGIN
+  TAG = 'S3:'        -- Host Comm のサーバタグ（S3 = $HOSTS_CFG[3]）
+  n_zones = 32       -- $DCSS_CPC[32]
+
+  -- ★エラー 67206(MSG_CONNECT が待たず失敗) 対策：サーバ待受ポートを
+  --   $HOSTS_CFG[3].$SERVER_PORT に明示設定する。Host Comm GUI の「ポート」欄と
+  --   $SERVER_PORT が別物のことがあり、$SERVER_PORT が無効だと 67206 になる。
+  --   ※タグが S3 以外なら [3] の添字を合わせる。反映に再起動が要る版もある。
+  entry = 0
+  SET_VAR(entry, '*SYSTEM*', '$HOSTS_CFG[3].$SERVER_PORT', 60011, status)
+
+  WHILE TRUE DO
+    MSG_DISCO(TAG, status)
+    MSG_CONNECT(TAG, status)     -- サーバ：listen 開始＋クライアント接続まで待機（成功時はここでブロック）
+    IF status = 0 THEN
+      OPEN FILE sock ('RW', TAG)
+      status = IO_STATUS(sock)
+      IF status = 0 THEN
+        WRITE sock('DCS,', n_zones::1, CR)
+        FOR i = 1 TO n_zones DO
+          dump_zone(i)           -- enable/mode 等を読んで CSV 出力（無効も出す＝ROS側で間引く）
+        ENDFOR
+        WRITE sock('END', CR)
+      ENDIF
+      CLOSE FILE sock
+    ENDIF
+    MSG_DISCO(TAG, status)
+    DELAY 200                    -- 次の接続受付まで小休止
+  ENDWHILE
+END kmx_dcs_srv

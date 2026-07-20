@@ -11,6 +11,11 @@ KMX ⇄ ROS2 統合起動。3プロセス（endpoint / move_group / kmx_planner�
   robot_model (crx30ia)  : fanuc_moveit_config の対象モデル
   ros_ip (0.0.0.0)       : ros_tcp_endpoint の待受IP
   planning_group (manipulator) : MoveIt planning group 名
+  use_dcs_reader (true)  : true=DCS安全ゾーン読取りノード(kmx_dcs_reader)を起動（use_moveit と独立）
+  dcs_host (127.0.0.1)   : Karel 常駐ソケットの接続先（ROBOGUIDE/実機コントローラ IP）
+  dcs_port (60011)       : Karel 常駐ソケットの待受ポート
+  use_mock (true)        : true=模擬HW / false=実機・ROBOGUIDE(Stream Motion で robot_ip へ接続)
+  robot_ip (192.168.1.100): use_mock=false 時の接続先IP
 
 前提: 端末で colcon_ws(endpoint) / ros2_ws(kmx_*, fanuc_*) を source 済みであること（.bashrc 推奨）。
 """
@@ -29,6 +34,12 @@ def generate_launch_description():
     robot_model = LaunchConfiguration('robot_model')
     ros_ip = LaunchConfiguration('ros_ip')
     planning_group = LaunchConfiguration('planning_group')
+    use_dcs_reader = LaunchConfiguration('use_dcs_reader')
+    dcs_host = LaunchConfiguration('dcs_host')
+    dcs_port = LaunchConfiguration('dcs_port')
+    dcs_poll_sec = LaunchConfiguration('dcs_poll_sec')
+    use_mock = LaunchConfiguration('use_mock')      # true=模擬HW / false=実機・ROBOGUIDE(Stream Motion)
+    robot_ip = LaunchConfiguration('robot_ip')      # use_mock=false 時の Stream Motion 接続先IP
 
     # CRX-30iA の関節名（Unity /kmx と同名）。別ロボに替えるならここを書き換え。
     moveit_joint_names = ['J1', 'J2', 'J3', 'J4', 'J5', 'J6']
@@ -42,6 +53,18 @@ def generate_launch_description():
                               description='ros_tcp_endpoint の待受IP'),
         DeclareLaunchArgument('planning_group', default_value='manipulator',
                               description='MoveIt planning group 名'),
+        DeclareLaunchArgument('use_mock', default_value='true',
+                              description='true=模擬HW / false=実機・ROBOGUIDE(Stream Motion で robot_ip へ接続)'),
+        DeclareLaunchArgument('robot_ip', default_value='192.168.1.100',
+                              description='use_mock=false 時の Stream Motion 接続先IP'),
+        DeclareLaunchArgument('use_dcs_reader', default_value='true',
+                              description='true=DCS安全ゾーン読取りノードを起動（use_moveit と独立）'),
+        DeclareLaunchArgument('dcs_host', default_value='auto',
+                              description='Karel 接続先。auto=WSLのdefault gw(=Windowsホスト,NATでROBOGUIDE同一PC向け)/実機はrobot IP'),
+        DeclareLaunchArgument('dcs_port', default_value='60011',
+                              description='Karel 常駐ソケットの待受ポート'),
+        DeclareLaunchArgument('dcs_poll_sec', default_value='2.0',
+                              description='DCS 再読込周期[s]。>0=topic 定期再配信(Unity 自動更新・R2)/0=起動時+service のみ'),
     ]
 
     # ① Unity 橋渡し（TCP endpoint）
@@ -58,7 +81,7 @@ def generate_launch_description():
         PythonLaunchDescriptionSource(PathJoinSubstitution([
             FindPackageShare('fanuc_moveit_config'), 'launch', 'fanuc_moveit.launch.py'
         ])),
-        launch_arguments={'robot_model': robot_model, 'use_mock': 'true'}.items(),
+        launch_arguments={'robot_model': robot_model, 'use_mock': use_mock, 'robot_ip': robot_ip}.items(),
         condition=IfCondition(use_moveit),
     )
 
@@ -75,4 +98,19 @@ def generate_launch_description():
         output='screen',
     )
 
-    return LaunchDescription(args + [endpoint, move_group, planner])
+    # ④ DCS 安全ゾーン読取り（Karel 常駐ソケット→ /kmx/safety_zones ＋ /kmx/get_safety_zones）
+    #    use_moveit とは独立（use_dcs_reader:=false で無効化可）。
+    dcs_reader = Node(
+        package='kmx_planner',
+        executable='kmx_dcs_reader',
+        name='kmx_dcs_reader',
+        parameters=[{
+            'dcs_host': dcs_host,
+            'dcs_port': ParameterValue(dcs_port, value_type=int),
+            'poll_sec': ParameterValue(dcs_poll_sec, value_type=float),
+        }],
+        output='screen',
+        condition=IfCondition(use_dcs_reader),
+    )
+
+    return LaunchDescription(args + [endpoint, move_group, planner, dcs_reader])

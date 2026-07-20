@@ -11,8 +11,12 @@ public interface IRos2PlanTarget
     /// <summary>ユニット名（UnitSetting.name）。レジストリのキー＆Ros2Info robots との突合キー。</summary>
     string UnitName { get; }
 
-    /// <summary>機種キー（例 "crx30ia" / "rs007l"）。robot_id 自動生成(機種+通番)や機種別既定の索引に使う。</summary>
+    /// <summary>機種キー（例 "crx30ia" / "rs007l"）。robot_id 自動生成(機種+通番)や機種別既定の索引に使う。
+    /// ロボット切替では ROS の robot_model（kmx_start.sh 第3引数）にこの値を渡す。</summary>
     string ModelKey { get; }
+
+    /// <summary>この機体のコントローラIP（RobotInfo.json RobotSetting.robotIp）。ロボット切替時の bringup 接続先。未設定なら空。</summary>
+    string ControllerIp { get; }
 
     /// <summary>関節名（順序付き・長さ=JointCount。例 ["J1".."J6"]）。機種の既定値。</summary>
     string[] JointNames { get; }
@@ -49,6 +53,16 @@ public interface IRos2PlanTarget
 
     /// <summary>ロボット基準（arm チェーンのルート）Transform。障害物の base フレーム。未確定なら null。</summary>
     Transform GetBaseTransform();
+
+    /// <summary>DCS/ROBOGUIDE の World 原点(0,0,0)に対応する world 位置。姿勢は GetBaseTransform() の固定姿勢を使う前提で「位置」のみ。
+    /// 例: CRX は J1軸上の arm1(J2BASE) 位置（J1回転で不動）。既定は GetBaseTransform() の位置と同じ。</summary>
+    Vector3 GetRobotOriginWorldPosition();
+
+    /// <summary>現在の TCP(先端) world 姿勢（位置＋回転）。Cartesian JOG 用。未対応なら false。</summary>
+    bool GetTcpPoseWorld(out Vector3 pos, out Quaternion rot);
+
+    /// <summary>数値IK: TCP を world 姿勢 targetPos/targetRot に合わせる関節角(度)を seed から求める。未対応/未収束なら false。</summary>
+    bool TrySolveIkWorld(Vector3 targetPos, Quaternion targetRot, double[] seedDeg, out double[] result);
 
     /// <summary>現在姿勢のボディコライダー（このロボを「他ロボ＝障害物」として送る用）。</summary>
     IReadOnlyList<Collider> GetBodyColliders();

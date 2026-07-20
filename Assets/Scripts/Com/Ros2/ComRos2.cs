@@ -76,6 +76,14 @@ public class ComRos2 : MonoBehaviour, ITagCom
         public string wslDistro = "";            // 空=既定ディストロ。指定時は wsl -d <distro>
         public bool launchUseMoveit = true;      // 起動時に MoveIt 込み(true)/補間のみ(false)
         public bool launchRviz = false;          // 起動時に RViz を開く(true)/開かない(false・既定)。KMX_RVIZ 経由で launch に渡す
+        public bool launchUseMock = true;        // true=模擬HW(既定・安全) / false=実機・ROBOGUIDE(Stream Motion で robotIp へ接続)
+        public string robotIp = "192.168.1.100"; // launchUseMock=false 時の Stream Motion 接続先(ROBOGUIDE 仮想コントローラ等)
+        public int lsSpeedPercent = 100;         // FANUC .LS 出力の J 移動速度(%)
+        public int lsCnt = 100;                  // FANUC .LS 出力の連続移動 CNT 値(0..100)。-1=FINE(各点停止・忠実だが遅い)
+        // FANUC CSV 再生（FANUC_CSV_PLAY_SPEC.md 方式A）の出力先フォルダ。★環境依存＝ハードコード禁止で設定化。
+        //   ROBOGUIDE: <ワークセルルート>\Robot_1\UD1\KMX（UD1: の実体）。実機: USB の UD1\KMX 等。
+        //   FANUC側は共通で UD1:\KMX\P<品番>_<パス番号>.CSV を読む。空なら C:\KMX-Path（フォールバック）。
+        public string csvOutputDir = @"C:\KMX-Path";
 
         // ── 複数ロボット対応（MULTI_ROBOT_ROS2_SPEC.md）。空なら従来どおり単一ロボットで動作。──
         public List<Ros2RobotConfig> robots = new();

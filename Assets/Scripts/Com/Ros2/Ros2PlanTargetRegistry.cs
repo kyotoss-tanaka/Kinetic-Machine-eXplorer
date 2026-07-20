@@ -131,9 +131,10 @@ public sealed class Ros2PlanTargetRegistry : MonoBehaviour
     {
         switch (modelKey)
         {
-            case "crx30ia": return ("J6FLANGE", "flange", new Vector3(0f, -90f, 0f));   // FANUC CRX-30iA（従来の CRX 既定）
-            case "rs007l":  return ("_J6", "tool0", Vector3.zero);                      // KAWASAKI RS007L（実機確認後に補正調整）
-            default:        return ("", "flange", Vector3.zero);
+            case "crx30ia":    return ("J6FLANGE", "flange", new Vector3(0f, -90f, 0f));   // FANUC CRX-30iA（従来の CRX 既定）
+            case "m20_25_18d": return ("J6FLANGE", "flange", new Vector3(0f, -90f, 0f));   // FANUC M-20iD/25（CRX コピー実装。実モデルの link 名/向きが違えば要調整）
+            case "rs007l":     return ("_J6", "tool0", Vector3.zero);                      // KAWASAKI RS007L（実機確認後に補正調整）
+            default:           return ("", "flange", Vector3.zero);
         }
     }
 

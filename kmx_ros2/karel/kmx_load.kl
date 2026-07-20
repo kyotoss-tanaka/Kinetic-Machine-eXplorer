@@ -1,0 +1,209 @@
+PROGRAM kmx_load
+%COMMENT = 'KMX CSV to PR'
+%NOLOCKGROUP
+-- ★%ENVIRONMENT を書くと SET_JPOS_REG が undefined になるため付けない
+--   (ktrans-basic の既定辞書で GET_REG/SET_INT_REG/OPEN/READ/CNV_*/SET_JPOS_REG 全て使える)
+-- =====================================================================
+-- KMX 汎用再生: CSV(関節角) を読んで PR[grp,1..count] に joint でセットし、
+--   ヘッダ値をレジスタへ。TP(KMX_PLAY) から CALL される想定。
+--   DCS 常駐 Karel(kmx_dcs_srv,%NOPAUSE) とは別タスクで共存可。
+-- 仕様: FANUC_CSV_PLAY_SPEC.md §2/§3.1。
+--
+-- CSV(ASCII/カンマ・コメント無し):
+--   1行目: count,group,uframe,utool,speed,cnt   (整数6)
+--   2行目〜: J1,J2,J3,J4,J5,J6                    (度・小数・★J3はJ2換算済=そのまま使う)
+-- 入力 : R[89] = 品番 → ファイル UD1:\KMX\P<品番>.CSV
+-- 出力 : R[90]=count R[91]=group R[92]=uframe R[93]=utool R[94]=speed R[95]=cnt
+--        R[96]= 1:成功 / -1:失敗(開けない・EOF・件数不正)
+--        PR[grp,1..count] = 各点の JOINTPOS
+--
+-- ★数値の読取り: FANUC の READ はカンマを区切らず、行READ(::n)は行境界を跨ぐため、
+--   ファイルを1文字ずつ読み「カンマ/空白/改行 すべてを区切り」として数値を順に取り出す
+--   (next_real)。行の並びに依存せず header6個→各点6個を安定に取得。
+-- =====================================================================
+
+VAR
+  f        : FILE
+  st       : INTEGER
+  ent      : INTEGER
+  n_pts    : INTEGER
+  grp      : INTEGER
+  uf       : INTEGER
+  ut       : INTEGER
+  spd      : INTEGER
+  cntv     : INTEGER
+  i        : INTEGER
+  k        : INTEGER
+  hokcnt   : INTEGER
+  iost     : INTEGER
+  cand     : INTEGER
+  partno   : INTEGER
+  pathno   : INTEGER
+  isr      : BOOLEAN
+  got_num  : BOOLEAN
+  rdum     : REAL
+  numval   : REAL
+  jp       : JOINTPOS
+  ja       : ARRAY[9] OF REAL
+  fname    : STRING[80]
+  numstr   : STRING[12]
+  base     : STRING[40]
+
+-- 整数→文字列（CNV_INT_STR が付ける符号位置の先頭スペースを除去）
+--   例: 1 → " 1" ではなく "1"（ファイル名/変数名にスペースが混入する不具合を防ぐ）
+ROUTINE i2s(v : INTEGER) : STRING
+  VAR s : STRING[24]
+  BEGIN
+    CNV_INT_STR(v, 0, 10, s)
+    WHILE STR_LEN(s) > 0 DO
+      IF SUB_STR(s, 1, 1) = ' ' THEN
+        s = SUB_STR(s, 2, STR_LEN(s) - 1)
+      ELSE
+        RETURN(s)
+      ENDIF
+    ENDWHILE
+    RETURN(s)
+  END i2s
+
+-- ファイル f から次の1数値を読む。カンマ/空白/改行 を区切りとして扱う。
+--   結果は global numval、読めたら global got_num=TRUE（EOF等で読めねば FALSE）。
+ROUTINE next_real
+  VAR
+    fld     : STRING[32]
+    ch      : STRING[1]
+    ci      : INTEGER
+    started : BOOLEAN
+    done    : BOOLEAN
+  BEGIN
+    fld = ''
+    started = FALSE
+    done = FALSE
+    got_num = FALSE
+    WHILE NOT done DO
+      READ f (ch::1)
+      IF IO_STATUS(f) <> 0 THEN
+        done = TRUE                  -- EOF/エラー
+      ELSE
+        ci = ORD(ch, 1)
+        IF (ch = ',') OR (ci <= 32) THEN
+          IF started THEN
+            done = TRUE              -- 数値の区切りに到達
+          ENDIF
+          -- 先頭の区切りは読み飛ばす
+        ELSE
+          fld = fld + ch
+          started = TRUE
+        ENDIF
+      ENDIF
+    ENDWHILE
+    IF started THEN
+      numval = 0
+      CNV_STR_REAL(fld, numval)
+      IF UNINIT(numval) THEN
+        numval = 0
+      ENDIF
+      got_num = TRUE
+    ENDIF
+  END next_real
+
+BEGIN
+  ent = 0
+  SET_INT_REG(96, -1, st)          -- 既定=失敗（成功時に 1 で上書き）
+
+  -- ja 全要素を 0 初期化（CNV_REL_JPOS が配列全体を参照＝未初期化 EXEC-311 回避）
+  FOR i = 1 TO 9 DO
+    ja[i] = 0
+  ENDFOR
+
+  -- 品番 R[89] + パス番号 R[88] → ファイル名 P<品番>_<パス番号>.CSV
+  --   パス番号0 = 復帰動作 / 1以上 = 登録経路。0も名前に含める。
+  GET_REG(89, isr, partno, rdum, st)
+  GET_REG(88, isr, pathno, rdum, st)
+  base = 'P' + i2s(partno) + '_' + i2s(pathno)   -- 例 P1234_2 / 復帰 P1234_0
+
+  -- デバイス候補を順に試す（実機=UD1: / ROBOGUIDE も UD1: にコピーで可）
+  --   R[99]=開けた候補番号 / R[97]=最終OPEN状態
+  cand = 1
+  fname = 'UD1:\KMX\' + base + '.CSV'
+  OPEN FILE f ('RO', fname)
+  iost = IO_STATUS(f)
+
+  IF iost <> 0 THEN
+    CLR_IO_STAT(f)                 -- 失敗後は次OPEN前にクリア(EXEC-366回避)
+    cand = 2
+    fname = 'UD1:\' + base + '.CSV'
+    OPEN FILE f ('RO', fname)
+    iost = IO_STATUS(f)
+  ENDIF
+  IF iost <> 0 THEN
+    CLR_IO_STAT(f)
+    cand = 3
+    fname = 'MC:\' + base + '.CSV'
+    OPEN FILE f ('RO', fname)
+    iost = IO_STATUS(f)
+  ENDIF
+
+  SET_INT_REG(97, iost, st)
+  SET_INT_REG(99, cand, st)
+  IF iost <> 0 THEN
+    RETURN                         -- 全候補で開けない（R[96]=-1）
+  ENDIF
+
+  -- ヘッダ: count,group,uframe,utool,speed,cnt （数値6個）
+  hokcnt = 0
+  FOR k = 1 TO 6 DO
+    next_real
+    IF got_num THEN
+      ja[k] = numval
+      hokcnt = hokcnt + 1
+    ENDIF
+  ENDFOR
+  SET_INT_REG(98, 6 - hokcnt, st)  -- 0=ヘッダ6個読めた
+  IF hokcnt < 6 THEN
+    CLOSE FILE f
+    RETURN
+  ENDIF
+
+  n_pts = ROUND(ja[1])
+  grp   = ROUND(ja[2])
+  uf    = ROUND(ja[3])
+  ut    = ROUND(ja[4])
+  spd   = ROUND(ja[5])
+  cntv  = ROUND(ja[6])
+  IF grp < 1 THEN
+    grp = 1
+  ENDIF
+  WRITE TPDISPLAY (CR, 'KMX_LOAD n_pts=', n_pts::6, ' grp=', grp::3, ' cnt=', cntv::5, CR)
+
+  SET_INT_REG(90, n_pts, st)
+  SET_INT_REG(91, grp, st)
+  SET_INT_REG(92, uf, st)
+  SET_INT_REG(93, ut, st)
+  SET_INT_REG(94, spd, st)
+  SET_INT_REG(95, cntv, st)
+
+  -- UF/UT は KMX_PLAY 側で UFRAME_NUM=R[92]/UTOOL_NUM=R[93] により設定するので
+  --   ここでは設定しない（Karel の SET_VAR '*SYSTEM*' は %ENVIRONMENT 依存で不安定なため）
+
+  -- 各点: 6数値を読み PR[i] に joint でセット（SET_JPOS_REG＝正しい PR 書き込み）
+  FOR i = 1 TO n_pts DO
+    hokcnt = 0
+    FOR k = 1 TO 6 DO
+      next_real
+      IF got_num THEN
+        ja[k] = numval
+        hokcnt = hokcnt + 1
+      ENDIF
+    ENDFOR
+    IF hokcnt < 6 THEN
+      CLOSE FILE f
+      RETURN                        -- 途中でEOF/不足（R[96]=-1）
+    ENDIF
+    CNV_REL_JPOS(ja, jp, st)        -- 関節角配列 → JOINTPOS
+    SET_JPOS_REG(i, jp, st)         -- PR[i] に joint でセット（motion で使える）
+  ENDFOR
+
+  CLOSE FILE f
+  SET_INT_REG(96, 1, st)           -- 完了
+  WRITE TPDISPLAY ('KMX_LOAD done R96=1 pts=', n_pts::6, CR)
+END kmx_load

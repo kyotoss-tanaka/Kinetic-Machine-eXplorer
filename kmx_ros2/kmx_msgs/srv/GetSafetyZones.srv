@@ -1,0 +1,6 @@
+# 「DCS再読込」ボタン＝オンデマンドで DCS 安全ゾーンを取得。DCS_ZONE_ROS2_LIVE_SPEC.md §4。
+string robot_id           # "" =既定
+---
+bool ok                   # 読取り成功か
+string message            # 失敗理由（DCS未読/未接続/未対応 等）
+SafetyZones zones

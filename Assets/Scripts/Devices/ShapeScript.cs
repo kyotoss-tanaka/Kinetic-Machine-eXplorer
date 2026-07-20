@@ -35,11 +35,11 @@ public class ShapeScript : UseTagBaseScript
         
         var shape = (ShapeSetting)obj;
 
-        // リロード対策: 前回このスクリプトが生成した ShapeBox（子）を先に破棄する（多重化防止）。
+        // リロード対策: 前回このスクリプトが生成した ShapeBox/外枠（子）を先に破棄する（多重化防止）。
         for (int i = transform.childCount - 1; i >= 0; i--)
         {
             var ch = transform.GetChild(i);
-            if (ch.name == "ShapeBox")
+            if (ch.name.StartsWith("ShapeBox"))   // "ShapeBox"(塗り) と "ShapeBoxWire"(外枠) の両方
             {
                 Destroy(ch.gameObject);
             }
@@ -78,18 +78,17 @@ public class ShapeScript : UseTagBaseScript
                 cube.transform.SetParent(transform, false);
                 cube.transform.localPosition = center;
                 cube.transform.localScale = size;   // 付属の BoxCollider も実寸にスケールされる
-                // マテリアルは Resources の Cube プレハブから借用する。CreatePrimitive 既定の Built-in
-                // Standard は URP ビルドで strip され不可視になるため、ビルド同梱の URP マテリアルを使う。
+                // マテリアルは URP シェーダから実行時生成（緑・半透明）。ゴースト/DCSゾーンと同方式で、
+                // URP/Lit はシーン中で使われておりビルドでも strip されない（旧 Built-in Standard は不可視だった）。
                 var rend = cube.GetComponent<Renderer>();
                 if (rend != null)
                 {
-                    var srcPrefab = Resources.Load<GameObject>("3DModel/Works/Cube");
-                    var srcRend = srcPrefab != null ? srcPrefab.GetComponentInChildren<Renderer>() : null;
-                    if (srcRend != null && srcRend.sharedMaterial != null)
-                    {
-                        rend.sharedMaterial = srcRend.sharedMaterial;
-                    }
+                    var mat = MakeShapeMaterial();
+                    if (mat != null) { rend.sharedMaterial = mat; }
                 }
+                // DCSゾーンと同じ外枠（ワイヤフレーム）。塗りcube(scale=size)の子にすると線幅/位置が
+                // 二重スケールされるので、transform直下の非スケール兄弟として size/2 の実寸で描く。
+                AddWireframe(center, size);
             }
             else
             {
@@ -111,5 +110,73 @@ public class ShapeScript : UseTagBaseScript
             }
         }
         */
+    }
+
+    /// <summary>
+    /// create=true の ShapeBox 用マテリアル（緑・半透明）。URP シェーダから実行時生成する。
+    /// ゴースト([[CRX_30iA.MakeGhostMaterial]])/DCSゾーンと同方式。URP/Lit はシーンで使用済みのため
+    /// ビルドでも strip されず可視（旧 Built-in Standard は URP ビルドで不可視だった）。
+    /// </summary>
+    private static Material MakeShapeMaterial()
+    {
+        var sh = Shader.Find("Universal Render Pipeline/Lit");
+        if (sh == null) { sh = Shader.Find("Universal Render Pipeline/Unlit"); }
+        if (sh == null) { sh = Shader.Find("Sprites/Default"); }
+        if (sh == null) { return null; }
+        var m = new Material(sh);
+        var col = new Color(0.2f, 1f, 0.35f, 0.35f);   // 緑・半透明
+        if (m.HasProperty("_BaseColor")) { m.SetColor("_BaseColor", col); }
+        if (m.HasProperty("_Color")) { m.SetColor("_Color", col); }
+        // URP transparent 設定（Surface=Transparent / alpha blend / ZWrite off）。
+        if (m.HasProperty("_Surface")) { m.SetFloat("_Surface", 1f); }
+        m.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
+        m.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+        m.SetInt("_ZWrite", 0);
+        m.DisableKeyword("_SURFACE_TYPE_OPAQUE");
+        m.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+        m.renderQueue = (int)UnityEngine.Rendering.RenderQueue.Transparent;
+        return m;
+    }
+
+    /// <summary>
+    /// ShapeBox の外枠（DCSゾーンと同じワイヤフレーム）。transform 直下に非スケールで置き、
+    /// 箱の12辺を1本の LineRenderer（重複3辺含む16点）で描く。破棄は "ShapeBoxWire" 名で cleanup 対象。
+    /// </summary>
+    private void AddWireframe(Vector3 center, Vector3 size)
+    {
+        var wireGo = new GameObject("ShapeBoxWire");
+        wireGo.transform.SetParent(transform, false);
+        wireGo.transform.localPosition = center;
+        wireGo.transform.localRotation = Quaternion.identity;
+        var lr = wireGo.AddComponent<LineRenderer>();
+        lr.useWorldSpace = false;
+        lr.loop = false;
+        lr.widthMultiplier = 0.004f;
+        lr.numCornerVertices = 0;
+        lr.numCapVertices = 0;
+        var lineCol = new Color(0.05f, 0.5f, 0.12f, 1f);   // 濃い緑の枠（塗りの明るい緑に対して縁が締まる）
+        var mat = MakeLineMaterial(lineCol);
+        if (mat != null) { lr.sharedMaterial = mat; lr.startColor = lineCol; lr.endColor = lineCol; }
+        Vector3 h = size * 0.5f;
+        Vector3[] c =
+        {
+            new Vector3(-h.x, -h.y, -h.z), new Vector3(h.x, -h.y, -h.z), new Vector3(h.x, -h.y, h.z), new Vector3(-h.x, -h.y, h.z),
+            new Vector3(-h.x,  h.y, -h.z), new Vector3(h.x,  h.y, -h.z), new Vector3(h.x,  h.y, h.z), new Vector3(-h.x,  h.y, h.z),
+        };
+        int[] path = { 0, 1, 2, 3, 0, 4, 5, 1, 5, 6, 2, 6, 7, 3, 7, 4 };   // 全12辺を網羅（3辺重複）
+        lr.positionCount = path.Length;
+        for (int i = 0; i < path.Length; i++) { lr.SetPosition(i, c[path[i]]); }
+    }
+
+    /// <summary>線用の単色 URP マテリアル（取れなければ null）。</summary>
+    private static Material MakeLineMaterial(Color col)
+    {
+        var sh = Shader.Find("Universal Render Pipeline/Unlit");
+        if (sh == null) { sh = Shader.Find("Sprites/Default"); }
+        if (sh == null) { return null; }
+        var m = new Material(sh);
+        if (m.HasProperty("_BaseColor")) { m.SetColor("_BaseColor", col); }
+        if (m.HasProperty("_Color")) { m.SetColor("_Color", col); }
+        return m;
     }
 }

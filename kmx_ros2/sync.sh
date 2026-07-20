@@ -23,10 +23,20 @@ rsync -a --delete --exclude '__pycache__/' --exclude '*.pyc' \
 # kmx_msgs は WSL側が正本（CMakeLists等はWSLで管理）。Unity側で定義する .msg だけ反映する。
 # （新規 .msg を足したら CMakeLists.txt / package.xml への登録は WSL側で手動。ここはコピーのみ）
 if [ -d "$WS/kmx_msgs/msg" ]; then
-  for m in PlanRequest.msg ObstaclePrimitive.msg Obstacles.msg; do
+  for m in PlanRequest.msg ObstaclePrimitive.msg Obstacles.msg SafetyZone.msg SafetyZones.msg; do
     if [ -f "$REPO/kmx_msgs/msg/$m" ]; then
       echo "[sync] $m -> $WS/kmx_msgs/msg/"
       cp "$REPO/kmx_msgs/msg/$m" "$WS/kmx_msgs/msg/$m"
+    fi
+  done
+fi
+# srv も同様（新規 GetSafetyZones）。CMakeLists 登録は WSL 側で手動済。
+if [ -d "$REPO/kmx_msgs/srv" ]; then
+  mkdir -p "$WS/kmx_msgs/srv"
+  for s in GetSafetyZones.srv; do
+    if [ -f "$REPO/kmx_msgs/srv/$s" ]; then
+      echo "[sync] $s -> $WS/kmx_msgs/srv/"
+      cp "$REPO/kmx_msgs/srv/$s" "$WS/kmx_msgs/srv/$s"
     fi
   done
 fi

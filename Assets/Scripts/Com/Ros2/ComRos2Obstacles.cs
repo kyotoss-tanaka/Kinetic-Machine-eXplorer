@@ -59,6 +59,10 @@ public class ComRos2Obstacles : MonoBehaviour
         + "水平面をヨー-90°して base_link(X=前,Y=左,Z=上)へ合わせる。向きが違う構成では調整")]
     [SerializeField] private Vector3 baseCalibrationEuler = new Vector3(0f, -90f, 0f);
 
+    [Tooltip("DCS keep-out を障害物として送る際の安全マージン(m・各面)。計画経路が DCS 境界をかすめて実機DCSが作動するのを"
+        + "防ぐため、keep-out箱をこの分だけ各方向に広げて送る（プランナが余裕を持って回避）。0=余裕なし(境界ギリギリ)。")]
+    [SerializeField] private float dcsObstacleMargin = 0.02f;
+
     [Header("ヘッド(ツール) → MoveIt へ attach（方式B）")]
     [Tooltip("ヘッド(ツール)を AttachedCollisionObject としてフランジに attach 送信する")]
     [SerializeField] private bool sendHead = false;
@@ -72,6 +76,8 @@ public class ComRos2Obstacles : MonoBehaviour
     [SerializeField] private string flangeNameContains = "J6FLANGE";
     [Tooltip("ヘッド(ツール)ルート。未割当なら Kinematics6D.HeadObject を使用")]
     [SerializeField] private Transform headRoot;
+    // 計画対象ロボが SetTarget で確定したか。確定後は ResolveHead で他機体のヘッドを拾わない（ヘッド無し機体の誤爆防止）。
+    private bool targetResolved;
     [Tooltip("ヘッドを全Collider合成の1個のAABBで送る（true=1箱・開口なし）。false=下のグリッドで数箱に間引く")]
     [SerializeField] private bool headAsSingleBox = false;
     /// <summary>ヘッドを1箱で送るか（true=1箱/false=グリッド間引き）。UIから切替可。</summary>
@@ -174,8 +180,9 @@ public class ComRos2Obstacles : MonoBehaviour
         }
         var head = r.Target.GetHeadObject();
         headRoot = head != null ? head.transform : null;
+        targetResolved = true;   // 対象確定＝ヘッド有無もこの機体で確定（ResolveHead のフォールバック禁止）
         Debug.Log($"[ComRos2Obstacles] target='{r.DisplayName}' base='{(robotBase != null ? robotBase.name : "?")}'"
-            + $" flange~'{flangeNameContains}' attach='{attachLinkName}' calib={baseCalibrationEuler}");
+            + $" flange~'{flangeNameContains}' attach='{attachLinkName}' calib={baseCalibrationEuler} head='{(head != null ? head.name : "なし")}'");
     }
 
     /// <summary>右クリックメニュー用ラッパー（ContextMenu は void 前提のため分離）。</summary>
@@ -349,6 +356,47 @@ public class ComRos2Obstacles : MonoBehaviour
             Debug.Log($"[ComRos2Obstacles] 他ロボットを障害物として {others} 箱追加（選択外の機体）。");
         }
 
+        // DCS keep-out を障害物として追加（planning_scene→プランナが事前回避＋RViz表示）。ROS側は無変更。
+        // DCS値は DCS World フレーム(=J1回転中心=J2BASE/arm1 基準, mm)。障害物は base(crx) 基準で送るため、
+        //   arm1 の base相対位置(originOffset)を足して arm1 基準へ補正（Unity表示と同じ基準に揃える）。
+        int dcsCount = 0;
+        var szScript = baseT.GetComponentInParent<SafetyZoneScript>();
+        if (szScript != null)
+        {
+            // DCS原点(J2BASE/arm1)の、障害物フレーム(base=crx 基準)での位置。既存障害物と同じ cal*invRef 変換。
+            var dcsTarget = baseT.GetComponentInParent<IRos2PlanTarget>();
+            Vector3 originWorld = dcsTarget != null ? dcsTarget.GetRobotOriginWorldPosition() : baseT.position;
+            Quaternion invRefDcs = Quaternion.Inverse(baseT.rotation);
+            Quaternion calDcs = Quaternion.Euler(baseCalibrationEuler);
+            Vector3 originOffset = (calDcs * (invRefDcs * (originWorld - baseT.position))) * unitScale;
+            float scDcs = (szScript.ZoneUnit.ToLowerInvariant() == "mm") ? 0.001f : 1f;
+            float dcsMargin2 = Mathf.Max(0f, dcsObstacleMargin) * 2f;   // 各面マージン→寸法は両面ぶん加算
+            foreach (var z in szScript.KeepOutZones)
+            {
+                // DCS原点(arm1)を内包する keep-out は START_STATE_IN_COLLISION を招くのでスキップ（DCS座標の符号で判定）。
+                if (z.min[0] <= 0f && 0f <= z.max[0] && z.min[1] <= 0f && 0f <= z.max[1] && z.min[2] <= 0f && 0f <= z.max[2])
+                {
+                    Debug.LogWarning($"[ComRos2Obstacles] DCS 'dcs_{z.id}' は原点を内包→障害物送信スキップ");
+                    continue;
+                }
+                Vector3 cR = new Vector3(z.min[0] + z.max[0], z.min[1] + z.max[1], z.min[2] + z.max[2]) * (0.5f * scDcs);
+                Vector3 sR = new Vector3(Mathf.Abs(z.max[0] - z.min[0]), Mathf.Abs(z.max[1] - z.min[1]), Mathf.Abs(z.max[2] - z.min[2])) * scDcs;
+                var ob = new Ros2Obstacle
+                {
+                    id = "dcs_" + (string.IsNullOrEmpty(z.id) ? "zone" : z.id),
+                    type = 1,                                                      // BOX
+                    dimensions = new float[] { sR.x + dcsMargin2, sR.y + dcsMargin2, sR.z + dcsMargin2 },   // ROS [x,y,z]＋安全マージン
+                    position = new Vector3(-cR.y, cR.z, cR.x) + originOffset,      // FLU⁻¹(cR) ＋ arm1基準補正
+                    rotation = Quaternion.identity,
+                };
+                if (seenIds.Add(ob.id)) { list.Add(ob); dcsCount++; }
+            }
+        }
+        if (dcsCount > 0)
+        {
+            Debug.Log($"[ComRos2Obstacles] DCS keep-out を障害物として {dcsCount} 箱追加（planning_scene→計画回避＋RViz表示）。");
+        }
+
         // 地面(ground plane): 基部の真下・床高さに、可動範囲サイズの薄い板を1枚張る。
         // 実床(1000m級)は送らず、これで「床下へ計画しない」を軽く担保する。
         if (sendGroundPlane)
@@ -407,6 +455,14 @@ public class ComRos2Obstacles : MonoBehaviour
         var head = ResolveHead();
         if (head == null)
         {
+            // 対象確定済みでヘッド無し（例 ユニット3）＝正常。前に付いていたヘッドを消すため空の attached を送る
+            //   （ROS側は受信リストで attach を置換＝空で detach。同一modelで再起動が無い切替時の残留を防ぐ）。
+            if (targetResolved)
+            {
+                transport.PublishObstacles(attachedTopic, attachLinkName, new List<Ros2Obstacle>());
+                Debug.Log("[ComRos2Obstacles] この機体はヘッド無し → attached を空送信でクリア");
+                return true;
+            }
             Debug.LogWarning("[ComRos2Obstacles] ヘッド(HeadObject)が見つかりません。headRoot を割当てるか Kinematics6D.HeadObject を確認してください。");
             return false;
         }
@@ -544,6 +600,13 @@ public class ComRos2Obstacles : MonoBehaviour
         {
             return headRoot;
         }
+        // ★対象ロボが確定済み(SetTarget 済)なら、その機体にヘッドが無い＝ヘッド無しが正。
+        //   ここで他機体のヘッドを拾うと、ヘッド未装着の機体(例 ユニット3)に別機体のヘッドが attach される誤爆になる。
+        if (targetResolved)
+        {
+            return null;
+        }
+        // 単機/対象未確定時のみ：シーンの唯一のロボのヘッドを使う（後方互換）。
         foreach (var k in FindObjectsByType<Kinematics6D>(FindObjectsSortMode.None))
         {
             var h = k.GetHeadObject();

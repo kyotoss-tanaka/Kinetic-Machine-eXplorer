@@ -22,6 +22,11 @@ public static class Ros2MotorLimits
             //   JT1:370 JT2:310 JT3:410 JT4:550 JT5:550 JT6:1000 (°/s)
             return new float[] { 370f, 310f, 410f, 550f, 550f, 1000f };
         }
+        if (modelKey == "m20_25_18d")
+        {
+            // ★暫定：FANUC M-20iD/25 の各軸最大速度。要データシート確認で差し替え（産業用＝協働CRXより速い）。
+            return new float[] { 230f, 225f, 230f, 430f, 430f, 630f };
+        }
         int n = jointCount > 0 ? jointCount : 6;
         var d = new float[n];
         for (int i = 0; i < n; i++)

@@ -48,6 +48,17 @@ public class ComRos2PlanPanel : MonoBehaviour
     private bool goalInitialized;                  // 起動時に一度だけ現在姿勢で初期化したか
     private double[] goalDeg = new double[6];       // 長さは jointNames.Length に追従
 
+    // Cartesian JOG（X/Y/Z/RX/RY/RZ をスライダーで数値IK目標設定・「現在」行の右端チェック）
+    private Toggle jogToggle;
+    private bool jogMode;
+    private GameObject tcpMarker;                   // JOG中に TCP(ヘッドオフセット点=吸盤)の位置・向きを可視化する球＋XYZ軸
+    private bool suppressRowCallbacks;              // 行の min/max/value 一括更新中はスライダー/入力の誤発火を無視
+    private Text[] rowLabels = new Text[0];         // J1..J6 ↔ X/Y/Z/RX/RY/RZ でラベル切替
+    private double[] cartVals = new double[6];       // JOG時の X,Y,Z(mm) / RX,RY,RZ(deg)（base フレーム）
+    private static readonly string[] CartLabels = { "X", "Y", "Z", "RX", "RY", "RZ" };
+    private const float CartPosRange = 2500f;       // 位置スライダー範囲(±mm)
+    private const float CartRotRange = 180f;        // 姿勢スライダー範囲(±deg)
+
     private Text statusText;
     private Text seekTimeLabel;   // 再生中の時間（現在/総 秒）。シークバー右
     private Slider returnSpeedSlider;   // 復帰(通常計画)の速度倍率スライダー（実行中に調整可）
@@ -55,11 +66,16 @@ public class ComRos2PlanPanel : MonoBehaviour
     private Slider progressBar;         // 登録最適化の進捗バー（探索/STOMP候補・OptProgress01連動）
     private Text goalText;                                            // 旧ゴール表示（撤去・未使用）
     private Text curText;                                             // ロボットの現在関節角（ライブ表示・旧ゴール行の位置）
+    private double[] curDisplayDeg;                                   // 「現在:」表示値。ゴール表示中は更新せず保持（復帰=現在/登録=始点）
     private Text commText;                                            // ROS 状態（ROS2起動＋TCP接続 統合・タイトルバー右）
     private Button startBtn, stopBtn, restartBtn;                     // 起動/停止/再起動
     private Slider[] sliders = new Slider[0];
     private InputField[] sliderInputs = new InputField[0];   // 角度の直接入力（関節数ぶん）
     private Button setGoalBtn, planBtn, okBtn, ngBtn, stopSearchBtn;
+    private Button lsExportBtn;   // 現在の経路を FANUC TPプログラム(.LS)に出力（オフライン再生用）
+    private Button csvExportBtn;  // 現在の経路を FANUC 汎用再生用 CSV(関節角)に出力（Karel/TPが読む）
+    private InputField csvProductInput, csvPathInput;   // CSV命名: 品番(R[89]) / パス番号(R[88]・0=復帰)
+    private Button dcsReloadBtn;  // DCS安全ゾーン(SafetyZoneInfo.json)を再読込して再描画
     private bool stopSearchLatched;   // 探索停止押下→データ返信まで再押下を無効化するラッチ
     private const int IconPlay = 0xe037;                             // MaterialIcons play_arrow
     private const int IconPause = 0xe034;                            // MaterialIcons pause
@@ -76,6 +92,7 @@ public class ComRos2PlanPanel : MonoBehaviour
     private readonly List<Button> stepButtons = new();               // 各行の 登録/解除/再生 ボタン（登録保留中は無効化）
     private Text robotNameText;                     // 選択中ロボット名（◀ 名前 ▶）
     private Button robotPrevBtn, robotNextBtn;
+    private Button switchRobotBtn;                   // 「この機種でROS起動/切替」
     private InputField budgetInput, ratioInput;                       // 時間予算/大回り許容比の入力
     private double planGoodRatioVal;                                  // 大回り許容比（0=ROS2既定）
     private Font uiFont;
@@ -128,6 +145,7 @@ public class ComRos2PlanPanel : MonoBehaviour
             Destroy(canvasGo);
             canvasGo = null;
         }
+        if (tcpMarker != null) { Destroy(tcpMarker); tcpMarker = null; }   // TCPマーカーも掃除
     }
 
     /// <summary>パネル本体の表示/非表示（Canvas と EventSystem は常時活性のまま＝他UIの入力を止めない）。</summary>
@@ -157,10 +175,17 @@ public class ComRos2PlanPanel : MonoBehaviour
             InitGoalFromCurrent();
             goalInitialized = true;
         }
-        // ロボットの現在関節角（ライブ）を表示（旧ゴール行の位置）。
+        UpdateTcpMarker();   // JOG中は TCP(吸盤点)マーカーを実TCP姿勢に追従表示（OFFで消す）。
+        // ロボットの現在関節角を表示（旧ゴール行の位置）。
+        // ★ゴール表示中(goalSetMode)はモデルが goalDeg 姿勢のため ReadCurrentDeg が goalDeg を返す（多ロボは Kinematics 直読み）。
+        //   そこで「ゴール表示でない時だけ」値を更新して保持する＝復帰モードは現在角度／登録モードは始点(選択step開始姿勢)のまま。
         if (curText != null && GlobalScript.isLoaded)
         {
-            var cur = planner.ReadCurrentDeg();
+            if (!goalSetMode || curDisplayDeg == null)
+            {
+                curDisplayDeg = planner.ReadCurrentDeg();
+            }
+            var cur = curDisplayDeg;
             var sb = new System.Text.StringBuilder("現在: ");
             if (cur != null)
             {
@@ -344,6 +369,13 @@ public class ComRos2PlanPanel : MonoBehaviour
         robotNextBtn = MakeButton(panel, "RobotNext", "▶", new Vector2(W - 38f, y), 30f, 24f, OnRobotNext);
         y -= 28f;
 
+        // 「この機種でROS起動/切替」：選択機体の robot_model で bringup を(再)起動→再接続→scene再送。
+        if (launcher != null)
+        {
+            switchRobotBtn = MakeButton(panel, "RobotSwitch", "この機種でROS起動/切替", new Vector2(8f, y), W - 16f, 26f, OnSwitchRobot);
+            y -= 30f;
+        }
+
         // ROS2 起動制御（起動/停止/再起動＋状態ランプ）。ランチャがある時だけ表示。
         if (launcher != null)
         {
@@ -354,7 +386,9 @@ public class ComRos2PlanPanel : MonoBehaviour
         }
 
         // ロボットの現在関節角（ライブ）。スライダー=ゴール、この行=現在 の対比用。
-        curText = MakeLabel(panel, "cur", "現在: -", 13, new Vector2(8f, y), W - 16f, 20f);
+        curText = MakeLabel(panel, "cur", "現在: -", 13, new Vector2(8f, y), W - 16f - 66f, 20f);
+        // Cartesian JOG 切替（現在行の右端）。ON で J1..J6 行が X/Y/Z/RX/RY/RZ の数値IKジョグになる。
+        jogToggle = MakeToggle(panel, "togJog", "JOG", false, new Vector2(W - 66f, y), OnJogToggle);
         y -= 24f;
 
         // 関節スライダー＋直接入力（選択ロボの関節数ぶん・可変。6軸以上）
@@ -362,11 +396,12 @@ public class ComRos2PlanPanel : MonoBehaviour
         if (goalDeg == null || goalDeg.Length != nJoints) { goalDeg = new double[nJoints]; }
         sliders = new Slider[nJoints];
         sliderInputs = new InputField[nJoints];
+        rowLabels = new Text[nJoints];
         for (int i = 0; i < nJoints; i++)
         {
             int idx = i;
             string jn = (jointNames != null && i < jointNames.Length) ? jointNames[i] : $"J{i + 1}";
-            MakeLabel(panel, $"lbl{i}", jn, 14, new Vector2(8f, y), 34f, 22f);
+            rowLabels[i] = MakeLabel(panel, $"lbl{i}", jn, 14, new Vector2(8f, y), 40f, 22f);
             var s = MakeSlider(panel, $"sld{i}", new Vector2(46f, y), 230f, 22f);
             s.minValue = jointMin;
             s.maxValue = jointMax;
@@ -470,6 +505,27 @@ public class ComRos2PlanPanel : MonoBehaviour
         stopSearchBtn = MakeButton(panel, "StopSearch", "探索停止（最良を採用）", new Vector2(8f, y), W - 16f, 34f, OnStopSearch);
         stopSearchBtn.gameObject.SetActive(false);
         y -= 44f;
+        // 現在の経路を FANUC TPプログラム(.LS)へ出力（オフラインで ROBOGUIDE/コントローラ再生用）。
+        lsExportBtn = MakeButton(panel, "LsExport", "FANUC .LS 出力", new Vector2(8f, y), W - 16f, 30f, OnExportLs);
+        y -= 34f;
+        // 現在の経路を FANUC 汎用再生用 CSV(関節角)へ出力（FANUC側 Karel/TP が読む・FANUC_CSV_PLAY_SPEC.md 方式A）。
+        // 命名 P<品番>_<パス番号>.CSV（品番=R[89] / パス番号=R[88]・0=復帰）。出力先は Ros2Info.json csvOutputDir。
+        MakeLabel(panel, "lblCsvProd", "品番", 13, new Vector2(8f, y), 34f, 22f);
+        csvProductInput = MakeInput(panel, "csvProd", new Vector2(44f, y), 60f, 22f);
+        csvProductInput.contentType = InputField.ContentType.IntegerNumber;
+        csvProductInput.text = "1";
+        MakeLabel(panel, "lblCsvPath", "パス", 13, new Vector2(114f, y), 34f, 22f);
+        csvPathInput = MakeInput(panel, "csvPath", new Vector2(150f, y), 50f, 22f);
+        csvPathInput.contentType = InputField.ContentType.IntegerNumber;
+        csvPathInput.text = "0";
+        // モードから自動で入る（復帰=0 / 登録=テーブル番号1オリジン）が、手動で上書きも可。
+        MakeLabel(panel, "hintCsvPath", "0=復帰/登録=表番号", 12, new Vector2(206f, y), 140f, 22f);
+        y -= 28f;
+        csvExportBtn = MakeButton(panel, "CsvExport", "FANUC CSV 出力", new Vector2(8f, y), W - 16f, 30f, OnExportCsv);
+        y -= 34f;
+        // DCS安全ゾーンを SafetyZoneInfo.json から再読込して再描画（全体F5リロード不要）。
+        dcsReloadBtn = MakeButton(panel, "DcsReload", "DCS安全ゾーン 再読込", new Vector2(8f, y), W - 16f, 30f, OnReloadDcs);
+        y -= 40f;
 
         // --- robotSteps シーケンス（自動再生／登録モード切替＋ステップ一覧） ---
         var seqSep = MakeLabel(panel, "seqSep", "― ステップ再生 ―", 13, new Vector2(8f, y), W - 16f, 20f);
@@ -815,6 +871,8 @@ public class ComRos2PlanPanel : MonoBehaviour
 
     private void OnSlider(int i, float v)
     {
+        if (suppressRowCallbacks) { return; }         // モード切替でのレンジ変更に伴うクランプ誤発火を無視
+        if (jogMode) { OnCartValue(i, v); return; }   // JOG: X/Y/Z/RX/RY/RZ → 数値IK
         goalDeg[i] = v;
         if (sliderInputs[i] != null) { sliderInputs[i].SetTextWithoutNotify(v.ToString("F1")); }
         UpdateGoalText();
@@ -827,6 +885,20 @@ public class ComRos2PlanPanel : MonoBehaviour
     /// <summary>角度の直接入力（確定時）。パースしてスライダー/ゴールへ反映。無効入力は元に戻す。</summary>
     private void OnInput(int i, string s)
     {
+        if (suppressRowCallbacks) { return; }
+        if (jogMode)   // JOG: Cartesian 値の直接入力（範囲は位置±CartPosRange / 回転±CartRotRange）
+        {
+            if (double.TryParse(s, out double cv))
+            {
+                float lim = (i < 3) ? CartPosRange : CartRotRange;
+                OnCartValue(i, Mathf.Clamp((float)cv, -lim, lim));
+            }
+            else if (sliderInputs[i] != null)
+            {
+                sliderInputs[i].SetTextWithoutNotify(cartVals[Mathf.Min(i, 5)].ToString(i < 3 ? "F0" : "F1"));
+            }
+            return;
+        }
         if (float.TryParse(s, out float val))
         {
             val = Mathf.Clamp(val, jointMin, jointMax);
@@ -843,6 +915,191 @@ public class ComRos2PlanPanel : MonoBehaviour
         {
             sliderInputs[i].SetTextWithoutNotify(goalDeg[i].ToString("F1"));   // 無効 → 現在値へ戻す
         }
+    }
+
+    // ===== Cartesian JOG（X/Y/Z/RX/RY/RZ を数値IKでゴール関節角に変換） =====
+
+    /// <summary>JOG 切替。ON=各行スライダーが X/Y/Z/RX/RY/RZ（base フレーム・数値IK）、OFF=関節。</summary>
+    private void OnJogToggle(bool on)
+    {
+        jogMode = on;
+        if (on)
+        {
+            if (!goalSetMode) { ToggleGoalSet(); }   // ゴール姿勢表示に入る
+            ReadCartFromCurrent();                   // 現在TCPを Cartesian 初期値に
+        }
+        // レンジ(min/max)変更はスライダー値をクランプして onValueChanged を発火させるため、
+        // この一括更新中はコールバックを抑制する（誤発火で goalDeg が壊れるのを防ぐ）。
+        suppressRowCallbacks = true;
+        try
+        {
+            for (int i = 0; i < rowLabels.Length; i++)
+            {
+                bool posRow = i < 3;
+                if (rowLabels[i] != null)
+                {
+                    rowLabels[i].text = on ? CartLabels[Mathf.Min(i, CartLabels.Length - 1)]
+                                           : ((jointNames != null && i < jointNames.Length) ? jointNames[i] : $"J{i + 1}");
+                }
+                if (i < sliders.Length && sliders[i] != null)
+                {
+                    var s = sliders[i];
+                    if (on)
+                    {
+                        s.minValue = posRow ? -CartPosRange : -CartRotRange;
+                        s.maxValue = posRow ? CartPosRange : CartRotRange;
+                        s.SetValueWithoutNotify((float)cartVals[Mathf.Min(i, 5)]);
+                    }
+                    else
+                    {
+                        s.minValue = jointMin; s.maxValue = jointMax;
+                        s.SetValueWithoutNotify(i < goalDeg.Length ? (float)goalDeg[i] : 0f);
+                    }
+                }
+                if (i < sliderInputs.Length && sliderInputs[i] != null)
+                {
+                    sliderInputs[i].SetTextWithoutNotify(on
+                        ? cartVals[Mathf.Min(i, 5)].ToString(posRow ? "F0" : "F1")
+                        : (i < goalDeg.Length ? goalDeg[i].ToString("F1") : "0.0"));
+                }
+            }
+        }
+        finally { suppressRowCallbacks = false; }
+        if (!on) { UpdateGoalText(); }   // 関節へ戻したら goalDeg 表示を復元
+    }
+
+    /// <summary>現在の goalDeg 姿勢の TCP を base フレーム Cartesian(cartVals) に読み込む。</summary>
+    private void ReadCartFromCurrent()
+    {
+        if (targetKin == null) { return; }
+        targetKin.SetManualJointsDeg(goalDeg);
+        if (!targetKin.GetTcpPoseWorld(out Vector3 p, out Quaternion r)) { return; }
+        GetBaseAxes(out Vector3 ax, out Vector3 ay, out Vector3 az, out Vector3 origin);
+        Vector3 rel = p - origin;
+        Vector3 e = (Quaternion.Inverse(Quaternion.LookRotation(az, ay)) * r).eulerAngles;
+        cartVals[0] = Vector3.Dot(rel, ax) * 1000.0;
+        cartVals[1] = Vector3.Dot(rel, ay) * 1000.0;
+        cartVals[2] = Vector3.Dot(rel, az) * 1000.0;
+        cartVals[3] = Norm180(e.x); cartVals[4] = Norm180(e.y); cartVals[5] = Norm180(e.z);
+    }
+
+    /// <summary>JOG時: 行 i の値変更（スライダー/入力）。cartVals[i]=v → 目標姿勢組立 → 数値IK → goalDeg。</summary>
+    private void OnCartValue(int i, double v)
+    {
+        cartVals[Mathf.Min(i, 5)] = v;
+        if (i < sliders.Length && sliders[i] != null) { sliders[i].SetValueWithoutNotify((float)v); }
+        if (i < sliderInputs.Length && sliderInputs[i] != null) { sliderInputs[i].SetTextWithoutNotify(v.ToString(i < 3 ? "F0" : "F1")); }
+        ApplyCartTarget();
+    }
+
+    /// <summary>cartVals(base フレーム) → world 姿勢 → 数値IK → goalDeg 更新＋プレビュー。</summary>
+    private void ApplyCartTarget()
+    {
+        if (targetKin == null) { return; }
+        GetBaseAxes(out Vector3 ax, out Vector3 ay, out Vector3 az, out Vector3 origin);
+        Vector3 pos = origin
+            + ax * (float)(cartVals[0] / 1000.0)
+            + ay * (float)(cartVals[1] / 1000.0)
+            + az * (float)(cartVals[2] / 1000.0);
+        Quaternion rot = Quaternion.LookRotation(az, ay) * Quaternion.Euler((float)cartVals[3], (float)cartVals[4], (float)cartVals[5]);
+        bool ok = targetKin.TrySolveIkWorld(pos, rot, goalDeg, out double[] sol) && sol != null;
+        // [診断・一時] 回転JOGでIKが収束し関節が実際に動いているか（ok=false=到達不能で不動 / dmax≒0=変化なし）。確認後に削除。
+        double dmax = 0.0;
+        if (ok) { for (int k = 0; k < goalDeg.Length && k < sol.Length; k++) { dmax = System.Math.Max(dmax, System.Math.Abs(sol[k] - goalDeg[k])); } }
+        Debug.Log($"[JOG-IK] ok={ok} cart=[{cartVals[0]:F0},{cartVals[1]:F0},{cartVals[2]:F0} / {cartVals[3]:F1},{cartVals[4]:F1},{cartVals[5]:F1}] dmaxDeg={dmax:F2}");
+        if (ok)
+        {
+            for (int k = 0; k < goalDeg.Length && k < sol.Length; k++) { goalDeg[k] = sol[k]; }
+            targetKin.SetManualJointsDeg(goalDeg);
+            UpdateGoalText();
+            if (statusText != null) { statusText.text = "JOG: IK OK"; }
+        }
+        else if (statusText != null)
+        {
+            statusText.text = "JOG: 到達不能（IK未収束）";
+        }
+    }
+
+    private static double Norm180(double d) { d %= 360.0; if (d > 180.0) { d -= 360.0; } if (d < -180.0) { d += 360.0; } return d; }
+
+    /// <summary>ロボット base フレーム（FANUC: X前,Y左,Z上）の world 軸方向＋原点(arm1)。DCS と同じ P=baseRot·calInv。</summary>
+    private void GetBaseAxes(out Vector3 ax, out Vector3 ay, out Vector3 az, out Vector3 origin)
+    {
+        ax = Vector3.right; ay = Vector3.up; az = Vector3.forward; origin = Vector3.zero;
+        if (targetKin == null) { return; }
+        origin = targetKin.GetRobotOriginWorldPosition();
+        var baseT = targetKin.GetBaseTransform();
+        if (baseT == null) { return; }
+        Quaternion pf = baseT.rotation * Quaternion.Inverse(Quaternion.Euler(0f, -90f, 0f));
+        ax = pf * Vector3.forward;    // FANUC X(前)
+        ay = pf * (-Vector3.right);   // FANUC Y(左)
+        az = pf * Vector3.up;         // FANUC Z(上)
+    }
+
+    // ===== TCP(ヘッドオフセット点=吸盤) 可視化マーカー =====
+
+    /// <summary>JOG中は TCP の world 姿勢に球＋XYZ軸マーカーを追従表示。JOG OFF/対象無しなら消す。</summary>
+    private void UpdateTcpMarker()
+    {
+        if (jogMode && targetKin != null && targetKin.GetTcpPoseWorld(out Vector3 pos, out Quaternion rot))
+        {
+            if (tcpMarker == null) { tcpMarker = BuildTcpMarker(); }
+            tcpMarker.transform.SetPositionAndRotation(pos, rot);
+        }
+        else if (tcpMarker != null)
+        {
+            Destroy(tcpMarker); tcpMarker = null;
+        }
+    }
+
+    /// <summary>TCPマーカー生成: 中心の小球＋ローカルXYZ軸（X赤/Y緑/Z青）。当たり判定なし・常時最前。</summary>
+    private GameObject BuildTcpMarker()
+    {
+        var root = new GameObject("TcpMarker");
+        // 中心球（黄）。当たり判定は不要なので Collider は破棄。
+        var ball = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+        ball.name = "tcp";
+        var col = ball.GetComponent<Collider>();
+        if (col != null) { Destroy(col); }
+        ball.transform.SetParent(root.transform, false);
+        ball.transform.localScale = Vector3.one * 0.03f;   // 直径3cm
+        var br = ball.GetComponent<Renderer>();
+        if (br != null) { br.sharedMaterial = MakeMarkerMat(new Color(1f, 0.9f, 0.1f, 1f)); }
+        // ローカル3軸（tip の向き）。X=赤/Y=緑/Z=青。長さ12cm。
+        AddAxis(root.transform, "X", Vector3.right, new Color(1f, 0.25f, 0.2f));
+        AddAxis(root.transform, "Y", Vector3.up, new Color(0.3f, 1f, 0.35f));
+        AddAxis(root.transform, "Z", Vector3.forward, new Color(0.3f, 0.55f, 1f));
+        return root;
+    }
+
+    /// <summary>マーカーの1軸（原点→dir×0.12m の線）。</summary>
+    private void AddAxis(Transform parent, string name, Vector3 dir, Color col)
+    {
+        var go = new GameObject("axis" + name);
+        go.transform.SetParent(parent, false);
+        var lr = go.AddComponent<LineRenderer>();
+        lr.useWorldSpace = false;
+        lr.widthMultiplier = 0.006f;
+        lr.numCornerVertices = 0;
+        lr.numCapVertices = 0;
+        lr.positionCount = 2;
+        lr.SetPosition(0, Vector3.zero);
+        lr.SetPosition(1, dir * 0.12f);
+        var m = MakeMarkerMat(col);
+        if (m != null) { lr.sharedMaterial = m; lr.startColor = col; lr.endColor = col; }
+    }
+
+    /// <summary>マーカー用の単色 URP Unlit マテリアル（深度無視で常に見えるように renderQueue を上げる）。</summary>
+    private static Material MakeMarkerMat(Color col)
+    {
+        var sh = Shader.Find("Universal Render Pipeline/Unlit");
+        if (sh == null) { sh = Shader.Find("Sprites/Default"); }
+        if (sh == null) { return null; }
+        var m = new Material(sh);
+        if (m.HasProperty("_BaseColor")) { m.SetColor("_BaseColor", col); }
+        if (m.HasProperty("_Color")) { m.SetColor("_Color", col); }
+        m.renderQueue = (int)UnityEngine.Rendering.RenderQueue.Overlay;   // 手前に描く
+        return m;
     }
 
     /// <summary>時間予算(秒)の直接入力。0以上。無効は元へ戻す。</summary>
@@ -875,12 +1132,101 @@ public class ComRos2PlanPanel : MonoBehaviour
 
     private void OnPlan()
     {
-        // ROS 未接続では計画要求が届かないので実行しない（ボタンは無効化済みだが二重の保険）。
+        if (planner == null) { return; }
+        // ★機種/コントローラ取り違え防止：計画は必ず「選択機体で ROS が稼働している」状態で行う。
+        //   稼働中 robot_model・dcs_host が選択機体と違う（or 不明）なら、先に切替してから計画する（自動）。
+        string want = SelRobotModel();
+        string wantDcs = SelDcsHost();
+        if (launcher != null && !string.IsNullOrEmpty(want))
+        {
+            bool modelOk = !string.IsNullOrEmpty(launcher.CurrentRobotModel) && launcher.CurrentRobotModel == want;
+            bool dcsOk = !string.IsNullOrEmpty(launcher.CurrentDcsHost) && NormDcsHost(launcher.CurrentDcsHost) == wantDcs;
+            if (!(modelOk && dcsOk))   // どちらか未確認/不一致 → 先に切替
+            {
+                if (launcher.Busy)
+                {
+                    if (statusText != null) { statusText.text = "ROS処理中… 完了後にもう一度計画してください"; }
+                    return;
+                }
+                StartCoroutine(PlanWithModelRoutine(want, SelRobotIp()));   // 切替→稼働確認→計画
+                return;
+            }
+        }
+        // ROS 未接続では計画要求が届かない（ボタン無効化済みだが二重の保険）。
+        if (!planner.IsLinkUp) { return; }
+        DoPlan();
+    }
+
+    /// <summary>選択機種へ ROS を切替（違う時のみ再起動）→ 稼働機種が一致したら計画。機種取り違えを構造的に防ぐ。</summary>
+    private System.Collections.IEnumerator PlanWithModelRoutine(string model, string ip)
+    {
+        if (statusText != null) { statusText.text = $"計画準備：{model} へ切替中…"; }
+        if (planner != null &&
+            (planner.State == ComRos2PathPlanner.PlanState.Preview ||
+             planner.State == ComRos2PathPlanner.PlanState.Playing))
+        {
+            planner.CancelPlan();
+        }
+        launcher.StartRos2(model, ip);   // 同一modelなら再起動なし
+        yield return null;
+
+        // スクリプト完了＋running_full 待ち（別modelは再起動で ~15-45s）。
+        float deadline = Time.unscaledTime + 90f;
+        while (Time.unscaledTime < deadline)
+        {
+            if (!launcher.Busy && launcher.State == ComRos2Launcher.LaunchState.RunningFull) { break; }
+            yield return new WaitForSecondsRealtime(0.5f);
+        }
+        if (launcher.State != ComRos2Launcher.LaunchState.RunningFull)
+        {
+            if (statusText != null) { statusText.text = "計画中止：ROS が running_full になりません（タイムアウト）"; }
+            yield break;
+        }
+
+        // TCP 再接続待ち → planning scene 再送。
+        float linkDeadline = Time.unscaledTime + 20f;
+        while (Time.unscaledTime < linkDeadline && (planner == null || !planner.IsLinkUp))
+        {
+            yield return new WaitForSecondsRealtime(0.3f);
+        }
+        if (obstacles != null) { obstacles.SendObstacles(); }
+
+        // 稼働 robot_model / dcs_host が選択機体になったか確認（poll 反映待ち）。未対応機種は ROS 側で crx30ia フォールバック。
+        string wantDcs = NormDcsHost(ip);
+        float modelDeadline = Time.unscaledTime + 6f;
+        while (Time.unscaledTime < modelDeadline &&
+               (launcher.CurrentRobotModel != model || NormDcsHost(launcher.CurrentDcsHost) != wantDcs))
+        {
+            yield return new WaitForSecondsRealtime(0.3f);
+        }
+        if (launcher.CurrentRobotModel != model || NormDcsHost(launcher.CurrentDcsHost) != wantDcs)
+        {
+            if (statusText != null)
+            {
+                statusText.text = $"計画中止：稼働=({launcher.CurrentRobotModel},{launcher.CurrentDcsHost}) が選択=({model},{wantDcs}) になりません";
+            }
+            Debug.LogWarning($"[ComRos2PlanPanel] 機体切替失敗: 稼働=({launcher.CurrentRobotModel},{launcher.CurrentDcsHost}) 選択=({model},{wantDcs})");
+            yield break;
+        }
         if (planner == null || !planner.IsLinkUp)
         {
-            return;
+            if (statusText != null) { statusText.text = "計画中止：ROS-TCP 未接続"; }
+            yield break;
         }
-        // 設定モードなら抜けて現在姿勢の表示へ（start=実機現在）。
+        DoPlan();   // 機種一致を確認できたので計画実行
+    }
+
+    /// <summary>計画本体（ゴール確定→障害物/ヘッド込みで計画要求）。機種一致は呼び出し側で保証する。</summary>
+    private void DoPlan()
+    {
+        if (planner == null || !planner.IsLinkUp) { return; }
+        // ★start(計画開始姿勢)＝実現在。ゴール設定中はモデルが goalDeg 姿勢のため、
+        //   ToggleGoalSet で抜けても腕は次フレームまで戻らず、ReadCurrentDeg(多ロボ=Kinematics直読み)が goalDeg を返す。
+        //   → ゴール設定に入る前に凍結した実現在(curDisplayDeg)を start に使う（設定を抜ける前に確定）。
+        double[] start = (goalSetMode && curDisplayDeg != null)
+            ? (double[])curDisplayDeg.Clone()
+            : planner.ReadCurrentDeg();
+        // 設定モードなら抜けて現在姿勢の表示へ。
         if (goalSetMode) { ToggleGoalSet(); }
         // ゴースト再生(プレビュー/再生)中に計画を押したら、まずキャンセルしてゴースト/プレビューを
         // 片付けてから計画する（ゴースト複製が残ったまま送信して姿勢が崩れるのを防ぐ）。
@@ -891,14 +1237,171 @@ public class ComRos2PlanPanel : MonoBehaviour
         }
         planner.PlanTimeBudget = displayBudgetSec;                 // 残り時間表示＆ROS2予算
         planner.PlanGoodRatio = planGoodRatioVal;                  // 大回り許容比
-        var start = planner.ReadCurrentDeg();
         var goal = (double[])goalDeg.Clone();
+        // ★start==goal（全軸が閾値以下）なら動く必要がない＝計画を投げない。
+        //   機種切替直後は goal=現在姿勢のまま（InitGoalFromCurrent）＝空振りで start==goal の1点計画が飛ぶのを防ぐ。
+        if (JointsCloseDeg(start, goal, GoalSameEpsDeg))
+        {
+            if (statusText != null) { statusText.text = "計画スキップ: 目標が現在姿勢と同じ（ゴールを設定してください）"; }
+            Debug.Log("[ComRos2PlanPanel] start==goal のため計画スキップ（目標未設定/現在姿勢と同一）");
+            return;
+        }
         planner.RequestPlanWithScene(start, goal);                 // 障害物/ヘッドも送って計画
+    }
+
+    /// <summary>全関節が eps(度)以下で一致するか（start==goal 判定）。長さ不一致/null は不一致扱い。</summary>
+    private const double GoalSameEpsDeg = 0.5;
+    private static bool JointsCloseDeg(double[] a, double[] b, double epsDeg)
+    {
+        if (a == null || b == null || a.Length == 0 || a.Length != b.Length) { return false; }
+        for (int i = 0; i < a.Length; i++)
+        {
+            if (System.Math.Abs(a[i] - b[i]) > epsDeg) { return false; }
+        }
+        return true;
+    }
+
+    /// <summary>現在の経路を FANUC TPプログラム(.LS)へ出力（C:\KMX-Path）。.TP が要る場合はこの .LS を MAKETP で翻訳。</summary>
+    private void OnExportLs()
+    {
+        const string progName = "KMXPATH";
+        if (!planner.TryBuildCurrentLs(progName, out string ls, out string err))
+        {
+            if (statusText != null) { statusText.text = "LS出力: " + err; }
+            Debug.LogWarning("[ComRos2PlanPanel] LS出力失敗: " + err);
+            return;
+        }
+        try
+        {
+            string dir = @"C:\KMX-Path";   // .LS 出力先（ROBOGUIDE/コントローラで取り込みやすい固定フォルダ）
+            System.IO.Directory.CreateDirectory(dir);
+            string path = System.IO.Path.Combine(dir, progName + ".LS");
+            System.IO.File.WriteAllText(path, ls, new System.Text.UTF8Encoding(false));
+            if (statusText != null) { statusText.text = "LS出力: " + path; }
+            Debug.Log("[ComRos2PlanPanel] FANUC .LS 出力: " + path);
+        }
+        catch (System.Exception e)
+        {
+            if (statusText != null) { statusText.text = "LS出力エラー: " + e.Message; }
+            Debug.LogWarning("[ComRos2PlanPanel] LS書込失敗: " + e.Message);
+        }
+    }
+
+    /// <summary>
+    /// 現在の経路を FANUC 汎用再生用 CSV(関節角)へ出力（FANUC_CSV_PLAY_UNITY_REQUEST.md）。
+    /// 命名 P&lt;品番&gt;_&lt;パス番号&gt;.CSV（品番=R[89] / パス番号=R[88]・0=復帰）。出力先は Ros2Info.json csvOutputDir（環境依存＝設定化）。
+    /// </summary>
+    private void OnExportCsv()
+    {
+        if (!planner.TryBuildCurrentCsv(out string csv, out string err))
+        {
+            if (statusText != null) { statusText.text = "CSV出力: " + err; }
+            Debug.LogWarning("[ComRos2PlanPanel] CSV出力失敗: " + err);
+            return;
+        }
+        // 命名: P<品番>_<パス番号>.CSV（R[89]/R[88] と一致・整数・省略しない）。
+        int prod = 1;
+        if (csvProductInput != null) { int.TryParse(csvProductInput.text, out prod); }
+        if (prod < 0) { prod = 0; }
+        // パス番号は既定でモード連動（復帰=0 / 登録=表番号1オリジン）だが、欄で手動上書きできる。
+        int pathNo = CurrentPathNo();
+        if (csvPathInput != null && int.TryParse(csvPathInput.text, out int pv) && pv >= 0) { pathNo = pv; }
+        string fileName = $"P{prod}_{pathNo}.CSV";
+        // 出力先: Ros2Info.json csvOutputDir（ROBOGUIDE=<ワークセル>\Robot_1\UD1\KMX、実機=USB/FTP先）。未設定なら C:\KMX-Path。
+        string dir = @"C:\KMX-Path";
+        try
+        {
+            var cfg = GlobalScript.LoadJson<ComRos2.Ros2Setting>("Ros2Info") as ComRos2.Ros2Setting;
+            if (cfg != null && !string.IsNullOrEmpty(cfg.csvOutputDir)) { dir = cfg.csvOutputDir; }
+        }
+        catch { /* 既定フォルダを使う */ }
+        try
+        {
+            System.IO.Directory.CreateDirectory(dir);   // KMX サブフォルダが無ければ作成
+            string path = System.IO.Path.Combine(dir, fileName);
+            System.IO.File.WriteAllText(path, csv, new System.Text.UTF8Encoding(false));   // BOM無し=ASCII互換
+            Debug.Log("[ComRos2PlanPanel] FANUC CSV 出力: " + path);
+            // 実機（dcs_host が実IP＝ROBOGUIDE 127.0.0.1 以外）なら、同じ機体IPの UD1:\KMX へ FTP も行う。
+            string ip = SelRobotIp();
+            bool isReal = NormDcsHost(ip) != "auto";
+            if (isReal)
+            {
+                if (statusText != null) { statusText.text = $"CSV出力: {path}（{ip} へFTP中…）"; }
+                string host = ip.Trim(), fn = fileName, body = csv;
+                var t = new System.Threading.Thread(() => { try { FtpUploadCsv(host, fn, body); } catch { } }) { IsBackground = true };
+                t.Start();   // FTP は同期ブロックするので別スレッド（未接続実機で UI を固めない）
+            }
+            else if (statusText != null) { statusText.text = "CSV出力: " + path; }
+        }
+        catch (System.Exception e)
+        {
+            if (statusText != null) { statusText.text = "CSV出力エラー: " + e.Message; }
+            Debug.LogWarning("[ComRos2PlanPanel] CSV書込失敗: " + e.Message);
+        }
+    }
+
+    /// <summary>
+    /// FANUC コントローラ(実機)の UD1:\KMX へ CSV を FTP アップロード（匿名・KMX 自動作成）。
+    /// ★実機未検証：ワーカースレッドから呼ぶ（同期FTPで UI を固めない）。認証/パスは実機に合わせ要調整。
+    /// </summary>
+    private static void FtpUploadCsv(string host, string fileName, string content)
+    {
+        string dirUri = $"ftp://{host}/UD1/KMX";
+        string fileUri = $"ftp://{host}/UD1/KMX/{fileName}";
+        var cred = new System.Net.NetworkCredential("anonymous", "anonymous@");   // ひとまず匿名
+        // サブフォルダ KMX を作成（既存/未対応はエラーになるが無視）。
+        try
+        {
+            var mk = (System.Net.FtpWebRequest)System.Net.WebRequest.Create(dirUri);
+            mk.Method = System.Net.WebRequestMethods.Ftp.MakeDirectory;
+            mk.Credentials = cred;
+            mk.KeepAlive = false;
+            mk.Timeout = 8000;
+            using (mk.GetResponse()) { }
+        }
+        catch { /* 既存 or 未対応は無視 */ }
+        // ファイル upload。
+        try
+        {
+            var req = (System.Net.FtpWebRequest)System.Net.WebRequest.Create(fileUri);
+            req.Method = System.Net.WebRequestMethods.Ftp.UploadFile;
+            req.Credentials = cred;
+            req.UseBinary = true;
+            req.KeepAlive = false;
+            req.Timeout = 15000;
+            byte[] data = new System.Text.UTF8Encoding(false).GetBytes(content);
+            req.ContentLength = data.Length;
+            using (var s = req.GetRequestStream()) { s.Write(data, 0, data.Length); }
+            using (var resp = (System.Net.FtpWebResponse)req.GetResponse())
+            {
+                Debug.Log($"[CSV FTP] {fileUri} 転送OK: {resp.StatusDescription?.Trim()}");
+            }
+        }
+        catch (System.Exception e)
+        {
+            Debug.LogWarning($"[CSV FTP] 失敗 {fileUri}: {e.Message}");
+        }
+    }
+
+    /// <summary>DCS安全ゾーンを SafetyZoneInfo.json から再読込して再描画する（全体F5リロード不要）。</summary>
+    private void OnReloadDcs()
+    {
+        var loaders = FindObjectsByType<Parameters.ParameterLoader>(FindObjectsSortMode.None);
+        var loader = loaders.Length > 0 ? loaders[0] : null;
+        if (loader == null)
+        {
+            if (statusText != null) { statusText.text = "DCS再読込: ParameterLoader が見つかりません"; }
+            return;
+        }
+        loader.ReloadSafetyZones();
+        if (statusText != null) { statusText.text = "DCS安全ゾーンを再読込しました"; }
+        Debug.Log("[ComRos2PlanPanel] DCS安全ゾーン 再読込");
     }
 
     private void OnStartRos2()
     {
-        if (launcher != null) { launcher.StartRos2(); }
+        // 起動は選択機体の robot_model/robotIp で（同一modelなら kmx_start.sh 側で再起動されない）。
+        if (launcher != null) { launcher.StartRos2(SelRobotModel(), SelRobotIp()); }
     }
 
     private void OnStopRos2()
@@ -919,7 +1422,92 @@ public class ComRos2PlanPanel : MonoBehaviour
         {
             planner.CancelPlan();
         }
-        if (launcher != null) { launcher.RestartRos2(); }
+        if (launcher != null) { launcher.RestartRos2(SelRobotModel(), SelRobotIp()); }
+    }
+
+    /// <summary>選択機体の robot_model（=ModelKey）。ロボット切替の robot_model に使う。</summary>
+    private string SelRobotModel()
+    {
+        var t = registry != null && registry.Selected != null ? registry.Selected.Target : null;
+        return (t != null && !string.IsNullOrEmpty(t.ModelKey)) ? t.ModelKey : "";
+    }
+
+    /// <summary>選択機体のコントローラIP（RobotInfo.json robotIp）。dcs_host($6)/CSV FTP 先に使う。</summary>
+    private string SelRobotIp()
+    {
+        var t = registry != null && registry.Selected != null ? registry.Selected.Target : null;
+        return t != null ? t.ControllerIp : "";
+    }
+
+    /// <summary>選択機体の dcs_host（正規化済）。</summary>
+    private string SelDcsHost() => NormDcsHost(SelRobotIp());
+
+    /// <summary>dcs_host の正規化。空/127.0.0.1/localhost は "auto"（ROS側と同じ規約）。稼働値との比較用。</summary>
+    private static string NormDcsHost(string ip)
+    {
+        if (string.IsNullOrWhiteSpace(ip)) { return "auto"; }
+        ip = ip.Trim();
+        return (ip == "127.0.0.1" || ip == "localhost") ? "auto" : ip;
+    }
+
+    /// <summary>「この機種でROS起動/切替」：選択機体の robot_model で bringup を(再)起動し、
+    /// running_full 待ち→再接続→planning scene 再送 まで一括で行う（ROBOT_SWITCH_UNITY_SPEC.md §3）。</summary>
+    private void OnSwitchRobot()
+    {
+        if (launcher == null || launcher.Busy) { return; }
+        string model = SelRobotModel();
+        if (string.IsNullOrEmpty(model))
+        {
+            if (statusText != null) { statusText.text = "機種切替: 対象ロボット未選択"; }
+            return;
+        }
+        // 計画中/プレビューは片付けてから切替（再起動で endpoint が落ちるため）。
+        if (planner != null &&
+            (planner.State == ComRos2PathPlanner.PlanState.Preview ||
+             planner.State == ComRos2PathPlanner.PlanState.Planning ||
+             planner.State == ComRos2PathPlanner.PlanState.Playing))
+        {
+            planner.CancelPlan();
+        }
+        StartCoroutine(SwitchRobotRoutine(model, SelRobotIp()));
+    }
+
+    private System.Collections.IEnumerator SwitchRobotRoutine(string model, string ip)
+    {
+        if (statusText != null) { statusText.text = $"ROS機種切替中… ({model})"; }
+        launcher.StartRos2(model, ip);   // 同一modelなら再起動なし・別modelなら stop→再起動
+        yield return null;
+
+        // スクリプト完了＋running_full を待つ（別modelは再起動で ~15-45s）。
+        float deadline = Time.unscaledTime + 90f;
+        while (Time.unscaledTime < deadline)
+        {
+            if (!launcher.Busy && launcher.State == ComRos2Launcher.LaunchState.RunningFull) { break; }
+            yield return new WaitForSecondsRealtime(0.5f);
+        }
+        if (launcher.State != ComRos2Launcher.LaunchState.RunningFull)
+        {
+            if (statusText != null) { statusText.text = "ROS機種切替: running_full にならず（タイムアウト）"; }
+            yield break;
+        }
+
+        // ROS-TCP 再接続待ち（ROS-TCP-Connector が自動再接続）。
+        float linkDeadline = Time.unscaledTime + 20f;
+        while (Time.unscaledTime < linkDeadline && (planner == null || !planner.IsLinkUp))
+        {
+            yield return new WaitForSecondsRealtime(0.3f);
+        }
+
+        // 再起動で planning scene は空になるので障害物/ヘッド/床を再送。
+        if (obstacles != null) { obstacles.SendObstacles(); }
+
+        string cur = launcher.CurrentRobotModel;
+        if (statusText != null)
+        {
+            statusText.text = (planner != null && planner.IsLinkUp)
+                ? $"ROS機種切替 完了: {(!string.IsNullOrEmpty(cur) ? cur : model)}"
+                : $"ROS機種切替: 起動OK・TCP未接続（{model}）";
+        }
     }
 
     private void OnOk()
@@ -1027,6 +1615,23 @@ public class ComRos2PlanPanel : MonoBehaviour
         }
         if (stopBtn != null) { stopBtn.interactable = !busy && st != ComRos2Launcher.LaunchState.Stopped; }
         if (restartBtn != null) { restartBtn.interactable = !busy; }
+        if (switchRobotBtn != null)
+        {
+            // 選択機体が居て処理中でなければ切替可。稼働機種と選択が違えばオレンジで強調。
+            bool canSwitch = !busy && registry != null && registry.Selected != null;
+            switchRobotBtn.interactable = canSwitch;
+            if (switchRobotBtn.image != null)
+            {
+                string want = SelRobotModel();
+                string cur = launcher.CurrentRobotModel;
+                bool modelMis = !string.IsNullOrEmpty(want) && !string.IsNullOrEmpty(cur) && cur != want;
+                bool dcsMis = !string.IsNullOrEmpty(want) && !string.IsNullOrEmpty(launcher.CurrentDcsHost)
+                              && NormDcsHost(launcher.CurrentDcsHost) != SelDcsHost();
+                switchRobotBtn.image.color = (modelMis || dcsMis)
+                    ? new Color(1f, 0.5f, 0.1f, 0.98f)      // 稼働機体≠選択→切替を促す
+                    : new Color(0.2f, 0.4f, 0.7f, 0.95f);
+            }
+        }
     }
 
     // --- ロボット選択（複数ロボット） ---
@@ -1079,7 +1684,16 @@ public class ComRos2PlanPanel : MonoBehaviour
         if (robotNameText != null)
         {
             var sel = registry != null ? registry.Selected : null;
-            robotNameText.text = (sel != null) ? $"{sel.DisplayName}  ({registry.SelectedIndex + 1}/{n})" : "ロボット: -";
+            if (sel != null)
+            {
+                // ロボット名(ロボットタイプ)。タイプ＝ModelKey（robot_id の機種部・ROS2 robot_map 索引）。
+                string type = (sel.Target != null && !string.IsNullOrEmpty(sel.Target.ModelKey)) ? sel.Target.ModelKey : "?";
+                robotNameText.text = $"{sel.DisplayName}({type})  ({registry.SelectedIndex + 1}/{n})";
+            }
+            else
+            {
+                robotNameText.text = "ロボット: -";
+            }
         }
         bool multi = n > 1;
         if (robotPrevBtn != null) { robotPrevBtn.interactable = multi; }
@@ -1280,8 +1894,17 @@ public class ComRos2PlanPanel : MonoBehaviour
     }
 
     /// <summary>登録モードのラベルを "登録モード(ロボ停止・教示)：テーブル名" に更新する。</summary>
+    /// <summary>CSV パス番号(R[88])。復帰モード=0 / 登録モード=選択テーブル番号(1オリジン)。</summary>
+    private int CurrentPathNo()
+    {
+        bool reg = registerModeToggle != null && registerModeToggle.isOn;
+        return reg ? selectedStep + 1 : 0;
+    }
+
     private void UpdateRegisterLabel()
     {
+        // CSV パス番号欄はモード/選択テーブルから自動更新（復帰=0 / 登録=表番号1オリジン）。
+        if (csvPathInput != null) { csvPathInput.SetTextWithoutNotify(CurrentPathNo().ToString()); }
         if (registerModeLabel == null)
         {
             return;

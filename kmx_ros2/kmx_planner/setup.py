@@ -28,6 +28,7 @@ setup(
     entry_points={
         'console_scripts': [
             'kmx_planner = kmx_planner.planner_node:main',
+            'kmx_dcs_reader = kmx_planner.kmx_dcs_reader:main',
         ],
     },
 )

@@ -124,6 +124,12 @@ public class ComInner : ComBaseScript, ITagCom
     public List<ActionTiming> acts = new();
 
     /// <summary>
+    /// 内部デバイス(仮想I/O)の入力キー集合（(mechId, tag)）。
+    /// アクション入力がこれに該当する場合、ComInner はサイクル駆動しない（スイッチ等が駆動＝保持）。
+    /// </summary>
+    private readonly HashSet<(string mechId, string tag)> internalInputKeys = new();
+
+    /// <summary>
     /// タイミング用
     /// </summary>
     System.Diagnostics.Stopwatch swTiming = new();
@@ -272,6 +278,12 @@ public class ComInner : ComBaseScript, ITagCom
                 {
                     continue;
                 }
+                // 入力が内部デバイス(仮想I/O)ならサイクル駆動しない＝スイッチ等が駆動する（内部モードでも保持・上書きしない）。
+                if (internalInputKeys.Contains((act.mechId, input)))
+                {
+                    act.prvCycle = act.nowCycle;
+                    continue;
+                }
                 if (GlobalScript.tagDatas[Name][act.mechId][input].Value == 1)
                 {
                     // ON中完了信号待ち
@@ -398,9 +410,24 @@ public class ComInner : ComBaseScript, ITagCom
     /// <param name="User"></param>
     /// <param name="Password"></param>
     /// <param name="isClientMode"></param>
-    public void SetParameter(int No, int Cycle, string Server, int Port, string Database, string User, string Password, bool isClientMode, DataExchangeSetting dataExchange, List<InnerProcessSetting> innerSettings, List<UnitActionSetting> actionSettings)
+    public void SetParameter(int No, int Cycle, string Server, int Port, string Database, string User, string Password, bool isClientMode, DataExchangeSetting dataExchange, List<InnerProcessSetting> innerSettings, List<UnitActionSetting> actionSettings, List<InternalDeviceSetting> internalDeviceSettings)
     {
         SetParameter(No, Cycle, Server, Port, Database, User, Password, isClientMode, dataExchange);
+
+        // 内部デバイス(仮想I/O)の入力キー集合を構築（アクション入力の照合用）。
+        // これらの入力はサイクル駆動せず、スイッチ等に委ねる（内部モードでも保持・上書きしない）。
+        internalInputKeys.Clear();
+        if (internalDeviceSettings != null)
+        {
+            foreach (var dev in internalDeviceSettings)
+            {
+                if (dev == null || dev.tags == null) { continue; }
+                foreach (var tag in dev.tags)
+                {
+                    if (!string.IsNullOrEmpty(tag)) { internalInputKeys.Add((dev.mechId, tag)); }
+                }
+            }
+        }
 
         // 初期タグ作成
         if (!GlobalScript.tagDatas.ContainsKey(Name))

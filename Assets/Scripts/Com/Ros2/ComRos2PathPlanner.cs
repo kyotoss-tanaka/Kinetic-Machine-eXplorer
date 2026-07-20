@@ -280,6 +280,92 @@ public class ComRos2PathPlanner : MonoBehaviour
         RequestPlan(ReadCurrentDeg(), goalDeg);
     }
 
+    /// <summary>
+    /// 現在の計画/プレビュー軌道を FANUC TP プログラム(.LS ASCII) 文字列に変換する（Phase1・オフライン再生用）。
+    /// 各点を関節移動(J・度)で並べるので、計画した衝突フリー経路をそのまま再現できる。
+    /// .TP が要る場合は、この .LS を FANUC の MAKETP で翻訳する（[[fanuc-recovery-motion]]）。
+    /// </summary>
+    public bool TryBuildCurrentLs(string progName, out string ls, out string error)
+    {
+        ls = null;
+        error = null;
+        if (traj == null || traj.positions == null || traj.positions.Length == 0)
+        {
+            error = "経路がありません（先に計画/登録してプレビュー状態にしてください）";
+            return false;
+        }
+        try
+        {
+            var pts = new List<double[]>(traj.positions.Length);
+            foreach (var p in traj.positions)
+            {
+                if (p != null && p.Length > 0) { pts.Add(p); }
+            }
+            // 速度/CNT は Ros2Info.json(lsSpeedPercent/lsCnt)で調整（再ビルド不要）。未設定/読めない時は既定(速い設定)。
+            var opt = new FanucLsExporter.Options();
+            try
+            {
+                var cfg = GlobalScript.LoadJson<ComRos2.Ros2Setting>("Ros2Info") as ComRos2.Ros2Setting;
+                if (cfg != null)
+                {
+                    if (cfg.lsSpeedPercent > 0) { opt.speedPercent = cfg.lsSpeedPercent; }
+                    if (cfg.lsCnt >= 0) { opt.fine = false; opt.cnt = cfg.lsCnt; }
+                    else { opt.fine = true; }
+                }
+            }
+            catch { /* 既定(速い設定)を使う */ }
+            ls = FanucLsExporter.Build(progName, pts, opt);
+            return true;
+        }
+        catch (Exception e)
+        {
+            error = e.Message;
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// 現在の計画/プレビュー軌道を FANUC 汎用再生用の CSV(関節角) 文字列に変換する（kmx_ros2/FANUC_CSV_PLAY_SPEC.md 方式A）。
+    /// .LS のようにプログラムを生成せず、FANUC側の固定・汎用再生プログラム(Karel→PR[]→TP)に渡すデータだけを出す。
+    /// 速度/CNT は .LS と共通の再生パラメータ(Ros2Info.json lsSpeedPercent/lsCnt)を流用。点数は既定 ≤100 に間引く。
+    /// </summary>
+    public bool TryBuildCurrentCsv(out string csv, out string error)
+    {
+        csv = null;
+        error = null;
+        if (traj == null || traj.positions == null || traj.positions.Length == 0)
+        {
+            error = "経路がありません（先に計画/登録してプレビュー状態にしてください）";
+            return false;
+        }
+        try
+        {
+            var pts = new List<double[]>(traj.positions.Length);
+            foreach (var p in traj.positions)
+            {
+                if (p != null && p.Length > 0) { pts.Add(p); }
+            }
+            var opt = new FanucCsvExporter.Options();
+            try
+            {
+                var cfg = GlobalScript.LoadJson<ComRos2.Ros2Setting>("Ros2Info") as ComRos2.Ros2Setting;
+                if (cfg != null)
+                {
+                    if (cfg.lsSpeedPercent > 0) { opt.speedPercent = cfg.lsSpeedPercent; }
+                    if (cfg.lsCnt >= 0) { opt.cnt = cfg.lsCnt; }
+                }
+            }
+            catch { /* 既定を使う */ }
+            csv = FanucCsvExporter.Build(pts, opt);
+            return true;
+        }
+        catch (Exception e)
+        {
+            error = e.Message;
+            return false;
+        }
+    }
+
     /// <summary>登録の最適化探索を停止し、ROS2 に現在の最良(最短)で確定させる（/kmx/plan_cancel）。</summary>
     public void RequestStopSearch()
     {

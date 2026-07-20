@@ -332,11 +332,27 @@ public class AxisMotionBase : KinematicsBase
             if (motion != null)
             {
                 motion.SetChuckParent();
-                // スイッチとシグナルタワーの座標は親からのオフセットに変更
-                if ((motion.moveObject.GetComponent<SwitchScript>() != null) || (motion.moveObject.GetComponent<SignalTowerScript>() != null))
+                // スイッチとシグナルタワーの座標は親からのオフセットに変更（プレハブ生成デバイスのみ）。
+                // ※既存モデル流用のモデルスイッチ（SwitchMain 無し・group 設定）は、モデルが既に正しい位置に
+                //   置かれているため補正しない（補正すると親位置ぶん二重にずれる）。
+                bool isSwitchDev = motion.moveObject.GetComponent<SwitchScript>() != null;
+                bool isTowerDev = motion.moveObject.GetComponent<SignalTowerScript>() != null;
+                if (isSwitchDev || isTowerDev)
                 {
-                    child.transform.localPosition += unit.transform.localPosition;
-                    child.transform.localEulerAngles += unit.transform.localEulerAngles;
+                    bool isModelSwitch = false;
+                    if (isSwitchDev)
+                    {
+                        isModelSwitch = true;
+                        foreach (var t in motion.moveObject.GetComponentsInChildren<Transform>(true))
+                        {
+                            if (t.name == "SwitchMain") { isModelSwitch = false; break; }
+                        }
+                    }
+                    if (!isModelSwitch)
+                    {
+                        child.transform.localPosition += unit.transform.localPosition;
+                        child.transform.localEulerAngles += unit.transform.localEulerAngles;
+                    }
                 }
             }
         }
@@ -672,6 +688,16 @@ public class AxisMotionBase : KinematicsBase
         RenewUnitSetting();
     }
 
+    /// <summary>DCS安全ゾーンの可視化(SafetyZonesコンテナ配下)かどうか。祖先に "SafetyZones" があれば true。</summary>
+    private static bool IsUnderSafetyZones(Transform t)
+    {
+        for (var p = t; p != null; p = p.parent)
+        {
+            if (p.name == "SafetyZones") { return true; }
+        }
+        return false;
+    }
+
     /// <summary>
     /// 動作設定
     /// </summary>
@@ -692,6 +718,8 @@ public class AxisMotionBase : KinematicsBase
                 {
                     foreach (var r in unitSetting.moveObject.GetComponentsInChildren<Renderer>())
                     {
+                        // DCS安全ゾーンの可視化(SafetyZones配下)はロボットのシェイプ管理外。Collider を消さない。
+                        if (IsUnderSafetyZones(r.transform)) { continue; }
                         foreach (var c in r.GetComponents<Collider>())
                         {
                             Destroy(c);

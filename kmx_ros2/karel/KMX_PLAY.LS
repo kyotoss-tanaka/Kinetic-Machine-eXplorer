@@ -1,0 +1,41 @@
+/PROG  KMX_PLAY
+/ATTR
+OWNER		= MNEDITOR;
+COMMENT		= "KMX CSV play";
+PROG_SIZE	= 0;
+CREATE		= DATE 00-00-00  TIME 00:00:00;
+MODIFIED	= DATE 00-00-00  TIME 00:00:00;
+FILE_NAME	= ;
+VERSION		= 0;
+LINE_COUNT	= 17;
+MEMORY_SIZE	= 0;
+PROTECT		= READ_WRITE;
+TCD:  STACK_SIZE	= 0,
+      TASK_PRIORITY	= 50,
+      TIME_SLICE	= 0,
+      BUSY_LAMP_OFF	= 0,
+      ABORT_REQUEST	= 0,
+      PAUSE_REQUEST	= 0;
+DEFAULT_GROUP	= 1,*,*,*,*;
+CONTROL_CODE	= 00000000 00000000;
+/APPL
+/MN
+  1:  DO[101]=ON    ;
+  2:  DO[102]=OFF    ;
+  3:  DO[103]=OFF    ;
+  4:  CALL KMX_LOAD    ;
+  5:  IF R[96]<>1,JMP LBL[90]    ;
+  6:  UFRAME_NUM=R[92]    ;
+  7:  UTOOL_NUM=R[93]    ;
+  8:  FOR R[1]=1 TO R[90]    ;
+  9:J PR[R[1]] R[94]% CNT R[95]    ;
+  10:  ENDFOR    ;
+  11:  DO[101]=OFF    ;
+  12:  DO[102]=ON    ;
+  13:  JMP LBL[99]    ;
+  14:  LBL[90]    ;
+  15:  DO[101]=OFF    ;
+  16:  DO[103]=ON    ;
+  17:  LBL[99]    ;
+/POS
+/END

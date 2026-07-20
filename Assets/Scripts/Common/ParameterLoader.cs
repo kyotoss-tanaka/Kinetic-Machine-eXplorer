@@ -66,6 +66,7 @@ namespace Parameters
         private List<UnitSetting> unitSettings;
         private List<UnitActionSetting> actionSettings;
         private List<InnerProcessSetting> innerSettings;
+        private List<InternalDeviceSetting> internalDeviceSettings;   // 内部デバイス（仮想I/O）定義
         private List<HiddenUnit> hiddenSettings;
         private List<ChuckUnitSetting> chuckUnitSettings;
         private List<RobotSetting> robotSettings;
@@ -77,6 +78,10 @@ namespace Parameters
         private List<SensorSetting> sensorSettings;
         private List<SuctionSetting> suctionSettings;
         private List<ShapeSetting> shapeSettings;
+        private List<SafetyZoneSetting> safetyZoneSettings;   // DCS安全ゾーン（可視化/読むだけ）
+        // DCS安全ゾーンの取得元＝ROS のみ。取得不可なら消去（JSONフォールバックはしない）。
+        // topic受信で内容が変わると ZonesUpdated が発火→自動再適用する（最大 poll_sec 秒で反映）。
+        private readonly RosSafetyZoneSource rosZoneSource = new RosSafetyZoneSource();
         private List<ExMechSetting> exMechSettings;
         private List<BacketSetting> backetSettings;
         private List<SwitchSetting> switchSettings;
@@ -172,18 +177,30 @@ namespace Parameters
 
             // 断面表示更新
             RenewDanmen();
+
+            // DCS安全ゾーン: topic 停止監視（無配信ならゾーン消去）
+            rosZoneSource.Tick();
         }
 
         private void OnEnable()
         {
             InputManager.Instance.RegisterKey(Key.F5, HandleKey);
             InputManager.Instance.RegisterKey(Key.F12, HandleKey);
+            rosZoneSource.ZonesUpdated += OnRosZonesUpdated;   // topic で DCS変化→自動再適用
         }
 
         private void OnDisable()
         {
             InputManager.Instance.UnregisterKey(Key.F5, HandleKey);
             InputManager.Instance.UnregisterKey(Key.F12, HandleKey);
+            rosZoneSource.ZonesUpdated -= OnRosZonesUpdated;
+        }
+
+        /// <summary>ROS topic で DCS が更新されたら（変化時のみ発火）units へ再適用して自動再描画する。</summary>
+        private void OnRosZonesUpdated()
+        {
+            if (!GlobalScript.isLoaded) { return; }   // ロード中は触らない（完了後の次配信で反映）
+            ReloadSafetyZones();
         }
 
         /// <summary>
@@ -295,6 +312,8 @@ namespace Parameters
                             unitSetting.Database = db.Name;
                         }
                     }
+                    // 内部デバイス（仮想I/O）を tagDatas に確保（通信モード非依存・スイッチ⇄タイムチャート内部結線用）。
+                    ReserveInternalDevices();
                     // 全オブジェクト名を一度だけ取得（ToList(275k)＋per設定の Find(.name) を回避）
                     var existingNames = new HashSet<string>();
                     foreach (var g in FindObjectsByType<GameObject>(FindObjectsSortMode.None))
@@ -358,6 +377,9 @@ namespace Parameters
                             unitSetting.suctionSetting = suctionSettings.Find(d => (d.mechId == unitSetting.mechId) && (d.name == unitSetting.name));
                             // 物体形状設定紐づけ
                             unitSetting.shapeSetting = shapeSettings.Find(d => (d.mechId == unitSetting.mechId) && (d.name == unitSetting.name));
+                            // DCS安全ゾーン紐づけ＋可視化付与（読むだけ・KMX_ROS2非依存）
+                            unitSetting.safetyZoneSetting = safetyZoneSettings?.Find(d => MatchZone(d, unitSetting));
+                            AttachSafetyZone(unitSetting);
                             // スイッチ設定紐づけ
                             unitSetting.switchSetting = switchSettings.Find(d => (d.mechId == unitSetting.mechId) && (d.name == unitSetting.name));
                             // シグナルタワー設定紐づけ
@@ -490,6 +512,11 @@ namespace Parameters
                                         else if (roboType == RobotType.CRX_30iA)
                                         {
                                             var rObj = unitSetting.moveObject.AddComponent<CRX_30iA>();
+                                            rObj.SetParameter(unitSetting, robo);
+                                        }
+                                        else if (roboType == RobotType.M_20iD25)
+                                        {
+                                            var rObj = unitSetting.moveObject.AddComponent<M_20iD25>();
                                             rObj.SetParameter(unitSetting, robo);
                                         }
                                     }
@@ -934,6 +961,11 @@ namespace Parameters
 
             // 通信設定
             SetDatabaseSetting();
+            // 動作テーブルを global へ公開（フルロードは SetDebugComInfo で行うが、部分リロードはそれを呼ばない。
+            // これを入れないと下の RenewMoveDir が旧 GlobalScript.actionTableDatas を読み直し、テーブルが更新されない）。
+            GlobalScript.actionTableDatas = actionTableDatas;
+            // 内部デバイス（仮想I/O）を再確保（部分リロードで com/tagDatas が作り直されるため）。
+            ReserveInternalDevices();
             foreach (var unitSetting in unitSettings)
             {
                 var motion = motions.Find(d => (d.unitSetting.mechId == unitSetting.mechId) && (d.unitSetting.name == unitSetting.name));
@@ -953,6 +985,9 @@ namespace Parameters
                     motion.unitSetting.suctionSetting = suctionSettings.Find(d => (d.mechId == unitSetting.mechId) && (d.name == unitSetting.name));
                     // 物体形状設定紐づけ
                     motion.unitSetting.shapeSetting = shapeSettings.Find(d => (d.mechId == unitSetting.mechId) && (d.name == unitSetting.name));
+                    // DCS安全ゾーン紐づけ＋可視化付与（読むだけ・KMX_ROS2非依存）
+                    motion.unitSetting.safetyZoneSetting = safetyZoneSettings?.Find(d => MatchZone(d, motion.unitSetting));
+                    AttachSafetyZone(motion.unitSetting);
                     // スイッチ設定紐づけ
                     motion.unitSetting.switchSetting = switchSettings.Find(d => (d.mechId == unitSetting.mechId) && (d.name == unitSetting.name));
                     // シグナルタワー設定紐づけ
@@ -1037,6 +1072,139 @@ namespace Parameters
 
             Resources.UnloadUnusedAssets();
             CommonFunction.DebugLog($"***** Load Finished *****", true);
+
+            // ここでロード完了確定（フルロードの LoadParameter 末尾と同じ扱い）。
+            // 部分リロードは isReqLoadEvent で購読側（ComRos2 再init 等）へ再構築を通知する。
+            GlobalScript.isLoading = false;
+            GlobalScript.isLoaded = true;
+            GlobalScript.isReqLoadEvent = true;
+        }
+
+        /// <summary>
+        /// DCS安全ゾーンを ROS から取得する。取得不可（未接続/無応答/エラー）は空を返す＝**ゾーンを消去**する
+        /// （JSONフォールバックはしない）。起動時・F5リロード・「DCS再読込」の3導線が共通で通る唯一の取得口。
+        /// </summary>
+        private async Task<List<SafetyZoneSetting>> FetchSafetyZonesAsync()
+        {
+            try { var z = await rosZoneSource.FetchAsync(); if (z != null) { return z; } } catch { }
+            return new List<SafetyZoneSetting>();   // ROS取れず → 空＝消去
+        }
+
+        /// <summary>
+        /// DCS安全ゾーン可視化コンポーネントをロボットunitに付与/更新する（binding直後・冪等）。設定が null なら既存を消す。
+        /// SafetyZoneScript は自身で基準Transform を待って描画するので、ここでは設定を渡すだけ。KMX_ROS2 非依存。
+        /// </summary>
+        private void AttachSafetyZone(UnitSetting u)
+        {
+            if (u == null || u.moveObject == null) { return; }
+            var sz = u.moveObject.GetComponent<SafetyZoneScript>();
+            if (u.safetyZoneSetting == null)
+            {
+                if (sz != null) { sz.SetParameter(null); }   // 設定が消えたらゾーンをクリア（再読込で0件になった等）
+                return;
+            }
+            if (sz == null) { sz = u.moveObject.AddComponent<SafetyZoneScript>(); }
+            sz.SetParameter(u.safetyZoneSetting);
+        }
+
+        /// <summary>
+        /// DCS安全ゾーン設定 d をユニット u に結線してよいか。
+        /// JSON運用: mechId+name で一致（mechId は任意）。ROS運用: robot_id を解決した name で一致（mechId 空）。
+        /// name/mechId ともに空（ROSで robot_id 未解決＝レジストリ未構築等）は誤結線防止のため結線しない
+        /// （その状況は ROS 未接続と重なり JSON が使われるので実害なし）。
+        /// </summary>
+        private static bool MatchZone(SafetyZoneSetting d, UnitSetting u)
+        {
+            if (d == null || u == null) { return false; }
+            // name/mechId が明示（JSON or robot_id 解決済み）→ 従来一致。
+            if (!string.IsNullOrEmpty(d.name) || !string.IsNullOrEmpty(d.mechId))
+            {
+                bool mechOk = string.IsNullOrEmpty(d.mechId) || (d.mechId == u.mechId);
+                bool nameOk = string.IsNullOrEmpty(d.name) || (d.name == u.name);
+                return mechOk && nameOk;
+            }
+            // ROS で robot_id="" 未解決 → DCS対応ロボ（6軸＋base確定）へ結線（単機前提・レジストリ非依存）。
+            return IsDcsCapableRobot(u);
+        }
+
+        /// <summary>DCS結線対象＝6軸以上かつ基準(base)確定のロボットか（CRX等。3軸の集積ロボは除外）。</summary>
+        private static bool IsDcsCapableRobot(UnitSetting u)
+        {
+            if (u == null || u.moveObject == null) { return false; }
+            var t = u.moveObject.GetComponent<IRos2PlanTarget>();
+            return t != null && t.JointCount >= 6 && t.GetBaseTransform() != null;
+        }
+
+        /// <summary>
+        /// 内部デバイス（仮想I/O）を tagDatas に事前確保する（通信モード非依存）。
+        /// 内部デバイスは実PLC/DBに無いので、スイッチ書込み(SetTagValue)・タイムチャート読取り(GetTagValue)が
+        /// 参照する `tagDatas[Database][mechId][tag]` を作っておかないと、GetTagInfo が null を返し結線されない。
+        /// Database は該当 mechId のユニットの dbNo→Postgres.Name から解決（参照駆動）。実comはこのタグを同期しない。
+        /// 起動時・Shift+F5(部分リロード)の双方から呼ぶ。冪等（既存タグはスキップ）。
+        /// </summary>
+        private void ReserveInternalDevices()
+        {
+            if (internalDeviceSettings == null || internalDeviceSettings.Count == 0
+                || unitSettings == null || postgresSettings == null)
+            {
+                return;
+            }
+            int n = 0;
+            foreach (var dev in internalDeviceSettings)
+            {
+                if (dev == null || dev.tags == null || dev.tags.Count == 0) { continue; }
+                // この内部デバイスの mechId を持つユニットの Database 配下に確保（スイッチ/動作は同一 Database+mechId）。
+                foreach (var u in unitSettings)
+                {
+                    if (u == null || u.mechId != dev.mechId) { continue; }
+                    var db = postgresSettings.Find(d => d.No == u.dbNo);
+                    if (db == null || string.IsNullOrEmpty(db.Name)) { continue; }
+                    foreach (var tag in dev.tags)
+                    {
+                        if (string.IsNullOrEmpty(tag)) { continue; }
+                        if (EnsureInternalTag(db.Name, u.mechId, tag)) { n++; }
+                    }
+                }
+            }
+            if (n > 0) { CommonFunction.DebugLog($"[InternalDevice] 内部デバイスを {n} 件確保"); }
+        }
+
+        /// <summary>tagDatas[db][mechId][tag] が無ければ TagInfo を確保する。作成したら true。</summary>
+        private static bool EnsureInternalTag(string db, string mechId, string tag)
+        {
+            if (!GlobalScript.tagDatas.ContainsKey(db))
+            {
+                GlobalScript.tagDatas.Add(db, new Dictionary<string, Dictionary<string, TagInfo>>());
+            }
+            if (!GlobalScript.tagDatas[db].ContainsKey(mechId))
+            {
+                GlobalScript.tagDatas[db].Add(mechId, new Dictionary<string, TagInfo>());
+            }
+            if (!GlobalScript.tagDatas[db][mechId].ContainsKey(tag))
+            {
+                GlobalScript.tagDatas[db][mechId].Add(tag, ScriptableObject.CreateInstance<TagInfo>());
+                return true;
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// DCS安全ゾーン(SafetyZoneInfo.json)だけを再読込し、各ロボットへ再反映して再描画する。
+        /// 全体リロード(F5)不要の軽量版。ROS計画パネルの「DCS再読込」ボタン用。
+        /// （起動時・F5リロード時は LoadParameterFiles 経由で自動的に再受信される）。
+        /// </summary>
+        public async void ReloadSafetyZones()
+        {
+            safetyZoneSettings = await FetchSafetyZonesAsync();
+            if (unitSettings == null) { return; }
+            int n = 0;
+            foreach (var u in unitSettings)
+            {
+                u.safetyZoneSetting = safetyZoneSettings?.Find(d => MatchZone(d, u));
+                if (u.safetyZoneSetting != null) { n++; }
+                AttachSafetyZone(u);
+            }
+            CommonFunction.DebugLog($"[SafetyZone] 再適用: {n} unit へ反映");
         }
 
         /// <summary>
@@ -1076,10 +1244,9 @@ namespace Parameters
                     Destroy(obj);
                 }
                 DestroyRos2Components();   // ComRos2一式を破棄（重複接続・古いDB解決の残留を防止）
+                // フラグ確定はコルーチン末尾（LoadActParameter）で行う。ここで立てると
+                // ファイル読込(yield待ち)が終わる前に「完了」扱いになり、isReqLoadEvent 購読側が半端データで動く。
                 StartCoroutine(LoadActParameter());
-                GlobalScript.isLoading = false;
-                GlobalScript.isLoaded = true;
-                GlobalScript.isReqLoadEvent = true;
             }
         }
 
@@ -1165,6 +1332,7 @@ namespace Parameters
             var tUnit = GlobalScript.LoadListJson<List<UnitSetting>>("UnitInfo");
             var tAction = GlobalScript.LoadListJson<List<UnitActionSetting>>("ActionInfo");
             var tInner = GlobalScript.LoadListJson<List<InnerProcessSetting>>("InnerProcess");
+            var tInternalDev = GlobalScript.LoadListJson<List<InternalDeviceSetting>>("InternalDevice");
             var tHidden = GlobalScript.LoadListJson<List<HiddenUnit>>("HiddenUnitInfo");
             var tChuck = GlobalScript.LoadListJson<List<ChuckUnitSetting>>("ChuckUnitInfo");
             var tRobot = GlobalScript.LoadListJson<List<RobotSetting>>("RobotInfo");
@@ -1200,6 +1368,9 @@ namespace Parameters
             GlobalScript.unitSettings = unitSettings;
             actionSettings = (List<UnitActionSetting>)await tAction;
             innerSettings = (List<InnerProcessSetting>)await tInner;
+            // InternalDevice.json は新規・任意ファイル。未生成プロジェクトでもロードを壊さないよう、欠損/パース失敗は空扱い。
+            try { internalDeviceSettings = (List<InternalDeviceSetting>)await tInternalDev; }
+            catch { internalDeviceSettings = new List<InternalDeviceSetting>(); }
             hiddenSettings = (List<HiddenUnit>)await tHidden;
             chuckUnitSettings = (List<ChuckUnitSetting>)await tChuck;
             robotSettings = (List<RobotSetting>)await tRobot;
@@ -1265,6 +1436,8 @@ namespace Parameters
                 }
             }
             catch { }
+            // DCS安全ゾーン（可視化・読むだけ）。ROS優先→未対応/失敗なら JSON→空。取得失敗でロードは止めない。
+            safetyZoneSettings = await FetchSafetyZonesAsync();
             GlobalScript.timeChartDatas = (List<TimeChartData>)await tTimeChart;
         }
 
@@ -1371,6 +1544,7 @@ namespace Parameters
                    children.Find(d => d.name.Contains("W0334624-")) != null ? RobotType.ARM :
                    children.Find(d => d.name.Contains("W0677866-")) != null ? RobotType.CEILING_ARM :
                    children.Find(d => d.name.Contains("CRX-30IA")) != null ? RobotType.CRX_30iA : 
+                   children.Find(d => d.name.Contains("M-20ID25")) != null ? RobotType.M_20iD25 :
                    RobotType.UNDEFINED;
         }
 
@@ -1814,7 +1988,7 @@ namespace Parameters
                 {
                     var ex = dataExSettings.Find(d => d.dbNo == p.No);
                     var db = (ComInner)globalSetting.AddComponent<ComInner>();
-                    db.SetParameter(p.No, p.Cycle, p.Server, p.Port, p.Database, p.User, p.Password, p.isClientMode, ex, innerSettings, actionSettings);
+                    db.SetParameter(p.No, p.Cycle, p.Server, p.Port, p.Database, p.User, p.Password, p.isClientMode, ex, innerSettings, actionSettings, internalDeviceSettings);
                 }
             }
 #else
@@ -1849,7 +2023,7 @@ namespace Parameters
                 {
                     // 内部通信
                     var db = (ComInner)globalSetting.AddComponent<ComInner>();
-                    db.SetParameter(p.No, p.Cycle, p.Server, p.Port, p.Database, p.User, p.Password, p.isClientMode, ex, innerSettings, actionSettings);
+                    db.SetParameter(p.No, p.Cycle, p.Server, p.Port, p.Database, p.User, p.Password, p.isClientMode, ex, innerSettings, actionSettings, internalDeviceSettings);
                 }
                 else if (p.isDirectMode)
                 {
