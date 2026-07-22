@@ -513,33 +513,15 @@ public class AxisMotionBase : KinematicsBase
         // 物体形状設定
         if (!isShape)
         {
-            if (!GlobalScript.buildConfig.isCollision && unitSetting.isCollision)
+            // isCollision ユニットは BoxCollider を実体化(isTrigger=false)。
+            // ★これが ROS2 障害物検知(OverlapSphere は trigger を無視)に必須。buildConfig.isCollision には依存させない。
+            // ★重い MeshCollider(GlobalScript.CreateCollider/SAColliderBuilder)は廃止。
+            //   機械干渉の可視化は MachineInterferenceChecker(メッシュ直読み)で行う。
+            if (unitSetting.isCollision)
             {
-                // 当たり判定追加
                 foreach (var bc in this.GetComponentsInChildren<BoxCollider>())
                 {
                     bc.isTrigger = false;
-                }
-                /*
-                foreach (var mesh in this.GetComponentsInChildren<MeshFilter>())
-                {
-                    if (mesh.GetComponentInChildren<Collider>() == null)
-                    {
-                        var col = mesh.AddComponent<MeshCollider>();
-                        col.convex = true;
-                        col.isTrigger = true;
-                    }
-                }
-                */
-
-                if ((Application.platform == RuntimePlatform.Android) || (Application.platform == RuntimePlatform.IPhonePlayer))
-                {
-                    // VRでは無視
-                }
-                else
-                {
-                    // WindowsではCollider作成
-                    GlobalScript.CreateCollider(unitSetting.moveObject);
                 }
             }
         }

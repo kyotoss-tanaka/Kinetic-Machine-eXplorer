@@ -309,6 +309,12 @@ public static class GlobalScript
     public static bool isCollision = false;
 
     /// <summary>
+    /// メッシュ直読みの軽量干渉チェッカ(MachineInterferenceChecker)を使うか。
+    /// true の間は旧 WorkCollisionScript(BoxCollider トリガ判定)を無効化して二重赤/誤検知を防ぐ。
+    /// </summary>
+    public static bool useMeshInterference = false;
+
+    /// <summary>
     /// ライン表示
     /// </summary>
     public static bool isLiens = true;

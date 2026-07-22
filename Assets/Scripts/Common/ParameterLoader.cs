@@ -792,14 +792,31 @@ namespace Parameters
                 {
                     prefabObj.SetActive(false);
                 }
-                else if (GlobalScript.buildConfig.isCollision)
+                else
                 {
-                    SetProgressLabel("Creating All Collision Configurations");
-                    yield return null; // 1フレーム待
-                    GlobalScript.CreateCollider(prefabObj);
+                    // ★重い MeshCollider(SAColliderBuilder・凹Raw)は廃止し、メッシュ直読みの軽量干渉チェッカで機械干渉を可視化。
+                    //   生成条件は buildConfig.isCollision ではなく「isCollision かつ 動作する(actionSetting!=null)ユニットの有無」。
+                    //   ＝ROS2障害物(isCollisionの実体箱)とは独立。a側=下記ユニットのみ、相手(b側)=機械全体。ON/OFF は GlobalScript.isCollision。
+                    var movingRoots = new List<GameObject>();
+                    var checkedRoots = new HashSet<GameObject>();
                     foreach (var obj in movableObjs)
                     {
-                        GlobalScript.CreateCollider(obj.obj);
+                        if (obj == null || obj.obj == null) { continue; }
+                        movingRoots.Add(obj.obj);
+                        if (unitSettings.Exists(u => u.mechId == obj.key && u.isCollision && u.actionSetting != null))
+                        {
+                            checkedRoots.Add(obj.obj);
+                        }
+                    }
+                    if (checkedRoots.Count > 0)
+                    {
+                        SetProgressLabel("Preparing Interference Checker");
+                        yield return null; // 1フレーム待
+                        var checker = globalSetting.GetComponent<MachineInterferenceChecker>();
+                        if (checker == null) { checker = globalSetting.AddComponent<MachineInterferenceChecker>(); }
+                        checker.Setup(movingRoots, checkedRoots, prefabObj);
+                        // 新チェッカ稼働中は旧 WorkCollisionScript(BoxColliderトリガ判定)を無効化(二重赤/誤検知防止)
+                        GlobalScript.useMeshInterference = true;
                     }
                 }
             }
@@ -1192,10 +1209,21 @@ namespace Parameters
         /// DCS安全ゾーン(SafetyZoneInfo.json)だけを再読込し、各ロボットへ再反映して再描画する。
         /// 全体リロード(F5)不要の軽量版。ROS計画パネルの「DCS再読込」ボタン用。
         /// （起動時・F5リロード時は LoadParameterFiles 経由で自動的に再受信される）。
+        ///
+        /// clearIfEmpty=false: 受信が空(未接続/未受信の瞬間)なら既存表示を消さず維持する。
+        ///   ★計画時の「必ず受信」呼び出し用。latched topic は同一内容だと再発火しないため、
+        ///     一度消すと戻らない → 計画のたびに消える不具合を防ぐ（取れた時だけ更新）。
         /// </summary>
-        public async void ReloadSafetyZones()
+        public async void ReloadSafetyZones(bool clearIfEmpty = true)
         {
-            safetyZoneSettings = await FetchSafetyZonesAsync();
+            var fetched = await FetchSafetyZonesAsync();
+            if ((fetched == null || fetched.Count == 0) && !clearIfEmpty)
+            {
+                // 受信できなかった → 既存の DCS表示を維持（非破壊）。
+                CommonFunction.DebugLog("[SafetyZone] 受信0件（非破壊呼び出し）→ 既存表示を維持");
+                return;
+            }
+            safetyZoneSettings = fetched;
             if (unitSettings == null) { return; }
             int n = 0;
             foreach (var u in unitSettings)
@@ -1217,6 +1245,9 @@ namespace Parameters
                 GlobalScript.isLoading = true;
                 GlobalScript.isLoaded = false;
                 CommonFunction.DebugLog($"Start Reload");
+                // ★F5リロードでは DCS の latched topic が同一内容だと再発火せず戻らないため、
+                //   受信ソースのキャッシュをリセットして再接続後に必ず再購読・再適用させる。
+                rosZoneSource.ResetForReload();
                 // 情報削除
                 DeleteObjects();
                 // ロード開始
@@ -1766,7 +1797,7 @@ namespace Parameters
                         // 衝突あり(collision==1)ユニット配下のコライダーは実体化(isTrigger=false)する。
                         // OverlapSphere(QueryTriggerInteraction.Ignore) で拾わせ ROS2 障害物として送るため。
                         // 判定は配下ユニットの AxisMotionBase（collision=1ユニットには付与済）から行う。
-                        if (!GlobalScript.buildConfig.isCollision)
+                        // ★buildConfig.isCollision には依存させない(true でも障害物検知を維持)。isCollision 単独で効かせる。
                         {
                             var amb = mr.GetComponentInParent<AxisMotionBase>();
                             if (amb != null && amb.IsCollisionUnit)

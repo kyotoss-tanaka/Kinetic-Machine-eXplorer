@@ -433,4 +433,17 @@ public class CameraController : MonoBehaviour
 
         SetTargetPosition(position);
     }
+
+    /// <summary>
+    /// 回転中心(targetPosition)を pivot にし、カメラを frontDir 方向(=正面)へ dist 離して pivot を注視する。
+    /// 経路計画パネル表示/機種切替時に、対象ロボットの正面へ寄せて回転中心を TCP に合わせる用途。
+    /// </summary>
+    public void MoveToFront(Vector3 pivot, Vector3 frontDir, float dist)
+    {
+        targetPosition = pivot;
+        Vector3 f = frontDir.sqrMagnitude > 1e-6f ? frontDir.normalized : Vector3.forward;
+        transform.position = pivot + f * dist;
+        Vector3 look = pivot - transform.position;
+        if (look.sqrMagnitude > 1e-6f) { transform.rotation = Quaternion.LookRotation(look, Vector3.up); }
+    }
 }

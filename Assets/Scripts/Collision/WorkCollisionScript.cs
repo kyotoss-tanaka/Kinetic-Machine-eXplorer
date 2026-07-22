@@ -90,6 +90,8 @@ public class WorkCollisionScript : KssBaseScript
 
     protected override void OnTriggerEnter(Collider collider)
     {
+        // メッシュ直読みの軽量干渉チェッカ使用時は旧BoxCollider判定を無効化(二重赤/誤検知防止)
+        if (GlobalScript.useMeshInterference) return;
         if (GlobalScript.isCollision)
         {
             if (!collider.transform.parent.IsChildOf(this.transform) && !isWork)
@@ -110,6 +112,8 @@ public class WorkCollisionScript : KssBaseScript
 
     protected override void OnTriggerExit(Collider collider)
     {
+        // メッシュ直読みの軽量干渉チェッカ使用時は旧BoxCollider判定を無効化(二重赤/誤検知防止)
+        if (GlobalScript.useMeshInterference) return;
         if (GlobalScript.isCollision)
         {
             if (!collider.transform.parent.IsChildOf(this.transform) && !isWork)

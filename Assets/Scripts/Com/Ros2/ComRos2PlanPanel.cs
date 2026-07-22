@@ -54,12 +54,15 @@ public class ComRos2PlanPanel : MonoBehaviour
     private GameObject tcpMarker;                   // JOG中に TCP(ヘッドオフセット点=吸盤)の位置・向きを可視化する球＋XYZ軸
     private bool suppressRowCallbacks;              // 行の min/max/value 一括更新中はスライダー/入力の誤発火を無視
     private Text[] rowLabels = new Text[0];         // J1..J6 ↔ X/Y/Z/RX/RY/RZ でラベル切替
-    private double[] cartVals = new double[6];       // JOG時の X,Y,Z(mm) / RX,RY,RZ(deg)（base フレーム）
+    private double[] cartVals = new double[6];       // JOG時の X,Y,Z(mm) / RX,RY,RZ(deg・base軸まわりの累積ジョグ量)
+    private Quaternion cartRot = Quaternion.identity;  // JOG目標のTCP姿勢(base相対)。回転は絶対3角度でなくこれに base軸デルタを積む(ジンバルロック回避)
     private static readonly string[] CartLabels = { "X", "Y", "Z", "RX", "RY", "RZ" };
     private const float CartPosRange = 2500f;       // 位置スライダー範囲(±mm)
     private const float CartRotRange = 180f;        // 姿勢スライダー範囲(±deg)
 
     private Text statusText;
+    private GameObject bestTooltipGo;     // 「最良」クリックで出す 経路時間ベスト10 ツールチップ
+    private Text bestTooltipText;
     private Text seekTimeLabel;   // 再生中の時間（現在/総 秒）。シークバー右
     private Slider returnSpeedSlider;   // 復帰(通常計画)の速度倍率スライダー（実行中に調整可）
     private Text returnSpeedLabel;      // 「復帰速度 XX%」
@@ -72,7 +75,6 @@ public class ComRos2PlanPanel : MonoBehaviour
     private Slider[] sliders = new Slider[0];
     private InputField[] sliderInputs = new InputField[0];   // 角度の直接入力（関節数ぶん）
     private Button setGoalBtn, planBtn, okBtn, ngBtn, stopSearchBtn;
-    private Button lsExportBtn;   // 現在の経路を FANUC TPプログラム(.LS)に出力（オフライン再生用）
     private Button csvExportBtn;  // 現在の経路を FANUC 汎用再生用 CSV(関節角)に出力（Karel/TPが読む）
     private InputField csvProductInput, csvPathInput;   // CSV命名: 品番(R[89]) / パス番号(R[88]・0=復帰)
     private Button dcsReloadBtn;  // DCS安全ゾーン(SafetyZoneInfo.json)を再読込して再描画
@@ -155,6 +157,10 @@ public class ComRos2PlanPanel : MonoBehaviour
         {
             panelRootGo.SetActive(v);
         }
+        // パネルを開いたら DCS安全ゾーンを読み直す。F5直後のバインドでは base(crx) 未確定で MatchZone が
+        // 成立せず結線できないため、ロード後のこのタイミングで確実に受信・再描画する（非破壊：取れなければ既存維持）。
+        // あわせて対象ロボットの正面へカメラを寄せ、回転中心を TCP にする（表示時・機種切替の再表示時とも）。
+        if (v) { ReceiveDcsZones(); FocusCameraOnRobot(); }
     }
 
     /// <summary>パネルが表示中か。</summary>
@@ -181,7 +187,9 @@ public class ComRos2PlanPanel : MonoBehaviour
         //   そこで「ゴール表示でない時だけ」値を更新して保持する＝復帰モードは現在角度／登録モードは始点(選択step開始姿勢)のまま。
         if (curText != null && GlobalScript.isLoaded)
         {
-            if (!goalSetMode || curDisplayDeg == null)
+            // 登録モードは 現在:＝開始姿勢 を固定表示（OnSelectStep でセット）。復帰は goalSetMode 中のみ固定。
+            bool regMode = registerModeToggle != null && registerModeToggle.isOn;
+            if ((!goalSetMode && !regMode) || curDisplayDeg == null)
             {
                 curDisplayDeg = planner.ReadCurrentDeg();
             }
@@ -296,6 +304,11 @@ public class ComRos2PlanPanel : MonoBehaviour
                 progressBar.gameObject.SetActive(planner.OptActive);
                 if (planner.OptActive) { progressBar.SetValueWithoutNotify(planner.OptProgress01); }
             }
+            // 探索が終わったらベスト10ツールチップは閉じる（バッファは次計画でリセット）。
+            if (bestTooltipGo != null && bestTooltipGo.activeSelf && !planner.OptActive)
+            {
+                bestTooltipGo.SetActive(false);
+            }
         }
 
         // 登録の保留中（登録押下→OK実行/NGキャンセルまで）は 登録/解除/再生 を無効化（多重実行・誤操作防止）。
@@ -382,6 +395,8 @@ public class ComRos2PlanPanel : MonoBehaviour
             startBtn = MakeButton(panel, "RosStart", "起動", new Vector2(8f, y), 60f, 26f, OnStartRos2);
             stopBtn = MakeButton(panel, "RosStop", "停止", new Vector2(72f, y), 60f, 26f, OnStopRos2);
             restartBtn = MakeButton(panel, "RosRestart", "再起動", new Vector2(136f, y), 72f, 26f, OnRestartRos2);
+            // DCS安全ゾーン再読込は同じ行の一番右に寄せる（表記「DCS読込」）。
+            dcsReloadBtn = MakeButton(panel, "DcsReload", "DCS読込", new Vector2(W - 92f, y), 84f, 26f, OnReloadDcs);
             y -= 32f;
         }
 
@@ -450,7 +465,7 @@ public class ComRos2PlanPanel : MonoBehaviour
 
         // ボタン
         setGoalBtn = MakeButton(panel, "SetGoal", "ゴール設定", new Vector2(8f, y), 168f, 34f, ToggleGoalSet);
-        planBtn = MakeButton(panel, "Plan", "計画", new Vector2(184f, y), 168f, 34f, OnPlan);
+        planBtn = MakeButton(panel, "Plan", "復帰計画", new Vector2(184f, y), 168f, 34f, OnPlan);
         y -= 40f;
         // 計画/再生の状態＋Step A 速度解析（空のときは非表示同然）。OK/NG の直上に置く。
         statusText = MakeLabel(panel, "status", "", 14, new Vector2(8f, y), W - 16f, 22f);
@@ -458,6 +473,33 @@ public class ComRos2PlanPanel : MonoBehaviour
         statusText.resizeTextForBestFit = true;
         statusText.resizeTextMinSize = 9;
         statusText.resizeTextMaxSize = 14;
+        // 「最良」等のステータスをクリックすると、探索中バッファのベスト10（昇順）をツールチップ表示。
+        var statusBtn = statusText.gameObject.AddComponent<Button>();
+        statusBtn.transition = Selectable.Transition.None;
+        statusBtn.targetGraphic = statusText;
+        statusBtn.onClick.AddListener(OnBestTooltipToggle);
+        var tipRt = MakeRect("bestTooltip", panel);
+        tipRt.anchorMin = new Vector2(0f, 1f);
+        tipRt.anchorMax = new Vector2(0f, 1f);
+        tipRt.pivot = new Vector2(0f, 1f);
+        tipRt.anchoredPosition = new Vector2(8f, y - 24f);
+        tipRt.sizeDelta = new Vector2(170f, 156f);
+        var tipBg = tipRt.gameObject.AddComponent<Image>();
+        tipBg.color = new Color(0.05f, 0.05f, 0.08f, 0.96f);
+        var tipTextRt = MakeRect("Text", tipRt);
+        tipTextRt.anchorMin = Vector2.zero;
+        tipTextRt.anchorMax = Vector2.one;
+        tipTextRt.offsetMin = new Vector2(8f, 6f);
+        tipTextRt.offsetMax = new Vector2(-8f, -6f);
+        bestTooltipText = tipTextRt.gameObject.AddComponent<Text>();
+        bestTooltipText.font = uiFont;
+        bestTooltipText.fontSize = 12;
+        bestTooltipText.color = Color.white;
+        bestTooltipText.alignment = TextAnchor.UpperLeft;
+        bestTooltipText.horizontalOverflow = HorizontalWrapMode.Overflow;
+        bestTooltipText.verticalOverflow = VerticalWrapMode.Overflow;
+        bestTooltipGo = tipRt.gameObject;
+        bestTooltipGo.SetActive(false);
         y -= 22f;
         // 登録最適化の進捗バー（探索=低め固定/STOMP候補=prog%/完了=100%）。計画中(OptActive)のみ表示。ハンドルは隠す。
         progressBar = MakeSlider(panel, "optProg", new Vector2(8f, y), W - 16f, 8f);
@@ -505,26 +547,20 @@ public class ComRos2PlanPanel : MonoBehaviour
         stopSearchBtn = MakeButton(panel, "StopSearch", "探索停止（最良を採用）", new Vector2(8f, y), W - 16f, 34f, OnStopSearch);
         stopSearchBtn.gameObject.SetActive(false);
         y -= 44f;
-        // 現在の経路を FANUC TPプログラム(.LS)へ出力（オフラインで ROBOGUIDE/コントローラ再生用）。
-        lsExportBtn = MakeButton(panel, "LsExport", "FANUC .LS 出力", new Vector2(8f, y), W - 16f, 30f, OnExportLs);
-        y -= 34f;
         // 現在の経路を FANUC 汎用再生用 CSV(関節角)へ出力（FANUC側 Karel/TP が読む・FANUC_CSV_PLAY_SPEC.md 方式A）。
         // 命名 P<品番>_<パス番号>.CSV（品番=R[89] / パス番号=R[88]・0=復帰）。出力先は Ros2Info.json csvOutputDir。
-        MakeLabel(panel, "lblCsvProd", "品番", 13, new Vector2(8f, y), 34f, 22f);
-        csvProductInput = MakeInput(panel, "csvProd", new Vector2(44f, y), 60f, 22f);
+        MakeLabel(panel, "lblCsvProd", "品種番号", 13, new Vector2(8f, y), 58f, 22f);
+        csvProductInput = MakeInput(panel, "csvProd", new Vector2(68f, y), 42f, 22f);
         csvProductInput.contentType = InputField.ContentType.IntegerNumber;
         csvProductInput.text = "1";
-        MakeLabel(panel, "lblCsvPath", "パス", 13, new Vector2(114f, y), 34f, 22f);
-        csvPathInput = MakeInput(panel, "csvPath", new Vector2(150f, y), 50f, 22f);
+        MakeLabel(panel, "lblCsvPath", "パス", 13, new Vector2(114f, y), 28f, 22f);
+        csvPathInput = MakeInput(panel, "csvPath", new Vector2(144f, y), 42f, 22f);
         csvPathInput.contentType = InputField.ContentType.IntegerNumber;
         csvPathInput.text = "0";
         // モードから自動で入る（復帰=0 / 登録=テーブル番号1オリジン）が、手動で上書きも可。
-        MakeLabel(panel, "hintCsvPath", "0=復帰/登録=表番号", 12, new Vector2(206f, y), 140f, 22f);
+        MakeLabel(panel, "hintCsvPath", "0=復帰/登録=表番号", 12, new Vector2(190f, y), 164f, 22f);
         y -= 28f;
         csvExportBtn = MakeButton(panel, "CsvExport", "FANUC CSV 出力", new Vector2(8f, y), W - 16f, 30f, OnExportCsv);
-        y -= 34f;
-        // DCS安全ゾーンを SafetyZoneInfo.json から再読込して再描画（全体F5リロード不要）。
-        dcsReloadBtn = MakeButton(panel, "DcsReload", "DCS安全ゾーン 再読込", new Vector2(8f, y), W - 16f, 30f, OnReloadDcs);
         y -= 40f;
 
         // --- robotSteps シーケンス（自動再生／登録モード切替＋ステップ一覧） ---
@@ -807,26 +843,25 @@ public class ComRos2PlanPanel : MonoBehaviour
     #region 操作
     private void ToggleGoalSet()
     {
-        // 登録モード：選択テーブルの ゴール位置(poseDeg) と 開始位置(前step終了) をトグルで切替表示して確認。
-        //   1回目＝ゴール姿勢 / もう一度＝解除して開始姿勢へ戻す。
+        // 登録モード：J1~J6 は常にゴール（選択ステップの poseDeg）を表示（read-only・変えない）。
+        //   ゴール設定ボタンは「ロボット3D表示」だけを ゴール/開始 でプレビュー切替する（スライダー/現在:は不変）。
         if (registerModeToggle != null && registerModeToggle.isOn)
         {
             if (planner != null) { planner.CancelPlan(); }   // ゴースト消去
             EnsureKin();
-            goalSetMode = !goalSetMode;
+            goalSetMode = !goalSetMode;   // ボタン状態（ロボ3Dプレビューの ゴール/開始）
             var steps = SelectedSteps();
             if (steps != null && steps.Count > 0 && selectedStep >= 0 && selectedStep < steps.Count)
             {
+                // ★スライダー(J1~J6=ゴール)は変えず、ロボット3D だけをプレビュー。
                 if (goalSetMode)
                 {
-                    // ゴール姿勢（このテーブルの終了姿勢）
-                    PoseRobotAt(steps[selectedStep] != null ? steps[selectedStep].poseDeg : null);
+                    PoseRobotOnly(steps[selectedStep] != null ? steps[selectedStep].poseDeg : null);   // ゴール
                 }
                 else
                 {
-                    // 解除 → 開始姿勢（前stepの終了・循環）へ戻す
                     int prev = (selectedStep - 1 + steps.Count) % steps.Count;
-                    PoseRobotAt(steps[prev] != null ? steps[prev].poseDeg : null);
+                    PoseRobotOnly(steps[prev] != null ? steps[prev].poseDeg : null);                   // 開始
                 }
             }
             SetButtonColor(setGoalBtn, goalSetMode
@@ -976,17 +1011,66 @@ public class ComRos2PlanPanel : MonoBehaviour
         if (!targetKin.GetTcpPoseWorld(out Vector3 p, out Quaternion r)) { return; }
         GetBaseAxes(out Vector3 ax, out Vector3 ay, out Vector3 az, out Vector3 origin);
         Vector3 rel = p - origin;
-        Vector3 e = (Quaternion.Inverse(Quaternion.LookRotation(az, ay)) * r).eulerAngles;
+        // ★姿勢は base 相対の quaternion をそのまま保持（絶対3角度に分解しない＝ジンバルロック回避）。
+        //   回転スライダーは「ここから base 軸まわりに何度回したか」の累積デルタなので原点=0。
+        cartRot = Quaternion.Inverse(Quaternion.LookRotation(az, ay)) * r;
         cartVals[0] = Vector3.Dot(rel, ax) * 1000.0;
         cartVals[1] = Vector3.Dot(rel, ay) * 1000.0;
         cartVals[2] = Vector3.Dot(rel, az) * 1000.0;
-        cartVals[3] = Norm180(e.x); cartVals[4] = Norm180(e.y); cartVals[5] = Norm180(e.z);
+        cartVals[3] = 0.0; cartVals[4] = 0.0; cartVals[5] = 0.0;
     }
 
-    /// <summary>JOG時: 行 i の値変更（スライダー/入力）。cartVals[i]=v → 目標姿勢組立 → 数値IK → goalDeg。</summary>
+    /// <summary>現在の TCP から 位置 cartVals[0..2]＋位置スライダー表示 と 姿勢 cartRot を同期する（回転値 RX/RY/RZ は保持）。
+    /// J6 直接ジョグ後、次の 位置/RX/RY ジョグが正しい基準から始まるように使う。</summary>
+    private void SyncCartFromCurrent()
+    {
+        if (targetKin == null) { return; }
+        if (!targetKin.GetTcpPoseWorld(out Vector3 p, out Quaternion r)) { return; }
+        GetBaseAxes(out Vector3 ax, out Vector3 ay, out Vector3 az, out Vector3 origin);
+        Vector3 rel = p - origin;
+        cartVals[0] = Vector3.Dot(rel, ax) * 1000.0;
+        cartVals[1] = Vector3.Dot(rel, ay) * 1000.0;
+        cartVals[2] = Vector3.Dot(rel, az) * 1000.0;
+        cartRot = Quaternion.Inverse(Quaternion.LookRotation(az, ay)) * r;
+        for (int k = 0; k < 3 && k < sliders.Length; k++)
+        {
+            if (sliders[k] != null) { sliders[k].SetValueWithoutNotify((float)cartVals[k]); }
+            if (k < sliderInputs.Length && sliderInputs[k] != null) { sliderInputs[k].SetTextWithoutNotify(cartVals[k].ToString("F0")); }
+        }
+    }
+
+    /// <summary>JOG時: 行 i の値変更。位置=絶対IK / RX,RY=tool軸デルタ+IK / RZ=J6直接（逆解を通さずアームを動かさない）。</summary>
     private void OnCartValue(int i, double v)
     {
-        cartVals[Mathf.Min(i, 5)] = v;
+        int idx = Mathf.Min(i, 5);
+        if (idx == 5)
+        {
+            // ★RZ = J6 ロール：ツール approach 軸まわりの回転＝最終軸(J6)そのもの。数値IK(逆解)を通すと
+            //   DLS が回転を全関節へ分配してアームが微妙にドリフトするので、J6 を直接回す（J1〜J5 は不動）。
+            double d6 = v - cartVals[idx];
+            cartVals[idx] = v;
+            int last = (goalDeg != null && goalDeg.Length > 0) ? goalDeg.Length - 1 : -1;
+            if (last >= 0 && targetKin != null)
+            {
+                goalDeg[last] += d6;
+                targetKin.SetManualJointsDeg(goalDeg);
+                SyncCartFromCurrent();   // J6 で TCP 位置/姿勢が変わり得るので cartVals(位置)/cartRot を同期(次の位置/RX/RY 用)
+                UpdateGoalText();
+                if (statusText != null) { statusText.text = "JOG: J6 ロール"; }
+            }
+            if (i < sliders.Length && sliders[i] != null) { sliders[i].SetValueWithoutNotify((float)v); }
+            if (i < sliderInputs.Length && sliderInputs[i] != null) { sliderInputs[i].SetTextWithoutNotify(v.ToString("F1")); }
+            return;
+        }
+        if (idx >= 3)
+        {
+            // RX/RY：tool(ヘッド)自身の軸まわりのデルタを cartRot に積む（post-multiply）→数値IK。
+            //   RX→ツールX / RY→ツールZ。絶対3角度でないのでジンバルロック無し。
+            double delta = v - cartVals[idx];
+            Vector3 axis = (idx == 3) ? Vector3.right : Vector3.forward;
+            cartRot *= Quaternion.AngleAxis((float)delta, axis);
+        }
+        cartVals[idx] = v;
         if (i < sliders.Length && sliders[i] != null) { sliders[i].SetValueWithoutNotify((float)v); }
         if (i < sliderInputs.Length && sliderInputs[i] != null) { sliderInputs[i].SetTextWithoutNotify(v.ToString(i < 3 ? "F0" : "F1")); }
         ApplyCartTarget();
@@ -1001,12 +1085,10 @@ public class ComRos2PlanPanel : MonoBehaviour
             + ax * (float)(cartVals[0] / 1000.0)
             + ay * (float)(cartVals[1] / 1000.0)
             + az * (float)(cartVals[2] / 1000.0);
-        Quaternion rot = Quaternion.LookRotation(az, ay) * Quaternion.Euler((float)cartVals[3], (float)cartVals[4], (float)cartVals[5]);
+        // ★姿勢は保持している cartRot（base相対）をそのまま使う。回転JOGは cartRot に base軸まわりのデルタを
+        //   積んでいく方式（OnCartValue）なので、絶対3角度のジンバルロック(RX/RY/RZが同軸化)が原理的に起きない。
+        Quaternion rot = Quaternion.LookRotation(az, ay) * cartRot;
         bool ok = targetKin.TrySolveIkWorld(pos, rot, goalDeg, out double[] sol) && sol != null;
-        // [診断・一時] 回転JOGでIKが収束し関節が実際に動いているか（ok=false=到達不能で不動 / dmax≒0=変化なし）。確認後に削除。
-        double dmax = 0.0;
-        if (ok) { for (int k = 0; k < goalDeg.Length && k < sol.Length; k++) { dmax = System.Math.Max(dmax, System.Math.Abs(sol[k] - goalDeg[k])); } }
-        Debug.Log($"[JOG-IK] ok={ok} cart=[{cartVals[0]:F0},{cartVals[1]:F0},{cartVals[2]:F0} / {cartVals[3]:F1},{cartVals[4]:F1},{cartVals[5]:F1}] dmaxDeg={dmax:F2}");
         if (ok)
         {
             for (int k = 0; k < goalDeg.Length && k < sol.Length; k++) { goalDeg[k] = sol[k]; }
@@ -1154,7 +1236,7 @@ public class ComRos2PlanPanel : MonoBehaviour
         }
         // ROS 未接続では計画要求が届かない（ボタン無効化済みだが二重の保険）。
         if (!planner.IsLinkUp) { return; }
-        DoPlan();
+        DoPlanOrRegister();
     }
 
     /// <summary>選択機種へ ROS を切替（違う時のみ再起動）→ 稼働機種が一致したら計画。機種取り違えを構造的に防ぐ。</summary>
@@ -1213,13 +1295,36 @@ public class ComRos2PlanPanel : MonoBehaviour
             if (statusText != null) { statusText.text = "計画中止：ROS-TCP 未接続"; }
             yield break;
         }
-        DoPlan();   // 機種一致を確認できたので計画実行
+        DoPlanOrRegister();   // 機種一致を確認できたので計画実行（登録モードなら選択ステップを登録計画）
+    }
+
+    /// <summary>「計画」ボタンの実行：復帰モードは通常計画(DoPlan)、登録モードは選択ステップの登録計画。</summary>
+    private void DoPlanOrRegister()
+    {
+        bool reg = registerModeToggle != null && registerModeToggle.isOn;
+        if (reg) { RegisterSelectedStep(); }
+        else { DoPlan(); }
+    }
+
+    /// <summary>登録モード：選択中のステップを計画する（→ゴーストプレビュー→OKで登録キャッシュ保存）。</summary>
+    private void RegisterSelectedStep()
+    {
+        int robotIdx = registry != null ? registry.SelectedIndex : -1;
+        var steps = SelectedSteps();
+        if (robotIdx < 0 || steps == null || selectedStep < 0 || selectedStep >= steps.Count)
+        {
+            if (statusText != null) { statusText.text = "登録するステップを選択してください"; }
+            return;
+        }
+        OnRegisterStep(robotIdx, selectedStep);   // 計画→ゴースト→OK で保存
     }
 
     /// <summary>計画本体（ゴール確定→障害物/ヘッド込みで計画要求）。機種一致は呼び出し側で保証する。</summary>
     private void DoPlan()
     {
         if (planner == null || !planner.IsLinkUp) { return; }
+        // ★計画のたびに DCS安全ゾーンを必ず受信し直す（機種切替後や再配信漏れでも表示を最新化・受信忘れ防止）。
+        ReceiveDcsZones();
         // ★start(計画開始姿勢)＝実現在。ゴール設定中はモデルが goalDeg 姿勢のため、
         //   ToggleGoalSet で抜けても腕は次フレームまで戻らず、ReadCurrentDeg(多ロボ=Kinematics直読み)が goalDeg を返す。
         //   → ゴール設定に入る前に凍結した実現在(curDisplayDeg)を start に使う（設定を抜ける前に確定）。
@@ -1383,6 +1488,41 @@ public class ComRos2PlanPanel : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// 計画のたびに DCS安全ゾーンを必ず受信し直す（受信忘れ防止）。
+    /// ROS の latched topic /kmx/safety_zones からキャッシュ値を取り直して全ユニットへ再適用・再描画する。
+    /// 機種切替直後や再配信漏れでも、計画時点で表示を最新化する。ParameterLoader が無ければ無視（安全）。
+    /// </summary>
+    private void ReceiveDcsZones()
+    {
+        var loaders = FindObjectsByType<Parameters.ParameterLoader>(FindObjectsSortMode.None);
+        var loader = loaders.Length > 0 ? loaders[0] : null;
+        // clearIfEmpty=false: 受信が取れない瞬間でも既存の DCS表示を消さない（計画のたびに消えるのを防ぐ）。
+        if (loader != null) { loader.ReloadSafetyZones(false); }
+    }
+
+    /// <summary>
+    /// 対象ロボットにカメラを合わせる：正面(FANUC X方向)へ移動し、回転中心をロボットの TCP にする。
+    /// 経路計画パネル表示時・機種切替時に呼ぶ。
+    /// </summary>
+    private void FocusCameraOnRobot()
+    {
+        EnsureKin();
+        if (targetKin == null) { return; }
+        // 回転中心 = TCP 世界位置（取れなければロボ原点）。
+        if (!targetKin.GetTcpPoseWorld(out Vector3 pivot, out _))
+        {
+            pivot = targetKin.GetRobotOriginWorldPosition();
+        }
+        // 視線方向 = 正面(FANUC X) を基準に、やや上(FANUC Z)＝見下ろし・少し横(FANUC Y)へずらす。距離は張り出し量から算出。
+        GetBaseAxes(out Vector3 ax, out Vector3 ay, out Vector3 az, out Vector3 origin);
+        Vector3 viewDir = ax + az * 0.35f + ay * 0.35f;   // 前＋少し上＋少し横（見下ろし＆横ずらし）
+        float reach = Vector3.Distance(origin, pivot);
+        float dist = Mathf.Max(3.5f, reach * 2.2f + 1.0f);
+        var cams = FindObjectsByType<CameraController>(FindObjectsSortMode.None);
+        if (cams != null && cams.Length > 0) { cams[0].MoveToFront(pivot, viewDir, dist); }
+    }
+
     /// <summary>DCS安全ゾーンを SafetyZoneInfo.json から再読込して再描画する（全体F5リロード不要）。</summary>
     private void OnReloadDcs()
     {
@@ -1500,6 +1640,8 @@ public class ComRos2PlanPanel : MonoBehaviour
 
         // 再起動で planning scene は空になるので障害物/ヘッド/床を再送。
         if (obstacles != null) { obstacles.SendObstacles(); }
+        // 機種/コントローラ切替後は DCS が別機体のものに変わるので読み直す（base 確定後・ロード後のこのタイミング）。
+        ReceiveDcsZones();
 
         string cur = launcher.CurrentRobotModel;
         if (statusText != null)
@@ -1530,6 +1672,34 @@ public class ComRos2PlanPanel : MonoBehaviour
         // 確定→軌道受信まで少し掛かるので、その間は再押下不可にする（二重送信・誤操作防止）。
         stopSearchLatched = true;
         if (stopSearchBtn != null) { stopSearchBtn.interactable = false; }
+    }
+
+    /// <summary>ステータスの「最良」クリック：探索中バッファの経路時間ベスト10（昇順）をツールチップでトグル表示。</summary>
+    private void OnBestTooltipToggle()
+    {
+        if (bestTooltipGo == null || planner == null) { return; }
+        if (bestTooltipGo.activeSelf)
+        {
+            bestTooltipGo.SetActive(false);
+            return;
+        }
+        var best = planner.OptBestTimes(10);
+        if (best == null || best.Count == 0)
+        {
+            return;   // 未発見（まだ経路なし）は出さない
+        }
+        // 改行は各項目の「前」に付けて末尾に空行を作らない（末尾 \n があると下マージンが1行分増える）。
+        var sb = new System.Text.StringBuilder("経路時間 ベスト10（昇順）");
+        for (int i = 0; i < best.Count; i++)
+        {
+            sb.Append($"\n{i + 1,2}.  {best[i]:F2} s");
+        }
+        bestTooltipText.text = sb.ToString();
+        bestTooltipGo.transform.SetAsLastSibling();   // 手前に出す
+        bestTooltipGo.SetActive(true);
+        // 上下の余白を同じにする：text-rect は上下 6px インセットなので、box 高さ=内容(preferredHeight)+12。
+        var trt = (RectTransform)bestTooltipGo.transform;
+        trt.sizeDelta = new Vector2(trt.sizeDelta.x, bestTooltipText.preferredHeight + 12f);
     }
 
     /// <summary>復帰速度スライダー：復帰(通常計画)の速度倍率を実行中に設定（次の計画発行から反映）。</summary>
@@ -1565,6 +1735,11 @@ public class ComRos2PlanPanel : MonoBehaviour
             statusText.text = (s == ComRos2PathPlanner.PlanState.Idle) ? "" : msg;
         }
         RefreshButtons(s);
+        // 計画が完了(Preview)/失敗(Failed)/待機(Idle)など「計画中でない」状態になったら 最良ツールチップを閉じる。
+        if (s != ComRos2PathPlanner.PlanState.Planning && bestTooltipGo != null && bestTooltipGo.activeSelf)
+        {
+            bestTooltipGo.SetActive(false);
+        }
         // 登録モードなら、登録/削除の反映（状態遷移＝保存完了 等）でステップ状態を更新。
         if (registerModeToggle != null && registerModeToggle.isOn)
         {
@@ -1581,6 +1756,8 @@ public class ComRos2PlanPanel : MonoBehaviour
         if (seekPlayBtn != null) { seekPlayBtn.gameObject.SetActive(preview); }   // 再生/一時停止も Preview 中のみ
         if (seekTimeLabel != null) { seekTimeLabel.gameObject.SetActive(preview); }   // 再生時間も Preview 中のみ
         if (planBtn != null) { planBtn.interactable = planner.IsLinkUp && s != ComRos2PathPlanner.PlanState.Planning; }
+        // 計画中は「ゴール設定」を押せなくする（押すと CancelPlan で計画が止まるため）。
+        if (setGoalBtn != null) { setGoalBtn.interactable = s != ComRos2PathPlanner.PlanState.Planning; }
         // 停止ボタンは「登録の探索中」のみ表示（実際の可視制御は Update でも毎フレーム更新）。
         bool searching = s == ComRos2PathPlanner.PlanState.Planning && planner != null && planner.OptSearching;
         if (!searching) { stopSearchLatched = false; }   // 探索終了でラッチ解除（次回は押せる）
@@ -1723,6 +1900,13 @@ public class ComRos2PlanPanel : MonoBehaviour
             planner.SetMode(on ? ComRos2PathPlanner.SeqMode.Register : ComRos2PathPlanner.SeqMode.Auto);
         }
         SetStepRowsVisible(on);
+        SetJointRowsInteractable(!on);   // 登録モードでは J1~J6 を編集不可（ゴールはステップで確定）
+        // 計画ボタンのラベルはモードで切替：復帰モード=復帰計画 / 登録モード=経路計画（選択ステップの登録計画）。
+        if (planBtn != null)
+        {
+            var pt = planBtn.GetComponentInChildren<Text>();
+            if (pt != null) { pt.text = on ? "経路計画" : "復帰計画"; }
+        }
         EnsureKin();
         if (on)
         {
@@ -1754,13 +1938,17 @@ public class ComRos2PlanPanel : MonoBehaviour
         selectedStep = stepIdx;
         if (planner != null) { planner.CancelPlan(); }   // 再生中のゴーストを消して実機表示へ
         EnsureKin();
-        goalSetMode = false;
-        SetButtonColor(setGoalBtn, new Color(0.2f, 0.4f, 0.7f, 0.95f));
+        // 登録モードは J1~J6 に「ゴール＝選択ステップの目標姿勢(poseDeg)」を表示（read-only）。
+        // ゴール設定ボタンで開始姿勢(前step終了)のプレビューにトグルできる。
+        goalSetMode = true;
+        SetButtonColor(setGoalBtn, new Color(0.8f, 0.5f, 0.1f, 0.95f));   // ゴール表示=オレンジ
         var steps = SelectedSteps();
         if (steps != null && steps.Count > 0 && stepIdx >= 0 && stepIdx < steps.Count)
         {
-            int prev = (stepIdx - 1 + steps.Count) % steps.Count;   // 開始点＝前stepの終了（循環）
-            PoseRobotAt(steps[prev] != null ? steps[prev].poseDeg : null);
+            PoseRobotAt(steps[stepIdx] != null ? steps[stepIdx].poseDeg : null);   // ゴール（この step の poseDeg）
+            // 「現在:」は開始姿勢（前step終了・循環）を表示する（goalSetMode=true で固定）。
+            int prev = (stepIdx - 1 + steps.Count) % steps.Count;
+            curDisplayDeg = PoseToDeg(steps[prev] != null ? steps[prev].poseDeg : null);
         }
         UpdateRegisterLabel();
     }
@@ -1819,12 +2007,12 @@ public class ComRos2PlanPanel : MonoBehaviour
             row.anchoredPosition = new Vector2(0f, y);
             row.sizeDelta = new Vector2(W, 24f);
             string nm = (steps[i] != null && !string.IsNullOrEmpty(steps[i].name)) ? steps[i].name : $"step{i}";
-            MakeLabel(row, "no", i.ToString(), 12, new Vector2(8f, 0f), 18f, 24f);
-            MakeButton(row, "nm", nm, new Vector2(26f, 1f), 90f, 22f, () => OnSelectStep(si));   // 名前クリック=開始点へ
-            var st = MakeLabel(row, "st", "", 12, new Vector2(118f, 0f), 42f, 24f);
-            stepButtons.Add(MakeButton(row, "reg", "登録", new Vector2(162f, 1f), 62f, 22f, () => OnRegisterStep(robotIdx, si)));
-            stepButtons.Add(MakeButton(row, "rel", "解除", new Vector2(226f, 1f), 62f, 22f, () => OnDeleteStep(robotIdx, si)));
-            stepButtons.Add(MakeButton(row, "play", "再生", new Vector2(290f, 1f), 62f, 22f, () => OnPlayStep(robotIdx, si)));
+            MakeLabel(row, "no", (i + 1).ToString(), 12, new Vector2(8f, 0f), 18f, 24f);   // パス番号(1オリジン)に合わせる
+            MakeButton(row, "nm", nm, new Vector2(26f, 1f), 120f, 22f, () => OnSelectStep(si));   // 名前クリック=選択（ゴール表示）
+            var st = MakeLabel(row, "st", "", 12, new Vector2(148f, 0f), 40f, 24f);
+            // 登録は「計画」ボタンに統合（選択ステップを計画→OKで保存）。行には 解除/再生 のみ。
+            stepButtons.Add(MakeButton(row, "rel", "解除", new Vector2(192f, 1f), 78f, 22f, () => OnDeleteStep(robotIdx, si)));
+            stepButtons.Add(MakeButton(row, "play", "再生", new Vector2(276f, 1f), 78f, 22f, () => OnPlayStep(robotIdx, si)));
             stepRows.Add(row.gameObject);
             stepStatusTexts.Add(st);
             y -= 26f;
@@ -1891,6 +2079,55 @@ public class ComRos2PlanPanel : MonoBehaviour
             targetKin.SetManual(true);
             targetKin.SetManualJointsDeg(goalDeg);
         }
+    }
+
+    /// <summary>
+    /// ロボット3D表示だけを指定姿勢に更新する（スライダー/goalDeg/現在: は変えない）。
+    /// 登録モードの「開始/ゴール」プレビュー用（J1~J6 は常にゴール表示のまま）。
+    /// </summary>
+    private void PoseRobotOnly(List<float> poseDeg)
+    {
+        EnsureKin();
+        if (poseDeg == null || poseDeg.Count == 0 || targetKin == null) { return; }
+        int n = (jointNames != null && jointNames.Length > 0) ? jointNames.Length : 6;
+        var arr = new double[n];
+        for (int i = 0; i < n; i++) { arr[i] = (i < poseDeg.Count) ? poseDeg[i] : 0d; }
+        targetKin.SetManual(true);
+        targetKin.SetManualJointsDeg(arr);
+    }
+
+    /// <summary>
+    /// J1~J6（JOG時は X/Y/Z/RX/RY/RZ）のスライダー/入力/JOGトグルの編集可否を切り替える。
+    /// 登録モードではゴールが選択ステップで確定するので触れなくする（read-only）。
+    /// PoseRobotAt/ToggleGoalSet はプログラムから SetValueWithoutNotify で更新するので影響しない。
+    /// </summary>
+    private void SetJointRowsInteractable(bool on)
+    {
+        if (sliders != null)
+        {
+            for (int i = 0; i < sliders.Length; i++)
+            {
+                if (sliders[i] != null) { sliders[i].interactable = on; }
+            }
+        }
+        if (sliderInputs != null)
+        {
+            for (int i = 0; i < sliderInputs.Length; i++)
+            {
+                if (sliderInputs[i] != null) { sliderInputs[i].interactable = on; }
+            }
+        }
+        if (jogToggle != null) { jogToggle.interactable = on; }
+    }
+
+    /// <summary>ステップの poseDeg(List&lt;float&gt;) を関節数ぶんの double[] に変換（「現在:」表示用）。null は null。</summary>
+    private double[] PoseToDeg(List<float> poseDeg)
+    {
+        if (poseDeg == null) { return null; }
+        int n = (jointNames != null && jointNames.Length > 0) ? jointNames.Length : 6;
+        var arr = new double[n];
+        for (int i = 0; i < n; i++) { arr[i] = (i < poseDeg.Count) ? poseDeg[i] : 0d; }
+        return arr;
     }
 
     /// <summary>登録モードのラベルを "登録モード(ロボ停止・教示)：テーブル名" に更新する。</summary>

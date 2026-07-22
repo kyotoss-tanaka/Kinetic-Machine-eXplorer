@@ -557,6 +557,8 @@ public class ComRos2PathPlanner : MonoBehaviour
     private double optAchieved;             // 最適化後の所要秒（achieved＝実際の再生時間）
     private double optMinTime;              // 達成可能な最短秒（t_min）。target を守れた時も表示する
     private bool optFeasible = true;        // target_time を満たせたか
+    private readonly List<double> optFoundTimes = new();   // 探索中に見つかった経路時間(秒)。最良=最小、ツールチップ=昇順ベスト10。
+    private double optBestMin = double.NaN;                 // これまでの最小(最良)秒。未発見は NaN。
     /// <summary>最適化の途中経過/結果を UI へ公開。</summary>
     public bool OptActive => optActive;
     public string OptProgress => optProgress;
@@ -564,6 +566,16 @@ public class ComRos2PathPlanner : MonoBehaviour
     public string OptResultWarn => optResultWarn;
     public bool OptHasResult => optHasResult;
     public double OptMinTime => optMinTime;
+    /// <summary>これまでの最良(最小)経路時間(秒)。未発見は NaN。</summary>
+    public double OptBestMin => optBestMin;
+    /// <summary>探索中に見つかった経路時間の昇順ベスト10(秒)。ツールチップ表示用（コピーを返す）。</summary>
+    public List<double> OptBestTimes(int topN = 10)
+    {
+        var sorted = new List<double>(optFoundTimes);
+        sorted.Sort();
+        if (topN > 0 && sorted.Count > topN) { sorted = sorted.GetRange(0, topN); }
+        return sorted;
+    }
     private void ResetOptProgress()
     {
         optActive = false;
@@ -574,6 +586,8 @@ public class ComRos2PathPlanner : MonoBehaviour
         optAchieved = 0d;
         optMinTime = 0d;
         optFeasible = true;
+        optFoundTimes.Clear();
+        optBestMin = double.NaN;
     }
 
     /// <summary>登録最適化のプレビュー表示を更新（軌道と opt done が両方揃ったら 所要/最短/軸速% を表示）。順序非依存。</summary>
@@ -600,6 +614,104 @@ public class ComRos2PathPlanner : MonoBehaviour
         if (warn || infeasible) { Debug.LogWarning($"[ComRos2PathPlanner] 登録最適化: {rep}{wm}"); }
     }
 
+    /// <summary>
+    /// 計画失敗理由（ROSは "code_&lt;N&gt;"＝MoveItErrorCodes や "no_solution" 等を送る）を
+    /// 人が読める日本語詳細に変換する。未知はそのまま返す。
+    /// </summary>
+    private static string DescribePlanError(string reason)
+    {
+        if (string.IsNullOrEmpty(reason)) { return ""; }
+        string r = reason.Trim();
+        // "code_-27" 形式 = MoveItErrorCodes。数値を詳細メッセージへ。
+        if (r.StartsWith("code_", StringComparison.OrdinalIgnoreCase)
+            && int.TryParse(r.Substring(5), out int code))
+        {
+            switch (code)
+            {
+                case -1: return "経路が見つかりません（PLANNING_FAILED）";
+                case -2: return "無効な計画（INVALID_MOTION_PLAN）";
+                case -3: return "環境変化で計画が無効化されました";
+                case -4: return "制御に失敗（CONTROL_FAILED）";
+                case -5: return "センサデータを取得できません";
+                case -6: return "計画がタイムアウトしました（TIMED_OUT）";
+                case -7: return "計画が中断されました（PREEMPTED）";
+                case -10: return "開始姿勢が障害物と干渉しています（START_STATE_IN_COLLISION）";
+                case -11: return "開始姿勢が経路制約に違反しています";
+                case -12: return "ゴール姿勢が障害物と干渉しています（GOAL_IN_COLLISION）";
+                case -13: return "ゴール姿勢が経路制約に違反しています";
+                case -14: return "ゴール制約に違反しています（GOAL_CONSTRAINTS_VIOLATED）";
+                case -15: return "計画グループ名が不正です（INVALID_GROUP_NAME）";
+                case -16: return "ゴール制約が不正です";
+                case -17: return "ロボット状態が不正です";
+                case -18: return "リンク名が不正です";
+                case -19: return "オブジェクト名が不正です";
+                case -21: return "座標変換に失敗しました（FRAME_TRANSFORM_FAILURE）";
+                case -22: return "干渉チェックが利用できません";
+                case -23: return "ロボット状態が古い（同期待ち・ROBOT_STATE_STALE）";
+                case -24: return "センサ情報が古いです";
+                case -25: return "ROS通信に失敗しました（COMMUNICATION_FAILURE）";
+                case -26: return "開始姿勢が無効です（範囲外/未同期・START_STATE_INVALID）";
+                case -27: return "ゴール姿勢が無効です（可動範囲外/到達不能・GOAL_STATE_INVALID）";
+                case -28: return "未対応のゴール種別です";
+                case -31: return "IK解が見つかりません（到達不能・NO_IK_SOLUTION）";
+                case 99999: return "計画に失敗しました（FAILURE）";
+                default: return $"MoveIt エラー（code {code}）";
+            }
+        }
+        // ROS側の語彙（no_solution 等）を和訳。未知はそのまま。
+        switch (r.ToLowerInvariant())
+        {
+            case "no_solution": return "経路の解が見つかりません（到達不能/障害物）";
+            case "timeout": return "計画がタイムアウトしました";
+            case "no_start": return "開始姿勢が未設定です";
+            case "no_goal": return "ゴール姿勢が未設定です";
+            case "start_in_collision": return "開始姿勢が障害物と干渉しています";
+            case "goal_in_collision": return "ゴール姿勢が障害物と干渉しています";
+            default: return r;
+        }
+    }
+
+    /// <summary>
+    /// 再試行しても解消しない「確定的」な計画失敗か（開始/ゴール状態の衝突・無効・到達不能）。
+    /// これらは登録モードの長時間探索を続けても無駄なので、初回で探索を打ち切る判定に使う。
+    /// PLANNING_FAILED(-1)/no_solution は「まだ経路が見つからない」＝探索継続の余地があるので false。
+    /// </summary>
+    private static bool IsDefinitivePlanFailure(string reason)
+    {
+        if (string.IsNullOrEmpty(reason)) { return false; }
+        string r = reason.Trim();
+        if (r.StartsWith("code_", StringComparison.OrdinalIgnoreCase)
+            && int.TryParse(r.Substring(5), out int code))
+        {
+            switch (code)
+            {
+                case -10: // START_STATE_IN_COLLISION
+                case -11: // START_STATE_VIOLATES_PATH_CONSTRAINTS
+                case -12: // GOAL_IN_COLLISION
+                case -13: // GOAL_VIOLATES_PATH_CONSTRAINTS
+                case -14: // GOAL_CONSTRAINTS_VIOLATED
+                case -16: // INVALID_GOAL_CONSTRAINTS
+                case -26: // START_STATE_INVALID
+                case -27: // GOAL_STATE_INVALID
+                case -28: // UNRECOGNIZED_GOAL_TYPE
+                case -31: // NO_IK_SOLUTION
+                    return true;
+                default:
+                    return false;
+            }
+        }
+        switch (r.ToLowerInvariant())
+        {
+            case "start_in_collision":
+            case "goal_in_collision":
+            case "no_ik":
+            case "no_ik_solution":
+                return true;
+            default:
+                return false;
+        }
+    }
+
     /// <summary>ROS2 の計画ステータス(std_msgs/String)を受けて状態を更新する。</summary>
     private void OnPlanStatus(string data)
     {
@@ -616,9 +728,18 @@ public class ComRos2PathPlanner : MonoBehaviour
         // 例: "planning" / "succeeded:74:1.8" / "failed:no_solution"
         if (data.StartsWith("failed", StringComparison.OrdinalIgnoreCase))
         {
+            bool wasSearching = optSearching;
             optSearching = false;
             string reason = data.Length > 6 ? data.Substring(6).TrimStart(':', ' ') : "";
-            SetState(PlanState.Failed, string.IsNullOrEmpty(reason) ? "計画失敗" : $"計画失敗: {reason}");
+            string detail = DescribePlanError(reason);
+            // ★登録モードの探索(optimize)中に「ゴール/開始が衝突・無効・到達不能」など
+            //   再試行しても解消しない失敗が来たら、ROS側の長時間探索も即キャンセルして初回で中断する。
+            if (wasSearching && transport != null && IsDefinitivePlanFailure(reason))
+            {
+                transport.PublishPlanCancel(planCancelTopic);
+                Debug.Log("[ComRos2PathPlanner] 登録探索中に確定的失敗（衝突/無効/到達不能）→ ROS探索を即キャンセル（初回で中断）");
+            }
+            SetState(PlanState.Failed, string.IsNullOrEmpty(detail) ? "計画失敗" : $"計画失敗: {detail}");
         }
         else if (data.StartsWith("planning", StringComparison.OrdinalIgnoreCase))
         {
@@ -683,11 +804,18 @@ public class ComRos2PathPlanner : MonoBehaviour
         }
         else if (phase == "search")
         {
-            // 探索フェーズ（候補収集）：prog を持たないのでバーは低め固定(スピナー相当)。best/経過は Panel が付加。
+            // 探索フェーズ（候補収集）：prog を持たないのでバーは低め固定(スピナー相当)。
             optActive = true;
             optProgress01 = 0.05f;
             double best = OptKvD(data, "best", double.NaN);
-            string bestStr = double.IsNaN(best) ? "" : $" 最良{best:F2}s";
+            // ★ROS の best は単調でない（小さい値の後に大きい値もある）ので、Unity 側で「これまでの最小」を最良として保持。
+            if (!double.IsNaN(best) && best > 0.0)
+            {
+                optFoundTimes.Add(best);
+                if (double.IsNaN(optBestMin) || best < optBestMin) { optBestMin = best; }
+            }
+            // 未発見（まだ経路なし）は 0.00 でなく「未発見」表示。
+            string bestStr = double.IsNaN(optBestMin) ? " 最良 未発見" : $" 最良{optBestMin:F2}s";
             optProgress = $"探索中{bestStr} ({iter}回)";
         }
         else if (phase == "stomp")

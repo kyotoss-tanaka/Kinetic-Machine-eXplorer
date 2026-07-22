@@ -27,6 +27,22 @@ public sealed class RosSafetyZoneSource : ISafetyZoneSource
     /// <summary>topic で DCS内容が変化 or 接続が切れたとき発火（ParameterLoader が購読して自動再適用/消去）。</summary>
     public event Action ZonesUpdated;
 
+    /// <summary>
+    /// リロード(F5)時に呼ぶ。latched topic /kmx/safety_zones は「同一内容」だと再配信しても素通りする
+    /// （署名一致で ZonesUpdated 非発火）ため、F5 で ROS を張り直すと一度消えた DCS が戻らない。
+    /// 署名・接続キャッシュ・購読フラグを消し、再接続後の(再)配信で**必ず再購読・再発火・再適用**させる。
+    /// 受信済みキャッシュ(latestFromTopic)は残すので、接続が生きていれば即再適用できる。
+    /// </summary>
+    public void ResetForReload()
+    {
+#if KMX_ROS2
+        subscribed = false;
+        lastSig = null;
+        lastConnected = false;
+        cachedRos = null;
+#endif
+    }
+
     /// <summary>毎フレーム呼ぶ（ParameterLoader.Update）。ROS接続が切れたら消去を促す（再配信の有無では消さない）。</summary>
     public void Tick()
     {

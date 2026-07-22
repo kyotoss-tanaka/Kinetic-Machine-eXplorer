@@ -263,6 +263,17 @@ class KmxPlannerNode(Node):
         #   引く確度↑。実測 単一base比 -25%・現行5比 期待-6%＋"遅い外れ"を7倍減〔全候補12s超 13%→2%〕。
         #   計画時間は候補数に比例〔~2分〕。offline register なので許容。速さ優先なら下げる）。
         self.declare_parameter('register_candidates', 10)
+        # ★探索中バックグラウンド STOMP（REGISTER_BG_STOMP_ROS2_SPEC）：探索(npa=1)の裏の遊休コアで
+        #   安定トップ候補を先行 STOMP しキャッシュ→終盤の直列後処理を消す。★スレッド安全(pin/coal worker-local)が
+        #   WSL 未検証のため既定 false（＝現行の直列 STOMP＝回帰なし）。WSL で SEGV/回帰/速度を確認後 true に。
+        self.declare_parameter('register_bg_stomp', False)
+        self.declare_parameter('register_bg_stomp_workers', 0)        # 0=自動 min(register_candidates, cpu-2)
+        self.declare_parameter('register_bg_stomp_topn', 0)          # 先行本数。0=register_candidates
+        self.declare_parameter('register_bg_stomp_start_after', 6)   # 候補がこの本数貯まってから先行開始
+        self.declare_parameter('register_bg_stomp_stable_hits', 2)   # top-N 連続 in 回数で「安定」＝投入対象
+        # Phase3：先行 STOMP の実行器。'thread'=ThreadPool(GIL 律速＝実質1コア)／'process'=ProcessPool(spawn・
+        #   pin/coal は GIL 非解放なので真の並列には別プロセスが要る・実測 thread は 8並列で1.1x)。既定 thread（安全側）。
+        self.declare_parameter('register_bg_stomp_executor', 'thread')
         # ホモトピー重複排除しきい（度）：候補経路の arc-length 対応点間 最大距離がこの値未満なら同じ通り道と
         #   みなし重複を捨てる（distinct な通り道だけ STOMP＝無駄削減）。0以下で dedup 無効。
         self.declare_parameter('stomp_dedup_deg', 20.0)
@@ -315,6 +326,7 @@ class KmxPlannerNode(Node):
             self.create_subscription(String, self.get_parameter('robot_description_topic').value,
                                      self._on_robot_description, rd_qos)
         self._plan_session = 0   # リトライセッションID（新要求で++し、古いセッションのコールバックを無効化）
+        self._bg_pool = None     # 探索中バックグラウンド STOMP プール（現行 optimize セッションのもの・置換時に停止）
 
         # ---- 障害物 → planning scene ----
         # /kmx/obstacles を購読し、CollisionObject 化して move_group の planning scene に反映する。
@@ -850,6 +862,12 @@ class KmxPlannerNode(Node):
         self._plan_session += 1
         if optimize:
             self._cancel_requested = False   # 新しい探索セッション開始時に中断フラグをクリア
+            if self._bg_pool is not None:    # 前セッションの先行 STOMP プールが残っていれば停止（重複防止）
+                try:
+                    self._bg_pool.shutdown(wait=False)
+                except Exception:   # noqa: BLE001
+                    pass
+                self._bg_pool = None
         # Unity 指定(req_*)が >0 ならそれを、無ければ node 既定を使う。
         budget = req_budget if req_budget > 0 else float(self.get_parameter('plan_time_budget_sec').value)
         good_ratio = req_ratio if req_ratio > 0 else float(self.get_parameter('plan_good_ratio').value)
@@ -885,6 +903,10 @@ class KmxPlannerNode(Node):
 
             # 始点→終点の直線関節距離（度）。経路長の下限。大回り判定の基準に使う。
             'direct_cost': math.sqrt(sum((g - s) ** 2 for s, g in zip(start_deg[:n], goal_deg[:n]))),
+            'bg_pool': None,   # 探索中バックグラウンド STOMP プール（optimize+register_bg_stomp で遅延生成）
+            'bg_stable': {},   # candidate_key -> top-N 連続 in 回数（安定化ゲート）
+            'bg_prog': (-1, -1),   # 先行 STOMP 進捗 (done,submitted) の前回 publish 値（Phase2 throttle）
+            'bg_prog_ns': 0,       # 同 throttle 用（3秒 heartbeat）
         }
         self.get_logger().info(
             f"plan session #{session['id']} 開始: planner={req.planner_id} "
@@ -904,6 +926,7 @@ class KmxPlannerNode(Node):
                 self._publish_status(f"opt phase=search iter={session['attempts']} best={bt:.2f}")
                 session['last_prog_ns'] = now_ns
                 session['last_prog_best'] = bt
+            self._maybe_publish_bg_progress(session)   # Phase2: 先行 STOMP 進捗（自前 throttle・(done,submitted)変化 or 3s）
         else:
             # 復帰計画：フェーズ＋試行回数のハートビート（Unity のステータス表示＋無応答watchdogリセット用）。
             #   fallback_used が True の間は RRTConnect フォールバック試行なので phase=rrtconnect。
@@ -951,6 +974,10 @@ class KmxPlannerNode(Node):
                 session['last_error'] = -2   # 計画成功だが変換/検証で無効（INVALID_MOTION_PLAN 相当）
         else:
             session['last_error'] = result.error_code.val
+        try:
+            self._bg_stomp_feed(session)   # 探索中：安定候補を BG STOMP へ先行投入（安全に握る・探索は止めない）
+        except Exception as e:   # noqa: BLE001
+            self.get_logger().warn(f"★登録[bg_stomp] feed 例外({e})→無視（完了時 同期にフォールバック）。")
         self._maybe_retry_or_finish(session)
 
     def _maybe_retry_or_finish(self, session):
@@ -978,7 +1005,16 @@ class KmxPlannerNode(Node):
                 cand_trajs = [t for _, t in session.get('candidates', [])] or [session['best_traj']]
                 self._optimize_and_publish(cand_trajs,
                                            float(session.get('target_time', 0.0)),
-                                           session['moveit_names'])
+                                           session['moveit_names'], session=session)
+                pool = session.get('bg_pool')   # 先行 STOMP プールを停止（セッション終了）
+                if pool is not None:
+                    try:
+                        pool.shutdown(wait=False)
+                    except Exception:   # noqa: BLE001
+                        pass
+                    session['bg_pool'] = None
+                    if self._bg_pool is pool:
+                        self._bg_pool = None
                 return
             # 復帰計画：経路を短縮→ per-joint double-S(_jerk_retime) で速度倍率 return_speed_scale で計時。
             #   ★速度/加速度/ジャークを厳守（旧 _densify_retime の距離比例＝一定速で角/端点の加速度が上限
@@ -1204,7 +1240,7 @@ class KmxPlannerNode(Node):
             opt = self._densify_traj(opt, float(self.get_parameter('shortcut_step_deg').value))
         return opt, t_min, achieved, feasible
 
-    def _optimize_and_publish(self, candidates, target_time, moveit_names=None):
+    def _optimize_and_publish(self, candidates, target_time, moveit_names=None, session=None):
         """登録軌道を発行。candidates＝候補ベース列（短い順・単一 traj も可）。
         register_backend='stomp'：pin+coal オラクルを1回だけ構築し、候補を短い順に
         STOMP→③double-S retime→発行前ゲートに掛け、**最初に衝突フリーで通った経路を発行**
@@ -1235,9 +1271,37 @@ class KmxPlannerNode(Node):
                 # ★全候補を STOMP＋③retime まで処理し、衝突フリーな中から「最終実行時間(achieved)が最小」を採用。
                 #   関節距離が最短でも、角が多いと減速/曲率律速で最終時間が伸びる＝距離でなく“実行が速い”で選ぶ。
                 #   achieved 同値(target_time クランプ)なら min_time→jerk をタイブレーク。
+                pool = session.get('bg_pool') if session else None   # 探索中 先行 STOMP のキャッシュ
+                if pool is not None:
+                    d, sub, inf = pool.stats()
+                    self.get_logger().info(f"★登録[bg_stomp] 完了時 先行キャッシュ: done={d}/{sub} inflight={inf}")
+                from .register.bg_stomp import candidate_key
                 results = []
                 for ci, base in enumerate(cands):
                     tag = f"cand{ci + 1}/{len(cands)}"
+                    r = None
+                    # ★BG 先行キャッシュ：hit＋結果ありは「メインでサービス最終ゲート」して即採用。
+                    #   hit＋None(BGがinfeasible判定)はスキップ。gate 失敗(scene drift 等)は同期へフォールバック。
+                    if pool is not None:
+                        k = candidate_key(base)
+                        hit, cached = pool.get(k) if k is not None else (False, None)
+                        if hit and cached is not None:
+                            if self._traj_collision_free(cached['out'], mn):
+                                cr = dict(cached); cr['tag'] = tag
+                                self._publish_status(
+                                    f"opt phase=stomp {tag} time={cr['achieved']:.3f} prog=90 bg=hit")
+                                self.get_logger().info(
+                                    f"★登録[stomp] {tag} 候補OK(bg-cache): {len(cr['out'].points)}点 "
+                                    f"achieved={cr['achieved']:.3f}s min_time={cr['min_time']:.3f}s "
+                                    f"jerk={cr['jerk']:.1f}deg/s^3")
+                                results.append(cr)
+                                continue
+                            self.get_logger().warn(
+                                f"★登録[stomp] {tag} bg-cache 発行軌道が衝突(scene drift?)→同期で再計算。")
+                        elif hit and cached is None:
+                            self.get_logger().info(f"★登録[stomp] {tag} bg=infeasible→スキップ。")
+                            continue
+                    # miss / gate 失敗 → 同期 STOMP（従来）
                     try:
                         r = self._stomp_build(S, base, target_time, mn, tag,
                                               cand_i=ci, n_cands=len(cands))
@@ -1378,47 +1442,146 @@ class KmxPlannerNode(Node):
         self.get_logger().info(f"★登録[stomp] {S.summary()}")
         return S
 
-    def _stomp_build(self, S, base_traj_raw, target_time, mn, tag="", cand_i=0, n_cands=1):
-        """1本の候補ベースを STOMP-lite(オラクル S)で C² 最適化→③double-S retime→発行前ゲート。
-        発行はせず、結果 dict(out, achieved, min_time, feasible, jerk, ratio, tag, it0, itb) を返す。
-        feasible解なし/ゲート衝突は None（呼び側が除外）。呼び側が全候補から最終時間 最小を選び発行する。
-        base は度・mn 順。pin は rad・JOINTS(J1..J6) 順で扱い、出力は度・mn 順へ戻す。"""
-        import numpy as np
-        from .register.pin_scene import JOINTS
-        from .register.stomp_lite import StompLite
-        from .register.retime import retime_double_s
-        pts = base_traj_raw.points
-        if len(pts) < 2:
-            return None
-        d2r = math.pi / 180.0
-        # base 幾何(度・mn 順) → rad・JOINTS 順
+    def _bg_stomp_feed(self, session):
+        """探索中：安定したトップ候補を BG STOMP プールへ先行投入（register_bg_stomp 時のみ・★メインスレッド）。
+        scene 取得・pool 生成もここ（メイン）で1回だけ行う。ワーカは rclpy に触れず計算（worker-local オラクル）。"""
+        if not session.get('optimize'):
+            return
+        if not bool(self.get_parameter('register_bg_stomp').value):
+            return
+        if str(self.get_parameter('register_backend').value) != 'stomp':
+            return
+        cands = session.get('candidates', [])
+        start_after = max(1, int(self.get_parameter('register_bg_stomp_start_after').value))
+        if len(cands) < start_after:
+            return
+        from .register.bg_stomp import BgStompPool, ProcessBgStompPool, candidate_key
+        pool = session.get('bg_pool')
+        if pool is None:
+            scene = None
+            try:
+                scene = self._get_full_scene()   # メインで1回だけ scene スナップショット取得(service)
+            except Exception:   # noqa: BLE001
+                scene = None
+            if scene is None:
+                return   # scene 取れねば BG しない（完了時 同期/legacy で処理）
+            urdf, srdf, pkg = self._register_paths()
+            cpu = os.cpu_count() or 4
+            ncand = max(1, int(self.get_parameter('register_candidates').value))
+            w = int(self.get_parameter('register_bg_stomp_workers').value)
+            if w <= 0:
+                w = max(1, min(ncand, cpu - 2))
+            executor = str(self.get_parameter('register_bg_stomp_executor').value or 'thread').strip()
+            if executor == 'process':
+                # Phase3：真の並列（別プロセス）。pin/coal は GIL 非解放＝ThreadPool は実質1コア。
+                #   scene を bytes 化して static payload に載せ、oracle はワーカ内で URDF から再構築。
+                from rclpy.serialization import serialize_message
+                try:
+                    scene_bytes = serialize_message(scene)
+                except Exception as e:   # noqa: BLE001
+                    scene_bytes = None
+                if scene_bytes is None:
+                    executor = 'thread'   # 直列化不可→ThreadPool へ安全フォールバック
+                else:
+                    static = dict(urdf=urdf, srdf=srdf, pkg=pkg, scene_bytes=scene_bytes,
+                                  target_time=float(session.get('target_time', 0.0)),
+                                  mn=session['moveit_names'], params=self._stomp_params())
+                    pool = ProcessBgStompPool(workers=w, static=static, log=None)
+            if pool is None:   # thread（既定 or フォールバック）
+                def _factory(_u=urdf, _s=srdf, _p=pkg, _sc=scene):
+                    # ★worker-local オラクル：各ワーカで独立に PinScene を構築（pin/coal 共有 SEGV 回避）
+                    from .register.pin_scene import PinScene
+                    try:
+                        S = PinScene(urdf=_u, srdf=_s, pkg=_p)
+                        S.sync_from_scene(_sc)
+                        S.finalize()
+                        return S
+                    except Exception:   # noqa: BLE001
+                        return None
+                pool = BgStompPool(workers=w, oracle_factory=_factory,
+                                   compute_fn=self._stomp_compute,
+                                   target_time=float(session.get('target_time', 0.0)),
+                                   mn=session['moveit_names'], params=self._stomp_params(), log=None)
+            session['bg_pool'] = pool
+            self._bg_pool = pool
+            self.get_logger().info(
+                f"★登録[bg_stomp] 先行プール開始 executor={executor} workers={w} start_after={start_after}")
+        # 安定化ゲート：top-N(topn) 内に stable_hits 回連続で居た候補を投入（churn の無駄を抑制）
+        topn = int(self.get_parameter('register_bg_stomp_topn').value)
+        if topn <= 0:
+            topn = len(cands)
+        need = max(1, int(self.get_parameter('register_bg_stomp_stable_hits').value))
+        stable = session['bg_stable']
+        cur = set()
+        for (_cost, traj) in cands[:topn]:
+            k = candidate_key(traj)
+            if k is None:
+                continue
+            cur.add(k)
+            stable[k] = stable.get(k, 0) + 1
+            if stable[k] >= need:
+                pool.submit(k, traj, tag=f"bg{k & 0xffff:04x}")
+        for k in list(stable.keys()):   # top-N から外れたらカウントリセット（再浮上時は再度貯める）
+            if k not in cur:
+                stable[k] = 0
+        self._maybe_publish_bg_progress(session)   # Phase2: 投入直後の進捗も反映
+
+    def _maybe_publish_bg_progress(self, session):
+        """Phase2：探索中の先行 STOMP 進捗を throttle publish（★メインスレッド）。
+        `opt phase=bg_stomp done=K/M`（K=先行完了本数, M=投入対象本数）。
+        (done,submitted) が変化 or 3秒経過で1行。Unity 未対応でも既存パーサは無害（else節/無視）。"""
+        pool = session.get('bg_pool')
+        if pool is None:
+            return
         try:
-            idx = [mn.index(j) for j in JOINTS]
-        except ValueError:
-            self.get_logger().warn(f"★登録[stomp] 関節名不一致 mn={mn}→スキップ。")
-            return None
-        base_rad = np.array([[p.positions[i] for i in idx] for p in pts]) * d2r
-        start_r, goal_r = base_rad[0].copy(), base_rad[-1].copy()
-        w = dict(clear=float(self.get_parameter('stomp_w_clear').value),
-                 length=float(self.get_parameter('stomp_w_length').value),
-                 smooth=float(self.get_parameter('stomp_w_smooth').value),
-                 grav=float(self.get_parameter('stomp_w_grav').value),
-                 tip=float(self.get_parameter('stomp_w_tip').value))
-        lim = self._load_kine_limits()   # name -> (v,a,j) 度
-        big = (600.0, 600.0, 6000.0)
-        alim_rad = np.array([lim.get(j, big)[1] for j in JOINTS]) * d2r   # rad/s²（STOMP は rad）
-        opt = StompLite(S,
-                        K=int(self.get_parameter('stomp_K').value),
-                        M=int(self.get_parameter('stomp_M').value),
-                        d_safe=float(self.get_parameter('stomp_d_safe').value),
-                        clearance=str(self.get_parameter('stomp_clearance').value),
-                        weights=w,
-                        rollouts=int(self.get_parameter('stomp_rollouts').value),
-                        alim=alim_rad,
-                        length_metric=str(self.get_parameter('stomp_length_metric').value))
-        budget = float(self.get_parameter('stomp_budget_sec').value)
-        # ★進捗（RETURN/REGISTER_PROGRESS）：候補 i/N と各 STOMP の経過で全体% を出す（10→95% を候補で按分）。
-        #   StompLite が ~1.5s ごとに progress_cb を呼ぶ→ここで throttle 済み plan_status を publish。
+            done, submitted, _inflight = pool.stats()
+        except Exception:   # noqa: BLE001
+            return
+        if submitted <= 0:
+            return
+        now_ns = self.get_clock().now().nanoseconds
+        changed = (done, submitted) != session.get('bg_prog', (-1, -1))
+        if changed or (now_ns - session.get('bg_prog_ns', 0) >= int(3e9)):
+            self._publish_status(f"opt phase=bg_stomp done={done}/{submitted}")
+            session['bg_prog'] = (done, submitted)
+            session['bg_prog_ns'] = now_ns
+
+    def _stomp_params(self):
+        """STOMP に必要なパラメータ＋kine limits を dict にまとめる（★メインスレッドで読む）。
+        BG STOMP のワーカが rclpy(get_parameter) に触れず計算できるよう _stomp_compute へ渡す。"""
+        gp = self.get_parameter
+        return dict(
+            w=dict(clear=float(gp('stomp_w_clear').value),
+                   length=float(gp('stomp_w_length').value),
+                   smooth=float(gp('stomp_w_smooth').value),
+                   grav=float(gp('stomp_w_grav').value),
+                   tip=float(gp('stomp_w_tip').value)),
+            K=int(gp('stomp_K').value), M=int(gp('stomp_M').value),
+            d_safe=float(gp('stomp_d_safe').value),
+            clearance=str(gp('stomp_clearance').value),
+            rollouts=int(gp('stomp_rollouts').value),
+            length_metric=str(gp('stomp_length_metric').value),
+            budget=float(gp('stomp_budget_sec').value),
+            dense_n=int(gp('stomp_dense_n').value),
+            step_deg=float(gp('shortcut_step_deg').value),
+            lim=self._load_kine_limits())   # name -> (v,a,j) 度（初回のみ読込・以降キャッシュ）
+
+    def _stomp_compute(self, S, base_traj_raw, target_time, mn, params,
+                       should_cancel=None, progress_cb=None, tag=""):
+        """★worker-safe な純 STOMP 計算（実体は register.stomp_worker.stomp_compute）。
+        ThreadPool BG・同期 _stomp_build・ProcessPool ワーカの三経路で同一ロジックを共有する。
+        rclpy 副作用なし（get_parameter/publish/service を呼ばない）。最終サービスゲートは呼び側(メイン)で実施。
+        結果 dict(out, achieved, min_time, feasible, jerk, ratio, tag, it0, itb) or None。"""
+        from .register.stomp_worker import stomp_compute
+        return stomp_compute(S, base_traj_raw, target_time, mn, params,
+                             should_cancel=should_cancel, progress_cb=progress_cb, tag=tag)
+
+    def _stomp_build(self, S, base_traj_raw, target_time, mn, tag="", cand_i=0, n_cands=1):
+        """1候補を STOMP＋retime＋サービス最終ゲート（★メインスレッド・同期版）。結果 dict or None。
+        純計算は _stomp_compute（worker-safe）に委譲し、ここは進捗 publish＋サービスゲート＋log を担う
+        （＝BG STOMP と同期パスで計算ロジックを共有・従来動作を維持）。"""
+        params = self._stomp_params()
+
         def _prog(pct):
             return int(max(10, min(95, 10 + 85 * pct / max(n_cands, 1))))
         self._publish_status(f"opt phase=stomp {tag} iter=0 prog={_prog(cand_i)}")
@@ -1427,51 +1590,20 @@ class KmxPlannerNode(Node):
             frac = min(1.0, elapsed / max(bud, 1e-3))
             self._publish_status(
                 f"opt phase=stomp {tag} iter={it} feasible={1 if feas else 0} prog={_prog(cand_i + frac)}")
-        best, info = opt.optimize(start_r, goal_r, base_rad, budget_sec=budget,
-                                  should_cancel=lambda: self._cancel_requested, verbose=False,
-                                  progress_cb=_pcb)
-        if not best.get('feasible'):
+        r = self._stomp_compute(S, base_traj_raw, target_time, mn, params,
+                                should_cancel=lambda: self._cancel_requested,
+                                progress_cb=_pcb, tag=tag)
+        if r is None:
             self.get_logger().warn(f"★登録[stomp] {tag} feasible 解なし→除外。")
             return None
-        # 密 C² 経路(rad・JOINTS 順) → double-S retime（rad で計時＝standalone 検証と同一・単位一貫）
-        n_dense = int(self.get_parameter('stomp_dense_n').value)
-        c2 = opt.dense_path(best['Pint'], start_r, goal_r, n=n_dense)   # (n,6) rad
-        lim = self._load_kine_limits()   # name -> (v,a,j) deg
-        big = (600.0, 600.0, 6000.0)
-        vlim = np.array([lim.get(j, big)[0] for j in JOINTS]) * d2r
-        alim = np.array([lim.get(j, big)[1] for j in JOINTS]) * d2r
-        jlim = np.array([lim.get(j, big)[2] for j in JOINTS]) * d2r
-        rt = retime_double_s(c2, vlim, alim, jlim, target_time=float(target_time),
-                             step=math.radians(float(self.get_parameter('shortcut_step_deg').value)))
-        # JointTrajectory(度・mn 順)を組み立て（rad→deg）
-        r2d = 180.0 / math.pi
-        out = JointTrajectory()
-        out.joint_names = list(mn)
-        back = [JOINTS.index(j) for j in mn]
-        P, V, A, T = rt['pos'], rt['vel'], rt['acc'], rt['times']
-        for k in range(len(P)):
-            q = JointTrajectoryPoint()
-            q.positions = [float(P[k][back[c]]) * r2d for c in range(len(mn))]
-            q.velocities = [float(V[k][back[c]]) * r2d for c in range(len(mn))]
-            q.accelerations = [float(A[k][back[c]]) * r2d for c in range(len(mn))]
-            tt = float(T[k])
-            q.time_from_start = Duration(sec=int(tt), nanosec=int(round((tt - int(tt)) * 1e9)))
-            out.points.append(q)
-        # validate-what-you-publish（service 最終ゲート）
-        if not self._traj_collision_free(out, mn):
+        # validate-what-you-publish（service 最終ゲート・メインスレッド）
+        if not self._traj_collision_free(r['out'], mn):
             self.get_logger().warn(f"★登録[stomp] {tag} 発行軌道が衝突→除外。")
             return None
-        achieved, t_min = rt['achieved'], rt['min_time']
-        feasible = (float(target_time) <= 0.0) or (float(target_time) >= t_min - 1e-6)
-        jerk = self._jerk_metric(out)
-        direct = math.sqrt(sum((b - a) ** 2 for a, b in zip(pts[0].positions, pts[-1].positions)))
-        ratio = (self._traj_cost(out) / direct) if direct > 1e-6 else 1.0
         self.get_logger().info(
-            f"★登録[stomp] {tag} 候補OK: {len(out.points)}点 achieved={achieved:.3f}s "
-            f"min_time={t_min:.3f}s jerk={jerk:.1f}deg/s^3")
-        return dict(out=out, achieved=achieved, min_time=t_min, feasible=feasible,
-                    jerk=jerk, ratio=ratio, tag=tag,
-                    it0=info['init_terms']['length'], itb=best['terms']['length'])
+            f"★登録[stomp] {tag} 候補OK: {len(r['out'].points)}点 achieved={r['achieved']:.3f}s "
+            f"min_time={r['min_time']:.3f}s jerk={r['jerk']:.1f}deg/s^3")
+        return r
 
     def _scale_retime(self, base_traj, duration_s):
         """段階1.5：MoveIt が返した base_traj（★Ruckig 平滑化アダプタ有効前提でジャーク制限済）を
