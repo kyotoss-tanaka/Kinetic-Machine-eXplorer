@@ -25,8 +25,10 @@ public sealed class MachineInterferenceChecker : MonoBehaviour
     [SerializeField] private int intervalFrames = 8;
     [Tooltip("この三角形数を超えるメッシュはナローフェーズをスキップ(重すぎ回避)。0=無制限")]
     [SerializeField] private int maxTrianglesPerMesh = 6000;
-    [Tooltip("1回のチェックで実行する三角形-三角形テストの上限(フリーズ防止)。超えたら中断し次回に持ち越し")]
-    [SerializeField] private int triTestBudget = 120000;
+    [Tooltip("1回のチェックで実行する三角形-三角形テストの上限。超えたら中断し次回に持ち越し")]
+    [SerializeField] private int triTestBudget = 30000;
+    [Tooltip("1フレームで判定に使う最大時間(ms)。超えたら中断し次フレーム継続。処理落ちで固まるのを防ぐ本命ガード")]
+    [SerializeField] private float maxMillisPerFrame = 4f;
 
     // 重なり領域に張るグリッドの分割数(軸あたり)。大きいほど枝刈りは効くがセル管理コスト増。
     private const int GridDim = 16;
@@ -43,6 +45,11 @@ public sealed class MachineInterferenceChecker : MonoBehaviour
         public bool checkedMover;   // チェック対象(a側)。isCollision ユニットのみ true
         public Transform unitRoot;   // 動くユニットのルート(同一ユニット内除外用)。固定は null
         public int triCount;
+        public Vector3[] localVerts; // ローカル頂点(不変・Setupで1回取得)
+        public int[] tris;           // 三角形index(三角形サブメッシュのみ・Setupで1回取得。線/点は除外)
+        public Vector3[] worldVerts; // ワールド頂点バッファ(再利用・毎フレーム確保しない)
+        public bool worldBuilt;      // static のワールド変換済みフラグ
+        public int worldPass;        // moving のワールド変換を行った pass 番号(同一 pass 内は再変換しない)
     }
 
     private readonly List<Part> parts = new();
@@ -62,12 +69,8 @@ public sealed class MachineInterferenceChecker : MonoBehaviour
     private readonly HashSet<MeshRenderer> curRed = new();
     private readonly HashSet<MeshRenderer> prevRed = new();
 
-    // 動くメッシュのワールド頂点(この Check 内だけキャッシュ・毎 Check クリア)。
-    private readonly Dictionary<Part, Vector3[]> movingWorld = new();
-    private readonly Dictionary<Part, int[]> movingTris = new();
-    // 静止メッシュのワールド頂点(一度だけ計算して保持・動かない前提)。
-    private readonly Dictionary<Part, Vector3[]> staticWorld = new();
-    private readonly Dictionary<Part, int[]> staticTris = new();
+    // ワールド頂点は各 Part の worldVerts バッファに再利用格納。moving は pass 毎に1回だけ再変換。
+    private int passId;   // CheckCore 呼び出し毎にインクリメント（moving のワールド変換キャッシュ判定用）
 
     // ── ナローフェーズ用グリッドのスクラッチ(使い回し) ──
     private List<int>[] cells;             // セル -> b三角形の開始インデックス(ib)一覧
@@ -85,15 +88,20 @@ public sealed class MachineInterferenceChecker : MonoBehaviour
     {
         parts.Clear();
         movingParts.Clear();
-        movingWorld.Clear();
-        movingTris.Clear();
-        staticWorld.Clear();
-        staticTris.Clear();
+        passId = 0;
         baseline.Clear();
         baselineReady = false;
         scanOffset = 0;
         resumeJ = 0;
         warnedBudget = false;
+        // ★グリッド/赤状態のスクラッチもクリア（再Setup=F5等で cells を作り直すため、usedCells に古い
+        //   インデックスが残ると ClearGrid で null 参照する。visited/赤状態も前セッションを持ち越さない）。
+        usedCells.Clear();
+        bigB.Clear();
+        visited = null;
+        curRed.Clear();
+        prevRed.Clear();
+        origMat.Clear();
         var seen = new HashSet<MeshFilter>();
 
         if (movingRoots != null)
@@ -149,32 +157,58 @@ public sealed class MachineInterferenceChecker : MonoBehaviour
             if (t.name == "SafetyZones") { return; }
         }
         if (!seen.Add(mf)) { return; }
-        // triCount は GetIndexCount で取得(mesh.triangles を読むと全メッシュ分の配列確保でロードが重い)。
-        int tri = 0;
         var sm = mf.sharedMesh;
-        for (int s = 0; s < sm.subMeshCount; s++) { tri += (int)(sm.GetIndexCount(s) / 3); }
-        if (tri <= 0) { return; }
-        var p = new Part { id = parts.Count, mf = mf, rend = r, moving = moving, checkedMover = checkedMover, unitRoot = unitRoot, triCount = tri };
+        // ★三角形サブメッシュのみから index を集める（線/点トポロジは mesh.triangles が失敗するため除外）。
+        //   頂点・三角形は不変なので Setup で1回だけ取得してキャッシュ（毎フレームの mesh.vertices/triangles 確保も回避）。
+        int[] tris = GatherTriangleIndices(sm);
+        if (tris == null || tris.Length == 0) { return; }   // 三角形が無い(線/点/空) → 干渉対象外
+        var localVerts = sm.vertices;
+        var p = new Part
+        {
+            id = parts.Count, mf = mf, rend = r, moving = moving, checkedMover = checkedMover,
+            unitRoot = unitRoot, triCount = tris.Length / 3,
+            localVerts = localVerts, tris = tris, worldVerts = new Vector3[localVerts.Length],
+        };
         parts.Add(p);
         if (checkedMover) { movingParts.Add(p); }
     }
 
-    private void FixedUpdate()
+    /// <summary>三角形トポロジのサブメッシュだけから index を集める（線/点は mesh.triangles が失敗するため除外）。Setup時のみ。</summary>
+    private static int[] GatherTriangleIndices(Mesh mesh)
+    {
+        var all = new List<int>();
+        var tmp = new List<int>();
+        for (int s = 0; s < mesh.subMeshCount; s++)
+        {
+            if (mesh.GetTopology(s) != MeshTopology.Triangles) { continue; }
+            mesh.GetTriangles(tmp, s);   // 該当サブメッシュの三角形index(共有頂点配列基準)
+            all.AddRange(tmp);
+        }
+        return all.Count > 0 ? all.ToArray() : null;
+    }
+
+    // ★FixedUpdate ではなく Update で回す：重い判定が1物理ステップ(20ms)を超えると FixedUpdate は
+    //   catch-up で連続実行され描画に回らず「完全フリーズ」する。Update は1描画フレーム1回なので、
+    //   時間予算(maxMillisPerFrame)で打ち切れば重くても描画は回り、操作不能にならない。
+    private void Update()
     {
         if (!ready) { return; }
+        // ★トグルOFF中は「ベースラインも判定も」走らせない（起動時フリーズ回避）。
+        //   isCollision を付けただけ(トグルOFF)で起動中に重いベースライン採取が走るのを防ぐ。
+        //   仕様書 kmx_ros2/INTERFERENCE_STARTUP_FREEZE_FIX.md。
+        if (!GlobalScript.isCollision)
+        {
+            if (curRed.Count > 0 || prevRed.Count > 0 || scanOffset != 0) { RevertAll(); }
+            return;
+        }
+        // 初めてトグルON になった時に、現姿勢の常時接触ペアを基準採取（完了まで間引き無視で毎フレーム）。
         if (!baselineReady)
         {
-            // ホーム姿勢(設計組立状態)で常時接触ペアを基準採取。完了まで毎フレーム回す(トグル/間引き無関係)。
             if (CheckCore(true))
             {
                 baselineReady = true;
                 Debug.Log($"[Interference] 基準接触 {baseline.Count} ペアを設計上の接触として除外登録。");
             }
-            return;
-        }
-        if (!GlobalScript.isCollision)
-        {
-            if (curRed.Count > 0 || prevRed.Count > 0 || scanOffset != 0) { RevertAll(); }
             return;
         }
         if (intervalFrames > 1 && (frameCtr++ % intervalFrames) != 0) { return; }
@@ -190,10 +224,10 @@ public sealed class MachineInterferenceChecker : MonoBehaviour
         bool fresh = (scanOffset == 0 && resumeJ == 0);
         int firstResume = resumeJ;
         resumeJ = 0;
-        movingWorld.Clear();
-        movingTris.Clear();
+        passId++;   // このパスで moving のワールド変換を1回だけ行う判定用
         if (!calibrate && fresh) { curRed.Clear(); }   // 新パス開始でのみクリア(持ち越し中は蓄積)
         int budget = triTestBudget;
+        double t0 = Time.realtimeSinceStartupAsDouble;   // 1フレーム時間予算の起点
         int n = movingParts.Count;
         int partsN = parts.Count;
 
@@ -215,6 +249,16 @@ public sealed class MachineInterferenceChecker : MonoBehaviour
                 long key = PairKey(a.id, b.id);
                 if (!calibrate && baseline.Contains(key)) { continue; }   // 設計上の接触は除外
                 if (!ab.Intersects(b.rend.bounds)) { continue; }
+
+                // ★時間予算: 1フレームで maxMillisPerFrame を超えたら、このペア未処理のまま打ち切り→次フレーム継続。
+                //   1回の判定が長引いて Update/描画が固まるのを防ぐ本命ガード（triTestBudget では BuildWorld 等を拾えない）。
+                if ((Time.realtimeSinceStartupAsDouble - t0) * 1000.0 > maxMillisPerFrame)
+                {
+                    scanOffset = i;
+                    resumeJ = j;   // このペアは未処理なので j から再開
+                    if (!calibrate) { ApplyRed(); }
+                    return false;
+                }
 
                 bool hit = MeshesIntersect(a, b, ref budget);
                 if (hit)
@@ -393,32 +437,23 @@ public sealed class MachineInterferenceChecker : MonoBehaviour
         return visitTok;
     }
 
-    /// <summary>ワールド頂点(＋三角形)を返す。静止部品は一度だけ計算して保持、動く部品は Check 内キャッシュ。</summary>
+    /// <summary>
+    /// キャッシュ済みローカル頂点をワールドへ変換して返す(＋三角形)。バッファ(worldVerts)再利用で毎フレーム確保しない。
+    /// static は一度だけ変換して保持、moving は pass 毎に1回だけ再変換。mesh.vertices/triangles は呼ばない(線/点で失敗しない・GCなし)。
+    /// </summary>
     private (Vector3[] verts, int[] tris) GetWorld(Part p)
     {
-        if (!p.moving)
+        if (p.localVerts == null || p.tris == null || p.rend == null) { return (null, null); }
+        // static: 動かない前提で1回のみ変換。moving: このパスでまだなら再変換。
+        if (p.moving ? (p.worldPass != passId) : !p.worldBuilt)
         {
-            if (staticWorld.TryGetValue(p, out var sv)) { return (sv, staticTris[p]); }
-            var (w0, t0) = BuildWorld(p);
-            if (w0 != null) { staticWorld[p] = w0; staticTris[p] = t0; }
-            return (w0, t0);
+            var m = p.rend.localToWorldMatrix;
+            var lv = p.localVerts;
+            var wv = p.worldVerts;
+            for (int i = 0; i < lv.Length; i++) { wv[i] = m.MultiplyPoint3x4(lv[i]); }
+            if (p.moving) { p.worldPass = passId; } else { p.worldBuilt = true; }
         }
-        if (movingWorld.TryGetValue(p, out var mv)) { return (mv, movingTris[p]); }
-        var (w1, t1) = BuildWorld(p);
-        if (w1 != null) { movingWorld[p] = w1; movingTris[p] = t1; }
-        return (w1, t1);
-    }
-
-    private (Vector3[] verts, int[] tris) BuildWorld(Part p)
-    {
-        if (p.mf == null || p.mf.sharedMesh == null || p.rend == null) { return (null, null); }
-        var mesh = p.mf.sharedMesh;
-        var local = mesh.vertices;
-        var tris = mesh.triangles;
-        var m = p.rend.localToWorldMatrix;
-        var world = new Vector3[local.Length];
-        for (int i = 0; i < local.Length; i++) { world[i] = m.MultiplyPoint3x4(local[i]); }
-        return (world, tris);
+        return (p.worldVerts, p.tris);
     }
 
     private static bool AabbOverlap(Vector3 amin, Vector3 amax, Vector3 b0, Vector3 b1, Vector3 b2)
@@ -469,6 +504,12 @@ public sealed class MachineInterferenceChecker : MonoBehaviour
     // ── 赤/復帰 ──────────────────────
     private void ApplyRed()
     {
+        // [診断・一時] 干渉検出数の変化と redMat の有無をログ（確認後に削除）。
+        //   検出0のまま→未検出(ベースライン除外/対象漏れ)。数>0だが赤くならない→redMat未ロード等。
+        if (curRed.Count != prevRed.Count)
+        {
+            Debug.Log($"[Interference] 干渉 renderer 数 {prevRed.Count}→{curRed.Count} (redMat={(redMat != null)}, baseline={baseline.Count})");
+        }
         // 今回赤 → 赤マテリアルに(元を保存)。
         foreach (var r in curRed)
         {

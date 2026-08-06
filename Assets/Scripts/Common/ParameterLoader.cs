@@ -795,8 +795,8 @@ namespace Parameters
                 else
                 {
                     // ★重い MeshCollider(SAColliderBuilder・凹Raw)は廃止し、メッシュ直読みの軽量干渉チェッカで機械干渉を可視化。
-                    //   生成条件は buildConfig.isCollision ではなく「isCollision かつ 動作する(actionSetting!=null)ユニットの有無」。
-                    //   ＝ROS2障害物(isCollisionの実体箱)とは独立。a側=下記ユニットのみ、相手(b側)=機械全体。ON/OFF は GlobalScript.isCollision。
+                    //   チェック対象(a側)=「isCollision かつ 動作する(actionSetting!=null)」ユニット。
+                    //   ＝ROS2障害物(isCollisionの実体箱)とは独立。相手(b側)=機械全体。ON/OFF は GlobalScript.isCollision。
                     var movingRoots = new List<GameObject>();
                     var checkedRoots = new HashSet<GameObject>();
                     foreach (var obj in movableObjs)
