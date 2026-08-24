@@ -80,6 +80,8 @@ namespace Parameters
             public int PcNo { get; set; }
             public string endpointURL { get; set; } = "";
             public string nameSpaceIndex { get; set; } = "";
+            public bool ethernetIpIsLarge { get; set; }
+            public int ethernetIpLargeSize { get; set; }
             public List<KMXDBSetting> tags { get; set; } = new();
             public bool isMcProtocol
             {
@@ -107,6 +109,13 @@ namespace Parameters
                 get
                 {
                     return protocol == eProtocolType.OPC_UA;
+                }
+            }
+            public bool isEtherNetIP
+            {
+                get
+                {
+                    return protocol == eProtocolType.EtherNetIP;
                 }
             }
         }

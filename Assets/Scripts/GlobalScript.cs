@@ -247,6 +247,11 @@ public static class GlobalScript
     public static Dictionary<string, ITagCom> opcuas = new Dictionary<string, ITagCom>();
 
     /// <summary>
+    /// EtherNet/IP通信
+    /// </summary>
+    public static Dictionary<string, ITagCom> ethernetips = new Dictionary<string, ITagCom>();
+
+    /// <summary>
     /// ワーク
     /// </summary>
     public static Dictionary<string, GameObject> works = new Dictionary<string, GameObject>();
@@ -508,6 +513,7 @@ public static class GlobalScript
         mcprotocols = new Dictionary<string, ITagCom>();
         mickses = new Dictionary<string, ITagCom>();
         opcuas = new Dictionary<string, ITagCom>();
+        ethernetips = new Dictionary<string, ITagCom>();
         works = new Dictionary<string, GameObject>();
         regObjects = new Dictionary<string, List<GameObject>>();
         regScripts = new Dictionary<string, List<GameObject>>();
@@ -716,6 +722,14 @@ public static class GlobalScript
             else if (mickses.ContainsKey(tag.Key))
             {
                 mickses[tag.Key].SetDatas(tag.Value);
+            }
+            else if (opcuas.ContainsKey(tag.Key))
+            {
+                opcuas[tag.Key].SetDatas(tag.Value);
+            }
+            else if (ethernetips.ContainsKey(tag.Key))
+            {
+                ethernetips[tag.Key].SetDatas(tag.Value);
             }
         }
     }

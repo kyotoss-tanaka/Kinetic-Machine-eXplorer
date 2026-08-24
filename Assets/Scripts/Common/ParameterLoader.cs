@@ -2082,6 +2082,11 @@ namespace Parameters
                             var db = (ComOpcUa)globalSetting.AddComponent<ComOpcUa>();
                             db.SetParameter(p.No, p.Cycle, p.Server, p.Port, p.Database, p.User, p.Password, p.isClientMode, ex, direct);
                         }
+                        else if (direct.isEtherNetIP)
+                        {
+                            var db = (ComEthernetIP)globalSetting.AddComponent<ComEthernetIP>();
+                            db.SetParameter(p.No, p.Cycle, p.Server, p.Port, p.Database, p.User, p.Password, p.isClientMode, ex, direct);
+                        }
                     }
                 }
             }

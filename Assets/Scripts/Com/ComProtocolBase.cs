@@ -919,30 +919,7 @@ public class ComProtocolBase : ComBaseScript, ITagCom
                 int size = 0;
                 if (StreamRead(readBuff, ref size))
                 {
-                    List<byte> lstTmp = new List<byte>();
-                    // プロトコルチェック
-                    if (this is ComMcProtocol)
-                    {
-                        if (BitConverter.ToUInt16(readBuff, 0) != 0x00D0)
-                        {
-                            return readBuff.ToList();
-                        }
-                        // データサイズ取得
-                        ushort readSize = BitConverter.ToUInt16(readBuff, 7);
-                        // 終了コード以降を取得
-                        for (int i = 0; i < readSize; i++)
-                        {
-                            lstTmp.Add(readBuff[9 + i]);
-                        }
-                    }
-                    else if(this is ComMicks)
-                    {
-                        for (int i = 0; i < size; i++)
-                        {
-                            lstTmp.Add(readBuff[i]);
-                        }
-                    }
-                    return lstTmp;
+                    return ExtractPayload(readBuff, size);
                 }
                 else
                 {
@@ -955,6 +932,40 @@ public class ComProtocolBase : ComBaseScript, ITagCom
             }
         }
         return buff;
+    }
+
+    /// <summary>
+    /// 応答からペイロードを切り出す
+    /// </summary>
+    /// <param name="buff">受信バッファ</param>
+    /// <param name="size">受信サイズ</param>
+    /// <returns>ペイロード</returns>
+    protected virtual List<byte> ExtractPayload(byte[] buff, int size)
+    {
+        List<byte> lstTmp = new List<byte>();
+        // プロトコルチェック
+        if (this is ComMcProtocol)
+        {
+            if (BitConverter.ToUInt16(buff, 0) != 0x00D0)
+            {
+                return buff.ToList();
+            }
+            // データサイズ取得
+            ushort readSize = BitConverter.ToUInt16(buff, 7);
+            // 終了コード以降を取得
+            for (int i = 0; i < readSize; i++)
+            {
+                lstTmp.Add(buff[9 + i]);
+            }
+        }
+        else if (this is ComMicks)
+        {
+            for (int i = 0; i < size; i++)
+            {
+                lstTmp.Add(buff[i]);
+            }
+        }
+        return lstTmp;
     }
 
     /// <summary>

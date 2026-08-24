@@ -61,6 +61,11 @@ namespace Parameters
             /// </summary>
             OPC_UA,
             /// <summary>
+            /// EtherNet/IP通信プロトコル
+            /// ※数値はKMXTool(MMS)側のeProtocolTypeと一致させること（Postgres.jsonに数値で出力される）
+            /// </summary>
+            EtherNetIP,
+            /// <summary>
             /// 接続先なし
             /// </summary>
             None
