@@ -73,11 +73,11 @@ KssBaseScript → ComBaseScript → ComProtocolBase → ComEthernetIP  ★新規
 
 ### 3.3 定数
 
-| プロパティ | 既定 | ComEthernetIP 推奨値 | 根拠 |
+| プロパティ | 既定 | ComEthernetIP 実装値 | 根拠 |
 |---|---|---|---|
-| `BULK_RCV_COUNT` | 900 | **240** | UCMM（非接続メッセージ）の実用上限が約 504 バイト。INT 240 個 = 480 バイト |
+| `BULK_RCV_COUNT` | 900 | **100（Large時は `ethernetIpLargeSize/4` まで拡大）** | UCMM（非接続メッセージ）の実用上限が約 504 バイト。DINT 100 個 = 400 バイト |
 | `BIT_COUNT` | 16 | **32** | CIP の BOOL 配列は 32bit（DWORD）単位でパックされる |
-| `LAN_BUFF_MAX` | 4096 | **4096（オーバーライド不要）** | 上記より応答は 600 バイト未満に収まる |
+| `LAN_BUFF_MAX` | 4096 | **8192** | Large Forward Open 時の大きな応答（最大 `ethernetIpLargeSize`+ヘッダ）を受けるため |
 
 ---
 
@@ -526,7 +526,8 @@ Start()
 | Implicit (I/O) Messaging | 非対応 | UDP 2222 の周期通信。フレームワークの要求応答モデルと合わないため別系統が必要 |
 | Assembly オブジェクト | 非対応 | §5.2。汎用アダプタ対応時に追加 |
 | Read Tag Fragmented (`0x52`) | 非対応 | `BULK_RCV_COUNT` 超過時に必要。まずはチャンク分割で回避 |
-| Multiple Service Packet (`0x0A`) | 非対応 | 非連続タグの一括読み出しによる高速化 |
+| Multiple Service Packet (`0x0A`) | **対応** | 複数チャンクをPDUサイズで分割しつつ1往復に集約（読み/書き両対応） |
+| Large Forward Open (`0x5B`) / Connected | **対応** | `ethernetIpIsLarge` 指定時にCIP接続を確立し SendUnitData(`0x0070`) で通信。失敗時はUCMMで継続 |
 | 構造体タグ / UDT | 非対応 | Template オブジェクト経由での型情報取得が必要 |
 | **REAL (float)** | **対応**（§7.3） | `TagInfo.fValue` / `isFloat` を使用。既存タグモデルの変更は不要 |
 | LREAL (double) | 要検討 | `TagInfo.fValue` が `float` のため倍精度は丸められる。必要なら別途方針決定 |

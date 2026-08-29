@@ -5,11 +5,15 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
+using System.Threading;
 using UnityEngine;
 
 /// <summary>
 /// EtherNet/IP (CIP over TCP) 通信クラス
-/// Explicit Messaging (UCMM / SendRRData) によるシンボリックタグの読み書きを行う。
+/// Explicit Messagingによるシンボリックタグの読み書きを行う。
+/// - 複数タグはMultiple Service Packet(0x0A)で1往復に集約
+/// - ethernetIpIsLarge指定時はLarge Forward Open(0x5B)でCIP接続を確立し、
+///   SendUnitData(0x0070)のConnected通信で大きなPDUを使用（失敗時はUCMMで継続）
 /// アドレスは NodeId（KMXTool出力の標準形式。OPC UAと同様）を優先し、
 /// NodeIdが空の場合は「配列タグ名(RegisterType) + 添字(RegisterNo)」方式（docs/ComEthernetIP仕様.md §5.1）。
 /// </summary>
@@ -20,13 +24,21 @@ public class ComEthernetIP : ComProtocolBase
     private const ushort EIP_CMD_REGISTER_SESSION = 0x0065;
     /// <summary>カプセル化コマンド：セッション解放</summary>
     private const ushort EIP_CMD_UNREGISTER_SESSION = 0x0066;
-    /// <summary>カプセル化コマンド：CIP要求/応答</summary>
+    /// <summary>カプセル化コマンド：CIP要求/応答(UCMM)</summary>
     private const ushort EIP_CMD_SEND_RR_DATA = 0x006F;
+    /// <summary>カプセル化コマンド：CIP要求/応答(Connected)</summary>
+    private const ushort EIP_CMD_SEND_UNIT_DATA = 0x0070;
 
     /// <summary>CIPサービス：Read Tag</summary>
     private const byte CIP_SERVICE_READ = 0x4C;
     /// <summary>CIPサービス：Write Tag</summary>
     private const byte CIP_SERVICE_WRITE = 0x4D;
+    /// <summary>CIPサービス：Multiple Service Packet</summary>
+    private const byte CIP_SERVICE_MULTI = 0x0A;
+    /// <summary>CIPサービス：Large Forward Open</summary>
+    private const byte CIP_SERVICE_LARGE_FORWARD_OPEN = 0x5B;
+    /// <summary>CIPサービス：Forward Close</summary>
+    private const byte CIP_SERVICE_FORWARD_CLOSE = 0x4E;
 
     /// <summary>CIPデータ型：BOOL</summary>
     private const ushort CIP_TYPE_BOOL = 0x00C1;
@@ -51,6 +63,12 @@ public class ComEthernetIP : ComProtocolBase
     private const int EIP_HEADER_SIZE = 24;
     /// <summary>SendRRData応答のCIP応答開始オフセット（ヘッダ24 + InterfaceHandle4 + Timeout2 + CPF10）</summary>
     private const int CIP_RESPONSE_OFFSET = 40;
+    /// <summary>SendUnitData応答のCIP応答開始オフセット（ヘッダ24 + InterfaceHandle4 + Timeout2 + CPF14 + Sequence2）</summary>
+    private const int CIP_RESPONSE_OFFSET_CONNECTED = 46;
+    /// <summary>UCMM(非接続)のPDU実用上限</summary>
+    private const int MAX_UNCONNECTED_SIZE = 500;
+    /// <summary>CIPヘッダ等のオーバーヘッド分の余裕</summary>
+    private const int HEAD_BUFFER_SIZE = 100;
     #endregion 定数
 
     #region 変数
@@ -60,9 +78,29 @@ public class ComEthernetIP : ComProtocolBase
     private uint sessionHandle = 0;
 
     /// <summary>
-    /// コマンドID（Sender Contextに載せる要求識別子）
+    /// Connected通信が有効か（Large Forward Open成功時true）
     /// </summary>
-    private int _commandId = 0;
+    private bool connectedMessaging = false;
+
+    /// <summary>
+    /// O->TコネクションID（Forward Openで取得）
+    /// </summary>
+    private uint otConnectionId = 0;
+
+    /// <summary>
+    /// Connected通信のシーケンス番号カウンタ（受信/送信スレッド共用のためInterlockedで加算）
+    /// </summary>
+    private int sequenceCounter = 0;
+
+    /// <summary>
+    /// コネクションシリアル番号（Forward Openごとに加算）
+    /// </summary>
+    private ushort connectionSerial = 0;
+
+    /// <summary>
+    /// コマンドID採番カウンタ
+    /// </summary>
+    private int commandCounter = 0;
 
     /// <summary>
     /// ビットレジスタ定義（接続先タグから動的構築）
@@ -85,7 +123,7 @@ public class ComEthernetIP : ComProtocolBase
     private List<string> lstRegTypeData64 = new();
 
     /// <summary>
-    /// 読み出し応答から学習したタグごとのCIPデータ型（書き込み時の型決定に使用。受信/送信は別スレッドのためConcurrent）
+    /// 読み出し応答から学習したタグごとのCIPデータ型（書き込みやサイズ見積りに使用。受信/送信は別スレッドのためConcurrent）
     /// </summary>
     private ConcurrentDictionary<string, ushort> dctCipTypes = new();
     #endregion 変数
@@ -135,13 +173,18 @@ public class ComEthernetIP : ComProtocolBase
     }
 
     /// <summary>
-    /// 一括受信カウント（UCMMの実用上限 約504バイト → INT 240個 = 480バイト）
+    /// 一括受信カウント
+    /// UCMMは実用上限約504バイト（DINT換算100要素）。Large Forward Open指定時は設定サイズまで拡大
     /// </summary>
     public override int BULK_RCV_COUNT
     {
         get
         {
-            return 240;
+            if ((directData != null) && directData.ethernetIpIsLarge)
+            {
+                return Math.Max(100, (directData.ethernetIpLargeSize - HEAD_BUFFER_SIZE) / 4);
+            }
+            return 100;
         }
     }
 
@@ -153,6 +196,17 @@ public class ComEthernetIP : ComProtocolBase
         get
         {
             return 32;
+        }
+    }
+
+    /// <summary>
+    /// バッファ最大サイズ（LargeサイズのConnected応答に対応）
+    /// </summary>
+    protected override int LAN_BUFF_MAX
+    {
+        get
+        {
+            return 8192;
         }
     }
 
@@ -270,29 +324,49 @@ public class ComEthernetIP : ComProtocolBase
 
     /// <summary>
     /// 接続処理
-    /// TCP接続後にRegister Sessionを実行してセッションハンドルを取得する。
+    /// TCP接続後にRegister Sessionを実行し、Large指定時はLarge Forward OpenでCIP接続を確立する。
     /// </summary>
     /// <returns></returns>
     protected override bool Connect()
     {
         if (base.Connect())
         {
-            if (sessionHandle != 0)
+            if (sessionHandle == 0)
             {
-                // セッション確立済み
-                return true;
+                if (!RegisterSession())
+                {
+                    return false;
+                }
             }
-            return RegisterSession();
+            if ((directData != null) && directData.ethernetIpIsLarge && !connectedMessaging)
+            {
+                connectedMessaging = TryForwardOpen();
+                if (!connectedMessaging)
+                {
+                    // 失敗してもUCMMで継続する
+                    CommonFunction.DebugLog("EtherNet/IP LargeForwardOpen失敗: UCMMで継続します");
+                }
+            }
+            return true;
         }
         return false;
     }
 
     /// <summary>
     /// 切断処理
-    /// UnRegister Sessionを送信してからTCPを閉じる。
+    /// Forward Close / UnRegister Sessionを送信してからTCPを閉じる。
     /// </summary>
     protected override void Disconnect()
     {
+        if (connectedMessaging && (tcp._tcpClient != null))
+        {
+            // UCMMで包むため先にフラグを落とす
+            connectedMessaging = false;
+            TryForwardClose();
+        }
+        connectedMessaging = false;
+        otConnectionId = 0;
+        sequenceCounter = 0;
         if ((sessionHandle != 0) && (tcp._tcpClient != null))
         {
             // UnRegister Session（応答なし）
@@ -356,6 +430,315 @@ public class ComEthernetIP : ComProtocolBase
     }
 
     /// <summary>
+    /// Large Forward Open(0x5B)を送信してCIP接続を確立する
+    /// </summary>
+    /// <returns></returns>
+    private bool TryForwardOpen()
+    {
+        connectionSerial++;
+        var body = new List<byte>();
+        body.Add(0x0A);                                                 // Priority/Time-tick
+        body.Add(0x0E);                                                 // Timeout ticks
+        uint reqOtId = (uint)(0xFFF30000 | connectionSerial);
+        body.AddRange(BitConverter.GetBytes(reqOtId));                  // O->T Connection ID
+        body.AddRange(BitConverter.GetBytes((uint)0x87654321));         // T->O Connection ID
+        body.AddRange(BitConverter.GetBytes(connectionSerial));         // Connection Serial Number
+        body.AddRange(BitConverter.GetBytes((ushort)0x0001));           // Originator Vendor ID
+        body.AddRange(BitConverter.GetBytes((uint)0x00000001));         // Originator Serial Number
+        body.Add(0x07);                                                 // Timeout Multiplier
+        body.Add(0x00);
+        body.Add(0x00);
+        body.Add(0x00);                                                 // Reserved(3byte)
+        int largeSize = Math.Max(directData.ethernetIpLargeSize, MAX_UNCONNECTED_SIZE);
+        uint networkParams = 0x42000000 | (uint)largeSize;
+        body.AddRange(BitConverter.GetBytes((uint)40000));              // O->T RPI(μs)
+        body.AddRange(BitConverter.GetBytes(networkParams));            // O->T Network Parameters
+        body.AddRange(BitConverter.GetBytes((uint)40000));              // T->O RPI(μs)
+        body.AddRange(BitConverter.GetBytes(networkParams));            // T->O Network Parameters
+        body.Add(0xA3);                                                 // Transport Class/Trigger
+        var connPath = new byte[] { 0x20, 0x02, 0x24, 0x01 };           // Message Router
+        body.Add((byte)(connPath.Length / 2));
+        body.AddRange(connPath);
+
+        var cip = new List<byte> { CIP_SERVICE_LARGE_FORWARD_OPEN, 0x02, 0x20, 0x06, 0x24, 0x01 };  // Connection Manager
+        cip.AddRange(body);
+        var packet = WrapEipPacket(cip, NextCommandId());   // この時点ではconnectedMessaging=falseのためUCMMで包まれる
+        lock (m_ComLock)
+        {
+            if (!StreamWrite(packet))
+            {
+                Disconnect();
+                return false;
+            }
+            int size = 0;
+            if (!StreamRead(readBuff, ref size))
+            {
+                Disconnect();
+                return false;
+            }
+            if (size <= CIP_RESPONSE_OFFSET + 8)
+            {
+                return false;
+            }
+            var service = readBuff[CIP_RESPONSE_OFFSET];
+            var status = readBuff[CIP_RESPONSE_OFFSET + 2];
+            if ((service != (CIP_SERVICE_LARGE_FORWARD_OPEN | 0x80)) || (status != 0x00))
+            {
+                CommonFunction.DebugLog($"EtherNet/IP LargeForwardOpen失敗: service=0x{service:X2} status=0x{status:X2}");
+                return false;
+            }
+            var addl = readBuff[CIP_RESPONSE_OFFSET + 3] * 2;
+            otConnectionId = BitConverter.ToUInt32(readBuff, CIP_RESPONSE_OFFSET + 4 + addl);   // O->T Connection ID
+            CommonFunction.DebugLog($"EtherNet/IP LargeForwardOpen成功: O->T=0x{otConnectionId:X8} SIZE={largeSize}");
+            return otConnectionId != 0;
+        }
+    }
+
+    /// <summary>
+    /// Forward Close(0x4E)を送信する（応答待ちなし）
+    /// </summary>
+    private void TryForwardClose()
+    {
+        var body = new List<byte>();
+        body.Add(0x0A);                                                 // Priority/Time-tick
+        body.Add(0x0E);                                                 // Timeout ticks
+        body.AddRange(BitConverter.GetBytes(connectionSerial));         // Connection Serial Number
+        body.AddRange(BitConverter.GetBytes((ushort)0x0001));           // Originator Vendor ID
+        body.AddRange(BitConverter.GetBytes((uint)0x00000001));         // Originator Serial Number
+        var connPath = new byte[] { 0x20, 0x02, 0x24, 0x01 };
+        body.Add((byte)(connPath.Length / 2));
+        body.Add(0x00);                                                 // Reserved
+        body.AddRange(connPath);
+
+        var cip = new List<byte> { CIP_SERVICE_FORWARD_CLOSE, 0x02, 0x20, 0x06, 0x24, 0x01 };
+        cip.AddRange(body);
+        var packet = WrapEipPacket(cip, NextCommandId());
+        lock (m_ComLock)
+        {
+            StreamWrite(packet);
+        }
+    }
+
+    /// <summary>
+    /// 受信処理
+    /// 複数チャンクをMultiple Service Packetで1往復に集約する（PDUサイズで分割）
+    /// </summary>
+    /// <returns></returns>
+    protected override bool Recieve()
+    {
+        var chunks = new List<KMXDBSetting>();
+        foreach (var tags in dctReadSortedTags1)
+        {
+            chunks.AddRange(tags.Value);
+        }
+        if (isFirst)
+        {
+            // 初回のみ書き込みデータ受信（書き込み型の学習を兼ねる）
+            foreach (var tags in dctReadSortedTags2)
+            {
+                chunks.AddRange(tags.Value);
+            }
+        }
+        if (chunks.Count == 0)
+        {
+            return true;
+        }
+        var ret = true;
+        foreach (var group in SplitBySize(chunks, true))
+        {
+            if (group.Count == 1)
+            {
+                int commandId = 0;
+                ret &= Read(group[0], ref commandId);
+            }
+            else
+            {
+                ret &= SendMultiple(group, group.Select(d => BuildReadRequest(d)).ToList());
+            }
+            if (!IsConnected)
+            {
+                return false;
+            }
+        }
+        return ret;
+    }
+
+    /// <summary>
+    /// 送信処理
+    /// 複数チャンクをMultiple Service Packetで1往復に集約する（PDUサイズで分割）
+    /// </summary>
+    /// <returns></returns>
+    protected override bool Send()
+    {
+        var chunks = new List<KMXDBSetting>();
+        foreach (var tags in dctWriteSortedTags)
+        {
+            chunks.AddRange(tags.Value);
+        }
+        if (chunks.Count == 0)
+        {
+            return true;
+        }
+        var ret = true;
+        foreach (var group in SplitBySize(chunks, false))
+        {
+            if (group.Count == 1)
+            {
+                int commandId = 0;
+                ret &= Write(group[0], ref commandId);
+            }
+            else
+            {
+                ret &= SendMultiple(group, group.Select(d => BuildWriteRequest(d, BuildWriteValues(d))).ToList());
+            }
+            if (!IsConnected)
+            {
+                return false;
+            }
+        }
+        return ret;
+    }
+
+    /// <summary>
+    /// 推定サイズがPDU上限を超えないようにチャンクを分割する
+    /// </summary>
+    /// <param name="chunks"></param>
+    /// <param name="isRead"></param>
+    /// <returns></returns>
+    private List<List<KMXDBSetting>> SplitBySize(List<KMXDBSetting> chunks, bool isRead)
+    {
+        var limit = (connectedMessaging
+            ? Math.Max(directData.ethernetIpLargeSize, MAX_UNCONNECTED_SIZE)
+            : MAX_UNCONNECTED_SIZE) - HEAD_BUFFER_SIZE;
+
+        var groups = new List<List<KMXDBSetting>>();
+        var current = new List<KMXDBSetting>();
+        var currentSize = 0;
+        foreach (var chunk in chunks)
+        {
+            var elemSize = EstimateElementSize(chunk);
+            var count = regTypeBit.Contains(chunk.RegisterType)
+                ? (int)Math.Ceiling(chunk.AllDataCount / (double)BIT_COUNT)
+                : chunk.AllDataCount;
+            var tagName = string.IsNullOrEmpty(chunk.NodeId) ? chunk.RegisterType : chunk.NodeId;
+            // 要求: パス(2+名前長+パディング) + サービス系(6) + 書き込みなら型/点数/データ
+            var requestSize = 2 + tagName.Length + (tagName.Length % 2) + 6 + (isRead ? 0 : (4 + count * elemSize));
+            // 応答: データ + ヘッダ系(8)
+            var responseSize = (isRead ? count * elemSize : 0) + 8;
+            var estimatedSize = Math.Max(requestSize, responseSize);
+            if ((current.Count > 0) && (currentSize + estimatedSize > limit))
+            {
+                groups.Add(current);
+                current = new List<KMXDBSetting>();
+                currentSize = 0;
+            }
+            current.Add(chunk);
+            currentSize += estimatedSize;
+        }
+        if (current.Count > 0)
+        {
+            groups.Add(current);
+        }
+        return groups;
+    }
+
+    /// <summary>
+    /// 1要素のバイト数を見積る（学習済みのCIP型があれば優先）
+    /// </summary>
+    /// <param name="data"></param>
+    /// <returns></returns>
+    private int EstimateElementSize(KMXDBSetting data)
+    {
+        if (dctCipTypes.TryGetValue(data.DataTag, out var learned))
+        {
+            return GetElementSize(learned);
+        }
+        if (regTypeBit.Contains(data.RegisterType))
+        {
+            return 4;
+        }
+        if (regTypeData16.Contains(data.RegisterType))
+        {
+            return 2;
+        }
+        if (regTypeData64.Contains(data.RegisterType))
+        {
+            return 8;
+        }
+        return 4;
+    }
+
+    /// <summary>
+    /// Multiple Service Packet(0x0A)で複数チャンクを一括送受信し、応答を各チャンクへ振り分ける
+    /// </summary>
+    /// <param name="chunks"></param>
+    /// <param name="requests"></param>
+    /// <returns></returns>
+    private bool SendMultiple(List<KMXDBSetting> chunks, List<List<byte>> requests)
+    {
+        if (sessionHandle == 0)
+        {
+            return false;
+        }
+        // Multiple Service Packet組立（Message Router宛）
+        var cip = new List<byte> { CIP_SERVICE_MULTI, 0x02, 0x20, 0x02, 0x24, 0x01 };
+        cip.AddRange(BitConverter.GetBytes((ushort)requests.Count));
+        // オフセットテーブル（サービス数フィールド先頭からの相対位置）
+        var offset = 2 + requests.Count * 2;
+        foreach (var req in requests)
+        {
+            cip.AddRange(BitConverter.GetBytes((ushort)offset));
+            offset += req.Count;
+        }
+        foreach (var req in requests)
+        {
+            cip.AddRange(req);
+        }
+        var message = WrapEipPacket(cip, NextCommandId());
+        var buff = SendCommand(message);
+        if (buff.Count < 4)
+        {
+            return false;
+        }
+        // General Status（0x00=全成功、0x1E=個別エラーあり）
+        if ((buff[2] != 0x00) && (buff[2] != 0x1E))
+        {
+            return false;
+        }
+        var top = 4 + buff[3] * 2;  // サービス数フィールドの先頭
+        if (buff.Count < top + 2)
+        {
+            return false;
+        }
+        var arr = buff.ToArray();
+        int serviceCount = BitConverter.ToUInt16(arr, top);
+        var offsets = new List<int>();
+        for (var i = 0; i < serviceCount; i++)
+        {
+            var pos = top + 2 + i * 2;
+            if (pos + 2 > arr.Length)
+            {
+                break;
+            }
+            offsets.Add(top + BitConverter.ToUInt16(arr, pos));
+        }
+        var ret = true;
+        for (var i = 0; i < offsets.Count && i < chunks.Count; i++)
+        {
+            var start = offsets[i];
+            var end = (i + 1 < offsets.Count) ? offsets[i + 1] : buff.Count;
+            if ((start < top) || (end > buff.Count) || (end <= start))
+            {
+                ret = false;
+                continue;
+            }
+            // 各サービスの応答は単体CIP応答と同一フォーマットのためそのまま解析
+            ret &= AnalysysMessage(chunks[i], buff.GetRange(start, end - start));
+        }
+        return ret;
+    }
+
+    /// <summary>
     /// 電文作成
     /// values == null なら Read Tag(0x4C)、非nullなら Write Tag(0x4D) の要求電文を組み立てる。
     /// </summary>
@@ -370,122 +753,190 @@ public class ComEthernetIP : ComProtocolBase
         {
             return message;
         }
-        _commandId++;
-        commandId = _commandId;
-        var isBit = regTypeBit.Contains(data.RegisterType);
-        var cip = new List<byte>();
-        if (values == null)
-        {
-            // Read Tag
-            // ビット種別はDWORD(32bit)単位のパック領域として添字・要素数を換算する
-            var address = isBit ? (int)Math.Floor(data.RegisterNo / (double)BIT_COUNT) : data.RegisterNo;
-            var count = isBit ? (int)Math.Ceiling((data.AllDataCount + (data.RegisterNo - address * BIT_COUNT)) / (double)BIT_COUNT) : data.AllDataCount;
-            var path = MakeTagPath(data, address);
-            cip.Add(CIP_SERVICE_READ);
-            cip.Add((byte)(path.Count / 2));
-            cip.AddRange(path);
-            cip.AddRange(BitConverter.GetBytes((ushort)count));
-        }
-        else
-        {
-            // Write Tag
-            var cipType = GetWriteCipType(data);
-            var elemSize = GetElementSize(cipType);
-            if (isBit)
-            {
-                // ビット種別はDWORD単位でパックして書き込む（RegisterNoは32bit境界前提）
-                var address = data.RegisterNo / BIT_COUNT;
-                var path = MakeTagPath(data, address);
-                var packed = new List<uint>();
-                for (var i = 0; i < values.Count; i++)
-                {
-                    if (i % BIT_COUNT == 0)
-                    {
-                        packed.Add(0);
-                    }
-                    if (values[i] != 0)
-                    {
-                        packed[packed.Count - 1] |= (uint)1 << (i % BIT_COUNT);
-                    }
-                }
-                cip.Add(CIP_SERVICE_WRITE);
-                cip.Add((byte)(path.Count / 2));
-                cip.AddRange(path);
-                cip.AddRange(BitConverter.GetBytes(CIP_TYPE_DWORD));
-                cip.AddRange(BitConverter.GetBytes((ushort)packed.Count));
-                foreach (var v in packed)
-                {
-                    cip.AddRange(BitConverter.GetBytes(v));
-                }
-            }
-            else
-            {
-                var path = MakeTagPath(data, data.RegisterNo);
-                cip.Add(CIP_SERVICE_WRITE);
-                cip.Add((byte)(path.Count / 2));
-                cip.AddRange(path);
-                cip.AddRange(BitConverter.GetBytes(cipType));
-                cip.AddRange(BitConverter.GetBytes((ushort)values.Count));
-                foreach (var v in values)
-                {
-                    // 受け取ったulongの下位バイトをそのまま載せる（floatはIEEE754ビット列のまま転送する）
-                    switch (elemSize)
-                    {
-                        case 1:
-                            // BOOLは0x00/0xFFが慣例
-                            cip.Add((cipType == CIP_TYPE_BOOL) ? (byte)((v != 0) ? 0xFF : 0x00) : (byte)v);
-                            break;
-                        case 2:
-                            cip.AddRange(BitConverter.GetBytes((ushort)v));
-                            break;
-                        case 8:
-                            cip.AddRange(BitConverter.GetBytes(v));
-                            break;
-                        default:
-                            cip.AddRange(BitConverter.GetBytes((uint)v));
-                            break;
-                    }
-                }
-            }
-        }
-        // CPF + カプセル化ヘッダで包む
+        commandId = NextCommandId();
+        var cip = (values == null) ? BuildReadRequest(data) : BuildWriteRequest(data, values);
         return WrapEipPacket(cip, commandId);
     }
 
     /// <summary>
-    /// CIP要求をCPF + カプセル化ヘッダ(SendRRData)で包む
+    /// Read Tag要求（CIP部）を組み立てる
+    /// </summary>
+    /// <param name="data"></param>
+    /// <returns></returns>
+    private List<byte> BuildReadRequest(KMXDBSetting data)
+    {
+        var isBit = regTypeBit.Contains(data.RegisterType);
+        // ビット種別はDWORD(32bit)単位のパック領域として添字・要素数を換算する
+        var address = isBit ? (int)Math.Floor(data.RegisterNo / (double)BIT_COUNT) : data.RegisterNo;
+        var count = isBit ? (int)Math.Ceiling((data.AllDataCount + (data.RegisterNo - address * BIT_COUNT)) / (double)BIT_COUNT) : data.AllDataCount;
+        var path = MakeTagPath(data, address);
+        var cip = new List<byte>();
+        cip.Add(CIP_SERVICE_READ);
+        cip.Add((byte)(path.Count / 2));
+        cip.AddRange(path);
+        cip.AddRange(BitConverter.GetBytes((ushort)count));
+        return cip;
+    }
+
+    /// <summary>
+    /// Write Tag要求（CIP部）を組み立てる
+    /// </summary>
+    /// <param name="data"></param>
+    /// <param name="values"></param>
+    /// <returns></returns>
+    private List<byte> BuildWriteRequest(KMXDBSetting data, List<ulong> values)
+    {
+        var cip = new List<byte>();
+        var cipType = GetWriteCipType(data);
+        var elemSize = GetElementSize(cipType);
+        if (regTypeBit.Contains(data.RegisterType))
+        {
+            // ビット種別はDWORD単位でパックして書き込む（RegisterNoは32bit境界前提）
+            var address = data.RegisterNo / BIT_COUNT;
+            var path = MakeTagPath(data, address);
+            var packed = new List<uint>();
+            for (var i = 0; i < values.Count; i++)
+            {
+                if (i % BIT_COUNT == 0)
+                {
+                    packed.Add(0);
+                }
+                if (values[i] != 0)
+                {
+                    packed[packed.Count - 1] |= (uint)1 << (i % BIT_COUNT);
+                }
+            }
+            cip.Add(CIP_SERVICE_WRITE);
+            cip.Add((byte)(path.Count / 2));
+            cip.AddRange(path);
+            cip.AddRange(BitConverter.GetBytes(CIP_TYPE_DWORD));
+            cip.AddRange(BitConverter.GetBytes((ushort)packed.Count));
+            foreach (var v in packed)
+            {
+                cip.AddRange(BitConverter.GetBytes(v));
+            }
+        }
+        else
+        {
+            var path = MakeTagPath(data, data.RegisterNo);
+            cip.Add(CIP_SERVICE_WRITE);
+            cip.Add((byte)(path.Count / 2));
+            cip.AddRange(path);
+            cip.AddRange(BitConverter.GetBytes(cipType));
+            cip.AddRange(BitConverter.GetBytes((ushort)values.Count));
+            foreach (var v in values)
+            {
+                // 受け取ったulongの下位バイトをそのまま載せる（floatはIEEE754ビット列のまま転送する）
+                switch (elemSize)
+                {
+                    case 1:
+                        // BOOLは0x00/0xFFが慣例
+                        cip.Add((cipType == CIP_TYPE_BOOL) ? (byte)((v != 0) ? 0xFF : 0x00) : (byte)v);
+                        break;
+                    case 2:
+                        cip.AddRange(BitConverter.GetBytes((ushort)v));
+                        break;
+                    case 8:
+                        cip.AddRange(BitConverter.GetBytes(v));
+                        break;
+                    default:
+                        cip.AddRange(BitConverter.GetBytes((uint)v));
+                        break;
+                }
+            }
+        }
+        return cip;
+    }
+
+    /// <summary>
+    /// 書き込み値リストを作成する（floatタグはIEEE754ビット列をulongへ詰める）
+    /// </summary>
+    /// <param name="data"></param>
+    /// <returns></returns>
+    private List<ulong> BuildWriteValues(KMXDBSetting data)
+    {
+        var values = new List<ulong>();
+        var is64 = regTypeData64.Contains(data.RegisterType) || (GetElementSize(GetWriteCipType(data)) == 8);
+        foreach (var tag in data.values)
+        {
+            if (tag == null)
+            {
+                values.Add(0);
+            }
+            else if (tag.isFloat)
+            {
+                // IEEE754のビットパターンをそのまま転送（値変換ではない）
+                if (is64)
+                {
+                    values.Add(BitConverter.ToUInt64(BitConverter.GetBytes((double)tag.fValue), 0));
+                }
+                else
+                {
+                    values.Add(BitConverter.ToUInt32(BitConverter.GetBytes(tag.fValue), 0));
+                }
+            }
+            else
+            {
+                values.Add((ulong)tag.Value);
+            }
+        }
+        return values;
+    }
+
+    /// <summary>
+    /// CIP要求をカプセル化ヘッダで包む
+    /// Connected通信が有効ならSendUnitData(0x0070)、無効ならSendRRData(0x006F/UCMM)
     /// </summary>
     /// <param name="cipData"></param>
     /// <param name="commandId"></param>
     /// <returns></returns>
     private List<byte> WrapEipPacket(List<byte> cipData, int commandId)
     {
-        // Common Packet Format (CPF)
+        ushort command;
         var cpf = new List<byte>();
-        cpf.AddRange(BitConverter.GetBytes((ushort)2));               // Item Count
-        cpf.AddRange(BitConverter.GetBytes((ushort)0x0000));          // Item1: Null Address Item
-        cpf.AddRange(BitConverter.GetBytes((ushort)0));               // Item1: Length = 0
-        cpf.AddRange(BitConverter.GetBytes((ushort)0x00B2));          // Item2: Unconnected Data Item
-        cpf.AddRange(BitConverter.GetBytes((ushort)cipData.Count));   // Item2: Length
+        if (connectedMessaging && (otConnectionId != 0))
+        {
+            // Connected (SendUnitData)
+            command = EIP_CMD_SEND_UNIT_DATA;
+            var seq = (ushort)Interlocked.Increment(ref sequenceCounter);
+            cpf.AddRange(BitConverter.GetBytes((ushort)2));                     // Item Count
+            cpf.AddRange(BitConverter.GetBytes((ushort)0x00A1));                // Connected Address Item
+            cpf.AddRange(BitConverter.GetBytes((ushort)4));                     // Length
+            cpf.AddRange(BitConverter.GetBytes(otConnectionId));                // O->T Connection ID
+            cpf.AddRange(BitConverter.GetBytes((ushort)0x00B1));                // Connected Data Item
+            cpf.AddRange(BitConverter.GetBytes((ushort)(cipData.Count + 2)));   // Length
+            cpf.AddRange(BitConverter.GetBytes(seq));                           // Sequence Number
+        }
+        else
+        {
+            // Unconnected (SendRRData / UCMM)
+            command = EIP_CMD_SEND_RR_DATA;
+            cpf.AddRange(BitConverter.GetBytes((ushort)2));                     // Item Count
+            cpf.AddRange(BitConverter.GetBytes((ushort)0x0000));                // Null Address Item
+            cpf.AddRange(BitConverter.GetBytes((ushort)0));                     // Length
+            cpf.AddRange(BitConverter.GetBytes((ushort)0x00B2));                // Unconnected Data Item
+            cpf.AddRange(BitConverter.GetBytes((ushort)cipData.Count));         // Length
+        }
         cpf.AddRange(cipData);
 
         // カプセル化ヘッダ + Interface Handle + Timeout
         var pkt = new List<byte>();
-        pkt.AddRange(BitConverter.GetBytes(EIP_CMD_SEND_RR_DATA));    // Command
-        pkt.AddRange(BitConverter.GetBytes((ushort)(cpf.Count + 6))); // Length
-        pkt.AddRange(BitConverter.GetBytes(sessionHandle));           // Session Handle
-        pkt.AddRange(BitConverter.GetBytes((uint)0));                 // Status
-        pkt.AddRange(BitConverter.GetBytes((long)commandId));         // Sender Context（要求識別子）
-        pkt.AddRange(BitConverter.GetBytes((uint)0));                 // Options
-        pkt.AddRange(BitConverter.GetBytes((uint)0));                 // Interface Handle
-        pkt.AddRange(BitConverter.GetBytes((ushort)0));               // Timeout
+        pkt.AddRange(BitConverter.GetBytes(command));                   // Command
+        pkt.AddRange(BitConverter.GetBytes((ushort)(cpf.Count + 6)));   // Length
+        pkt.AddRange(BitConverter.GetBytes(sessionHandle));             // Session Handle
+        pkt.AddRange(BitConverter.GetBytes((uint)0));                   // Status
+        pkt.AddRange(BitConverter.GetBytes((long)commandId));           // Sender Context（要求識別子）
+        pkt.AddRange(BitConverter.GetBytes((uint)0));                   // Options
+        pkt.AddRange(BitConverter.GetBytes((uint)0));                   // Interface Handle
+        pkt.AddRange(BitConverter.GetBytes((ushort)0));                 // Timeout
         pkt.AddRange(cpf);
         return pkt;
     }
 
     /// <summary>
     /// 応答からCIP応答部を切り出す
-    /// カプセル化ヘッダ(24) + Interface Handle(4) + Timeout(2) + CPF(10) を読み飛ばす。
+    /// SendRRData応答はカプセル化ヘッダ(24)+InterfaceHandle(4)+Timeout(2)+CPF(10)=40バイト、
+    /// SendUnitData応答はCPFがConnected形式のため46バイトを読み飛ばす。
     /// </summary>
     /// <param name="buff"></param>
     /// <param name="size"></param>
@@ -502,11 +953,13 @@ public class ComEthernetIP : ComProtocolBase
             // カプセル化Statusエラー
             return lstTmp;
         }
-        if (size <= CIP_RESPONSE_OFFSET)
+        var command = BitConverter.ToUInt16(buff, 0);
+        var offset = (command == EIP_CMD_SEND_UNIT_DATA) ? CIP_RESPONSE_OFFSET_CONNECTED : CIP_RESPONSE_OFFSET;
+        if (size <= offset)
         {
             return lstTmp;
         }
-        for (var i = CIP_RESPONSE_OFFSET; i < size; i++)
+        for (var i = offset; i < size; i++)
         {
             lstTmp.Add(buff[i]);
         }
@@ -545,7 +998,7 @@ public class ComEthernetIP : ComProtocolBase
         }
         var cipType = BitConverter.ToUInt16(buff, top);
         top += 2;
-        // 応答のデータ型を学習（書き込み時の型決定に使用）
+        // 応答のデータ型を学習（書き込み時の型決定・サイズ見積りに使用）
         dctCipTypes[data.DataTag] = cipType;
         var index = 0;
         if (regTypeBit.Contains(data.RegisterType))
@@ -662,31 +1115,7 @@ public class ComEthernetIP : ComProtocolBase
     /// <returns></returns>
     protected override bool Write(KMXDBSetting data, ref int commandId)
     {
-        var values = new List<ulong>();
-        var is64 = regTypeData64.Contains(data.RegisterType);
-        foreach (var tag in data.values)
-        {
-            if (tag == null)
-            {
-                values.Add(0);
-            }
-            else if (tag.isFloat)
-            {
-                // IEEE754のビットパターンをそのまま転送（値変換ではない）
-                if (is64)
-                {
-                    values.Add(BitConverter.ToUInt64(BitConverter.GetBytes((double)tag.fValue), 0));
-                }
-                else
-                {
-                    values.Add(BitConverter.ToUInt32(BitConverter.GetBytes(tag.fValue), 0));
-                }
-            }
-            else
-            {
-                values.Add((ulong)tag.Value);
-            }
-        }
+        var values = BuildWriteValues(data);
         var message = CreateMessage(data, ref commandId, values);
         if (message.Count > 0)
         {
@@ -757,6 +1186,15 @@ public class ComEthernetIP : ComProtocolBase
             default:     // DINT / UDINT / REAL / DWORD
                 return 4;
         }
+    }
+
+    /// <summary>
+    /// コマンドIDを採番する
+    /// </summary>
+    /// <returns></returns>
+    private int NextCommandId()
+    {
+        return Interlocked.Increment(ref commandCounter);
     }
 
     /// <summary>
