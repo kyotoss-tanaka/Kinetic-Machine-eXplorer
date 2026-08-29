@@ -194,8 +194,8 @@ public sealed class SafetyZoneScript : MonoBehaviour
         return new Vector3(v[0], v[1], v[2]);
     }
 
-    /// <summary>半透明の塗り用 URP マテリアル（CRX ゴーストと同方式）。</summary>
-    private static Material MakeZoneMaterial(Color col)
+    /// <summary>半透明の塗り用 URP マテリアル（CRX ゴーストと同方式）。ワーク削除範囲の確認表示などからも使う。</summary>
+    public static Material MakeZoneMaterial(Color col)
     {
         var sh = Shader.Find("Universal Render Pipeline/Lit");
         if (sh == null) { sh = Shader.Find("Universal Render Pipeline/Unlit"); }

@@ -802,6 +802,9 @@ public class MotionInternal : AxisMotionBase
                     actionCurve.actCurve.Add(tmp + endPoint);
                 }
             }
+            // 完了時に getPosition が返す最終位置(st)を複合カーブの終端値に合わせる
+            // ※未設定(0)のままだと完了フレームで pos=0 が返り、バケット軸は最終サンプル〜終端の移動量を毎サイクル取りこぼして徐々にずれる
+            actionCurve.st = actionCurve.actCurve[actionCurve.actCurve.Count - 1];
             actionCurve.targetPos = targetPos;
             if (!unitSetting.actionSetting.actions[nextIndex].isContinue)
             {

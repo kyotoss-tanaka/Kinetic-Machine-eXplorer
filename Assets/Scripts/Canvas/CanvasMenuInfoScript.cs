@@ -607,12 +607,18 @@ public class CanvasMenuInfoScript : KssBaseScript
             axis.transform.parent = GlobalScript.selectedObject.transform;
             axis.transform.localPosition = Vector3.zero;
             axis.transform.localEulerAngles = Vector3.zero;
-            axis.transform.localScale = GlobalScript.selectedObject.transform.localScale;
+            // 親のスケール（機械モデルは1/25程度）を打ち消し、軸の長さ・太さをワールド単位に揃える
+            var ls = GlobalScript.selectedObject.transform.lossyScale;
+            axis.transform.localScale = new Vector3(
+                1f / Mathf.Max(Mathf.Abs(ls.x), 1e-6f),
+                1f / Mathf.Max(Mathf.Abs(ls.y), 1e-6f),
+                1f / Mathf.Max(Mathf.Abs(ls.z), 1e-6f));
 
-            float dist = Vector3.Distance(transform.position, cameraController.transform.position);
+            // カメラから選択原点までの距離に応じてサイズを調整（近くで邪魔にならず、遠くで見失わない）
+            float dist = Vector3.Distance(axis.transform.position, cameraController.transform.position);
             float t = Mathf.InverseLerp(0.5f, 5f, dist);
-            float width = Mathf.Lerp(0.0005f, 0.01f, t);
-            float length = Mathf.Lerp(0.02f, 0.4f, t);
+            float width = Mathf.Lerp(0.002f, 0.015f, t);
+            float length = Mathf.Lerp(0.05f, 0.5f, t);
 
             // 全軸に適用（キャッシュ済みLineRendererを使用＝毎フレームのGetComponentsInChildren回避）
             if (axisLines != null)

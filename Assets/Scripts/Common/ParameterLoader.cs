@@ -189,6 +189,7 @@ namespace Parameters
         {
             InputManager.Instance.RegisterKey(Key.F5, HandleKey);
             InputManager.Instance.RegisterKey(Key.F12, HandleKey);
+            InputManager.Instance.RegisterKey(Key.L, HandleKey);
             rosZoneSource.ZonesUpdated += OnRosZonesUpdated;   // topic で DCS変化→自動再適用
         }
 
@@ -196,6 +197,7 @@ namespace Parameters
         {
             InputManager.Instance.UnregisterKey(Key.F5, HandleKey);
             InputManager.Instance.UnregisterKey(Key.F12, HandleKey);
+            InputManager.Instance.UnregisterKey(Key.L, HandleKey);
             rosZoneSource.ZonesUpdated -= OnRosZonesUpdated;
         }
 
@@ -234,6 +236,7 @@ namespace Parameters
 
             // データ削除
             yield return null; // 1フレーム待
+            BacketPathOverlay.Clear();
             GlobalScript.ClearDictionary();
             yield return null; // 1フレーム待
 
@@ -2386,6 +2389,7 @@ namespace Parameters
                         backet.loopLength = pathInfo.loopLength;
                         backet.loopScaling = pathInfo.loopScaling;
                         backet.pathStartOffset = pathInfo.startOffset;
+                        backet.pathReverse = pathInfo.reverse;
                     }
                     else
                     {
@@ -2507,7 +2511,26 @@ namespace Parameters
                 {
                     mtRoom.SetActive(!mtRoom.activeSelf);
                 }
+                else if (key == Key.L && isCtrl && isShift)
+                {
+                    OpenLogFile();
+                }
             }
+        }
+
+        /// <summary>
+        /// ログファイル表示（Ctrl+Shift+L）：エディタ=Editor.log / ビルド=Player.log を既定アプリで開く。
+        /// WebGL はログファイルが存在しないため対象外。
+        /// </summary>
+        private void OpenLogFile()
+        {
+            var path = Application.consoleLogPath;
+            if (string.IsNullOrEmpty(path) || !System.IO.File.Exists(path))
+            {
+                Debug.LogWarning($"ログファイルが見つかりません: {path}");
+                return;
+            }
+            Application.OpenURL($"file:///{path.Replace('\\', '/')}");
         }
         #endregion ロード処理
 

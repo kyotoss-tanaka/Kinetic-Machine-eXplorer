@@ -139,6 +139,12 @@ public class MultiObjectFactoryScript : UseTagBaseScript
         /// </summary>
         public GameObject objBase;
 
+        /// <summary>バケット削除の発動位置（経路上の固定点・ワールド）を使うか</summary>
+        public bool IsFixedDeletePos = false;
+
+        /// <summary>バケット削除の発動位置（ワールド）</summary>
+        public Vector3 FixedDeletePos;
+
         /// <summary>
         /// バケット情報
         /// </summary>
@@ -266,24 +272,54 @@ public class MultiObjectFactoryScript : UseTagBaseScript
                         continue;
                     }
                 }
-                // クリアフラグON
-                float dis = Vector3.Distance(transform.localPosition, setting.CreatePoint);
-                if (dis < setting.AliveDistance)
+                // クリアフラグON：削除位置から範囲内にあるワークのみ削除する
+                // ※親子関係に依存せず全アクティブワークから探す（受渡・物理搬送などでobjBase配下にいないワークも対象。変換処理と同方式）
+                // 削除位置・範囲は実寸(m)。objBaseにスケールが掛かっていても実寸で判定できるよう、
+                // 削除位置はobjBase原点からの回転付きオフセット（スケール除外）でワールドへ変換して比較する
+                // バケット削除は経路上の固定点（表示球と同一）、それ以外はobjBase基準の実寸オフセットで判定する
+                var worldDelete = setting.IsFixedDeletePos
+                    ? setting.FixedDeletePos
+                    : setting.objBase.transform.position + setting.objBase.transform.rotation * setting.CreatePoint;
+                var deleted = 0;
+                var candidates = 0;
+                foreach (var pool in works.ToList())
                 {
-                    var dels = setting.objBase.GetComponentsInChildren<ObjectScript>();
-                    foreach (var del in dels)
+                    // ワーク名指定ありなら対象ワークのみ削除（空欄=全ワーク）
+                    if ((setting.WorkName != null) && (setting.WorkName != "") && (pool.Key != setting.WorkName))
                     {
-                        // ワーク名指定ありなら対象ワークのみ削除（空欄=全ワーク）
-                        if ((setting.WorkName != null) && (setting.WorkName != "") && (del.name != setting.WorkName))
+                        continue;
+                    }
+                    foreach (var obj in pool.Value.activeObjects.ToList())
+                    {
+                        if (obj == null)
                         {
                             continue;
                         }
-                        if (works.ContainsKey(del.name) && works[del.name].activeObjects.Contains(del.gameObject))
+                        candidates++;
+                        // 「球（削除位置＋範囲）がワークの見た目に触れていれば削除」とするため、
+                        // ワークのレンダラ境界ボックス上の最近点と削除位置の距離で判定する
+                        // （中心点判定だと背の高いワークの下部に球が重なっていても中心が範囲外で消えない）
+                        var nearest = obj.transform.position;
+                        var rends = obj.GetComponentsInChildren<Renderer>();
+                        if (rends.Length > 0)
                         {
-                            works[del.name].pool.Release(del.gameObject);
+                            var bounds = rends[0].bounds;
+                            for (var ri = 1; ri < rends.Length; ri++)
+                            {
+                                bounds.Encapsulate(rends[ri].bounds);
+                            }
+                            nearest = bounds.ClosestPoint(worldDelete);
                         }
+                        var dis = Vector3.Distance(nearest, worldDelete);
+                        if (dis >= setting.AliveDistance)
+                        {
+                            continue;
+                        }
+                        pool.Value.pool.Release(obj);
+                        deleted++;
                     }
                 }
+                Debug.Log($"[WorkDelete] {setting.objBase.name} 削除位置={worldDelete} 範囲={setting.AliveDistance:F3} 候補={candidates} 削除={deleted}");
             }
             // ワーク変換処理（削除の後、生成の前に行う）
             foreach (var setting in tag.transferSettings.FindAll(d => d.Mode == 1))
@@ -729,9 +765,65 @@ public class MultiObjectFactoryScript : UseTagBaseScript
                 AliveDistance = wk.distance,
                 backetInfo = backetInfo,
                 BacketNo = backetInfo != null ? wk.backetno : -1,
-                objBase = backetInfo != null ? backetInfo.obj : unitSetting.unitObject
+                objBase = backetInfo != null ? backetInfo.obj : unitSetting.unitObject,
+                // バケット削除は経路上の固定点（AxisMotionBaseが算出）で判定する
+                IsFixedDeletePos = (backetInfo != null) && wk.isFixedPos,
+                FixedDeletePos = wk.fixedWorldPos
             };
             multiObject.deleteSettings.Add(setting);
+            // 削除範囲の確認表示（Ctrl+Shift押下中のみ表示）を生成する
+            CreateDeleteZone(setting, unitSetting, wk);
         }
+    }
+
+    /// <summary>
+    /// ワーク削除範囲（削除位置中心・半径=範囲の球）を半透明で可視化するオブジェクトを生成する。
+    /// 表示切替（Ctrl+Shift押下中のみ）はBacketPathOverlayが行う。再Setup時は同名の旧表示を作り直す。
+    /// </summary>
+    private void CreateDeleteZone(MultiObjectInfo setting, UnitSetting unitSetting, WorkDeleteSetting wk)
+    {
+        if (setting.backetInfo != null)
+        {
+            // バケットの削除はバケット番号で経路上の固定位置に発動するため、
+            // 確認表示はAxisMotionBase側が固定位置（経路開始＋番号×ピッチ）に1個だけ生成する
+            return;
+        }
+        if ((setting.AliveDistance <= 0f) || (setting.objBase == null))
+        {
+            Debug.Log($"[WorkDeleteZone] {unitSetting.name} 生成スキップ 範囲={setting.AliveDistance} objBase={(setting.objBase == null ? "null" : setting.objBase.name)}");
+            return;
+        }
+        Debug.Log($"[WorkDeleteZone] {unitSetting.name} objBase={setting.objBase.name} スケール={setting.objBase.transform.lossyScale.x:F4} " +
+            $"削除位置={setting.CreatePoint} 範囲={setting.AliveDistance}");
+        var zoneName = $"WorkDeleteZone_{unitSetting.name}_{wk.tag}_{wk.pos[0]}_{wk.pos[1]}_{wk.pos[2]}";
+        var old = setting.objBase.transform.Find(zoneName);
+        if (old != null)
+        {
+            Destroy(old.gameObject);
+        }
+        var zone = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+        zone.name = zoneName;
+        // 削除判定は距離比較なのでコライダは不要（ワークとの物理干渉を避けるため必ず除去する）
+        var col = zone.GetComponent<Collider>();
+        if (col != null)
+        {
+            Destroy(col);
+        }
+        zone.transform.SetParent(setting.objBase.transform, false);
+        // 削除位置・範囲は実寸(m)。objBaseのスケール（バケットクローンは約1/25）を打ち消して実寸で表示する
+        var ls = setting.objBase.transform.lossyScale;
+        var inv = new Vector3(
+            1f / Mathf.Max(Mathf.Abs(ls.x), 1e-6f),
+            1f / Mathf.Max(Mathf.Abs(ls.y), 1e-6f),
+            1f / Mathf.Max(Mathf.Abs(ls.z), 1e-6f));
+        zone.transform.localPosition = Vector3.Scale(setting.CreatePoint, inv);
+        zone.transform.localScale = Vector3.Scale(inv, Vector3.one * setting.AliveDistance * 2f);
+        var rend = zone.GetComponent<Renderer>();
+        if (rend != null)
+        {
+            rend.sharedMaterial = SafetyZoneScript.MakeZoneMaterial(new Color(1f, 0.2f, 0.2f, 0.3f));
+        }
+        zone.SetActive(false);
+        BacketPathOverlay.RegisterLine($"{zoneName}_{zone.GetInstanceID()}", zone);
     }
 }

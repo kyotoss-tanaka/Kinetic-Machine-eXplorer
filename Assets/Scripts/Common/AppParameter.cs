@@ -1086,6 +1086,12 @@ namespace Parameters
         /// オフセット(位置)
         /// </summary>
         public List<float> pos { get; set; }
+        /// <summary>バケット削除の発動位置（ワールド）。ロード時に経路（バケット番号×ピッチ＋オフセット）から算出される</summary>
+        [JsonIgnore]
+        public Vector3 fixedWorldPos { get; set; }
+        /// <summary>fixedWorldPosが算出済みか（バケット削除のみtrue）</summary>
+        [JsonIgnore]
+        public bool isFixedPos { get; set; }
     }
 
     [Serializable]
@@ -1350,6 +1356,9 @@ namespace Parameters
         /// <summary>経路の開始位置オフセット(m)。ロード時に経路設定(PathInfo)から充填される</summary>
         [JsonIgnore]
         public float pathStartOffset { get; set; }
+        /// <summary>逆回り（ループの進行方向を反転）。ロード時に経路設定(PathInfo)から充填される</summary>
+        [JsonIgnore]
+        public bool pathReverse { get; set; }
         public bool visible { get; set; }
         /// <summary>常に上向き（吊り下げ式。経路を循環しても姿勢を変えない）</summary>
         public bool upright { get; set; }
@@ -1376,6 +1385,8 @@ namespace Parameters
         public bool loopScaling { get; set; }
         /// <summary>開始位置オフセット(m)。経路の開始位置を進行方向にずらす（参照する全ユニットに効く）</summary>
         public float startOffset { get; set; }
+        /// <summary>逆回り（ループの進行方向を反転）</summary>
+        public bool reverse { get; set; }
         public List<BacketSetting.PathElement> elements { get; set; } = new();
     }
 

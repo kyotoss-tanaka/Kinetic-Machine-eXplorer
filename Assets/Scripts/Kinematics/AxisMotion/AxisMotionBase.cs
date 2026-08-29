@@ -154,6 +154,11 @@ public class AxisMotionBase : KinematicsBase
     private int backetCounter;
 
     /// <summary>
+    /// 駆動値リセット（1サイクルで0に戻る軸）で確定した累積移動距離(mm)
+    /// </summary>
+    private float backetAccum;
+
+    /// <summary>
     /// 最大バケット数
     /// </summary>
     private int backetCountMax;
@@ -819,12 +824,24 @@ public class AxisMotionBase : KinematicsBase
         {
             if (isBacket)
             {
+                // 発動位置（経路開始＋バケット番号×ピッチ＋オフセットの固定点）を先に算出しておく
+                // （判定・確認表示ともこの固定点を使う。トリガ時のバケット現在位置はスロット内で最大1ピッチ動くため使わない）
+                foreach (var wk in unitSetting.workDeleteSettings)
+                {
+                    wk.isFixedPos = TryGetBacketDeletePoint(wk, out var fixedPos, out _);
+                    wk.fixedWorldPos = fixedPos;
+                }
                 foreach (var backet in backets)
                 {
                     foreach (var wk in unitSetting.workDeleteSettings)
                     {
                         objectFactory.SetObjectParameter(unitSetting, wk, backet);
                     }
+                }
+                // 削除範囲の確認表示：発動位置の固定点に1個だけ生成する
+                foreach (var wk in unitSetting.workDeleteSettings)
+                {
+                    CreateBacketDeleteZone(wk);
                 }
             }
             else
@@ -1204,6 +1221,12 @@ public class AxisMotionBase : KinematicsBase
             backetDir = dir3.z > 0 ? Vector3.forward : Vector3.back;
         }
         loopPathPoints.Add(loopPathPoints[0]);
+        if (unitSetting.backetSetting.pathReverse)
+        {
+            // 逆回り：点列を反転して進行方向を逆にする（閉ループなので先頭/末尾の一致は保たれる）
+            loopPathPoints.Reverse();
+            backetDir = -backetDir;
+        }
     }
 
     /// <summary>
@@ -1461,6 +1484,9 @@ public class AxisMotionBase : KinematicsBase
             backetBasePos = basePos;
             var count = unitSetting.backetSetting.count == 0 ? backetCountMax : unitSetting.backetSetting.count;
             Debug.Log($"バケット生成: {name} 経路長={totalLength:F3} ピッチ={backetPitch:F3} スケール={backetScale:F4} 生成数={count}(最大{backetCountMax}) 表示={unitSetting.backetSetting.visible}");
+            // 画面オーバーレイ（Ctrl+Shift押下中表示）へ幾何周長(mm)を登録：周長設定の値決めに使う
+            BacketPathOverlay.Register(name, unitSetting.backetSetting.pathName,
+                totalLength * backetScale * 1000f, unitSetting.backetSetting.loopLength);
             if (count <= 0)
             {
                 Debug.LogWarning($"バケット生成: {name} 生成数が0です（経路長とバケットピッチの設定を確認してください）");
@@ -1491,7 +1517,142 @@ public class AxisMotionBase : KinematicsBase
             }
             // 初期値セット
             MoveBacket(0);
+            // 経路ライン（Ctrl+Shift押下中のみ表示）を生成：ビルド版でも経路を目視確認できるようにする
+            // ※バケットのクローン生成後に作る（moveObjectの子にするため、先に作るとクローンへ複製されてしまう）
+            CreatePathLine();
         }
+    }
+
+    /// <summary>
+    /// バケット向けワーク削除範囲の確認表示を、発動する経路上の固定位置に生成する。
+    /// 位置＝経路開始（開始オフセット込み）からバケット番号×ピッチ進んだ地点のバケット基準位置＋設定オフセット。
+    /// 実際の削除はその番号のスロットにいるバケット基準で発動するため、バケットはこの球の位置（〜1ピッチ先まで）で削除される。
+    /// </summary>
+    /// <summary>
+    /// バケット削除の発動位置（経路上の固定点・ワールド）を算出する。
+    /// 位置＝経路開始（開始オフセット込み）からバケット番号×ピッチ進んだスロット先頭のバケット基準位置＋設定オフセット（バケット姿勢基準・実寸m）。
+    /// </summary>
+    private bool TryGetBacketDeletePoint(WorkDeleteSetting wk, out Vector3 center, out Quaternion rot)
+    {
+        center = Vector3.zero;
+        rot = Quaternion.identity;
+        if ((loopPathPoints.Count < 2) || (backetPitch <= 0f))
+        {
+            return false;
+        }
+        if (wk.backetno < 0)
+        {
+            Debug.LogWarning($"バケット削除: {name} バケット番号が未設定のため発動しません（タグ={wk.tag}）");
+            return false;
+        }
+        // 指定スロット先頭の経路位置とバケット姿勢を求める（バケット配置と同じ計算）
+        GetPositionOnLoop(wk.backetno * backetPitch, out Vector3 pos, out Vector3 dir);
+        var delta = ((dir != Vector3.zero) && !unitSetting.backetSetting.upright)
+            ? PathRotation(pos, dir) * Quaternion.Inverse(backetBaseRot)
+            : Quaternion.identity;
+        var basePos = moveObject.transform.TransformPoint(pos - delta * backetBasePos);
+        rot = moveObject.transform.rotation * delta;
+        center = basePos + rot * new Vector3(wk.pos[0], wk.pos[1], wk.pos[2]);
+        return true;
+    }
+
+    private void CreateBacketDeleteZone(WorkDeleteSetting wk)
+    {
+        if ((wk.distance <= 0f) || !wk.isFixedPos)
+        {
+            return;
+        }
+        if (!TryGetBacketDeletePoint(wk, out var center, out var baseRot))
+        {
+            return;
+        }
+        var parent = moveObject.transform.parent;
+        var zoneName = $"WorkDeleteZone_{unitSetting.name}_{wk.tag}_{wk.backetno}";
+        var old = parent != null ? parent.Find(zoneName) : null;
+        if (old != null)
+        {
+            Destroy(old.gameObject);
+        }
+        var zone = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+        zone.name = zoneName;
+        var col = zone.GetComponent<Collider>();
+        if (col != null)
+        {
+            Destroy(col);
+        }
+        zone.transform.SetParent(parent, false);
+        zone.transform.position = center;
+        zone.transform.rotation = baseRot;
+        // 親スケールを打ち消して実寸（直径=範囲×2）で表示する
+        var ls = parent != null ? parent.lossyScale : Vector3.one;
+        zone.transform.localScale = new Vector3(
+            wk.distance * 2f / Mathf.Max(Mathf.Abs(ls.x), 1e-6f),
+            wk.distance * 2f / Mathf.Max(Mathf.Abs(ls.y), 1e-6f),
+            wk.distance * 2f / Mathf.Max(Mathf.Abs(ls.z), 1e-6f));
+        var rend = zone.GetComponent<Renderer>();
+        if (rend != null)
+        {
+            rend.sharedMaterial = SafetyZoneScript.MakeZoneMaterial(new Color(1f, 0.2f, 0.2f, 0.3f));
+        }
+        zone.SetActive(false);
+        BacketPathOverlay.RegisterLine($"{zoneName}_{zone.GetInstanceID()}", zone);
+        Debug.Log($"[WorkDeleteZone] {name} バケット番号={wk.backetno} 発動位置={center} 範囲={wk.distance}");
+    }
+
+    /// <summary>経路確認ライン（表示切替はBacketPathOverlayが行う）</summary>
+    private GameObject pathLineObj;
+
+    /// <summary>
+    /// 経路ラインを生成する（LineRenderer実描画。ギズモと違いビルド版でも見える）
+    /// </summary>
+    private void CreatePathLine()
+    {
+        if (pathLineObj != null)
+        {
+            Destroy(pathLineObj);
+            pathLineObj = null;
+        }
+        if (loopPathPoints == null || loopPathPoints.Count < 2)
+        {
+            return;
+        }
+        pathLineObj = new GameObject($"BacketPathLine_{name}");
+        // moveObject 本体はバケット生成時に無効化されるため、その親にぶら下げて
+        // moveObject と同じローカル変換を複製する（経路点は moveObject ローカルのまま使える）
+        pathLineObj.transform.SetParent(moveObject.transform.parent, false);
+        pathLineObj.transform.localPosition = moveObject.transform.localPosition;
+        pathLineObj.transform.localRotation = moveObject.transform.localRotation;
+        pathLineObj.transform.localScale = moveObject.transform.localScale;
+        var lr = pathLineObj.AddComponent<LineRenderer>();
+        lr.useWorldSpace = false;
+        lr.loop = false;   // 経路点は終端に始点を追加済み（閉ループ）のため不要
+        lr.numCornerVertices = 0;
+        lr.numCapVertices = 0;
+        // 幅はワールド単位（useWorldSpace=falseでもtransformスケールは掛からない）：実寸約2mm
+        lr.widthMultiplier = 0.002f;
+        var mat = MakePathLineMaterial(Color.yellow);
+        if (mat != null)
+        {
+            lr.sharedMaterial = mat;
+            lr.startColor = Color.yellow;
+            lr.endColor = Color.yellow;
+        }
+        lr.positionCount = loopPathPoints.Count;
+        lr.SetPositions(loopPathPoints.ToArray());
+        pathLineObj.SetActive(false);
+        BacketPathOverlay.RegisterLine(name, pathLineObj);
+    }
+
+    /// <summary>経路ライン用マテリアル（URP Unlit。安全ゾーンの枠線と同方式）</summary>
+    private static Material MakePathLineMaterial(Color col)
+    {
+        var sh = Shader.Find("Universal Render Pipeline/Unlit");
+        if (sh == null) { sh = Shader.Find("Sprites/Default"); }
+        if (sh == null) { return null; }
+        var m = new Material(sh);
+        if (m.HasProperty("_BaseColor")) { m.SetColor("_BaseColor", col); }
+        if (m.HasProperty("_Color")) { m.SetColor("_Color", col); }
+        return m;
     }
 
     /// <summary>
@@ -1644,23 +1805,30 @@ public class AxisMotionBase : KinematicsBase
         if (Math.Abs(length) > 0.0001f)
         {
             // 動作中
-            // 回転方向が変わってないかチェック
+            // 回転方向が変わってないかチェック（駆動値がリセットされる軸への対応）
             if (isBacketMoveRvs != (length < 0))
             {
+                // 進んだ距離(mm)をそのまま積算する
+                // （旧実装はピッチ単位の整数に丸めていたため、ピッチ未満のストローク軸では毎サイクル初期位置へ戻ってしまった）
                 if (!isBacketMoveRvs)
                 {
-                    backetCounter += (int)Math.Round(backetPos / unitSetting.backetSetting.pitch);
-                    if (backetCounter >= backetCountMax)
-                    {
-                        backetCounter = 0;
-                    }
+                    backetAccum += backetPos;
                 }
                 else
                 {
-                    backetCounter -= (int)Math.Round(backetPos / unitSetting.backetSetting.pitch);
-                    if (backetCounter < 0)
+                    backetAccum -= backetPos;
+                }
+                // 発散防止に周長で正規化しておく（位置は周長の剰余で決まるため挙動は不変）
+                // 周長設定があればその値(mm)をそのまま使う（backetLength経由のfloat往復誤差を避ける）
+                var loopMm = unitSetting.backetSetting.loopLength > 0f
+                    ? unitSetting.backetSetting.loopLength
+                    : backetLength * backetScale * 1000f;
+                if (loopMm > 0.001f)
+                {
+                    backetAccum %= loopMm;
+                    if (backetAccum < 0f)
                     {
-                        backetCounter = backetCountMax - 1;
+                        backetAccum += loopMm;
                     }
                 }
             }
@@ -1670,8 +1838,8 @@ public class AxisMotionBase : KinematicsBase
             }
         }
         backetPos = distance;
-        //　動作オフセット（backetPosはmm。経路のローカル単位へ換算）
-        var backetNext = backetCounter * backetPitch + backetPos / 1000f / backetScale + backetOffset;
+        //　動作オフセット（backetAccum/backetPosはmm。経路のローカル単位へ換算）
+        var backetNext = (backetAccum + backetPos) / 1000f / backetScale + backetOffset;
         foreach (var backet in backets)
         {
             var p = (backet.offset + backetNext) % backetLength;
