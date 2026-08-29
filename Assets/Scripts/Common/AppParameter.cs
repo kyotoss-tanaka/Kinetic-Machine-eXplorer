@@ -1316,6 +1316,23 @@ namespace Parameters
     [Serializable]
     public class BacketSetting
     {
+        /// <summary>
+        /// 経路要素（ループ順。2件以上あればベルトモデルより優先して経路を自動生成）
+        /// </summary>
+        [Serializable]
+        public class PathElement
+        {
+            /// <summary>0=スプロケット、1=経由点</summary>
+            public int type { get; set; }
+            public string path { get; set; } = "";
+            /// <summary>半径オフセット(m)。スプロケット=モデル検出半径への補正、経由点=角丸め半径(0=そのまま通過)</summary>
+            public float offset { get; set; }
+            /// <summary>モデル未指定時の座標(m、動作部モデル基準、KMX座標系X,Y,Z)</summary>
+            public float[] pos { get; set; } = new float[3];
+            [JsonIgnore]
+            public GameObject gameObject { get; set; }
+        }
+
         public string mechId { get; set; } = "";
         public string name { get; set; } = "";
         public string model { get; set; } = "";
@@ -1324,9 +1341,42 @@ namespace Parameters
         public int count { get; set; }
         public float pitch { get; set; }
         public float offset { get; set; }
+        /// <summary>周長(mm)。ロード時に経路設定(PathInfo)から充填される（0=経路から算出）</summary>
+        [JsonIgnore]
+        public float loopLength { get; set; }
+        /// <summary>周長と経路長の差を経路上に均等配分する。ロード時に経路設定(PathInfo)から充填される</summary>
+        [JsonIgnore]
+        public bool loopScaling { get; set; }
+        /// <summary>経路の開始位置オフセット(m)。ロード時に経路設定(PathInfo)から充填される</summary>
+        [JsonIgnore]
+        public float pathStartOffset { get; set; }
         public bool visible { get; set; }
+        /// <summary>常に上向き（吊り下げ式。経路を循環しても姿勢を変えない）</summary>
+        public bool upright { get; set; }
+        /// <summary>参照する経路名（PathInfo.jsonの経路。指定時はベルトモデルより優先）</summary>
+        public string pathName { get; set; } = "";
+        /// <summary>経路要素（ロード時にpathNameから解決して充填される）</summary>
+        public List<PathElement> pathElements { get; set; } = new();
         [JsonIgnore]
         public GameObject gameObject { get; set; }
+    }
+
+    /// <summary>
+    /// 経路設定（PathInfo.json。機番ごとの名前付き循環経路）
+    /// </summary>
+    [Serializable]
+    public class PathInfoSetting
+    {
+        public string mechId { get; set; } = "";
+        /// <summary>経路名（バケット設定などからの参照キー）</summary>
+        public string name { get; set; } = "";
+        /// <summary>周長(mm)。この距離の移動でちょうど1周する（0=経路から算出）</summary>
+        public float loopLength { get; set; }
+        /// <summary>周長と経路長の差を経路上に均等配分する（false=経路長を超えた時点で先頭へ戻る）</summary>
+        public bool loopScaling { get; set; }
+        /// <summary>開始位置オフセット(m)。経路の開始位置を進行方向にずらす（参照する全ユニットに効く）</summary>
+        public float startOffset { get; set; }
+        public List<BacketSetting.PathElement> elements { get; set; } = new();
     }
 
     [Serializable]

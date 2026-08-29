@@ -86,6 +86,7 @@ namespace Parameters
         private readonly RosSafetyZoneSource rosZoneSource = new RosSafetyZoneSource();
         private List<ExMechSetting> exMechSettings;
         private List<BacketSetting> backetSettings;
+        private List<PathInfoSetting> pathInfoSettings;
         private List<SwitchSetting> switchSettings;
         private List<SignalTowerSetting> towerSettings;
         private List<LedSetting> ledSettings;
@@ -1390,6 +1391,7 @@ namespace Parameters
             var tShape = GlobalScript.LoadListJson<List<ShapeSetting>>("ShapeInfo");
             var tExMech = GlobalScript.LoadListJson<List<ExMechSetting>>("ExMechInfo");
             var tBacket = GlobalScript.LoadListJson<List<BacketSetting>>("BacketInfo");
+            var tPathInfo = GlobalScript.LoadListJson<List<PathInfoSetting>>("PathInfo");
             var tLinear = GlobalScript.LoadListJson<List<LinearSetting>>("LinearInfo");
             var tSwitch = GlobalScript.LoadListJson<List<SwitchSetting>>("SwitchInfo");
             var tTower = GlobalScript.LoadListJson<List<SignalTowerSetting>>("SignalTowerInfo");
@@ -1430,6 +1432,13 @@ namespace Parameters
             shapeSettings = (List<ShapeSetting>)await tShape;
             exMechSettings = (List<ExMechSetting>)await tExMech;
             backetSettings = (List<BacketSetting>)await tBacket;
+            // PathInfo.json は新規・任意ファイル。未生成プロジェクトでもロードを壊さないよう、欠損/パース失敗は空扱い。
+            try { pathInfoSettings = (List<PathInfoSetting>)await tPathInfo; }
+            catch { pathInfoSettings = new List<PathInfoSetting>(); }
+            if (pathInfoSettings == null)
+            {
+                pathInfoSettings = new List<PathInfoSetting>();
+            }
             linearSettings = (List<LinearSetting>)await tLinear;
             switchSettings = (List<SwitchSetting>)await tSwitch;
             towerSettings = (List<SignalTowerSetting>)await tTower;
@@ -2347,6 +2356,18 @@ namespace Parameters
                     }
                 }
             }
+            // 経路設定（スプロケット/経由点のモデル解決）
+            foreach (var pathInfo in pathInfoSettings)
+            {
+                foreach (var element in pathInfo.elements)
+                {
+                    if ((element.path != null) && (element.path != ""))
+                    {
+                        var obj = prefabObj.transform.Find(element.path);
+                        element.gameObject = obj != null ? obj.gameObject : null;
+                    }
+                }
+            }
             // バケット設定
             foreach (var backet in backetSettings)
             {
@@ -2354,6 +2375,34 @@ namespace Parameters
                 {
                     var obj = prefabObj.transform.Find(backet.path);
                     backet.gameObject = obj != null ? obj.gameObject : null;
+                }
+                // 経路名参照の解決（同一機番の経路設定から要素を引き当てる）
+                if ((backet.pathName != null) && (backet.pathName != ""))
+                {
+                    var pathInfo = pathInfoSettings.Find(d => (d.mechId == backet.mechId) && (d.name == backet.pathName));
+                    if (pathInfo != null)
+                    {
+                        backet.pathElements = pathInfo.elements;
+                        backet.loopLength = pathInfo.loopLength;
+                        backet.loopScaling = pathInfo.loopScaling;
+                        backet.pathStartOffset = pathInfo.startOffset;
+                    }
+                    else
+                    {
+                        Debug.LogWarning($"バケット設定: {backet.name} の経路名\"{backet.pathName}\"が経路設定に見つかりません");
+                    }
+                }
+                // 旧形式（バケット設定に直接埋め込まれた経路要素）のモデル解決
+                else if (backet.pathElements != null)
+                {
+                    foreach (var element in backet.pathElements)
+                    {
+                        if ((element.path != null) && (element.path != ""))
+                        {
+                            var obj = prefabObj.transform.Find(element.path);
+                            element.gameObject = obj != null ? obj.gameObject : null;
+                        }
+                    }
                 }
             }
             // リニア設定
