@@ -75,6 +75,8 @@ namespace Parameters
         private List<ConveyerSetting> cvSettings;
         private List<WorkCreateSetting> wkSettings;
         private List<WorkDeleteSetting> wkDeleteSettings;
+        private List<WorkTransferSetting> wkTransferSettings;
+        private List<WorkModelSetting> wmSettings;
         private List<SensorSetting> sensorSettings;
         private List<SuctionSetting> suctionSettings;
         private List<ShapeSetting> shapeSettings;
@@ -371,6 +373,8 @@ namespace Parameters
                             unitSetting.workSettings = wkSettings.FindAll(d => (d.mechId == unitSetting.mechId) && (d.name == unitSetting.name));
                             // ワーク削除設定紐づけ
                             unitSetting.workDeleteSettings = wkDeleteSettings.FindAll(d => (d.mechId == unitSetting.mechId) && (d.name == unitSetting.name));
+                            // ワーク受渡設定紐づけ
+                            unitSetting.workTransferSettings = wkTransferSettings.FindAll(d => (d.mechId == unitSetting.mechId) && (d.name == unitSetting.name));
                             // センサ設定紐づけ
                             unitSetting.sensorSettings = sensorSettings.FindAll(d => (d.mechId == unitSetting.mechId) && (d.name == unitSetting.name));
                             // 吸引設定紐づけ
@@ -833,6 +837,9 @@ namespace Parameters
             menuInfoScript.SetEvents(unitSettings);
             prefabInfoScript.SetEvents();
 
+            // 静的ラベルの言語置換（英語設定時のみ動作）
+            Lang.TranslateAllTexts();
+
             GlobalScript.isLoading = false;
             GlobalScript.isLoaded = true;
             // ロード完了後、実行時フレームレートに戻す。WebGLモード(実機 or EditorのWebGLテストトグルON)は
@@ -996,6 +1003,8 @@ namespace Parameters
                     motion.unitSetting.workSettings = wkSettings.FindAll(d => (d.mechId == unitSetting.mechId) && (d.name == unitSetting.name));
                     // ワーク削除設定紐づけ
                     motion.unitSetting.workDeleteSettings = wkDeleteSettings.FindAll(d => (d.mechId == unitSetting.mechId) && (d.name == unitSetting.name));
+                    // ワーク受渡設定紐づけ
+                    motion.unitSetting.workTransferSettings = wkTransferSettings.FindAll(d => (d.mechId == unitSetting.mechId) && (d.name == unitSetting.name));
                     // センサ設定紐づけ
                     motion.unitSetting.sensorSettings = sensorSettings.FindAll(d => (d.mechId == unitSetting.mechId) && (d.name == unitSetting.name));
                     // 吸引設定紐づけ
@@ -1089,6 +1098,9 @@ namespace Parameters
 
             Resources.UnloadUnusedAssets();
             CommonFunction.DebugLog($"***** Load Finished *****", true);
+
+            // 静的ラベルの言語置換（英語設定時のみ動作）
+            Lang.TranslateAllTexts();
 
             // ここでロード完了確定（フルロードの LoadParameter 末尾と同じ扱い）。
             // 部分リロードは isReqLoadEvent で購読側（ComRos2 再init 等）へ再構築を通知する。
@@ -1371,6 +1383,8 @@ namespace Parameters
             var tCv = GlobalScript.LoadListJson<List<ConveyerSetting>>("ConveyerInfo");
             var tWk = GlobalScript.LoadListJson<List<WorkCreateSetting>>("WorkCreateInfo");
             var tWkDel = GlobalScript.LoadListJson<List<WorkDeleteSetting>>("WorkDeleteInfo");
+            var tWkTrans = GlobalScript.LoadListJson<List<WorkTransferSetting>>("WorkTransferInfo");
+            var tWm = GlobalScript.LoadListJson<List<WorkModelSetting>>("WorkModelInfo");
             var tSensor = GlobalScript.LoadListJson<List<SensorSetting>>("SensorInfo");
             var tSuction = GlobalScript.LoadListJson<List<SuctionSetting>>("SuctionInfo");
             var tShape = GlobalScript.LoadListJson<List<ShapeSetting>>("ShapeInfo");
@@ -1409,6 +1423,8 @@ namespace Parameters
             cvSettings = (List<ConveyerSetting>)await tCv;
             wkSettings = (List<WorkCreateSetting>)await tWk;
             wkDeleteSettings = (List<WorkDeleteSetting>)await tWkDel;
+            wkTransferSettings = (List<WorkTransferSetting>)await tWkTrans;
+            wmSettings = (List<WorkModelSetting>)await tWm;
             sensorSettings = (List<SensorSetting>)await tSensor;
             suctionSettings = (List<SuctionSetting>)await tSuction;
             shapeSettings = (List<ShapeSetting>)await tShape;
@@ -1423,6 +1439,8 @@ namespace Parameters
             changeOverSettings = (List<ChangeOverSetting>)await tChangeOver;
             debugSettings = (List<DebugSetting>)await tDebug;
             GlobalScript.buildConfig = (BuildConfig)await tBuildConfig;
+            // 言語初期化（辞書ロード。UIテキストの置換はロード完了時に行う）
+            await Lang.Initialize(GlobalScript.buildConfig != null ? GlobalScript.buildConfig.language : "auto");
             actionTableDatas = (List<ActionTableData>)await tActionTable;
             GlobalScript.useDeviceDatas = (List<UseDeviceData>)await tUseDevice;
             try
@@ -2140,6 +2158,33 @@ namespace Parameters
         private void CreateWork()
         {
             multiObjectFactory.DeleteSetting();
+
+            // ワークモデル設定（設計配置パス指定）を優先して登録する
+            foreach (var wm in wmSettings)
+            {
+                if ((wm.name == "") || (wm.path == null) || (wm.path == ""))
+                {
+                    continue;
+                }
+                var node = prefabObj.transform.Find(wm.path);
+                if (node == null)
+                {
+                    CommonFunction.DebugLog($"ワークモデル設定のパスが見つかりません: {wm.name} ({wm.path})");
+                    continue;
+                }
+                GlobalScript.workModels[wm.name] = node.gameObject;
+                var w = works.Find(d => d.key == wm.name);
+                if (w == null)
+                {
+                    w = new ObjEntry { key = wm.name };
+                    works.Add(w);
+                    w.obj = Instantiate(node.gameObject);
+                    w.obj.name = wm.name;
+                    w.obj.SetActive(false);
+                }
+                // 設計配置の元モデルはテンプレートとして非表示にする
+                node.gameObject.SetActive(false);
+            }
 
             // 名前→最初の1個を一度だけ辞書化（ループ毎の FindObjectsByType+ToList を回避）
             var byName = BuildNameLookup();

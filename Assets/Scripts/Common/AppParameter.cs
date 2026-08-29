@@ -312,6 +312,10 @@ namespace Parameters
         /// </summary>
         public List<WorkDeleteSetting> workDeleteSettings;
         /// <summary>
+        /// ワーク受渡設定
+        /// </summary>
+        public List<WorkTransferSetting> workTransferSettings;
+        /// <summary>
         /// センサ設定
         /// </summary>
         public List<SensorSetting> sensorSettings;
@@ -984,6 +988,10 @@ namespace Parameters
         /// </summary>
         public string work { get; set; }
         /// <summary>
+        /// 設計位置を使用（ワークモデル設定の設計配置位置で生成する）
+        /// </summary>
+        public bool isDesignPos { get; set; }
+        /// <summary>
         /// 把持可能
         /// </summary>
         public int grabbable { get; set; }
@@ -1059,6 +1067,10 @@ namespace Parameters
         /// </summary>
         public string name { get; set; }
         /// <summary>
+        /// 削除対象ワーク名（空欄=全ワーク）
+        /// </summary>
+        public string work { get; set; } = "";
+        /// <summary>
         /// タグ名
         /// </summary>
         public string tag { get; set; }
@@ -1074,6 +1086,60 @@ namespace Parameters
         /// オフセット(位置)
         /// </summary>
         public List<float> pos { get; set; }
+    }
+
+    [Serializable]
+    public class WorkTransferSetting
+    {
+        /// <summary>
+        /// 機番
+        /// </summary>
+        public string mechId { get; set; }
+        /// <summary>
+        /// ユニット名
+        /// </summary>
+        public string name { get; set; }
+        /// <summary>
+        /// モード（0=アタッチ、1=変換）
+        /// </summary>
+        public int mode { get; set; }
+        /// <summary>
+        /// タグ名（アタッチ=ON中保持/OFFで解放、変換=立ち上がりで実行）
+        /// </summary>
+        public string tag { get; set; }
+        /// <summary>
+        /// 対象ワーク名（空欄=範囲内の全ワーク）
+        /// </summary>
+        public string work { get; set; } = "";
+        /// <summary>
+        /// 変換先ワーク名（変換モードのみ）
+        /// </summary>
+        public string workTo { get; set; } = "";
+        /// <summary>
+        /// 対象範囲の中心（動作部基準）
+        /// </summary>
+        public List<float> pos { get; set; }
+        /// <summary>
+        /// 対象範囲の距離
+        /// </summary>
+        public float range { get; set; }
+    }
+
+    [Serializable]
+    public class WorkModelSetting
+    {
+        /// <summary>
+        /// 機番
+        /// </summary>
+        public string mechId { get; set; }
+        /// <summary>
+        /// ワーク名（識別名）
+        /// </summary>
+        public string name { get; set; }
+        /// <summary>
+        /// 設計配置モデルのシーンパス
+        /// </summary>
+        public string path { get; set; }
     }
 
     [Serializable]
@@ -1533,6 +1599,10 @@ namespace Parameters
         public bool isRelease { get; set; }
         public bool isVR { get; set; }
         public bool isMR { get; set; }
+        /// <summary>
+        /// 表示言語（"auto"=OS言語に追従 / "ja" / "en"）
+        /// </summary>
+        public string language { get; set; } = "auto";
         public bool isMaster { get; set; }
         public bool isCollision { get; set; }
         public bool isXR { get { return isVR || isMR; } }

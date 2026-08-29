@@ -27,6 +27,11 @@ public class MultiObjectFactoryScript : UseTagBaseScript
         public TagInfo CreateTag;
 
         /// <summary>
+        /// 反転入力（タグ名が-始まり。OFFで動作する）
+        /// </summary>
+        public bool isReverse = false;
+
+        /// <summary>
         /// タグの状態
         /// </summary>
         public bool tagStat = false;
@@ -40,6 +45,11 @@ public class MultiObjectFactoryScript : UseTagBaseScript
         /// オブジェクト削除設定
         /// </summary>
         public List<MultiObjectInfo> deleteSettings = new List<MultiObjectInfo>();
+
+        /// <summary>
+        /// ワーク受渡設定（アタッチ/変換）
+        /// </summary>
+        public List<MultiObjectInfo> transferSettings = new List<MultiObjectInfo>();
     }
 
     private class MultiObjectInfo
@@ -83,6 +93,31 @@ public class MultiObjectFactoryScript : UseTagBaseScript
         /// ワーク名
         /// </summary>
         public string WorkName;
+
+        /// <summary>
+        /// 受渡モード（0=アタッチ、1=変換）
+        /// </summary>
+        public int Mode = -1;
+
+        /// <summary>
+        /// 変換先ワーク名
+        /// </summary>
+        public string WorkTo = "";
+
+        /// <summary>
+        /// アタッチ中のワーク
+        /// </summary>
+        public List<GameObject> Attached = new List<GameObject>();
+
+        /// <summary>
+        /// 設計位置を使用
+        /// </summary>
+        public bool IsDesignPos = false;
+
+        /// <summary>
+        /// 設計配置テンプレート（ワークモデル設定の元モデル）
+        /// </summary>
+        public GameObject DesignTemplate;
 
         /// <summary>
         /// ワークが生存している距離
@@ -173,16 +208,40 @@ public class MultiObjectFactoryScript : UseTagBaseScript
             {
                 if (tag.Value.CreateTag == null)
                 {
-                    tag.Value.CreateTag = GlobalScript.GetTagInfo(tag.Value.Database, tag.Value.MechId, tag.Key);
+                    // -始まりは反転入力（OFFで動作）
+                    var name = tag.Key;
+                    if ((name != "") && (name[0] == '-'))
+                    {
+                        tag.Value.isReverse = true;
+                        name = name.Substring(1);
+                    }
+                    tag.Value.CreateTag = GlobalScript.GetTagInfo(tag.Value.Database, tag.Value.MechId, name);
+                    if ((tag.Value.CreateTag != null) && tag.Value.isReverse)
+                    {
+                        // 反転入力は初期状態(OFF)で即動作しないよう発火済み扱いにする
+                        tag.Value.tagStat = true;
+                    }
                 }
                 else
                 {
-                    var stat = tag.Value.CreateTag.Value >= 1;
+                    var stat = tag.Value.isReverse ? (tag.Value.CreateTag.Value < 1) : (tag.Value.CreateTag.Value >= 1);
                     if (stat && !tag.Value.tagStat)
                     {
                         UpdateObject(tag.Value);
                     }
                     tag.Value.tagStat = stat;
+                    // アタッチはレベル動作（ON中は範囲内のワークを保持、OFFで解放）
+                    foreach (var transfer in tag.Value.transferSettings)
+                    {
+                        if (transfer.Mode == 0)
+                        {
+                            if (transfer.isBacket && transfer.isIgnoreBacket)
+                            {
+                                continue;
+                            }
+                            ProcessAttach(transfer, stat);
+                        }
+                    }
                 }
             }
         }
@@ -196,16 +255,69 @@ public class MultiObjectFactoryScript : UseTagBaseScript
     {
         if (GlobalScript.isLoaded)
         {
+            // オブジェクト削除処理
+            // ※同一タグにワーク切り替え（旧ワーク削除＋新ワーク生成）を割り付けられるよう、削除を先に処理する
+            foreach (var setting in tag.deleteSettings)
+            {
+                if (setting.isBacket)
+                {
+                    if (setting.isIgnoreBacket)
+                    {
+                        continue;
+                    }
+                }
+                // クリアフラグON
+                float dis = Vector3.Distance(transform.localPosition, setting.CreatePoint);
+                if (dis < setting.AliveDistance)
+                {
+                    var dels = setting.objBase.GetComponentsInChildren<ObjectScript>();
+                    foreach (var del in dels)
+                    {
+                        // ワーク名指定ありなら対象ワークのみ削除（空欄=全ワーク）
+                        if ((setting.WorkName != null) && (setting.WorkName != "") && (del.name != setting.WorkName))
+                        {
+                            continue;
+                        }
+                        if (works.ContainsKey(del.name) && works[del.name].activeObjects.Contains(del.gameObject))
+                        {
+                            works[del.name].pool.Release(del.gameObject);
+                        }
+                    }
+                }
+            }
+            // ワーク変換処理（削除の後、生成の前に行う）
+            foreach (var setting in tag.transferSettings.FindAll(d => d.Mode == 1))
+            {
+                if (setting.isBacket && setting.isIgnoreBacket)
+                {
+                    continue;
+                }
+                ProcessChange(setting);
+            }
             // オブジェクト作成処理
             foreach (var setting in tag.createSettings.FindAll(d => !d.isBacket || !d.isIgnoreBacket))
             {
+                // 生成座標
+                var createPoint = setting.CreatePoint;
+                var createRotate = setting.CreateRotate;
+                if (setting.IsDesignPos && (setting.DesignTemplate != null))
+                {
+                    // 設計位置を使用：生成タイミング時点の生成元モデルとの位置関係で算出する
+                    // （生成元モデルは動作しているため、ロード時の初期姿勢基準では位置がずれる）
+                    // X,Y,Z/RX,RY,RZが設定されている場合は設計位置からの相対オフセットとして加算する（設計位置の姿勢基準）
+                    var designRot = setting.DesignTemplate.transform.rotation;
+                    var worldPos = setting.DesignTemplate.transform.position + designRot * setting.CreatePoint;
+                    var worldRot = designRot * Quaternion.Euler(setting.CreateRotate);
+                    createPoint = setting.objBase.transform.InverseTransformPoint(worldPos);
+                    createRotate = (Quaternion.Inverse(setting.objBase.transform.rotation) * worldRot).eulerAngles;
+                }
                 var change = false;
                 // 生成前にチェック
                 var near = setting.objBase.transform.GetComponentsInChildren<ObjectScript>()
                     .ToList()
                     .Find(d => Vector2.Distance(
                         new Vector2(d.transform.localPosition.x, d.transform.localPosition.z),
-                        new Vector2(setting.CreatePoint.x, setting.CreatePoint.z)
+                        new Vector2(createPoint.x, createPoint.z)
                     ) < 0.001f);
                 var work = works[setting.WorkName];
                 if (near != null)
@@ -223,8 +335,9 @@ public class MultiObjectFactoryScript : UseTagBaseScript
                 {
                     var obj = work.pool.Get();
                     obj.transform.parent = setting.objBase.transform;
-                    obj.transform.localPosition = setting.CreatePoint;
-                    obj.transform.localEulerAngles = setting.CreateRotate;
+                    obj.transform.localPosition = createPoint;
+                    obj.transform.localEulerAngles = createRotate;
+                    obj.transform.localScale = Vector3.one;
                     var script = obj.GetComponent<ObjectScript>();
                     if (script == null)
                     {
@@ -243,31 +356,228 @@ public class MultiObjectFactoryScript : UseTagBaseScript
                     }
                 }
             }
-            // オブジェクト削除処理
-            foreach (var setting in tag.deleteSettings)
+        }
+    }
+
+    /// <summary>
+    /// アタッチ処理（レベル動作）
+    /// タグON中は範囲内のワークを自ユニットの子として保持し、OFFで解放する。
+    /// </summary>
+    /// <param name="setting"></param>
+    /// <param name="stat"></param>
+    private void ProcessAttach(MultiObjectInfo setting, bool stat)
+    {
+        if (stat)
+        {
+            // 範囲内のワークを取り込む（実位置・実姿勢のまま子化）
+            var center = setting.objBase.transform.TransformPoint(setting.CreatePoint);
+            foreach (var pool in works)
             {
-                if (setting.isBacket)
+                if ((setting.WorkName != null) && (setting.WorkName != "") && (pool.Key != setting.WorkName))
                 {
-                    if (setting.isIgnoreBacket)
+                    continue;
+                }
+                foreach (var obj in pool.Value.activeObjects.ToList())
+                {
+                    if (obj == null)
                     {
                         continue;
                     }
-                }
-                // クリアフラグON
-                float dis = Vector3.Distance(transform.localPosition, setting.CreatePoint);
-                if (dis < setting.AliveDistance)
-                {
-                    var dels = setting.objBase.GetComponentsInChildren<ObjectScript>();
-                    foreach (var del in dels)
+                    if (obj.transform.parent == setting.objBase.transform)
                     {
-                        if (works[del.name].activeObjects.Contains(del.gameObject))
+                        continue;
+                    }
+                    if (Vector3.Distance(obj.transform.position, center) <= setting.AliveDistance)
+                    {
+                        obj.transform.SetParent(setting.objBase.transform, true);
+                        var rigi = obj.GetComponentInChildren<Rigidbody>();
+                        if (rigi != null)
                         {
-                            works[del.name].pool.Release(del.gameObject);
+                            rigi.useGravity = false;
+                            rigi.isKinematic = true;
+                        }
+                        if (!setting.Attached.Contains(obj))
+                        {
+                            setting.Attached.Add(obj);
                         }
                     }
                 }
             }
         }
+        else if (setting.Attached.Count > 0)
+        {
+            // 解放（既に他所＝次工程などに掴まれているワークはそのまま）
+            foreach (var obj in setting.Attached)
+            {
+                if (obj == null)
+                {
+                    continue;
+                }
+                if (obj.transform.parent != setting.objBase.transform)
+                {
+                    continue;
+                }
+                obj.transform.SetParent(null, true);
+                var rigi = obj.GetComponentInChildren<Rigidbody>();
+                if (rigi != null)
+                {
+                    rigi.useGravity = true;
+                    rigi.isKinematic = false;
+                }
+            }
+            setting.Attached.Clear();
+        }
+    }
+
+    /// <summary>
+    /// ワーク変換処理（タグ立ち上がりで実行）
+    /// 範囲内の対象ワークを、実位置・実姿勢・親子関係・物理状態を引き継いで変換先ワークに置き換える。
+    /// </summary>
+    /// <param name="setting"></param>
+    private void ProcessChange(MultiObjectInfo setting)
+    {
+        var toPool = GetOrCreatePool(setting.WorkTo);
+        if (toPool == null)
+        {
+            return;
+        }
+        var center = setting.objBase.transform.TransformPoint(setting.CreatePoint);
+        foreach (var pool in works.ToList())
+        {
+            if (pool.Key == setting.WorkTo)
+            {
+                // 変換先と同名ワークは対象外（自己置換防止）
+                continue;
+            }
+            if ((setting.WorkName != null) && (setting.WorkName != "") && (pool.Key != setting.WorkName))
+            {
+                continue;
+            }
+            foreach (var old in pool.Value.activeObjects.ToList())
+            {
+                if (old == null)
+                {
+                    continue;
+                }
+                if (Vector3.Distance(old.transform.position, center) > setting.AliveDistance)
+                {
+                    continue;
+                }
+                // 新ワークを実位置・親を引き継いで生成
+                var newObj = toPool.pool.Get();
+                newObj.transform.SetParent(old.transform.parent, false);
+                newObj.transform.SetPositionAndRotation(old.transform.position, old.transform.rotation);
+                newObj.transform.localScale = Vector3.one;
+                var newScript = newObj.GetComponent<ObjectScript>();
+                if (newScript == null)
+                {
+                    newScript = newObj.AddComponent<ObjectScript>();
+                }
+                var oldScript = old.GetComponent<ObjectScript>();
+                if (oldScript != null)
+                {
+                    newScript.AliveDistance = oldScript.AliveDistance;
+                    newScript.IsGrabbable = oldScript.IsGrabbable;
+                    newScript.IsGravity = oldScript.IsGravity;
+                    newScript.IsTouch = oldScript.IsTouch;
+                }
+                // 物理状態を引き継ぐ（保持中に変換された場合もそのまま保持される）
+                var oldRigi = old.GetComponentInChildren<Rigidbody>();
+                var newRigi = newObj.GetComponentInChildren<Rigidbody>();
+                if ((oldRigi != null) && (newRigi != null))
+                {
+                    newRigi.useGravity = oldRigi.useGravity;
+                    newRigi.isKinematic = oldRigi.isKinematic;
+                }
+                // アタッチ保持リストの参照も差し替える
+                ReplaceAttached(old, newObj);
+                pool.Value.pool.Release(old);
+            }
+        }
+    }
+
+    /// <summary>
+    /// 全受渡設定のアタッチ保持リストの参照を差し替える（変換時）
+    /// </summary>
+    /// <param name="oldObj"></param>
+    /// <param name="newObj"></param>
+    private void ReplaceAttached(GameObject oldObj, GameObject newObj)
+    {
+        foreach (var setting in multiObjects)
+        {
+            foreach (var tag in setting.Value)
+            {
+                foreach (var transfer in tag.Value.transferSettings)
+                {
+                    var index = transfer.Attached.IndexOf(oldObj);
+                    if (index >= 0)
+                    {
+                        transfer.Attached[index] = newObj;
+                    }
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// ワークプールを取得（未作成なら作成）
+    /// </summary>
+    /// <param name="workName"></param>
+    /// <returns></returns>
+    private WorkPool GetOrCreatePool(string workName)
+    {
+        if ((workName == null) || (workName == ""))
+        {
+            return null;
+        }
+        if (works.ContainsKey(workName))
+        {
+            return works[workName];
+        }
+        var pool = new WorkPool
+        {
+            work = GlobalScript.CreateWork(null, workName),
+        };
+        pool.work.name = workName;
+        pool.pool = new ObjectPool<GameObject>(
+            createFunc: () =>
+            {
+                var obj = Instantiate(pool.work);
+                obj.name = workName;
+                return obj;
+            },
+            actionOnGet: obj =>
+            {
+                obj.SetActive(true);
+                pool.activeObjects.Add(obj);
+            },
+            actionOnRelease: obj =>
+            {
+                obj.SetActive(false);
+                obj.transform.parent = transform;
+                pool.activeObjects.Remove(obj);
+            },
+            actionOnDestroy: obj => DestroyImmediate(obj),
+            defaultCapacity: 250
+            );
+        works.Add(workName, pool);
+        return pool;
+    }
+
+    /// <summary>
+    /// 出力先のObjectFactoryオブジェクトを取得（未作成なら作成）
+    /// </summary>
+    /// <param name="objFactoryObj"></param>
+    /// <returns></returns>
+    private GameObject GetObjectFactoryBase(GameObject objFactoryObj)
+    {
+        var objFactory = objFactoryObj.transform.GetComponentsInChildren<Transform>().ToList().Find(d => d.name == "ObjectFactory" && (d.parent == objFactoryObj.transform));
+        var objBase = objFactory == null ? new GameObject("ObjectFactory") : objFactory.gameObject;
+        objBase.transform.parent = objFactoryObj.transform;
+        objBase.transform.localPosition = Vector3.zero;
+        objBase.transform.localEulerAngles = Vector3.zero;
+        objBase.transform.localScale = Vector3.one;
+        return objBase;
     }
 
     /// <summary>
@@ -302,44 +612,10 @@ public class MultiObjectFactoryScript : UseTagBaseScript
         {
             var wk = (WorkCreateSetting)obj;
             // ワーク名
-            if (!works.ContainsKey(wk.work))
-            {
-                // ワーク作成
-                var pool = new WorkPool
-                {
-                    work = GlobalScript.CreateWork(null, wk.work),
-                };
-                pool.work.name = wk.work;
-                pool.pool = new ObjectPool<GameObject>(
-                    createFunc: () =>
-                    {
-                        var obj = Instantiate(pool.work);
-                        obj.name = wk.work;
-                        return obj;
-                    },
-                    actionOnGet: obj =>
-                    {
-                        obj.SetActive(true);
-                        pool.activeObjects.Add(obj);
-                    },
-                    actionOnRelease: obj =>
-                    {
-                        obj.SetActive(false);
-                        obj.transform.parent = transform;
-                        pool.activeObjects.Remove(obj);
-                    },
-                    actionOnDestroy: obj => DestroyImmediate(obj),
-                    defaultCapacity: 250
-                    );
-                works.Add(wk.work, pool);
-            }
+            GetOrCreatePool(wk.work);
             // 出力先オブジェクト
             var objFactoryObj = backetInfo != null ? backetInfo.obj : (wk.ignoreMove ? unitSetting.unitObject : unitSetting.moveObject);
-            var objFactory = objFactoryObj.transform.GetComponentsInChildren<Transform>().ToList().Find(d => d.name == "ObjectFactory" && (d.parent == objFactoryObj.transform));
-            var objBase = objFactory == null ? new GameObject("ObjectFactory") : objFactory.gameObject;
-            objBase.transform.parent = objFactoryObj.transform;
-            objBase.transform.localPosition = Vector3.zero;
-            objBase.transform.localEulerAngles = Vector3.zero;
+            var objBase = GetObjectFactoryBase(objFactoryObj);
             // 設定追加
             var id = unitSetting.Database + ":" + unitSetting.mechId;
             if (!multiObjects.ContainsKey(id))
@@ -377,7 +653,53 @@ public class MultiObjectFactoryScript : UseTagBaseScript
                 BacketNo = backetInfo != null ? wk.backetno : -1,
                 objBase = objBase
             };
+            if (wk.isDesignPos && GlobalScript.workModels.TryGetValue(wk.work, out var template) && (template != null))
+            {
+                // 設計位置を使用：テンプレートを保持し、相対座標は生成タイミングで算出する
+                setting.IsDesignPos = true;
+                setting.DesignTemplate = template;
+            }
             multiObject.createSettings.Add(setting);
+        }
+        else if (obj.GetType() == typeof(WorkTransferSetting))
+        {
+            var wk = (WorkTransferSetting)obj;
+            // 変換先ワークのプールを準備（対象ワークは既存プールを参照するのみ）
+            if (wk.mode == 1)
+            {
+                GetOrCreatePool(wk.workTo);
+            }
+            // 保持先（動作部）のObjectFactory
+            var objFactoryObj = unitSetting.moveObject != null ? unitSetting.moveObject : unitSetting.unitObject;
+            var objBase = GetObjectFactoryBase(objFactoryObj);
+            // 設定追加
+            var id = unitSetting.Database + ":" + unitSetting.mechId;
+            if (!multiObjects.ContainsKey(id))
+            {
+                multiObjects.Add(id, new Dictionary<string, MutiObjectTag>());
+            }
+            if (!multiObjects[id].ContainsKey(wk.tag))
+            {
+                multiObjects[id].Add(wk.tag, new MutiObjectTag());
+                multiObjects[id][wk.tag].Database = unitSetting.Database;
+                multiObjects[id][wk.tag].MechId = unitSetting.mechId;
+            }
+            var multiObject = multiObjects[id][wk.tag];
+            var setting = new MultiObjectInfo
+            {
+                Mode = wk.mode,
+                WorkName = wk.work != null ? wk.work : "",
+                WorkTo = wk.workTo != null ? wk.workTo : "",
+                CreatePoint = new Vector3
+                {
+                    x = wk.pos[0],
+                    y = wk.pos[1],
+                    z = wk.pos[2]
+                },
+                AliveDistance = wk.range,
+                objBase = objBase
+            };
+            multiObject.transferSettings.Add(setting);
         }
         else if (obj.GetType() == typeof(WorkDeleteSetting))
         {
@@ -397,6 +719,7 @@ public class MultiObjectFactoryScript : UseTagBaseScript
             var multiObject = multiObjects[id][wk.tag];
             var setting = new MultiObjectInfo
             {
+                WorkName = wk.work,
                 CreatePoint = new Vector3
                 {
                     x = wk.pos[0],

@@ -257,6 +257,11 @@ public static class GlobalScript
     public static Dictionary<string, GameObject> works = new Dictionary<string, GameObject>();
 
     /// <summary>
+    /// ワークモデル設定の設計配置テンプレート（ワーク名→シーン内の元モデル）
+    /// </summary>
+    public static Dictionary<string, GameObject> workModels = new Dictionary<string, GameObject>();
+
+    /// <summary>
     /// 機構登録情報
     /// </summary>
     public static Dictionary<string, List<GameObject>> regObjects = new Dictionary<string, List<GameObject>>();
@@ -515,6 +520,7 @@ public static class GlobalScript
         opcuas = new Dictionary<string, ITagCom>();
         ethernetips = new Dictionary<string, ITagCom>();
         works = new Dictionary<string, GameObject>();
+        workModels = new Dictionary<string, GameObject>();
         regObjects = new Dictionary<string, List<GameObject>>();
         regScripts = new Dictionary<string, List<GameObject>>();
         dctMaterial = new Dictionary<MeshRenderer, ChangeMaterial>();

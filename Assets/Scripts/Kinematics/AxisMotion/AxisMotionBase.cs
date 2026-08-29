@@ -814,6 +814,14 @@ public class AxisMotionBase : KinematicsBase
                 }
             }
         }
+        // ワーク受渡設定
+        if ((unitSetting.workTransferSettings != null) && (unitSetting.workTransferSettings.Count > 0))
+        {
+            foreach (var wk in unitSetting.workTransferSettings)
+            {
+                objectFactory.SetObjectParameter(unitSetting, wk);
+            }
+        }
         // スイッチ設定
         if (isSwitch)
         {
