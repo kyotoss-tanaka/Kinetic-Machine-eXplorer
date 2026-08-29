@@ -11,7 +11,11 @@
 /[Tt]emp/
 /[Uu]ser[Ss]ettings/
 /Assets/Resources/Pixyz/
-/Assets/StreamingAssets/
+# StreamingAssets はKMXToolの出力先のため管理外。ただし言語辞書(Lang)はアプリ資産のため管理する
+/Assets/StreamingAssets/*
+!/Assets/StreamingAssets/Datas/
+/Assets/StreamingAssets/Datas/*
+!/Assets/StreamingAssets/Datas/Lang/
 /Assets/AssetStoreTools*
 /ServerData/
 *.log
