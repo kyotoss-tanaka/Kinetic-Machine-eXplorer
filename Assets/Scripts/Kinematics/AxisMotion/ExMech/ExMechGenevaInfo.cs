@@ -25,7 +25,7 @@ public class ExMechGenevaInfo : ExMechInfo
         // 制御対象オブジェクトを作成
         pntAObject = new GameObject("PointA");
         pntAObject.transform.parent = mainAxis.model.transform;
-        pntAObject.transform.position = sliderAxis.model.transform.position;
+        pntAObject.transform.position = sliderAxis.root.position;
 
         //　主軸
         mainOffsetRot = mainAxis.model.transform.rotation;
@@ -37,14 +37,14 @@ public class ExMechGenevaInfo : ExMechInfo
         calcSpace.transform.localRotation = Quaternion.FromToRotation(mainAxis.model.transform.localRotation * Vector3.right, Vector3.Scale((pntAObject.transform.localPosition - mainAxis.model.transform.localPosition), mainMask).normalized) * mainAxis.model.transform.localRotation;
         moveDir = new Vector3(0, 0, 1);
 
-        // 従動軸
-        guideDir = guideAxis.model.transform.InverseTransformDirection(calcSpace.transform.forward);
+        // 従動軸（回転を適用するroot基準）
+        guideDir = guideAxis.root.InverseTransformDirection(calcSpace.transform.forward);
         initDrivenOffset = GetDriveAngle();
-        initDirvenAng = guideAxis.model.transform.localEulerAngles;
+        initDirvenAng = guideAxis.root.localEulerAngles;
 
-        // スライダ軸
-        sliderDir = sliderAxis.model.transform.InverseTransformDirection(calcSpace.transform.forward);
-        initSliderAng = sliderAxis.model.transform.localEulerAngles;
+        // スライダ軸（回転を適用するroot基準）
+        sliderDir = sliderAxis.root.InverseTransformDirection(calcSpace.transform.forward);
+        initSliderAng = sliderAxis.root.localEulerAngles;
 
         // 初期位置
         initPosition = calcSpace.transform.InverseTransformPoint(pntAObject.transform.position);
@@ -60,13 +60,13 @@ public class ExMechGenevaInfo : ExMechInfo
         // 角度計算
         var th = (GetDriveAngle() - initDrivenOffset);
 
-        // 従動軸の計算
-        guideAxis.model.transform.localEulerAngles = th * guideDir + Vector3.Scale(initDirvenAng, guideMask);
+        // 従動軸の計算（回転中心=root）
+        guideAxis.root.localEulerAngles = th * guideDir + Vector3.Scale(initDirvenAng, guideMask);
 
-        // スライダ軸の計算
+        // スライダ軸の計算（回転中心=root）
         Quaternion deltaMain = mainAxis.model.transform.rotation * Quaternion.Inverse(mainOffsetRot);
-        sliderAxis.model.transform.position = pntAObject.transform.position;
-        sliderAxis.model.transform.localEulerAngles = th * sliderDir + Vector3.Scale(initSliderAng, sliderMask);
+        sliderAxis.root.position = pntAObject.transform.position;
+        sliderAxis.root.localEulerAngles = th * sliderDir + Vector3.Scale(initSliderAng, sliderMask);
 
         // 座標更新
         nowPos = Vector3.Scale(calcSpace.transform.InverseTransformPoint(pntAObject.transform.position) - initPosition, new Vector3(-1, 1, 0));
@@ -80,7 +80,7 @@ public class ExMechGenevaInfo : ExMechInfo
     private float GetDriveAngle()
     {
         var pntA = Vector3.Scale(calcSpace.transform.InverseTransformPoint(pntAObject.transform.position), moveMask);
-        var pntG = pntA - Vector3.Scale(calcSpace.transform.InverseTransformPoint(guideAxis.model.transform.position), moveMask);
+        var pntG = pntA - Vector3.Scale(calcSpace.transform.InverseTransformPoint(guideAxis.root.position), moveMask);
         return Mathf.Atan2(pntG.y, pntG.x) * Mathf.Rad2Deg;
     }
 }

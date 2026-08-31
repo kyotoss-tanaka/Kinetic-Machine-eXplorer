@@ -124,11 +124,11 @@ public class ExMechInfo
         {
             if (guideSpace != null)
             {
-                return guideSpace.transform.InverseTransformPoint(pntAAxis.model.transform.position);
+                return guideSpace.transform.InverseTransformPoint(pntAAxis.root.position);
             }
             else if (pntAAxis != null)
             {
-                return workSpace.transform.InverseTransformPoint(pntAAxis.model.transform.position);
+                return workSpace.transform.InverseTransformPoint(pntAAxis.root.position);
             }
             else
             {
@@ -142,11 +142,11 @@ public class ExMechInfo
         {
             if (guideSpace != null)
             {
-                return guideSpace.transform.InverseTransformPoint(sliderAxis.model.transform.position);
+                return guideSpace.transform.InverseTransformPoint(sliderAxis.root.position);
             }
             else if (sliderAxis != null)
             {
-                return workSpace.transform.InverseTransformPoint(sliderAxis.model.transform.position);
+                return workSpace.transform.InverseTransformPoint(sliderAxis.root.position);
             }
             else
             {
@@ -174,10 +174,10 @@ public class ExMechInfo
         }
         else
         {
-            // ガイド空間
+            // ガイド空間（原点=主軸の回転中心）
             guideSpace = new GameObject("GuideSpace");
             guideSpace.transform.parent = workSpace.transform.parent;
-            guideSpace.transform.position = mainAxis.model.transform.position;
+            guideSpace.transform.position = mainAxis.root.position;
             guideSpace.transform.eulerAngles = guideAxis.model.transform.eulerAngles;
             guideSpace.transform.localScale = new(1, 1, 1);
             // ガイドの方向

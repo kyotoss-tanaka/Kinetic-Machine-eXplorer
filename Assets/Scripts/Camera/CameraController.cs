@@ -109,8 +109,19 @@ public class CameraController : MonoBehaviour
             // ON処理
             if (key == Key.F)
             {
-                // F
-                FocusTo();
+                if (isShift)
+                {
+                    // Shift+F: 選択オブジェクトの原点を回転中心にする（カメラは動かさない）
+                    if (GlobalScript.selectedObject != null)
+                    {
+                        SetTargetPosition(GlobalScript.selectedObject.transform.position);
+                    }
+                }
+                else
+                {
+                    // F: 選択オブジェクトへフォーカス（回転中心変更＋カメラ移動）
+                    FocusTo();
+                }
             }
             else if (key == Key.R)
             {

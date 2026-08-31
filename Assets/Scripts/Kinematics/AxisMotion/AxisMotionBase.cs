@@ -622,6 +622,34 @@ public class AxisMotionBase : KinematicsBase
     /// </summary>
     private void SetExMechSetting()
     {
+        // 主軸の回転中心指定（主軸タブの種別=回転中心の子モデル）があれば、動作部モデルをピボット空間で包んで差し替える。
+        // 主軸はMotionInternalがmoveObjectを直接回すため、moveObject自体をピボットにする必要がある。
+        var mainPivot = unitSetting.exMechSetting.main?.children?.Find(d => (d.type >= 1) && (d.gameObject != null));
+        if (mainPivot != null)
+        {
+            // 回転中心＝指定モデルのレンダラ境界中心（原点がズレた外部CADノードでも軸部品の中心を拾える）
+            var center = mainPivot.gameObject.transform.position;
+            var rends = mainPivot.gameObject.GetComponentsInChildren<Renderer>();
+            if (rends.Length > 0)
+            {
+                var bounds = rends[0].bounds;
+                for (var i = 1; i < rends.Length; i++)
+                {
+                    bounds.Encapsulate(rends[i].bounds);
+                }
+                center = bounds.center;
+            }
+            var pivotGo = new GameObject(unitSetting.moveObject.name + "_Pivot");
+            pivotGo.transform.SetParent(unitSetting.moveObject.transform.parent, false);
+            // 元モデルと同じローカル姿勢で挿入する（既存のlocalEulerAngles指定の動作コードがそのまま効く）
+            pivotGo.transform.localRotation = unitSetting.moveObject.transform.localRotation;
+            pivotGo.transform.localScale = Vector3.one;
+            pivotGo.transform.position = center;
+            unitSetting.moveObject.transform.SetParent(pivotGo.transform, true);
+            Debug.Log($"拡張機構: {unitSetting.name} 主軸の回転中心を {mainPivot.gameObject.name} の中心 {center} に設定");
+            unitSetting.moveObject = pivotGo;
+            moveObject = pivotGo;
+        }
         // ユニット追加
         var exObj = new GameObject(unitSetting.name + "(ExMech)");
         exObj.transform.parent = unitSetting.unitObject.transform;
@@ -644,6 +672,11 @@ public class AxisMotionBase : KinematicsBase
                 data.gameObject.transform.parent = exObj.transform;
                 foreach (var child in data.children)
                 {
+                    if ((child.gameObject == null) || (child.type == 2))
+                    {
+                        // 回転中心(固定)は中心参照のみ（親子付け替えせず据え置き）
+                        continue;
+                    }
                     child.gameObject.transform.parent = data.gameObject.transform;
                 }
             }

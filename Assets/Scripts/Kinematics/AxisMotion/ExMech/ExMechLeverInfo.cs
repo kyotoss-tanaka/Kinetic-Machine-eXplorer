@@ -18,7 +18,7 @@ public class ExMechLeverInfo : ExMechInfo
         }
 
         // カムフォロアの親を主軸に
-        pntAAxis.model.transform.parent = mainAxis.model.transform;
+        pntAAxis.root.parent = mainAxis.model.transform;
     }
 
     /// <summary>
@@ -32,7 +32,7 @@ public class ExMechLeverInfo : ExMechInfo
         }
         else
         {
-            sliderAxis.model.transform.position = guideSpace.transform.TransformPoint(sliderOffset + Vector3.Scale(movePos, guideDir));
+            sliderAxis.root.position = guideSpace.transform.TransformPoint(sliderOffset + Vector3.Scale(movePos, guideDir));
         }
     }
 }

@@ -2358,6 +2358,18 @@ namespace Parameters
                         }
                     }
                 }
+                // 主軸の子モデル（回転中心指定用。旧データはmainなし）
+                if (ex.main != null)
+                {
+                    foreach (var child in ex.main.children)
+                    {
+                        if ((child.path != null) && (child.path != ""))
+                        {
+                            var cobj = prefabObj.transform.Find(child.path);
+                            child.gameObject = cobj != null ? cobj.gameObject : null;
+                        }
+                    }
+                }
             }
             // 経路設定（スプロケット/経由点のモデル解決）
             foreach (var pathInfo in pathInfoSettings)

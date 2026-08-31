@@ -115,7 +115,74 @@ public class ExMechScript : UseTagBaseScript
     /// </summary>
     private void Initialize()
     {
+        if (mechInfo == null)
+        {
+            return;
+        }
+        // 回転中心が指定されたモデルへピボット空間を挿入する（未指定のモデルは従来どおり原点回転）
+        ApplyPivot(mechInfo.mainAxis);
+        ApplyPivot(mechInfo.pntAAxis);
+        ApplyPivot(mechInfo.sliderAxis);
+        ApplyPivot(mechInfo.guideAxis);
+        foreach (var axis in mechInfo.axisInfos)
+        {
+            ApplyPivot(axis);
+        }
         InitializeMechEx();
+    }
+
+    /// <summary>
+    /// 回転中心（種別=回転中心の子モデル）が指定されたモデルに、ピボット空間を挿入する。
+    /// 回転中心はモデルのレンダラ境界中心（原点がズレた外部CADノードでも軸・ピン部品の中心を拾える）。
+    /// ピボットは親と同じ向き（ローカル回転=単位）で挿入するため、既存のlocalEulerAngles指定の動作コードがそのまま効く。
+    /// </summary>
+    private static void ApplyPivot(ExMechAxisInfo axis)
+    {
+        if ((axis == null) || (axis.model == null) || (axis.pivotSource == null) || (axis.pivot != null))
+        {
+            return;
+        }
+        var center = axis.pivotSource.transform.position;
+        var rends = axis.pivotSource.GetComponentsInChildren<Renderer>();
+        if (rends.Length > 0)
+        {
+            var bounds = rends[0].bounds;
+            for (var i = 1; i < rends.Length; i++)
+            {
+                bounds.Encapsulate(rends[i].bounds);
+            }
+            center = bounds.center;
+        }
+        var pivotGo = new GameObject(axis.model.name + "_Pivot");
+        pivotGo.transform.SetParent(axis.model.transform.parent, false);
+        // 元モデルと同じローカル姿勢で挿入する（root基準の初期姿勢が従来のモデル基準と一致し、後方互換になる）
+        pivotGo.transform.localRotation = axis.model.transform.localRotation;
+        pivotGo.transform.localScale = Vector3.one;
+        pivotGo.transform.position = center;
+        axis.model.transform.SetParent(pivotGo.transform, true);
+        axis.pivot = pivotGo;
+        Debug.Log($"拡張機構: {axis.model.name} の回転中心を {axis.pivotSource.name} の中心 {center} に設定");
+    }
+
+    /// <summary>
+    /// 子モデルリストを軸情報へ反映する（種別=回転中心はピボット参照として保持）。
+    /// 回転中心(固定)=type2 は中心参照のみで、childrenに含めない（親子付け替え対象外＝据え置き）。
+    /// </summary>
+    private static void SetAxisChildren(ExMechAxisInfo axis, ExMechModel data)
+    {
+        foreach (var child in data.children)
+        {
+            if (child.type == 1)
+            {
+                axis.pivotSource = child.gameObject;
+            }
+            else if (child.type == 2)
+            {
+                axis.pivotSource = child.gameObject;
+                continue;
+            }
+            axis.children.Add(child.gameObject);
+        }
     }
 
     /// <summary>
@@ -185,6 +252,26 @@ public class ExMechScript : UseTagBaseScript
             model = unitSetting.moveObject,
             children = new()
         };
+        // 主軸の子モデル（旧データはmainなし）
+        // ※種別=回転中心系はAxisMotionBase.SetExMechSettingがmoveObject自体をピボット化して処理済み
+        if (exMechSetting.main != null)
+        {
+            foreach (var child in exMechSetting.main.children)
+            {
+                if (child.gameObject == null)
+                {
+                    continue;
+                }
+                if (child.type == 2)
+                {
+                    // 回転中心(固定)は中心参照のみ（据え置き）
+                    continue;
+                }
+                // 通常行・回転中心(追従)行は主軸に追従させる
+                child.gameObject.transform.parent = unitSetting.moveObject.transform;
+                mainAxis.children.Add(child.gameObject);
+            }
+        }
         if (mechType == 0)
         {
             // スライダークランク機構
@@ -202,30 +289,21 @@ public class ExMechScript : UseTagBaseScript
                 model = exMechSetting.datas[1].gameObject,
                 children = new()
             };
-            foreach (var child in exMechSetting.datas[1].children)
-            {
-                mechInfo.sliderAxis.children.Add(child.gameObject);
-            }
+            SetAxisChildren(mechInfo.sliderAxis, exMechSetting.datas[1]);
             // コンロッド(主軸の連結部が原点)
             mechInfo.pntAAxis = new ExMechAxisInfo
             {
                 model = exMechSetting.datas[0].gameObject,
                 children = new()
             };
-            foreach (var child in exMechSetting.datas[0].children)
-            {
-                mechInfo.pntAAxis.children.Add(child.gameObject);
-            }
+            SetAxisChildren(mechInfo.pntAAxis, exMechSetting.datas[0]);
             // LMガイド(動作方向の検出用)
             mechInfo.guideAxis = new ExMechAxisInfo
             {
                 model = exMechSetting.datas[2].gameObject,
                 children = new()
             };
-            foreach (var child in exMechSetting.datas[2].children)
-            {
-                mechInfo.guideAxis.children.Add(child.gameObject);
-            }
+            SetAxisChildren(mechInfo.guideAxis, exMechSetting.datas[2]);
             parentModel = mechInfo.sliderAxis.model;
         }
         else if (mechType == 1)
@@ -245,20 +323,14 @@ public class ExMechScript : UseTagBaseScript
                 model = exMechSetting.datas[0].gameObject,
                 children = new()
             };
-            foreach (var child in exMechSetting.datas[0].children)
-            {
-                mechInfo.guideAxis.children.Add(child.gameObject);
-            }
+            SetAxisChildren(mechInfo.guideAxis, exMechSetting.datas[0]);
             // 動作対象(距離で制御する部分)
             mechInfo.sliderAxis = new ExMechAxisInfo
             {
                 model = exMechSetting.datas[1].gameObject,
                 children = new()
             };
-            foreach (var child in exMechSetting.datas[1].children)
-            {
-                mechInfo.sliderAxis.children.Add(child.gameObject);
-            }
+            SetAxisChildren(mechInfo.sliderAxis, exMechSetting.datas[1]);
             parentModel = mechInfo.sliderAxis.model;
         }
         else if (mechType == 2)
@@ -278,30 +350,21 @@ public class ExMechScript : UseTagBaseScript
                 model = exMechSetting.datas[0].gameObject,
                 children = new()
             };
-            foreach (var child in exMechSetting.datas[0].children)
-            {
-                mechInfo.sliderAxis.children.Add(child.gameObject);
-            }
+            SetAxisChildren(mechInfo.sliderAxis, exMechSetting.datas[0]);
             // カムフォロア(主軸の連結部が原点)
             mechInfo.pntAAxis = new ExMechAxisInfo
             {
                 model = exMechSetting.datas[1].gameObject,
                 children = new()
             };
-            foreach (var child in exMechSetting.datas[1].children)
-            {
-                mechInfo.pntAAxis.children.Add(child.gameObject);
-            }
+            SetAxisChildren(mechInfo.pntAAxis, exMechSetting.datas[1]);
             // LMガイド(動作方向の検出用)
             mechInfo.guideAxis = new ExMechAxisInfo
             {
                 model = exMechSetting.datas[2].gameObject,
                 children = new()
             };
-            foreach (var child in exMechSetting.datas[2].children)
-            {
-                mechInfo.guideAxis.children.Add(child.gameObject);
-            }
+            SetAxisChildren(mechInfo.guideAxis, exMechSetting.datas[2]);
             parentModel = mechInfo.sliderAxis.model;
         }
         else if (mechType == 3)
@@ -327,10 +390,7 @@ public class ExMechScript : UseTagBaseScript
                     model = data.gameObject,
                     children = new()
                 };
-                foreach (var child in data.children)
-                {
-                    axis.children.Add(child.gameObject);
-                }
+                SetAxisChildren(axis, data);
                 mechInfo.axisInfos.Add(axis);
             }
             if (isDouble)

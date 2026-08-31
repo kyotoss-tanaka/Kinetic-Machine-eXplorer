@@ -1299,6 +1299,8 @@ namespace Parameters
         public string name { get; set; }
         public int type { get; set; }
         public List<ExMechModel> datas { get; set; }
+        /// <summary>主軸（動作部モデル）の子モデル（回転中心指定用。旧データはnull）</summary>
+        public ExMechModel main { get; set; }
     }
 
     [Serializable]
@@ -1313,6 +1315,8 @@ namespace Parameters
         public string model { get; set; } = "";
         public string group { get; set; } = "";
         public string path { get; set; } = "";
+        /// <summary>0=通常、1=回転中心（バウンズ中心が親モデルの回転中心。モデルは親に追従）、2=回転中心(固定)（中心参照のみ。親子付け替えせず据え置き）</summary>
+        public int type { get; set; }
         [JsonIgnore]
         public GameObject gameObject { get; set; }
         [JsonIgnore]

@@ -67,7 +67,7 @@ public class SliderCrankInfo : ExMechInfo
         pntBOffset = guideSpace.transform.InverseTransformPoint(pos);
 
         // コンロッドの主軸側判定
-        var tmpA = Vector3.Scale(mainAxis.model.transform.InverseTransformPoint(pntAAxis.model.transform.position), mainMask);
+        var tmpA = Vector3.Scale(mainAxis.model.transform.InverseTransformPoint(pntAAxis.root.position), mainMask);
         var tmpB = Vector3.Scale(mainAxis.model.transform.InverseTransformPoint(pntFarObject.transform.position), mainMask);
 
         // 制御対象オブジェクトを作成
@@ -84,11 +84,11 @@ public class SliderCrankInfo : ExMechInfo
             pntAOffset = guideSpace.transform.InverseTransformPoint(pos);
             pntAObject.transform.position = pntFarObject.transform.position;
             pntAObject.transform.eulerAngles = pntFarObject.transform.eulerAngles;
-            pntBObject.transform.position = pntAAxis.model.transform.position;
+            pntBObject.transform.position = pntAAxis.root.position;
         }
         else
         {
-            pntAObject.transform.position = pntAAxis.model.transform.position;
+            pntAObject.transform.position = pntAAxis.root.position;
             pntAObject.transform.eulerAngles = pntAAxis.model.transform.eulerAngles;
             pntBObject.transform.position = pntFarObject.transform.position;
         }
@@ -98,9 +98,9 @@ public class SliderCrankInfo : ExMechInfo
         // コンロッドの親設定
         pntAAxis.SetParent(guideSpace);
 
-        // コンロッドの方向取得
-        var conA = pntAAxis.model.transform.InverseTransformPoint(guideSpace.transform.TransformPoint(Vector3.Scale(pntAOffset, moveMask)));
-        var conB = pntAAxis.model.transform.InverseTransformPoint(guideSpace.transform.TransformPoint(Vector3.Scale(pntBOffset, moveMask)));
+        // コンロッドの方向取得（回転を適用するroot基準の座標系で取る）
+        var conA = pntAAxis.root.InverseTransformPoint(guideSpace.transform.TransformPoint(Vector3.Scale(pntAOffset, moveMask)));
+        var conB = pntAAxis.root.InverseTransformPoint(guideSpace.transform.TransformPoint(Vector3.Scale(pntBOffset, moveMask)));
         var conAB = conB - conA;
         armM = Mathf.Max(Mathf.Abs(conAB.x), Mathf.Max(Mathf.Abs(conAB.y), Mathf.Abs(conAB.z)));
         if (armM == conAB.x)
@@ -115,8 +115,8 @@ public class SliderCrankInfo : ExMechInfo
         {
             rodDir = conAB.z < 0 ? Vector3.forward : Vector3.back;
         }
-        // 初期姿勢
-        initRotRotation = Quaternion.Euler(Vector3.Scale(pntAAxis.model.transform.localEulerAngles, rodDir));
+        // 初期姿勢（回転を適用するroot基準）
+        initRotRotation = Quaternion.Euler(Vector3.Scale(pntAAxis.root.localEulerAngles, rodDir));
 
         // ガイド基準に変更
         var pntA = Vector3.Scale(pntAOffset, moveMask);
@@ -165,23 +165,23 @@ public class SliderCrankInfo : ExMechInfo
         var tmp = rotation * pntB;
         yOffset = tmp.y;
         pntBGuideOffset = new Vector2(tmp.x, tmp.y);
-        // 計算空間
+        // 計算空間（原点=主軸の回転中心）
         calcSpace = new GameObject("CalcSpace");
         calcSpace.transform.parent = workSpace.transform.parent;
-        calcSpace.transform.position = mainAxis.model.transform.position;
+        calcSpace.transform.position = mainAxis.root.position;
         calcSpace.transform.localRotation = guideSpace.transform.localRotation * rotation;
         calcSpace.transform.localScale = new(1, 1, 1);
         if (exModeChange)
         {
             // 計算空間へ移動
-            mainAxis.model.transform.parent = calcSpace.transform;
-            sliderOffset = calcSpace.transform.InverseTransformPoint(sliderAxis.model.transform.position);
+            mainAxis.root.parent = calcSpace.transform;
+            sliderOffset = calcSpace.transform.InverseTransformPoint(sliderAxis.root.position);
         }
         // スライダ初期位置
         initSliderZeroX = Mathf.Sqrt(armM * armM - (armL - yOffset) * (armL - yOffset));
         initSliderOffset = initSliderZeroX - pntBGuideOffset.x;
-        // 主軸の初期角度
-        var initMainAngle = (Quaternion.Inverse(calcSpace.transform.rotation) * mainAxis.model.transform.rotation).eulerAngles.z;
+        // 主軸の初期角度（回転を適用するroot基準）
+        var initMainAngle = (Quaternion.Inverse(calcSpace.transform.rotation) * mainAxis.root.rotation).eulerAngles.z;
         // 初回の逆解
         var result = InverseKinematics(new Vector3(pntBGuideOffset.x, yOffset, 0));
         var th = result.theta[0] > result.theta[1] ? result.theta[0] : result.theta[1];
@@ -208,13 +208,13 @@ public class SliderCrankInfo : ExMechInfo
                 y = 0,
                 z = 0
             };
-            sliderAxis.model.transform.position = calcSpace.transform.TransformPoint(sliderOffset + move);
+            sliderAxis.root.position = calcSpace.transform.TransformPoint(sliderOffset + move);
             // 逆解
             var result = InverseKinematics(new Vector3(initSliderZeroX + m, yOffset, 0));
             if (result.valid)
             {
                 var th = result.theta[0] > result.theta[1] ? result.theta[0] : result.theta[1];
-                mainAxis.model.transform.localEulerAngles = new Vector3(0, 0, th - initMainAngleOffset);
+                mainAxis.root.localEulerAngles = new Vector3(0, 0, th - initMainAngleOffset);
             }
             // スライダ位置
             nowPos.x = m;
@@ -226,7 +226,7 @@ public class SliderCrankInfo : ExMechInfo
             var x = MathF.Sqrt(armM * armM - y * y);
             pntBGuidePos = new Vector2(pntAGuidePos.x + x, yOffset);
             // スライダの位置
-            sliderAxis.model.transform.position = guideSpace.transform.TransformPoint(sliderOffset + Vector3.Scale(movePos, guideDir));
+            sliderAxis.root.position = guideSpace.transform.TransformPoint(sliderOffset + Vector3.Scale(movePos, guideDir));
             nowPos.x = x - initSliderOffset;
         }
         // コンロッド端の取得
@@ -234,20 +234,20 @@ public class SliderCrankInfo : ExMechInfo
         var posB = Vector3.Scale(guideSpace.transform.InverseTransformPoint(pntBObject.transform.position), moveMask);
         if (modeB)
         {
-            pntAAxis.model.transform.position = pntBObject.transform.position;
+            pntAAxis.root.position = pntBObject.transform.position;
             // コンロッドの向き
             var rot = Quaternion.FromToRotation(rodDir, posA - posB) * Quaternion.Inverse(initRotRotation);
-            pntAAxis.model.transform.localRotation = rot;
+            pntAAxis.root.localRotation = rot;
         }
         else
         {
-            pntAAxis.model.transform.position = pntAObject.transform.position;
+            pntAAxis.root.position = pntAObject.transform.position;
             // コンロッドの向き
             var rot = Quaternion.FromToRotation(rodDir, posA - posB) * Quaternion.Inverse(initRotRotation);
-            pntAAxis.model.transform.localRotation = rot;
+            pntAAxis.root.localRotation = rot;
         }
         // 角度と座標取得
-        nowAngle.z = NormalizeAngle(90 - (Quaternion.Inverse(calcSpace.transform.rotation) * mainAxis.model.transform.rotation).eulerAngles.z - initMainAngleOffset);
+        nowAngle.z = NormalizeAngle(90 - (Quaternion.Inverse(calcSpace.transform.rotation) * mainAxis.root.rotation).eulerAngles.z - initMainAngleOffset);
     }
 
     /// <summary>
@@ -311,7 +311,7 @@ public class SliderCrankInfo : ExMechInfo
         res.message = "ok";
 
         // chosen の選択ロジック
-        var prevThetaRad = mainAxis.model.transform.localEulerAngles.z - initMainAngleOffset;
+        var prevThetaRad = mainAxis.root.localEulerAngles.z - initMainAngleOffset;
         if (!float.IsNaN(prevThetaRad))
         {
             // 正規化して差の小さい方を選ぶ
