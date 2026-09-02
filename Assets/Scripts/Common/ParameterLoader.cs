@@ -2375,6 +2375,27 @@ namespace Parameters
                     }
                 }
             }
+            // コンベア設定（ベルト面・ストッパー/ガイドのモデル解決）
+            foreach (var cv in cvSettings)
+            {
+                if (!string.IsNullOrEmpty(cv.beltPath))
+                {
+                    var obj = prefabObj.transform.Find(cv.beltPath);
+                    cv.beltObject = obj != null ? obj.gameObject : null;
+                }
+                if (cv.blockers == null)
+                {
+                    continue;
+                }
+                foreach (var blk in cv.blockers)
+                {
+                    if (!string.IsNullOrEmpty(blk.path))
+                    {
+                        var obj = prefabObj.transform.Find(blk.path);
+                        blk.gameObject = obj != null ? obj.gameObject : null;
+                    }
+                }
+            }
             // 経路設定（スプロケット/経由点のモデル解決）
             foreach (var pathInfo in pathInfoSettings)
             {

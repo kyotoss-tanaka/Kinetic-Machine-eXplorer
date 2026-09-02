@@ -191,6 +191,11 @@ public class CanvasMenuActUnitScript : CanvasMenuBaseScript
     private MotionLinear motionLinear;
 
     /// <summary>
+    /// コンベアスクリプト
+    /// </summary>
+    private ConveyorScript conveyorScript;
+
+    /// <summary>
     /// 開始処理
     /// </summary>
     protected override void Awake()
@@ -291,7 +296,7 @@ public class CanvasMenuActUnitScript : CanvasMenuBaseScript
             }
             else
             {
-                if (unitSetting.actionSetting.isInternal)
+                if (unitSetting.actionSetting.isInternal || unitSetting.actionSetting.isActionTable)
                 {
                     foreach (var act in actUnitInfos)
                     {
@@ -304,6 +309,26 @@ public class CanvasMenuActUnitScript : CanvasMenuBaseScript
                     foreach (var act in actUnitInfos)
                     {
                         act.txtEnd.text = GetTagValue(act.devStart, ref act.tagStart).ToString();
+                    }
+                }
+                else if (unitSetting.actionSetting.isConveyer && (conveyorScript != null))
+                {
+                    for (var i = 0; i < actUnitInfos.Count; i++)
+                    {
+                        var act = actUnitInfos[i];
+                        if (i == 0)
+                        {
+                            // 現在速度行
+                            act.txtStart.text = conveyorScript.IsMoving ? "Run" : "Stop";
+                            act.txtStart.color = conveyorScript.IsMoving ? Color.blue : Color.red;
+                            act.txtEnd.text = conveyorScript.CurrentSpeedMmSec.ToString("0.0");
+                        }
+                        else
+                        {
+                            // 速度行（タグなし=常時ON）
+                            var on = string.IsNullOrEmpty(act.devStart) || (GetTagValue(act.devStart, ref act.tagStart) == 1);
+                            act.txtStart.color = on ? Color.blue : Color.red;
+                        }
                     }
                 }
                 if (unitSetting.moveObject != null)
@@ -392,6 +417,24 @@ public class CanvasMenuActUnitScript : CanvasMenuBaseScript
     }
 
     /// <summary>
+    /// 動作行を生成する
+    /// </summary>
+    private ActUnitInfo CreateActRow()
+    {
+        var actUnit = Instantiate(actUnitContents);
+        actUnit.transform.SetParent(actUnitContentsActList.transform);
+        ((RectTransform)actUnit.transform).anchoredPosition = new Vector3(0, -30 * actUnitInfos.Count, 0);
+        actUnit.SetActive(true);
+        return new ActUnitInfo
+        {
+            actObject = actUnit,
+            txtTarget = actUnit.GetComponentsInChildren<TextMeshProUGUI>().ToList().Find(d => d.name == "TxtTarget"),
+            txtStart = actUnit.GetComponentsInChildren<TextMeshProUGUI>().ToList().Find(d => d.name == "TxtStartTag"),
+            txtEnd = actUnit.GetComponentsInChildren<TextMeshProUGUI>().ToList().Find(d => d.name == "TxtEndTag"),
+        };
+    }
+
+    /// <summary>
     /// ドロップダウン更新
     /// </summary>
     private void SetOptions()
@@ -414,6 +457,9 @@ public class CanvasMenuActUnitScript : CanvasMenuBaseScript
             {
             }
             else if (unitSetting.actionSetting.isActionTable)
+            {
+            }
+            else if (unitSetting.actionSetting.isConveyer)
             {
             }
             else
@@ -559,6 +605,7 @@ public class CanvasMenuActUnitScript : CanvasMenuBaseScript
         // 前回選択にセット
         prvSelectedUnit = unitSetting;
         exScript = null;
+        conveyorScript = null;
         if (index < 0)
         {
             unitSetting = null;
@@ -571,7 +618,7 @@ public class CanvasMenuActUnitScript : CanvasMenuBaseScript
         {
             var mi = unitSetting.unitObject.GetComponent<AxisMotionBase>();
             exScript = mi == null ? null : mi.exScript;
-            if (unitSetting.actionSetting.isInternal)
+            if (unitSetting.actionSetting.isInternal || unitSetting.actionSetting.isActionTable)
             {
                 // 出力モード切替チェック
                 var i = 0;
@@ -637,6 +684,38 @@ public class CanvasMenuActUnitScript : CanvasMenuBaseScript
                 txtStart.text = startDev + " / " + startTag;
                 txtEnd.text = "0";
                 actUnitInfos.Add(actInfo);
+            }
+            else if (unitSetting.actionSetting.isConveyer)
+            {
+                // コンベア（先頭行=現在速度、以降=速度テーブルのタグ＋設定速度[mm/sec]）
+                conveyorScript = unitSetting.moveObject == null ? null : unitSetting.moveObject.GetComponent<ConveyorScript>();
+                if ((conveyorScript != null) && (conveyorScript.Setting != null))
+                {
+                    var now = CreateActRow();
+                    now.txtTarget.text = "現在速度";
+                    now.txtStart.text = "Stop";
+                    now.txtEnd.text = "0.0";
+                    actUnitInfos.Add(now);
+                    var i = 0;
+                    foreach (var spd in conveyorScript.Setting.speeds)
+                    {
+                        i++;
+                        var row = CreateActRow();
+                        row.devStart = spd.tag;
+                        var startText = "常時ON";
+                        if (!string.IsNullOrEmpty(spd.tag))
+                        {
+                            GetTagValue(row.devStart, ref row.tagStart);
+                            var startDev = row.tagStart == null ? "none" : row.tagStart.Device;
+                            startText = startDev + " / " + spd.tag;
+                            startText = startText.Length > 20 ? startText.Substring(0, 18) + ".." : startText;
+                        }
+                        row.txtTarget.text = "速度" + i;
+                        row.txtStart.text = startText;
+                        row.txtEnd.text = (spd.spd * 1000f).ToString("0.0");
+                        actUnitInfos.Add(row);
+                    }
+                }
             }
             else if (unitSetting.actionSetting.isLinear)
             {

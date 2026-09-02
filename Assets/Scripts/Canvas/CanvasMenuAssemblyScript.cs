@@ -411,11 +411,29 @@ public class CanvasMenuAssemblyScript : CanvasMenuBaseScript
         {
             var motions = gameObject == null ? new List<AxisMotionBase>() : gameObject.GetComponentsInParent<AxisMotionBase>().ToList();
             motionUnits = motions.Select(d => d.name).ToList();
+            var lastUnitView = -1;
+            // ユニット選択時に追加表示するAssembly行＝一番深い動作ユニットの直下のGameObject
+            // （末端まで辿るとメッシュ名になってしまうため）
+            var selIndex = -1;
+            if (motionUnits.Count > 0)
+            {
+                for (var i = texts.Count - 1; i >= 0; i--)
+                {
+                    if (motionUnits.Contains(texts[i]))
+                    {
+                        selIndex = (i + 1) < texts.Count ? (i + 1) : -1;
+                        break;
+                    }
+                }
+            }
             for (var i = 0; i < texts.Count; i++)
             {
                 var text = texts[i];
                 names.Add(text);
-                if ((motionUnits.Count > 0) && !motionUnits.Contains(text))
+                // ユニット選択時は「動作ユニット行」に加えて「ユニット直下のAssembly行」も表示する
+                var isUnitLine = (motionUnits.Count == 0) || motionUnits.Contains(text);
+                var isSelectedLine = i == selIndex;
+                if (!isUnitLine && !isSelectedLine)
                 {
                     continue;
                 }
@@ -423,13 +441,17 @@ public class CanvasMenuAssemblyScript : CanvasMenuBaseScript
                 var t = obj.gameObject.GetComponentInChildren<TextMeshProUGUI>();
                 var rt = obj.GetComponent<RectTransform>();
                 var left = index * 10;
-                t.text = (index == 0 ? "" : "- ") + text + (motionUnits.Count > 0 ? "(Motion)" : "");
+                t.text = (index == 0 ? "" : "- ") + text + ((isUnitLine && (motionUnits.Count > 0)) ? "(Motion)" : "");
                 t.transform.SetParent(baseText.transform.parent);
                 t.transform.localPosition = new Vector3(5 + left, -5 - (fontSize * index), 0);
                 t.gameObject.SetActive(true);
                 //            t.fontSharedMaterial.EnableKeyword("GLOW_ON");
                 t.name = string.Join('\\', names);
                 viewTexts.Add(t);
+                if (isUnitLine)
+                {
+                    lastUnitView = viewTexts.Count - 1;
+                }
                 LayoutRebuilder.ForceRebuildLayoutImmediate(rt);
                 if (width < rt.rect.width + left)
                 {
@@ -437,6 +459,7 @@ public class CanvasMenuAssemblyScript : CanvasMenuBaseScript
                 }
                 index++;
             }
+            lastUnitViewIndex = lastUnitView;
         }
         var height = index * fontSize + 10;
         var size = content.sizeDelta;
@@ -452,10 +475,16 @@ public class CanvasMenuAssemblyScript : CanvasMenuBaseScript
 //        this.gameObject.SetActive();
         if (viewTexts.Count > 0)
         {
-            // 一番最後のデータをクリック
-            ClickObject(viewTexts[viewTexts.Count - 1].gameObject, false, false);
+            // 既定の選択はこれまで通り一番深い動作ユニット行（なければ最後の行）
+            var clickIndex = ((motionUnits != null) && (motionUnits.Count > 0) && (lastUnitViewIndex >= 0)) ? lastUnitViewIndex : viewTexts.Count - 1;
+            ClickObject(viewTexts[clickIndex].gameObject, false, false);
         }
     }
+
+    /// <summary>
+    /// 表示中の一番深い動作ユニット行のインデックス（既定クリック用）
+    /// </summary>
+    private int lastUnitViewIndex = -1;
 
     /// <summary>
     /// テキストの色セット

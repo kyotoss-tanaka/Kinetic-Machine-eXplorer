@@ -35,6 +35,9 @@ public class ShapeScript : UseTagBaseScript
         
         var shape = (ShapeSetting)obj;
 
+        Debug.Log($"[Shape] {unitSetting.name} 物体形状セット: auto={shape.auto} 箱={((shape.datas == null) ? 0 : shape.datas.Count)}個 " +
+            $"(親={transform.name} active={gameObject.activeInHierarchy})");
+
         // リロード対策: 前回このスクリプトが生成した ShapeBox/外枠（子）を先に破棄する（多重化防止）。
         for (int i = transform.childCount - 1; i >= 0; i--)
         {
@@ -62,14 +65,22 @@ public class ShapeScript : UseTagBaseScript
                 box.isTrigger = false;
             }
         }
+        // 設定値は実寸(m・動作部モデルの姿勢基準)。親が1/25.4等のスケール付きプレハブでも
+        // 実寸で表示・判定されるよう、ローカル代入時にlossyScaleを打ち消す。
+        var ls = transform.lossyScale;
+        var inv = new Vector3(
+            Mathf.Approximately(ls.x, 0f) ? 1f : 1f / ls.x,
+            Mathf.Approximately(ls.y, 0f) ? 1f : 1f / ls.y,
+            Mathf.Approximately(ls.z, 0f) ? 1f : 1f / ls.z);
+
         // datas ごとに:
         //   create=true  … 見える四角の実体 ShapeBox（自前の BoxCollider 付き）を新規作成。
         //                   moveObject 側は触らないので、起動時の選択用 Collider はそのまま残る。
         //   create=false … transform に当たり判定(BoxCollider)のみを付ける（起動時 Collider を置換）。
         foreach (var s in shape.datas)
         {
-            var center = new Vector3(s.center[0], s.center[1], s.center[2]);
-            var size = new Vector3(s.size[0], s.size[1], s.size[2]);
+            var center = Vector3.Scale(new Vector3(s.center[0], s.center[1], s.center[2]), inv);
+            var size = Vector3.Scale(new Vector3(s.size[0], s.size[1], s.size[2]), inv);
 
             if (s.create)
             {

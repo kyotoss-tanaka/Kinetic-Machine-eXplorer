@@ -53,9 +53,11 @@ public class ObjectScript : BaseBehaviour
         var collider = GetComponentInChildren<Collider>();
         if (collider == null)
         {
-            this.gameObject.AddComponent<Collider>();
+            collider = this.gameObject.AddComponent<BoxCollider>();
         }
-        collider.isTrigger = IsTouch;
+        // 接触可能=物理接触する実体コライダ。OFF=トリガ（すり抜け・検知のみ）
+        // ※isTriggerは「接触しない検知用」なので接触可能の否定になる（従来は代入が逆でチェックすると逆にすり抜けていた）
+        collider.isTrigger = !IsTouch;
         rigi = GetComponentInChildren<Rigidbody>();
         if (rigi == null)
         {
@@ -73,6 +75,15 @@ public class ObjectScript : BaseBehaviour
     /// </summary>
     protected override void MyFixedUpdate()
     {
+        // ドメインリロード後は非シリアライズ参照が消えるため再取得する
+        if (rigi == null)
+        {
+            rigi = GetComponentInChildren<Rigidbody>();
+            if (rigi == null)
+            {
+                return;
+            }
+        }
         var distance = Mathf.Sqrt(rigi.transform.position.x * rigi.transform.position.x + rigi.transform.position.y * rigi.transform.position.y + rigi.transform.position.z * rigi.transform.position.z);
         if (distance > AliveDistance)
         {

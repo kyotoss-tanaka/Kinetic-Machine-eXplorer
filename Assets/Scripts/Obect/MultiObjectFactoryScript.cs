@@ -181,9 +181,46 @@ public class MultiObjectFactoryScript : UseTagBaseScript
     private Dictionary<string, Dictionary<string, MutiObjectTag>> multiObjects = new Dictionary<string, Dictionary<string, MutiObjectTag>>();
     private Dictionary<string, WorkPool> works = new Dictionary<string, WorkPool>();
 
+    /// <summary>
+    /// 自身のインスタンス（コンベア等がアクティブワークを列挙するために使用）
+    /// </summary>
+    private static MultiObjectFactoryScript instance;
+
+    /// <summary>
+    /// 全プールのアクティブワークを列挙する（コンベア搬送等の走査用）
+    /// </summary>
+    public static IEnumerable<GameObject> EnumerateActiveWorks()
+    {
+        if (instance == null)
+        {
+            yield break;
+        }
+        foreach (var pool in instance.works)
+        {
+            foreach (var obj in pool.Value.activeObjects)
+            {
+                if (obj != null)
+                {
+                    yield return obj;
+                }
+            }
+        }
+    }
+
     // Start is called before the first frame update
     protected override void Start()
     {
+        instance = this;
+    }
+
+    /// <summary>
+    /// 有効化時（エディタのドメインリロード後はStartが再実行されずstaticが消えるため、
+    /// OnEnableでも復元してF5リロードで復旧できるようにする）
+    /// </summary>
+    protected override void OnEnable()
+    {
+        base.OnEnable();
+        instance = this;
     }
 
     public void DeleteSetting()
@@ -346,6 +383,14 @@ public class MultiObjectFactoryScript : UseTagBaseScript
                     var worldRot = designRot * Quaternion.Euler(setting.CreateRotate);
                     createPoint = setting.objBase.transform.InverseTransformPoint(worldPos);
                     createRotate = (Quaternion.Inverse(setting.objBase.transform.rotation) * worldRot).eulerAngles;
+                }
+                else
+                {
+                    // 手入力オフセットは実寸(m・生成元ユニットの姿勢基準)。
+                    // 親ローカルへ直接代入すると親のスケール(1/25.4等)が掛かって縮むため、
+                    // ワールド位置を経由してスケールを打ち消す（削除位置の判定と同じ規約）
+                    createPoint = setting.objBase.transform.InverseTransformPoint(
+                        setting.objBase.transform.position + setting.objBase.transform.rotation * setting.CreatePoint);
                 }
                 var change = false;
                 // 生成前にチェック

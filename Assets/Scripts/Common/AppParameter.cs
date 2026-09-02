@@ -931,9 +931,42 @@ namespace Parameters
     }
 
 
+    /// <summary>
+    /// コンベア設定（ロジック搬送方式）。距離系はm、速度はm/sec、加速度はm/sec²。
+    /// 搬送面は物体形状設定（あれば優先）またはベルト面モデルの境界から自動算出する。
+    /// </summary>
     [Serializable]
     public class ConveyerSetting
     {
+        /// <summary>
+        /// 速度行（上から評価し最初にONのタグの速度で動作。全OFFで停止）
+        /// </summary>
+        [Serializable]
+        public class SpeedData
+        {
+            /// <summary>動作タグ</summary>
+            public string tag { get; set; } = "";
+            /// <summary>速度(m/sec)</summary>
+            public float spd { get; set; }
+        }
+
+        /// <summary>
+        /// ストッパー/整列ガイド
+        /// </summary>
+        [Serializable]
+        public class BlockerData
+        {
+            public string model { get; set; } = "";
+            public string group { get; set; } = "";
+            public string path { get; set; } = "";
+            /// <summary>0=ストッパー 1=整列ガイド</summary>
+            public int role { get; set; }
+            /// <summary>接触面オフセット(m)。+で接触面をワーク側へ広げる</summary>
+            public float offset { get; set; }
+            [JsonIgnore]
+            public GameObject gameObject { get; set; }
+        }
+
         /// <summary>
         /// 機番
         /// </summary>
@@ -943,33 +976,50 @@ namespace Parameters
         /// </summary>
         public string name { get; set; }
         /// <summary>
-        /// 動作軸 0:X 1:Y 2:Z
+        /// 動作軸 0:X 1:Y 2:Z（ユニットローカル）
         /// </summary>
         public int axis { get; set; }
         /// <summary>
-        /// 方向
+        /// 方向 +1/-1
         /// </summary>
         public int dir { get; set; }
         /// <summary>
-        /// 速度
+        /// 加速度(m/sec²)。0=瞬時
         /// </summary>
-        public float spd { get; set; }
+        public float acl { get; set; }
         /// <summary>
-        /// 加速力
+        /// 速度テーブル
         /// </summary>
-        public float force { get; set; }
+        public List<SpeedData> speeds { get; set; } = new();
         /// <summary>
-        /// 静止摩擦係数
+        /// ベルト面モデルのパス（物体形状設定があればそちら優先）
         /// </summary>
-        public float staticFriction { get; set; }
+        public string beltPath { get; set; } = "";
         /// <summary>
-        /// 動摩擦係数
+        /// ワーク間ギャップ(m)
         /// </summary>
-        public float dynamicFriction { get; set; }
+        public float gap { get; set; }
         /// <summary>
-        /// 動作タグ
+        /// 搬送面の高さ許容(m)
         /// </summary>
-        public string actTag { get; set; }
+        public float margin { get; set; }
+        /// <summary>
+        /// 搬送面の高さ補正(m)。自動算出面（境界上面）への加算。複数コンベアの面高さ合わせ用
+        /// </summary>
+        public float surface { get; set; }
+        /// <summary>
+        /// 終端動作 0=そのまま 1=物理落下
+        /// </summary>
+        public int endMode { get; set; }
+        /// <summary>
+        /// ストッパー/整列ガイド
+        /// </summary>
+        public List<BlockerData> blockers { get; set; } = new();
+        /// <summary>
+        /// ベルト面モデル（実行時解決）
+        /// </summary>
+        [JsonIgnore]
+        public GameObject beltObject { get; set; }
     }
 
     [Serializable]

@@ -606,7 +606,10 @@ public class CanvasMenuInfoScript : KssBaseScript
             }
             axis.transform.parent = GlobalScript.selectedObject.transform;
             axis.transform.localPosition = Vector3.zero;
-            axis.transform.localEulerAngles = Vector3.zero;
+            // 軸の向きは親空間に合わせる（動作設定・X/Y/Zキーの手動動作はlocalPosition駆動＝親空間のため、
+            // 選択モデル自身の回転で表示すると色と動作方向が一致しない）
+            var parentT = GlobalScript.selectedObject.transform.parent;
+            axis.transform.rotation = parentT != null ? parentT.rotation : Quaternion.identity;
             // 親のスケール（機械モデルは1/25程度）を打ち消し、軸の長さ・太さをワールド単位に揃える
             var ls = GlobalScript.selectedObject.transform.lossyScale;
             axis.transform.localScale = new Vector3(
