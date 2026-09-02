@@ -556,6 +556,29 @@ public class MultiObjectFactoryScript : UseTagBaseScript
     }
 
     /// <summary>
+    /// ワークをプールへ返却して削除する（プール管理外のワークはDestroy）。手動削除（Deleteキー）用。
+    /// 子ノードが渡されてもワーク本体（ObjectScript）を辿って返却する。
+    /// </summary>
+    /// <param name="work"></param>
+    public void ReleaseWork(GameObject work)
+    {
+        if (work == null)
+        {
+            return;
+        }
+        var objScript = work.GetComponentInParent<ObjectScript>();
+        var root = objScript != null ? objScript.gameObject : work;
+        if (works.ContainsKey(root.name) && works[root.name].activeObjects.Contains(root))
+        {
+            works[root.name].pool.Release(root);
+        }
+        else
+        {
+            Destroy(root);
+        }
+    }
+
+    /// <summary>
     /// ワークプールを取得（未作成なら作成）
     /// </summary>
     /// <param name="workName"></param>

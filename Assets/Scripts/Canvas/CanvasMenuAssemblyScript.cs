@@ -327,7 +327,16 @@ public class CanvasMenuAssemblyScript : CanvasMenuBaseScript
     IEnumerator DeleteWork(GameObject work)
     {
         yield return null;
-        Destroy(work);
+        // プール経由で返却する（Destroy直接だとプールのactiveObjectsに破棄済み参照が残り、再利用もされない）
+        var factories = FindObjectsByType<MultiObjectFactoryScript>(FindObjectsSortMode.None);
+        if (factories.Length > 0)
+        {
+            factories[0].ReleaseWork(work);
+        }
+        else
+        {
+            Destroy(work);
+        }
         SetAssembly(null);
     }
 

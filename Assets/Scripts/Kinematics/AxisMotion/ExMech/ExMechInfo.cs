@@ -338,6 +338,9 @@ public class ExMechInfo
         return a;
     }
 
+    /// <summary>SetMovePosが一度でも呼ばれたか（呼ばれる前は初期姿勢を維持する用）</summary>
+    public bool hasMovePos;
+
     /// <summary>
     /// 動作モード変更時の移動距離セット
     /// </summary>
@@ -345,5 +348,6 @@ public class ExMechInfo
     public void SetMovePos(Vector3 move)
     {
         moveExPos = move;
+        hasMovePos = true;
     }
 }

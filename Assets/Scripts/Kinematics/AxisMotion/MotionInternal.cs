@@ -567,9 +567,12 @@ public class MotionInternal : AxisMotionBase
                 }
                 if (exModeChange)
                 {
-                    // 拡張機構モード変更時
+                    // 拡張機構モード変更時（ロード完了前はexScript未生成のためスキップ）
                     innerPosition = isRotate ? actionCurve.targetPos * Thousand : actionCurve.targetPos;
-                    exScript.SetExTarget(innerPosition);
+                    if (exScript != null)
+                    {
+                        exScript.SetExTarget(innerPosition);
+                    }
                 }
                 else
                 {
@@ -604,9 +607,12 @@ public class MotionInternal : AxisMotionBase
                 {
                     if (exModeChange)
                     {
-                        // 拡張機構モード変更時
+                        // 拡張機構モード変更時（ロード完了前はexScript未生成のためスキップ）
                         innerPosition = isRotate ? actionCurve.startPos * Thousand + pos * moveDir : actionCurve.startPos + pos * moveDir / Thousand;
-                        exScript.SetExTarget(innerPosition);
+                        if (exScript != null)
+                        {
+                            exScript.SetExTarget(innerPosition);
+                        }
                     }
                     else if (isBacket)
                     {

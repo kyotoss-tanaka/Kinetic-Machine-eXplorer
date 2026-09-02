@@ -15,7 +15,7 @@ public class ExMechScript : UseTagBaseScript
     protected ExMechSetting exMechSetting;
 
     /// <summary>
-    /// 機構タイプ 0:スライダークランク 1:ゼネバ機構
+    /// 機構タイプ 0:スライダークランク 1:ゼネバ機構 2:レバー機構 3:並行リンク機構 4:揺動機構
     /// </summary>
     [SerializeField]
     int mechType;
@@ -106,6 +106,11 @@ public class ExMechScript : UseTagBaseScript
         else if (mechType == 3)
         {
             // 並行リンク機構
+            mechInfo.RenewPos();
+        }
+        else if (mechType == 4)
+        {
+            // 揺動機構
             mechInfo.RenewPos();
         }
     }
@@ -402,6 +407,38 @@ public class ExMechScript : UseTagBaseScript
                 parentModel = mechInfo.axisInfos[0].model;
             }
         }
+        else if (mechType == 4)
+        {
+            // 揺動機構（直動軸の伸縮で揺動アームを振る）
+            mechInfo = new ExMechSwingInfo
+            {
+                workSpace = workSpace,
+                mainAxis = mainAxis,
+                mainDir = moveDir,
+                initAngle = initAngle,
+                exModeChange = unitSetting.actionSetting.exModeChange
+            };
+            // 直動軸本体 / 揺動アーム / リンク（連結部品）
+            var slotNames = new[] { "直動軸本体", "揺動アーム", "リンク" };
+            for (var i = 0; i < exMechSetting.datas.Count; i++)
+            {
+                var data = exMechSetting.datas[i];
+                var axis = new ExMechAxisInfo
+                {
+                    model = data.gameObject,
+                    children = new()
+                };
+                SetAxisChildren(axis, data);
+                mechInfo.axisInfos.Add(axis);
+                var slot = i < slotNames.Length ? slotNames[i] : $"予備{i}";
+                Debug.Log($"揺動機構: [{slot}] モデル={(data.gameObject != null ? data.gameObject.name : "なし")} " +
+                    $"回転中心={(axis.pivotSource != null ? axis.pivotSource.name : "なし")} 子={axis.children.Count}");
+            }
+            Debug.Log($"揺動機構: {unitSetting.name} 主軸(ロッド)={(unitSetting.moveObject != null ? unitSetting.moveObject.name : "null")} " +
+                $"拡張機構モード変更={unitSetting.actionSetting.exModeChange}");
+            // アームに載る子ユニットはアームへ追従
+            parentModel = mechInfo.axisInfos.Count > 1 ? mechInfo.axisInfos[1].model : null;
+        }
     }
 
     /// <summary>
@@ -427,6 +464,11 @@ public class ExMechScript : UseTagBaseScript
         else if (mechType == 3)
         {
             // 並行リンク機構
+            mechInfo.Initialize();
+        }
+        else if (mechType == 4)
+        {
+            // 揺動機構
             mechInfo.Initialize();
         }
     }

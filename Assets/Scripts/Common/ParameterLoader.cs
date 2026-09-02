@@ -2351,7 +2351,11 @@ namespace Parameters
                     {
                         var obj = prefabObj.transform.Find(data.path);
                         data.gameObject = obj != null ? obj.gameObject : null;
-                        foreach (var child in data.children)
+                    }
+                    // 子モデルはモデル本体の有無に関係なく解決する（モデル欄を空にして回転中心の位置参照だけ使うケースがある）
+                    foreach (var child in data.children)
+                    {
+                        if ((child.path != null) && (child.path != ""))
                         {
                             var cobj = prefabObj.transform.Find(child.path);
                             child.gameObject = cobj != null ? cobj.gameObject : null;
