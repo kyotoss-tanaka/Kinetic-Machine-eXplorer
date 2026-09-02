@@ -161,6 +161,8 @@ public class CanvasMenuAssemblyScript : CanvasMenuBaseScript
             }
             else if (isWork && (key == Key.Delete))
             {
+                // 二重削除防止（返却済みワークを再度削除するとプール在庫を破壊するため、即座に選択状態を解除する）
+                isWork = false;
                 StartCoroutine(DeleteWork(selectedVisible));
             }
         }

@@ -568,12 +568,18 @@ public class MultiObjectFactoryScript : UseTagBaseScript
         }
         var objScript = work.GetComponentInParent<ObjectScript>();
         var root = objScript != null ? objScript.gameObject : work;
-        if (works.ContainsKey(root.name) && works[root.name].activeObjects.Contains(root))
+        if (works.ContainsKey(root.name))
         {
-            works[root.name].pool.Release(root);
+            if (works[root.name].activeObjects.Contains(root))
+            {
+                works[root.name].pool.Release(root);
+            }
+            // 返却済み（二重削除）の場合は何もしない。
+            // ※ここでDestroyするとプール在庫のインスタンスが破壊され、以後のGetが壊れて生成不能になる
         }
         else
         {
+            // プール名に該当しない（管理外の）ワークのみ破棄する
             Destroy(root);
         }
     }
