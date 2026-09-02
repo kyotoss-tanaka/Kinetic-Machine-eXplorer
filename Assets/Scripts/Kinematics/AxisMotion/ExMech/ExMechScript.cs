@@ -138,7 +138,7 @@ public class ExMechScript : UseTagBaseScript
 
     /// <summary>
     /// 回転中心（種別=回転中心の子モデル）が指定されたモデルに、ピボット空間を挿入する。
-    /// 回転中心はモデルのレンダラ境界中心（原点がズレた外部CADノードでも軸・ピン部品の中心を拾える）。
+    /// 回転中心＝指定モデルの原点（KMXの共通規約。原点が関節/軸中心にあるノードを指定する）。
     /// ピボットは親と同じ向き（ローカル回転=単位）で挿入するため、既存のlocalEulerAngles指定の動作コードがそのまま効く。
     /// </summary>
     private static void ApplyPivot(ExMechAxisInfo axis)
@@ -148,16 +148,6 @@ public class ExMechScript : UseTagBaseScript
             return;
         }
         var center = axis.pivotSource.transform.position;
-        var rends = axis.pivotSource.GetComponentsInChildren<Renderer>();
-        if (rends.Length > 0)
-        {
-            var bounds = rends[0].bounds;
-            for (var i = 1; i < rends.Length; i++)
-            {
-                bounds.Encapsulate(rends[i].bounds);
-            }
-            center = bounds.center;
-        }
         var pivotGo = new GameObject(axis.model.name + "_Pivot");
         pivotGo.transform.SetParent(axis.model.transform.parent, false);
         // 元モデルと同じローカル姿勢で挿入する（root基準の初期姿勢が従来のモデル基準と一致し、後方互換になる）
@@ -166,7 +156,7 @@ public class ExMechScript : UseTagBaseScript
         pivotGo.transform.position = center;
         axis.model.transform.SetParent(pivotGo.transform, true);
         axis.pivot = pivotGo;
-        Debug.Log($"拡張機構: {axis.model.name} の回転中心を {axis.pivotSource.name} の中心 {center} に設定");
+        Debug.Log($"拡張機構: {axis.model.name} の回転中心を {axis.pivotSource.name} の原点 {center} に設定");
     }
 
     /// <summary>

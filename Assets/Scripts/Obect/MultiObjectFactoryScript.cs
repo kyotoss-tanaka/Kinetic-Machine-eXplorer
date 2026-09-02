@@ -356,7 +356,6 @@ public class MultiObjectFactoryScript : UseTagBaseScript
                         deleted++;
                     }
                 }
-                Debug.Log($"[WorkDelete] {setting.objBase.name} 削除位置={worldDelete} 範囲={setting.AliveDistance:F3} 候補={candidates} 削除={deleted}");
             }
             // ワーク変換処理（削除の後、生成の前に行う）
             foreach (var setting in tag.transferSettings.FindAll(d => d.Mode == 1))
@@ -864,11 +863,8 @@ public class MultiObjectFactoryScript : UseTagBaseScript
         }
         if ((setting.AliveDistance <= 0f) || (setting.objBase == null))
         {
-            Debug.Log($"[WorkDeleteZone] {unitSetting.name} 生成スキップ 範囲={setting.AliveDistance} objBase={(setting.objBase == null ? "null" : setting.objBase.name)}");
             return;
         }
-        Debug.Log($"[WorkDeleteZone] {unitSetting.name} objBase={setting.objBase.name} スケール={setting.objBase.transform.lossyScale.x:F4} " +
-            $"削除位置={setting.CreatePoint} 範囲={setting.AliveDistance}");
         var zoneName = $"WorkDeleteZone_{unitSetting.name}_{wk.tag}_{wk.pos[0]}_{wk.pos[1]}_{wk.pos[2]}";
         var old = setting.objBase.transform.Find(zoneName);
         if (old != null)

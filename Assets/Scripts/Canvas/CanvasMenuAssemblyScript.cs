@@ -412,18 +412,19 @@ public class CanvasMenuAssemblyScript : CanvasMenuBaseScript
             var motions = gameObject == null ? new List<AxisMotionBase>() : gameObject.GetComponentsInParent<AxisMotionBase>().ToList();
             motionUnits = motions.Select(d => d.name).ToList();
             var lastUnitView = -1;
-            // ユニット選択時に追加表示するAssembly行＝一番深い動作ユニットの直下のGameObject
-            // （末端まで辿るとメッシュ名になってしまうため）
+            // ユニット選択時に追加表示するAssembly行＝選択したアセンブリの親
+            // （末端はメッシュ名になりがちなので1段上を出す。親がユニットなら選択アセンブリ自身を出す）
             var selIndex = -1;
-            if (motionUnits.Count > 0)
+            if ((motionUnits.Count > 0) && (texts.Count > 0))
             {
-                for (var i = texts.Count - 1; i >= 0; i--)
+                selIndex = texts.Count - 2;   // 選択アセンブリの親
+                if ((selIndex < 0) || motionUnits.Contains(texts[selIndex]))
                 {
-                    if (motionUnits.Contains(texts[i]))
-                    {
-                        selIndex = (i + 1) < texts.Count ? (i + 1) : -1;
-                        break;
-                    }
+                    selIndex = texts.Count - 1;   // 親がユニット→選択アセンブリ自身
+                }
+                if (motionUnits.Contains(texts[selIndex]))
+                {
+                    selIndex = -1;   // 選択がユニットのモデル自体→追加行なし
                 }
             }
             for (var i = 0; i < texts.Count; i++)

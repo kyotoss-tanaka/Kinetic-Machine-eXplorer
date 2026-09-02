@@ -343,6 +343,25 @@ namespace Parameters
                     // 描画の自然速度(上限30fps)に戻し yield を安価にする。重いInstantiateは既に完了しており低fpsの恩恵はない。
                     Application.targetFrameRate = 30;
                     Debug.Log($"[FrameRate] Unit整理中は yield多のため targetFrameRate=30 に一時変更");
+                    // 同期機構＋バケットのユニットはチャック親子付けの対象から外す
+                    // （爪は同期元の送り量ミラーで経路上を動かすため親子付け不要。
+                    //   親子付けするとモデルが設計位置からスナップされ、経路・爪基準位置がずれる）
+                    // 除外前に「同期ユニット→同期元（＋オフセット/倍率/方向）」の対応を控えておく（ミラー駆動の紐づけに使用）
+                    var syncBacketMasters = new Dictionary<string, KeyValuePair<string, ChuckUnit>>();
+                    foreach (var chuck in chuckUnitSettings)
+                    {
+                        chuck.children.RemoveAll(c =>
+                        {
+                            var u = unitSettings.Find(d => (d.mechId == chuck.mechId) && (d.name == c.name));
+                            var isSyncBk = (u != null) && u.sync
+                                && (backetSettings.Find(b => (b.mechId == u.mechId) && (b.name == u.name)) != null);
+                            if (isSyncBk)
+                            {
+                                syncBacketMasters[$"{chuck.mechId}/{c.name}"] = new KeyValuePair<string, ChuckUnit>(chuck.name, c);
+                            }
+                            return isSyncBk;
+                        });
+                    }
                     int ui = -1;
                     foreach (var unitSetting in unitSettings)
                     {
@@ -586,16 +605,34 @@ namespace Parameters
                                 // 動作設定なし
                                 var isFamiry = unitSettings.Find(d => d.children.Find(x => x.name == unitSetting.name) != null) != null;
                                 var isChuck = chuckUnitSettings.Find(d => d.children.Find(x => x.name == unitSetting.name) != null) != null;
+                                // 同期機構でバケットを持つユニット（前爪/後爪の共通駆動等）: 同期元の送り量で爪を動かす
+                                var isSyncBacket = unitSetting.sync && (unitSetting.backetSetting != null);
                                 if (isFamiry ||                                     // 親子関係あり
                                     (!unitSetting.sync && (unitSetting.parent != "")) ||             // ※実質全て？同期ユニットがおかしくなるので有効にするなら対策必要
                                     (unitSetting.shapeSetting != null) ||           // 形状設定あり
                                     (unitSetting.switchSetting != null) ||          // スイッチ設定あり
                                     (unitSetting.towerSetting != null) ||           // シグナルタワー設定あり
                                     (unitSetting.ledSetting != null) ||             // LED設定あり
+                                    isSyncBacket ||                                 // 同期機構＋バケット
                                     (unitSetting.isCollision && !isChuck))          // チャック以外の衝突検知あり
                                 {
                                     // 構成のみセット
                                     var instance = unitSetting.unitObject.AddComponent<AxisMotionBase>();
+                                    if (isSyncBacket)
+                                    {
+                                        // 同期元を紐づける（チャック除外前に控えた対応表から引く）
+                                        // ※SetUnitSettingsより前に行う（同期ユニットは経路ライン等の重複生成をスキップするため）
+                                        syncBacketMasters.TryGetValue($"{unitSetting.mechId}/{unitSetting.name}", out var masterInfo);
+                                        var master = (masterInfo.Key != null) ? unitSettings.Find(d => (d.mechId == unitSetting.mechId) && (d.name == masterInfo.Key)) : null;
+                                        if (master != null)
+                                        {
+                                            instance.SetSyncMaster(master, masterInfo.Value);
+                                        }
+                                        else
+                                        {
+                                            Debug.Log($"エラー：同期ユニット「{unitSetting.name}」の同期元（チャック親）が見つかりません。");
+                                        }
+                                    }
                                     instance.SetUnitSettings(unitSetting, chuckSetting);
                                 }
                             }

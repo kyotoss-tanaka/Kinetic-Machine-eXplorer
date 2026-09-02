@@ -20,6 +20,9 @@ public class CanvasPrefabInfoScript : KssBaseScript
         public GameObject prefab;
         public bool visible;
         public bool all;
+        /// <summary>非表示化したレンダラ/コライダ（再表示時に戻す）</summary>
+        public List<Renderer> hiddenRenderers = new();
+        public List<Collider> hiddenColliders = new();
     }
 
     // グローバル設定
@@ -158,7 +161,68 @@ public class CanvasPrefabInfoScript : KssBaseScript
     {
         info.visible = !info.visible;
         SetButtonColor(info.button, info.visible);
-        info.prefab.SetActive(info.visible);
+        // SetActiveでなくレンダラ/コライダ単位で非表示にする
+        // （経路のスプロケット/経由点で参照しているモデルは表示を維持するため。
+        //   機構スクリプト・Transformは生きたままなので動作にも影響しない）
+        if (!info.visible)
+        {
+            info.hiddenRenderers.Clear();
+            info.hiddenColliders.Clear();
+            var keep = BacketPathOverlay.KeepVisibleModels;
+            foreach (var r in info.prefab.GetComponentsInChildren<Renderer>())
+            {
+                if (!r.enabled || IsKeepVisible(r.transform, keep))
+                {
+                    continue;
+                }
+                r.enabled = false;
+                info.hiddenRenderers.Add(r);
+            }
+            // 見えないモデルが選択に反応しないようコライダも無効化する
+            foreach (var c in info.prefab.GetComponentsInChildren<Collider>())
+            {
+                if (!c.enabled || IsKeepVisible(c.transform, keep))
+                {
+                    continue;
+                }
+                c.enabled = false;
+                info.hiddenColliders.Add(c);
+            }
+        }
+        else
+        {
+            foreach (var r in info.hiddenRenderers)
+            {
+                if (r != null)
+                {
+                    r.enabled = true;
+                }
+            }
+            foreach (var c in info.hiddenColliders)
+            {
+                if (c != null)
+                {
+                    c.enabled = true;
+                }
+            }
+            info.hiddenRenderers.Clear();
+            info.hiddenColliders.Clear();
+        }
+    }
+
+    /// <summary>
+    /// Prefab非表示時にも表示を維持するモデル配下か
+    /// </summary>
+    private static bool IsKeepVisible(Transform t, HashSet<Transform> keep)
+    {
+        foreach (var k in keep)
+        {
+            if ((k != null) && t.IsChildOf(k))
+            {
+                return true;
+            }
+        }
+        return false;
     }
     #endregion イベント
 

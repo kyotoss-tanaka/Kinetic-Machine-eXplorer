@@ -21,6 +21,8 @@ public class BacketPathOverlay : MonoBehaviour
     private static readonly Dictionary<string, Entry> entries = new();
     /// <summary>経路確認ライン（Ctrl+Shift押下中のみアクティブ化する）</summary>
     private static readonly Dictionary<string, GameObject> lines = new();
+    /// <summary>Prefab非表示時にも表示を維持するモデル（経路のスプロケット/経由点で参照しているモデル）</summary>
+    public static readonly HashSet<Transform> KeepVisibleModels = new();
     private GUIStyle style;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
@@ -54,6 +56,7 @@ public class BacketPathOverlay : MonoBehaviour
     {
         entries.Clear();
         lines.Clear();
+        KeepVisibleModels.Clear();
     }
 
     private void Update()

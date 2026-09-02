@@ -103,5 +103,8 @@
   "閉じる": "Close",
   "開始モード": "Start Mode",
   "（このユニット）": "(This unit)",
-  "（このロボにステップ未定義）": "(No steps defined for this robot)"
+  "（このロボにステップ未定義）": "(No steps defined for this robot)",
+  "現在速度": "Current Speed",
+  "速度": "Speed",
+  "常時ON": "Always ON"
 }

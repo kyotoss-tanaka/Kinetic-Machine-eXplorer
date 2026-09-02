@@ -71,22 +71,6 @@ public class ExMechSwingInfo : ExMechInfo
         return false;
     }
 
-    /// <summary>モデルのレンダラ境界中心を取得する（レンダラが無ければ原点）</summary>
-    private static Vector3 GetBoundsCenter(GameObject obj)
-    {
-        var rends = obj.GetComponentsInChildren<Renderer>();
-        if (rends.Length == 0)
-        {
-            return obj.transform.position;
-        }
-        var bounds = rends[0].bounds;
-        for (var i = 1; i < rends.Length; i++)
-        {
-            bounds.Encapsulate(rends[i].bounds);
-        }
-        return bounds.center;
-    }
-
     /// <summary>警告ログの抑制用（1秒ごと）</summary>
     private float lastLogTime = float.MinValue;
 

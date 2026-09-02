@@ -692,7 +692,7 @@ public class CanvasMenuActUnitScript : CanvasMenuBaseScript
                 if ((conveyorScript != null) && (conveyorScript.Setting != null))
                 {
                     var now = CreateActRow();
-                    now.txtTarget.text = "現在速度";
+                    now.txtTarget.text = Lang.T("現在速度");
                     now.txtStart.text = "Stop";
                     now.txtEnd.text = "0.0";
                     actUnitInfos.Add(now);
@@ -702,7 +702,7 @@ public class CanvasMenuActUnitScript : CanvasMenuBaseScript
                         i++;
                         var row = CreateActRow();
                         row.devStart = spd.tag;
-                        var startText = "常時ON";
+                        var startText = Lang.T("常時ON");
                         if (!string.IsNullOrEmpty(spd.tag))
                         {
                             GetTagValue(row.devStart, ref row.tagStart);
@@ -710,7 +710,7 @@ public class CanvasMenuActUnitScript : CanvasMenuBaseScript
                             startText = startDev + " / " + spd.tag;
                             startText = startText.Length > 20 ? startText.Substring(0, 18) + ".." : startText;
                         }
-                        row.txtTarget.text = "速度" + i;
+                        row.txtTarget.text = Lang.T("速度") + i;
                         row.txtStart.text = startText;
                         row.txtEnd.text = (spd.spd * 1000f).ToString("0.0");
                         actUnitInfos.Add(row);

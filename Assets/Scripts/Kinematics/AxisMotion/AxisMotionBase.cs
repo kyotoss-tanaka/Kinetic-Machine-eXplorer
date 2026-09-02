@@ -627,18 +627,8 @@ public class AxisMotionBase : KinematicsBase
         var mainPivot = unitSetting.exMechSetting.main?.children?.Find(d => (d.type >= 1) && (d.gameObject != null));
         if (mainPivot != null)
         {
-            // 回転中心＝指定モデルのレンダラ境界中心（原点がズレた外部CADノードでも軸部品の中心を拾える）
+            // 回転中心＝指定モデルの原点（KMXの共通規約。原点が関節/軸中心にあるノードを指定する）
             var center = mainPivot.gameObject.transform.position;
-            var rends = mainPivot.gameObject.GetComponentsInChildren<Renderer>();
-            if (rends.Length > 0)
-            {
-                var bounds = rends[0].bounds;
-                for (var i = 1; i < rends.Length; i++)
-                {
-                    bounds.Encapsulate(rends[i].bounds);
-                }
-                center = bounds.center;
-            }
             var pivotGo = new GameObject(unitSetting.moveObject.name + "_Pivot");
             pivotGo.transform.SetParent(unitSetting.moveObject.transform.parent, false);
             // 元モデルと同じローカル姿勢で挿入する（既存のlocalEulerAngles指定の動作コードがそのまま効く）
@@ -646,7 +636,7 @@ public class AxisMotionBase : KinematicsBase
             pivotGo.transform.localScale = Vector3.one;
             pivotGo.transform.position = center;
             unitSetting.moveObject.transform.SetParent(pivotGo.transform, true);
-            Debug.Log($"拡張機構: {unitSetting.name} 主軸の回転中心を {mainPivot.gameObject.name} の中心 {center} に設定");
+            Debug.Log($"拡張機構: {unitSetting.name} 主軸の回転中心を {mainPivot.gameObject.name} の原点 {center} に設定");
             unitSetting.moveObject = pivotGo;
             moveObject = pivotGo;
         }
@@ -1113,7 +1103,8 @@ public class AxisMotionBase : KinematicsBase
                 }
                 else
                 {
-                    rep = bounds.center;
+                    // 中心はモデルの原点を使う（KMXの共通規約。外形中心は使わない）
+                    rep = element.gameObject.transform.position;
                     if ((depthAxis < 0) && (element.type == 0))
                     {
                         // スプロケットの最薄軸=回転軸=ループ面の法線
@@ -1129,6 +1120,11 @@ public class AxisMotionBase : KinematicsBase
             }
             vertsList.Add(verts);
             repPoints.Add(rep);
+            // 経路で参照しているモデルはPrefab非表示時にも表示を維持する
+            if (element.gameObject != null)
+            {
+                BacketPathOverlay.KeepVisibleModels.Add(element.gameObject.transform);
+            }
         }
         if (depthAxis < 0)
         {
@@ -1168,10 +1164,12 @@ public class AxisMotionBase : KinematicsBase
             }
             else if ((outline.Count > 2) && (Math.Abs(elements[i].offset) > 1e-6f))
             {
-                outline = OffsetOutline(outline, elements[i].offset);
+                // 半径オフセットの膨張/収縮はモデル原点を放射中心にする
+                outline = OffsetOutline(outline, elements[i].offset, To2D(repPoints[i], depthAxis));
             }
             outlines.Add(outline);
-            centroids.Add(Centroid(outline));
+            // 要素の中心はモデル原点（外形重心は使わない）
+            centroids.Add(To2D(repPoints[i], depthAxis));
         }
         Debug.Log($"バケット経路生成: {name} 要素数={elements.Count} 法線軸={"XYZ"[depthAxis]} 深さ={depth:F3} " +
                   string.Join(" ", outlines.Select((o, i) => $"[{i}]外形点数={o.Count}/重心={centroids[i]:F3}/幅={(o.Max(p => p.x) - o.Min(p => p.x)):F3}x{(o.Max(p => p.y) - o.Min(p => p.y)):F3}")));
@@ -1185,6 +1183,46 @@ public class AxisMotionBase : KinematicsBase
             area += centroids[i].x * centroids[j].y - centroids[j].x * centroids[i].y;
         }
         var winding = area >= 0f ? 1 : -1;
+
+        // スプロケット回転の登録（搬送に同期して見た目を回す）
+        // 同一経路を複数ユニットが参照する場合（前爪/後爪・同期ユニット等）は先勝ちで1本化する
+        sprockets.Clear();
+        var staleDrivers = sprocketDrivers.Where(kv => (kv.Value == null) || (kv.Value == this)).Select(kv => kv.Key).ToList();
+        foreach (var key in staleDrivers)
+        {
+            sprocketDrivers.Remove(key);
+        }
+        if (!sprocketDrivers.TryGetValue(elements, out var spDriver) || (spDriver == null))
+        {
+            sprocketDrivers[elements] = this;
+            // 2D平面のCCW回転が対応するワールド軸まわりの符号（(x,z)平面のCCWは-Y回り）
+            var axisSign = depthAxis == 1 ? -1f : 1f;
+            var axisWorld = depthAxis == 0 ? Vector3.right : (depthAxis == 1 ? Vector3.up : Vector3.forward);
+            for (var i = 0; i < elements.Count; i++)
+            {
+                if ((elements[i].type != 0) || (elements[i].gameObject == null) || (outlines[i].Count < 3))
+                {
+                    continue;
+                }
+                // ピッチ円半径 = 外形ラップ点の重心からの平均距離（チェーンが乗る半径）
+                var radius = outlines[i].Average(p => Vector2.Distance(p, centroids[i]));
+                if (radius < 1e-4f)
+                {
+                    continue;
+                }
+                var t = elements[i].gameObject.transform;
+                sprockets.Add(new SprocketInfo
+                {
+                    obj = elements[i].gameObject,
+                    centerLocal = moveObject.transform.InverseTransformPoint(To3D(centroids[i], depthAxis, depth)),
+                    axisLocal = moveObject.transform.InverseTransformDirection(axisWorld),
+                    radius = radius,
+                    sign = winding * axisSign,
+                    basePosLocal = moveObject.transform.InverseTransformPoint(t.position),
+                    baseRotLocal = Quaternion.Inverse(moveObject.transform.rotation) * t.rotation,
+                });
+            }
+        }
 
         // 隣接要素間の共通接線（進行方向に対し両外形が内側に来る接線）を求める
         var tOutIdx = new int[n];
@@ -1341,9 +1379,10 @@ public class AxisMotionBase : KinematicsBase
     /// <summary>
     /// 外形をオフセットぶん膨張/収縮する（重心から放射方向へ移動する近似）
     /// </summary>
-    private static List<Vector2> OffsetOutline(List<Vector2> outline, float offset)
+    private static List<Vector2> OffsetOutline(List<Vector2> outline, float offset, Vector2 center)
     {
-        var c = Centroid(outline);
+        // 放射中心はモデル原点（呼び出し側から渡す。外形重心は使わない）
+        var c = center;
         var result = new List<Vector2>();
         foreach (var p in outline)
         {
@@ -1518,8 +1557,12 @@ public class AxisMotionBase : KinematicsBase
             var count = unitSetting.backetSetting.count == 0 ? backetCountMax : unitSetting.backetSetting.count;
             Debug.Log($"バケット生成: {name} 経路長={totalLength:F3} ピッチ={backetPitch:F3} スケール={backetScale:F4} 生成数={count}(最大{backetCountMax}) 表示={unitSetting.backetSetting.visible}");
             // 画面オーバーレイ（Ctrl+Shift押下中表示）へ幾何周長(mm)を登録：周長設定の値決めに使う
-            BacketPathOverlay.Register(name, unitSetting.backetSetting.pathName,
-                totalLength * backetScale * 1000f, unitSetting.backetSetting.loopLength);
+            // ※同期ユニットは同期元と同じ経路のため重複登録しない
+            if (syncMasterSetting == null)
+            {
+                BacketPathOverlay.Register(name, unitSetting.backetSetting.pathName,
+                    totalLength * backetScale * 1000f, unitSetting.backetSetting.loopLength);
+            }
             if (count <= 0)
             {
                 Debug.LogWarning($"バケット生成: {name} 生成数が0です（経路長とバケットピッチの設定を確認してください）");
@@ -1552,7 +1595,11 @@ public class AxisMotionBase : KinematicsBase
             MoveBacket(0);
             // 経路ライン（Ctrl+Shift押下中のみ表示）を生成：ビルド版でも経路を目視確認できるようにする
             // ※バケットのクローン生成後に作る（moveObjectの子にするため、先に作るとクローンへ複製されてしまう）
-            CreatePathLine();
+            // ※同期ユニットは同期元と同じ経路のため生成しない（二重表示防止）
+            if (syncMasterSetting == null)
+            {
+                CreatePathLine();
+            }
         }
     }
 
@@ -1629,7 +1676,6 @@ public class AxisMotionBase : KinematicsBase
         }
         zone.SetActive(false);
         BacketPathOverlay.RegisterLine($"{zoneName}_{zone.GetInstanceID()}", zone);
-        Debug.Log($"[WorkDeleteZone] {name} バケット番号={wk.backetno} 発動位置={center} 範囲={wk.distance}");
     }
 
     /// <summary>経路確認ライン（表示切替はBacketPathOverlayが行う）</summary>
@@ -1829,6 +1875,91 @@ public class AxisMotionBase : KinematicsBase
     }
 
     /// <summary>
+    /// スプロケット回転情報（バケット搬送に同期して見た目を回す）
+    /// </summary>
+    private class SprocketInfo
+    {
+        public GameObject obj;
+        /// <summary>回転中心（moveObjectローカル）</summary>
+        public Vector3 centerLocal;
+        /// <summary>回転軸（moveObjectローカル）</summary>
+        public Vector3 axisLocal;
+        /// <summary>ピッチ円半径（ワールドm。外形ラップ半径の平均）</summary>
+        public float radius;
+        /// <summary>回転方向（経路の巻き方向から決定）</summary>
+        public float sign;
+        /// <summary>初期姿勢（moveObjectローカル）</summary>
+        public Vector3 basePosLocal;
+        public Quaternion baseRotLocal;
+    }
+
+    /// <summary>
+    /// 回転させるスプロケット（経路のスプロケット要素でモデル指定のあるもの）
+    /// </summary>
+    private readonly List<SprocketInfo> sprockets = new List<SprocketInfo>();
+
+    /// <summary>
+    /// 経路ごとのスプロケット駆動ユニット（同一経路を複数ユニットが参照する場合の二重回転防止。
+    /// 経路名参照時はpathElementsのList実体が共有されるため、それをキーに先勝ちで1本化する）
+    /// </summary>
+    private static readonly Dictionary<object, AxisMotionBase> sprocketDrivers = new Dictionary<object, AxisMotionBase>();
+
+    /// <summary>
+    /// 同期元ユニット（同期機構＋バケット用）
+    /// </summary>
+    private UnitSetting syncMasterSetting;
+    private AxisMotionBase syncMasterBase;
+    /// <summary>同期設定のオフセット(mm)・倍率・方向</summary>
+    private float syncOffset;
+    private float syncRate = 1f;
+    private int syncDir = 1;
+
+    /// <summary>
+    /// 同期元をセットする（同期ユニットがバケットを持つ場合、同期元のベルト送り量で爪を動かす）
+    /// </summary>
+    public void SetSyncMaster(UnitSetting master, ChuckUnit chuck = null)
+    {
+        syncMasterSetting = master;
+        syncMasterBase = null;
+        if (chuck != null)
+        {
+            syncOffset = chuck.offset;
+            syncRate = chuck.rate == 0f ? 1f : chuck.rate;
+            syncDir = chuck.dir == 0 ? 1 : chuck.dir;
+        }
+    }
+
+    /// <summary>
+    /// ベルト移動量(mm)。同期ユニットへのミラー用
+    /// </summary>
+    public float BacketTravelMm { get { return backetAccum + backetPos; } }
+
+    /// <summary>
+    /// 更新処理（同期機構のバケット: 同期元のベルト移動量をミラーして爪を動かす。
+    /// 動作設定を持つユニットはMotionInternalが本メソッドをオーバーライドするため、ここは同期ユニット専用）
+    /// </summary>
+    protected override void MyFixedUpdate()
+    {
+        base.MyFixedUpdate();
+        if ((syncMasterSetting == null) || !isBacket)
+        {
+            return;
+        }
+        if (syncMasterBase == null)
+        {
+            syncMasterBase = syncMasterSetting.unitObject != null ? syncMasterSetting.unitObject.GetComponent<AxisMotionBase>() : null;
+            if (syncMasterBase == null)
+            {
+                return;
+            }
+        }
+        // 同期設定のオフセット(mm)・倍率・方向を適用して同期元の送り量をミラーする
+        backetAccum = syncMasterBase.BacketTravelMm * syncRate * syncDir + syncOffset;
+        backetPos = 0f;
+        MoveBacket(0f);
+    }
+
+    /// <summary>
     /// バケット移動
     /// </summary>
     /// <param name="pos"></param>
@@ -1886,6 +2017,34 @@ public class AxisMotionBase : KinematicsBase
             // モデル原点と経路取付点のオフセット（設計位置での関係）を維持して配置する
             backet.obj.transform.position = moveObject.transform.TransformPoint(pos - delta * backetBasePos);
             backet.obj.transform.rotation = moveObject.transform.rotation * delta;
+        }
+        // スプロケットを搬送量に同期して回す（見た目のみ。機構計算には影響しない）
+        RotateSprockets();
+    }
+
+    /// <summary>
+    /// スプロケットをベルト送り量に同期して回転させる（角度=送り量÷ピッチ円半径。半径違いも正しい速度比になる）
+    /// </summary>
+    private void RotateSprockets()
+    {
+        if (sprockets.Count == 0)
+        {
+            return;
+        }
+        var travelM = (backetAccum + backetPos) / 1000f;   // 実寸m
+        foreach (var sp in sprockets)
+        {
+            if (sp.obj == null)
+            {
+                continue;
+            }
+            var angle = sp.sign * travelM / sp.radius * Mathf.Rad2Deg;
+            var axisW = moveObject.transform.TransformDirection(sp.axisLocal);
+            var centerW = moveObject.transform.TransformPoint(sp.centerLocal);
+            var q = Quaternion.AngleAxis(angle, axisW);
+            var baseW = moveObject.transform.TransformPoint(sp.basePosLocal);
+            sp.obj.transform.position = centerW + q * (baseW - centerW);
+            sp.obj.transform.rotation = q * (moveObject.transform.rotation * sp.baseRotLocal);
         }
     }
     #endregion バケット関連
