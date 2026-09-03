@@ -119,38 +119,45 @@ public class ExMechSwingInfo : ExMechInfo
         // 回転軸の決定：本体回転中心・アーム回転中心・連結点（リンク）の3点は揺動面内に並ぶため、
         // 3点の座標の「変化量が最も少ない軸」＝揺動面の法線＝回転軸となる。
         // さらに主軸の動作方向成分が大きい軸は除外（回転軸は動作方向と直交）。
-        // 採用した軸は純軸（成分1・他0）にスナップする（バウンズ中心の計測オフセットの影響を受けないように）。
-        var spread = new Vector3(
-            Mathf.Max(pntA.x, Mathf.Max(pntC.x, j0.x)) - Mathf.Min(pntA.x, Mathf.Min(pntC.x, j0.x)),
-            Mathf.Max(pntA.y, Mathf.Max(pntC.y, j0.y)) - Mathf.Min(pntA.y, Mathf.Min(pntC.y, j0.y)),
-            Mathf.Max(pntA.z, Mathf.Max(pntC.z, j0.z)) - Mathf.Min(pntA.z, Mathf.Min(pntC.z, j0.z)));
-        var maxSpread = Mathf.Max(spread.x, Mathf.Max(spread.y, spread.z));
-        if (maxSpread < 1e-6f)
+        // ※判定は「主軸基準の座標系」（主軸モデルの親＝動作方向X/Y/Zが定義される座標系）で行う。
+        //   使うのは各部品の原点（＝回転中心）のみで部品のローカル軸は信用しない。
+        //   据え付けが斜めでも親座標系ごと傾くため、この座標系では機構の軸が純軸に揃う。
+        //   採用した軸は親座標系の純軸にスナップし、ワールドへ変換して使う（計測オフセットの影響を受けないように）。
+        var frameRot = mainAxis.model.transform.parent != null
+            ? mainAxis.model.transform.parent.rotation
+            : Quaternion.identity;
+        var frameInv = Quaternion.Inverse(frameRot);
+        var aF = frameInv * pntA;
+        var cF = frameInv * pntC;
+        var jF = frameInv * j0;
+        // 3原点が張る平面の実法線（主軸基準）→ 最も近い純軸へスナップ
+        // （軸の選択は実法線で決めるため間違えず、角度は親座標系の純軸なので採寸オフセットに影響されない）
+        var nF = Vector3.Cross(cF - aF, jF - aF);
+        if (nF.magnitude < 1e-9f)
         {
-            Debug.LogWarning($"揺動機構: 3つの回転中心が同一点にあり回転軸を決定できません");
+            Debug.LogWarning($"揺動機構: 3つの回転中心がほぼ一直線/同一点にあり回転軸を決定できません");
             return;
         }
-        // スコア＝変化量（正規化）＋主軸方向成分。最小の軸を回転軸に採用
-        var score = new Vector3(
-            spread.x / maxSpread + Mathf.Abs(dir0.x),
-            spread.y / maxSpread + Mathf.Abs(dir0.y),
-            spread.z / maxSpread + Mathf.Abs(dir0.z));
+        nF.Normalize();
         string normalSrc;
-        if ((score.x <= score.y) && (score.x <= score.z))
+        Vector3 axisF;
+        if ((Mathf.Abs(nF.x) >= Mathf.Abs(nF.y)) && (Mathf.Abs(nF.x) >= Mathf.Abs(nF.z)))
         {
-            planeN = Vector3.right;
-            normalSrc = "X軸";
+            axisF = Vector3.right * Mathf.Sign(nF.x);
+            normalSrc = "主軸基準X軸";
         }
-        else if (score.y <= score.z)
+        else if (Mathf.Abs(nF.y) >= Mathf.Abs(nF.z))
         {
-            planeN = Vector3.up;
-            normalSrc = "Y軸";
+            axisF = Vector3.up * Mathf.Sign(nF.y);
+            normalSrc = "主軸基準Y軸";
         }
         else
         {
-            planeN = Vector3.forward;
-            normalSrc = "Z軸";
+            axisF = Vector3.forward * Mathf.Sign(nF.z);
+            normalSrc = "主軸基準Z軸";
         }
+        normalSrc += $"（実法線={nF:F2}）";
+        planeN = frameRot * axisF;
         // θ解析用の分解（投影は使わず、実際の回転円 J(θ)=C+R(θ)v0 で解く）
         v0 = j0 - pntC;
         vPar = planeN * Vector3.Dot(v0, planeN);
