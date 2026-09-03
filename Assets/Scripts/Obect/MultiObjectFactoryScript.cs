@@ -494,8 +494,16 @@ public class MultiObjectFactoryScript : UseTagBaseScript
                         obj.transform.localScale = setting.objBase.transform.lossyScale;
                         if (setting.backetInfo.unit != null)
                         {
-                            // 爪への論理紐づけ（経路の角度に沿って追従。搬送区間を抜けたら手放す）
-                            setting.backetInfo.unit.BindWorkToBacket(obj, setting.backetInfo);
+                            if (setting.backetInfo.unit.UsesPusherFeed)
+                            {
+                                // プッシャー搬送方式: 生成位置で静止させ、爪の押し面が届いたら押される
+                                setting.backetInfo.unit.RegisterFreeWork(obj);
+                            }
+                            else
+                            {
+                                // 爪への論理紐づけ（経路の角度に沿って追従。搬送区間を抜けたら手放す）
+                                setting.backetInfo.unit.BindWorkToBacket(obj, setting.backetInfo);
+                            }
                         }
                     }
                     else
@@ -752,6 +760,8 @@ public class MultiObjectFactoryScript : UseTagBaseScript
                 obj.SetActive(false);
                 obj.transform.parent = transform;
                 pool.activeObjects.Remove(obj);
+                // 搬送記憶（紐づけ/自由ワーク登録/所有権）を消す。プールで使い回すため前の人生を残さない
+                AxisMotionBase.ForgetWorkStatic(obj);
             },
             actionOnDestroy: obj => DestroyImmediate(obj),
             defaultCapacity: 250

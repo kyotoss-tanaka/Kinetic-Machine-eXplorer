@@ -469,6 +469,14 @@ public class ExMechScript : UseTagBaseScript
     /// <param name="move"></param>
     public void SetExTarget(Vector3 move)
     {
+        if (mechType == 4)
+        {
+            // 揺動機構: ユニットの動作方向(±)を駆動符号として反映する。
+            // 駆動値を作るMotionInternal側のmoveDirは軸のみで±を持たないため、ここで符号を掛ける
+            // （moveDirはこのクラスで動作設定のaxis+dirから作った±付きの単位軸ベクトル）
+            var sign = (moveDir.x + moveDir.y + moveDir.z) < 0f ? -1f : 1f;
+            move *= sign;
+        }
         mechInfo.SetMovePos(move);
     }
 }

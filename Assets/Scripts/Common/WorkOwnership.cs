@@ -39,6 +39,12 @@ public static class WorkOwnership
         }
     }
 
+    /// <summary>所有者に関係なく所有権を消去する（ワークの削除・プール返却時。使い回しに前の人生の所有者を残さない）</summary>
+    public static void Forget(GameObject work)
+    {
+        owners.Remove(work);
+    }
+
     /// <summary>全所有権を消去する（リロード時）</summary>
     public static void Clear()
     {
