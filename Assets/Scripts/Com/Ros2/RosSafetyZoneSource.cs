@@ -65,11 +65,20 @@ public sealed class RosSafetyZoneSource : ISafetyZoneSource
     private string lastSig;
     private ROSConnection cachedRos;
 
+    /// <summary>未発見時の再検索時刻（FindObjectsByTypeは全シーン走査で重いため毎フレーム呼ばない）</summary>
+    private float nextFindTime;
+
     /// <summary>既存の ROSConnection を取得（無ければ null）。GetOrCreateInstance では作らない（勝手接続防止）。</summary>
     private ROSConnection GetRos()
     {
         if (cachedRos == null)
         {
+            // 大規模シーンではFindObjectsByTypeが1フレーム1ms超かかるため、未発見時は5秒間隔でのみ再検索する
+            if (UnityEngine.Time.unscaledTime < nextFindTime)
+            {
+                return null;
+            }
+            nextFindTime = UnityEngine.Time.unscaledTime + 5f;
             var found = UnityEngine.Object.FindObjectsByType<ROSConnection>(FindObjectsSortMode.None);
             if (found != null && found.Length > 0) { cachedRos = found[0]; }
         }

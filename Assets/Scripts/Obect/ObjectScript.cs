@@ -87,7 +87,10 @@ public class ObjectScript : BaseBehaviour
         var distance = Mathf.Sqrt(rigi.transform.position.x * rigi.transform.position.x + rigi.transform.position.y * rigi.transform.position.y + rigi.transform.position.z * rigi.transform.position.z);
         if (distance > AliveDistance)
         {
-            Destroy(this.gameObject);
+            // Destroyでなくプールへ返却する（Destroyするとアクティブリストにnullが残り、
+            // 長時間運転で全ワーク走査のコストが増え続ける）
+            MultiObjectFactoryScript.ReleaseWorkStatic(this.gameObject);
+            return;
         }
         if (rigi.IsSleeping() && !rigi.isKinematic)
         {

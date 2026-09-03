@@ -176,13 +176,19 @@ namespace Parameters
         private void Update()
         {
             // 線表示更新
+            UnityEngine.Profiling.Profiler.BeginSample("PL.RenewLines");
             RenewLines();
+            UnityEngine.Profiling.Profiler.EndSample();
 
             // 断面表示更新
+            UnityEngine.Profiling.Profiler.BeginSample("PL.RenewDanmen");
             RenewDanmen();
+            UnityEngine.Profiling.Profiler.EndSample();
 
             // DCS安全ゾーン: topic 停止監視（無配信ならゾーン消去）
+            UnityEngine.Profiling.Profiler.BeginSample("PL.RosZoneTick");
             rosZoneSource.Tick();
+            UnityEngine.Profiling.Profiler.EndSample();
         }
 
         private void OnEnable()

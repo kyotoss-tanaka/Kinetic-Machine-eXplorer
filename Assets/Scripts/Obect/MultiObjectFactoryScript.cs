@@ -187,6 +187,28 @@ public class MultiObjectFactoryScript : UseTagBaseScript
     private static MultiObjectFactoryScript instance;
 
     /// <summary>
+    /// ワークをプールへ返却する（static版。プール管理外ならDestroy）。
+    /// ワークの破棄は必ずここを通すこと：Destroyするとプールのアクティブリストにnullが残り、
+    /// 長時間運転でリストが肥大化してフレームレートが劣化する
+    /// </summary>
+    public static void ReleaseWorkStatic(GameObject work)
+    {
+        if (instance != null)
+        {
+            instance.ReleaseWork(work);
+        }
+        else
+        {
+            Destroy(work);
+        }
+    }
+
+    /// <summary>
+    /// アクティブリストのnull要素（Destroy等でプールを経由せず消えたワーク）を定期的に掃除する
+    /// </summary>
+    private float nextPurgeTime;
+
+    /// <summary>
     /// 全プールのアクティブワークを列挙する（コンベア搬送等の走査用）
     /// </summary>
     public static IEnumerable<GameObject> EnumerateActiveWorks()
@@ -245,6 +267,16 @@ public class MultiObjectFactoryScript : UseTagBaseScript
     // Update is called once per frame
     protected override void MyFixedUpdate()
     {
+        // アクティブリストのnull要素を定期掃除する（プールを経由せず破棄されたワークの残骸。
+        // 放置すると長時間運転で全ワーク走査のコストが際限なく増える）
+        if (Time.time >= nextPurgeTime)
+        {
+            nextPurgeTime = Time.time + 5f;
+            foreach (var pool in works)
+            {
+                pool.Value.activeObjects.RemoveAll(d => d == null);
+            }
+        }
         foreach (var setting in multiObjects)
         {
             foreach (var tag in setting.Value)
@@ -406,7 +438,8 @@ public class MultiObjectFactoryScript : UseTagBaseScript
                     {
                         if (!near.name.Contains(work.work.name) && setting.IsChange)
                         {
-                            DestroyImmediate(near.gameObject);
+                            // Destroyでなくプールへ返却する（アクティブリストにnullを残さない）
+                            ReleaseWork(near.gameObject);
                             change = true;
                         }
                     }
