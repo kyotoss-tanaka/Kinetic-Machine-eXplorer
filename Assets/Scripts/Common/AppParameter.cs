@@ -274,6 +274,15 @@ namespace Parameters
         /// </summary>
         public string path { get; set; }
         /// <summary>
+        /// 取付先モデル（親ユニット内。空=従来通り親の動作部直下。拡張機構の特定リンクに載せる場合等に指定）
+        /// </summary>
+        public string attach { get; set; } = "";
+        public string attachGroup { get; set; } = "";
+        public string attachPath { get; set; } = "";
+        /// <summary>取付先モデルの実体（ロード時にattachPathから解決される）</summary>
+        [JsonIgnore]
+        public GameObject attachObject { get; set; }
+        /// <summary>
         /// ロボットタイムチャートモード
         /// </summary>
         public bool isRoboTimeChart { get; set; }

@@ -661,6 +661,18 @@ namespace Parameters
                         CommonFunction.DebugLog($"***** {unitSetting.name} Loaded *****", false);
                     }
 
+                    // 取付先モデル指定ユニットの親子付け替え：
+                    // 拡張機構（並行リンク等）は個々のモデルだけが動くため、ツリーの親ユニット直下では追従できない。
+                    // 取付先モデルが指定されていれば、そのモデルのTransform配下へ移す（ワールド姿勢維持。空=従来通り）
+                    foreach (var unitSetting in unitSettings)
+                    {
+                        if ((unitSetting.attachObject != null) && (unitSetting.unitObject != null))
+                        {
+                            unitSetting.unitObject.transform.SetParent(unitSetting.attachObject.transform, true);
+                            Debug.Log($"ユニット取付: {unitSetting.name} を取付先モデル {unitSetting.attachObject.name} に載せました");
+                        }
+                    }
+
                     CommonFunction.DebugLog($"***** Organize Units *****", true);
                     yield return null; // 1フレーム待(下のオブジェクト取得時にNULLにならないようにするために必要)
                     // 使い勝手向上のため動作可能オブジェクトを移動
@@ -2366,6 +2378,16 @@ namespace Parameters
                 {
                     var obj = prefabObj.transform.Find(unitSetting.path);
                     unitSetting.moveObject = obj != null ? obj.gameObject : null;
+                }
+                // 取付先モデル（親ユニット内の特定モデルに載せる場合。空=従来通り）
+                if ((unitSetting.attachPath != null) && (unitSetting.attachPath != ""))
+                {
+                    var ao = prefabObj.transform.Find(unitSetting.attachPath);
+                    unitSetting.attachObject = ao != null ? ao.gameObject : null;
+                    if (unitSetting.attachObject == null)
+                    {
+                        Debug.LogWarning($"ユニット取付: {unitSetting.name} の取付先モデル\"{unitSetting.attachPath}\"が見つかりません");
+                    }
                 }
             }
             // 子供オブジェクト
