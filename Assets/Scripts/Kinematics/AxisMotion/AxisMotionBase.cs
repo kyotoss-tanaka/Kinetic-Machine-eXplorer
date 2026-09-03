@@ -23,6 +23,10 @@ public class AxisMotionBase : KinematicsBase
         public GameObject obj;
         public float offset;
         public int backetno = -1;
+        /// <summary>所属ユニット（ワークの論理紐づけ用）</summary>
+        public AxisMotionBase unit;
+        /// <summary>現在の経路位置(mm・経路開始基準)。MoveBacketで更新</summary>
+        public float pathMm;
     }
 
     /// <summary>
@@ -1490,6 +1494,13 @@ public class AxisMotionBase : KinematicsBase
     /// </summary>
     private void CreateBacketObject()
     {
+        // 再Setup時の残骸をクリア（紐づけワーク・手放し後ワーク・プッシャー状態）
+        backetWorks.Clear();
+        freeWorks.Clear();
+        pusherPrevFront.Clear();
+        pusherFlowSign.Clear();
+        pusherUnit = null;
+        pusherResolved = false;
         // 既存の動作オブジェクトを無効化
         moveObject.SetActive(false);
         if (loopPathPoints.Count <= 4)
@@ -1574,10 +1585,17 @@ public class AxisMotionBase : KinematicsBase
                     // 親を指定して複製する（親なし複製だと祖先のスケールが失われ、巨大なクローンになる）
                     obj = unitSetting.backetSetting.visible ? Instantiate(moveObject, moveObject.transform.parent) : new GameObject(),
                     offset = backetPitch * i,
+                    unit = this,
                 };
                 if (!unitSetting.backetSetting.visible)
                 {
                     backet.obj.transform.parent = moveObject.transform.parent;
+                }
+                else
+                {
+                    // クローンにも元モデルの設計パス（prefab内パス）を引き継ぐ
+                    // （アセンブリ表示のダブルクリックコピーでKMXToolへ貼り付けられるように）
+                    CopyDesignPaths(moveObject.transform, backet.obj.transform);
                 }
                 // パス上のその距離の位置を取得（経路点はmoveObjectローカルなのでmoveObject基準でワールドへ変換）
                 GetPositionOnLoop(backet.offset, out Vector3 pos, out Vector3 dir);
@@ -1595,11 +1613,9 @@ public class AxisMotionBase : KinematicsBase
             MoveBacket(0);
             // 経路ライン（Ctrl+Shift押下中のみ表示）を生成：ビルド版でも経路を目視確認できるようにする
             // ※バケットのクローン生成後に作る（moveObjectの子にするため、先に作るとクローンへ複製されてしまう）
-            // ※同期ユニットは同期元と同じ経路のため生成しない（二重表示防止）
-            if (syncMasterSetting == null)
-            {
-                CreatePathLine();
-            }
+            // ※同期ユニットは同期元と同じ経路のため経路(黄)は生成しない（二重表示防止）。
+            //   ただしワーク搬送区間(シアン)は同期ユニット側の設定なので、それだけは表示する
+            CreatePathLine(carryOnly: syncMasterSetting != null);
         }
     }
 
@@ -1684,7 +1700,7 @@ public class AxisMotionBase : KinematicsBase
     /// <summary>
     /// 経路ラインを生成する（LineRenderer実描画。ギズモと違いビルド版でも見える）
     /// </summary>
-    private void CreatePathLine()
+    private void CreatePathLine(bool carryOnly = false)
     {
         if (pathLineObj != null)
         {
@@ -1695,6 +1711,12 @@ public class AxisMotionBase : KinematicsBase
         {
             return;
         }
+        var carryEndMm = unitSetting.backetSetting.carryEnd;
+        var hasCarry = (carryEndMm > 0f) && (backetScale > 0f) && (backetLength > 0f);
+        if (carryOnly && !hasCarry)
+        {
+            return;
+        }
         pathLineObj = new GameObject($"BacketPathLine_{name}");
         // moveObject 本体はバケット生成時に無効化されるため、その親にぶら下げて
         // moveObject と同じローカル変換を複製する（経路点は moveObject ローカルのまま使える）
@@ -1702,22 +1724,47 @@ public class AxisMotionBase : KinematicsBase
         pathLineObj.transform.localPosition = moveObject.transform.localPosition;
         pathLineObj.transform.localRotation = moveObject.transform.localRotation;
         pathLineObj.transform.localScale = moveObject.transform.localScale;
-        var lr = pathLineObj.AddComponent<LineRenderer>();
-        lr.useWorldSpace = false;
-        lr.loop = false;   // 経路点は終端に始点を追加済み（閉ループ）のため不要
-        lr.numCornerVertices = 0;
-        lr.numCapVertices = 0;
-        // 幅はワールド単位（useWorldSpace=falseでもtransformスケールは掛からない）：実寸約2mm
-        lr.widthMultiplier = 0.002f;
-        var mat = MakePathLineMaterial(Color.yellow);
-        if (mat != null)
+        if (!carryOnly)
         {
-            lr.sharedMaterial = mat;
-            lr.startColor = Color.yellow;
-            lr.endColor = Color.yellow;
+            var lr = pathLineObj.AddComponent<LineRenderer>();
+            lr.useWorldSpace = false;
+            lr.loop = false;   // 経路点は終端に始点を追加済み（閉ループ）のため不要
+            lr.numCornerVertices = 0;
+            lr.numCapVertices = 0;
+            // 幅はワールド単位（useWorldSpace=falseでもtransformスケールは掛からない）：実寸約2mm
+            lr.widthMultiplier = 0.002f;
+            var mat = MakePathLineMaterial(Color.yellow);
+            if (mat != null)
+            {
+                lr.sharedMaterial = mat;
+                lr.startColor = Color.yellow;
+                lr.endColor = Color.yellow;
+            }
+            lr.positionCount = loopPathPoints.Count;
+            lr.SetPositions(loopPathPoints.ToArray());
         }
-        lr.positionCount = loopPathPoints.Count;
-        lr.SetPositions(loopPathPoints.ToArray());
+        // ワーク搬送終了位置（carryEnd mm）をシアンの球マーカーで表示する
+        if (hasCarry)
+        {
+            var pEnd = Mathf.Repeat(carryEndMm / (backetScale * 1000f), backetLength);
+            GetPositionOnLoop(pEnd, out var ep, out _);
+            var marker = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+            marker.name = "CarryEndMarker";
+            Destroy(marker.GetComponent<Collider>());
+            marker.transform.SetParent(pathLineObj.transform, false);
+            marker.transform.localPosition = ep;
+            // 直径はワールド実寸で約50mm（親のスケールを打ち消す）
+            var ls = pathLineObj.transform.lossyScale;
+            marker.transform.localScale = new Vector3(
+                0.05f / Mathf.Max(Mathf.Abs(ls.x), 1e-6f),
+                0.05f / Mathf.Max(Mathf.Abs(ls.y), 1e-6f),
+                0.05f / Mathf.Max(Mathf.Abs(ls.z), 1e-6f));
+            var cmat = MakePathLineMaterial(Color.cyan);
+            if (cmat != null)
+            {
+                marker.GetComponent<Renderer>().sharedMaterial = cmat;
+            }
+        }
         pathLineObj.SetActive(false);
         BacketPathOverlay.RegisterLine(name, pathLineObj);
     }
@@ -2008,6 +2055,7 @@ public class AxisMotionBase : KinematicsBase
         {
             var p = (backet.offset + backetNext) % backetLength;
             backet.backetno = (int)(p / backetPitch);
+            backet.pathMm = p * backetScale * 1000f;
             // パス上のその距離の位置を取得（経路点はmoveObjectローカルなのでmoveObject基準でワールドへ変換）
             GetPositionOnLoop(p, out Vector3 pos, out Vector3 dir);
             // 基準姿勢からの相対回転（常に上向き時は姿勢を変えない）
@@ -2020,6 +2068,496 @@ public class AxisMotionBase : KinematicsBase
         }
         // スプロケットを搬送量に同期して回す（見た目のみ。機構計算には影響しない）
         RotateSprockets();
+        // 経路搬送中のワークを爪に追従させる（論理紐づけ。搬送区間を抜けたら手放す）
+        MoveBacketWorks();
+        // プッシャー（登録爪）による手放し後ワークの押し
+        // ※派生ユニットはMyFixedUpdateをbase呼び出しなしで上書きしているため、全ユニットが通るここで回す
+        MovePusherWorks();
+    }
+
+    /// <summary>
+    /// 経路搬送中のワーク（爪への論理紐づけ。Transform親子は使わない）
+    /// </summary>
+    private class BacketWork
+    {
+        public GameObject obj;
+        public BacketInfo backet;
+        /// <summary>爪の経路位置からワークの経路位置までの弧長オフセット（経路ローカル単位）</summary>
+        public float pathOffset;
+        /// <summary>ワーク経路位置の接線フレーム基準の残オフセット（実寸m）・相対回転</summary>
+        public Vector3 offsetFrame;
+        public Quaternion rotFrame;
+        /// <summary>搬送区間に一度入ったか（生成位置が区間外でも即解放せず、区間通過後に手放すため）</summary>
+        public bool entered;
+    }
+
+    /// <summary>
+    /// 経路搬送中のワーク一覧
+    /// </summary>
+    private readonly List<BacketWork> backetWorks = new List<BacketWork>();
+
+    /// <summary>
+    /// 搬送終了で手放した後も経路上に留まるワーク（プッシャー＝別バケットの爪で押される対象）
+    /// </summary>
+    private class FreeWork
+    {
+        public GameObject obj;
+        /// <summary>経路上の現在位置（名目パラメータ・ローカル単位）</summary>
+        public float pathPos;
+        /// <summary>接線フレーム基準の残オフセット（実寸m）・相対回転（紐づけ時のものを引き継ぐ）</summary>
+        public Vector3 offsetFrame;
+        public Quaternion rotFrame;
+        /// <summary>ワークの経路方向半長（ローカル単位。プッシャー前面との隙間に使う）</summary>
+        public float halfLen;
+    }
+
+    /// <summary>手放し後ワーク一覧</summary>
+    private readonly List<FreeWork> freeWorks = new List<FreeWork>();
+    /// <summary>プッシャーユニット（登録された爪モデルの持ち主。実行時に自動特定）</summary>
+    private AxisMotionBase pusherUnit;
+    private bool pusherResolved;
+    /// <summary>プッシャー爪クローンごとの前フレーム前面位置（名目パラメータ）</summary>
+    private readonly Dictionary<GameObject, float> pusherPrevFront = new Dictionary<GameObject, float>();
+    /// <summary>プッシャー爪クローンごとの流れ符号（曲がり部の投影揺らぎで反転しないよう、確かな移動時のみ更新して保持）</summary>
+    private readonly Dictionary<GameObject, float> pusherFlowSign = new Dictionary<GameObject, float>();
+    /// <summary>押しの診断ログ回数（出しすぎ防止）</summary>
+    private int pushLogCount;
+
+    /// <summary>
+    /// ワークを爪へ論理紐づけする（バケット生成時に呼ぶ。現在のワールド姿勢の相対関係を維持し、
+    /// 以後は爪と一緒に経路の角度に沿って動く。Transform親子は使わないため他機構との二重制御が起きない）
+    /// </summary>
+    public void BindWorkToBacket(GameObject work, BacketInfo backet)
+    {
+        backetWorks.RemoveAll(d => (d.obj == null) || (d.obj == work));
+        // 爪の経路位置と、そこからワークまでの接線方向距離（弧長オフセット）を求める
+        var pBacket = backet.pathMm / 1000f / backetScale;
+        GetPathFrame(pBacket, out var framePos, out var frameRot, out var tangentW);
+        var ds = (tangentW != Vector3.zero)
+            ? Vector3.Dot(work.transform.position - framePos, tangentW.normalized) / backetScale
+            : 0f;
+        // ワーク自身の経路位置の接線フレームで残オフセット（横・高さ方向）と相対回転を記録する
+        var pWork = Mathf.Repeat(pBacket + ds, backetLength);
+        GetPathFrame(pWork, out var workFramePos, out var workFrameRot, out _);
+        backetWorks.Add(new BacketWork
+        {
+            obj = work,
+            backet = backet,
+            pathOffset = ds,
+            offsetFrame = Quaternion.Inverse(workFrameRot) * (work.transform.position - workFramePos),
+            rotFrame = Quaternion.Inverse(workFrameRot) * work.transform.rotation,
+        });
+        WorkOwnership.Claim(work, this);
+    }
+
+    /// <summary>
+    /// 経路上の指定位置の接線フレーム（ワールド）を取得する。
+    /// 位置＝経路点、回転＝接線方向の姿勢（バケット配置と同じPathRotation基準）、
+    /// tangentW＝経路パラメータ増加方向のワールド接線（GetPositionOnPathのdir符号規約に依存しない前方差分）
+    /// </summary>
+    private void GetPathFrame(float p, out Vector3 pos, out Quaternion rot, out Vector3 tangentW)
+    {
+        GetPositionOnLoop(Mathf.Repeat(p, backetLength), out var lp, out var dir);
+        pos = moveObject.transform.TransformPoint(lp);
+        rot = moveObject.transform.rotation * ((dir != Vector3.zero) ? PathRotation(lp, dir) : Quaternion.identity);
+        var eps = Mathf.Max(backetLength * 1e-4f, 1e-5f);
+        GetPositionOnLoop(Mathf.Repeat(p + eps, backetLength), out var lpAhead, out _);
+        tangentW = moveObject.transform.TransformPoint(lpAhead) - pos;
+    }
+
+    /// <summary>
+    /// 生成点の近傍に紐づけ済みワークがいるか（生成前の重複チェック用）。
+    /// 判定半径＝バケット半ピッチ：生成条件ONの間に爪が動いても、前のワークが
+    /// 半ピッチ離れるまで生成点を塞ぐ（次の爪は1ピッチ離れているので正常な生成は妨げない）
+    /// </summary>
+    public bool HasBoundWorkNear(BacketInfo backet, Vector3 worldPos)
+    {
+        var radius = Mathf.Max(0.001f, backetPitch * backetScale * 0.5f);
+        foreach (var bw in backetWorks)
+        {
+            if ((bw.obj != null) && (Vector3.Distance(bw.obj.transform.position, worldPos) < radius))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// 経路搬送中のワークを爪に追従させる。搬送終了位置(carryEnd mm)を越えたら手放す
+    /// （手放した後はコンベア捕捉・落下・削除範囲などに委ねる。0=全周追従）
+    /// </summary>
+    private void MoveBacketWorks()
+    {
+        if (backetWorks.Count == 0)
+        {
+            return;
+        }
+        var carryEnd = unitSetting.backetSetting.carryEnd;
+        var hasCarry = carryEnd > 0f;
+        for (var i = backetWorks.Count - 1; i >= 0; i--)
+        {
+            var bw = backetWorks[i];
+            if ((bw.obj == null) || !bw.obj.activeInHierarchy || !WorkOwnership.IsOwner(bw.obj, this))
+            {
+                // 削除・プール返却・他機構へ移管済み
+                if (bw.obj != null)
+                {
+                    WorkOwnership.Release(bw.obj, this);
+                }
+                backetWorks.RemoveAt(i);
+                continue;
+            }
+            // ワーク自身の経路位置（爪の位置＋弧長オフセット）の接線フレームで配置する
+            // （爪の姿勢コピーではなく、ワークがいる地点の経路角度に沿って動く）
+            var pWork = Mathf.Repeat(bw.backet.pathMm / 1000f / backetScale + bw.pathOffset, backetLength);
+            GetPathFrame(pWork, out var framePos, out var frameRot, out _);
+            bw.obj.transform.position = framePos + frameRot * bw.offsetFrame;
+            bw.obj.transform.rotation = frameRot * bw.rotFrame;
+            var workMm = pWork * backetScale * 1000f;
+            if (hasCarry)
+            {
+                // 終了位置より先で生成されたワークは即解放しない：
+                // 一度手前側に入ってから、終了位置を越えたときに手放す
+                if (workMm <= carryEnd)
+                {
+                    bw.entered = true;
+                }
+                else if (bw.entered)
+                {
+                    // 搬送終了位置を通過＝手放す（以後はプッシャー押し・他機構の捕捉に委ねる）
+                    Debug.Log($"[Backet] {name} 手放し: {bw.obj.name} @ {workMm:F0}mm（終了={carryEnd:F0}mm）");
+                    WorkOwnership.Release(bw.obj, this);
+                    freeWorks.Add(new FreeWork
+                    {
+                        obj = bw.obj,
+                        pathPos = pWork,
+                        offsetFrame = bw.offsetFrame,
+                        rotFrame = bw.rotFrame,
+                        halfLen = WorkHalfLength(bw.obj, pWork),
+                    });
+                    backetWorks.RemoveAt(i);
+                }
+            }
+        }
+    }
+
+    /// <summary>AABBの8隅の符号（i=0..7）</summary>
+    private static Vector3 CornerSign(int i)
+    {
+        return new Vector3((i & 1) == 0 ? -1f : 1f, (i & 2) == 0 ? -1f : 1f, (i & 4) == 0 ? -1f : 1f);
+    }
+
+    /// <summary>
+    /// 元モデルの設計パス（prefab内パス）をクローンの対応ノードへ引き継ぐ（子は同順複製の前提でインデックス対応）
+    /// </summary>
+    private static void CopyDesignPaths(Transform source, Transform clone)
+    {
+        if (GlobalScript.designPaths.TryGetValue(source.gameObject, out var path))
+        {
+            GlobalScript.designPaths[clone.gameObject] = path;
+        }
+        var n = Mathf.Min(source.childCount, clone.childCount);
+        for (var i = 0; i < n; i++)
+        {
+            CopyDesignPaths(source.GetChild(i), clone.GetChild(i));
+        }
+    }
+
+    /// <summary>
+    /// ワークの経路方向半長（ローカル単位）を求める（レンダラAABBを接線へ投影）
+    /// </summary>
+    private float WorkHalfLength(GameObject work, float pathPos)
+    {
+        GetPathFrame(pathPos, out _, out _, out var tangentW);
+        var t = tangentW.normalized;
+        var rends = work.GetComponentsInChildren<Renderer>();
+        if ((rends.Length == 0) || (t == Vector3.zero))
+        {
+            return 0.02f / backetScale;   // 既定20mm
+        }
+        var b = rends[0].bounds;
+        for (var i = 1; i < rends.Length; i++)
+        {
+            b.Encapsulate(rends[i].bounds);
+        }
+        var e = b.extents;
+        var half = e.x * Mathf.Abs(t.x) + e.y * Mathf.Abs(t.y) + e.z * Mathf.Abs(t.z);
+        return Mathf.Max(half, 0.001f) / backetScale;
+    }
+
+    /// <summary>
+    /// ワールド座標に最も近い経路上の点を探し、その名目パラメータ（GetPositionOnLoopの入力と同じ域）と
+    /// 経路までの距離（ワールドm）を返す
+    /// </summary>
+    private float NearestPathParam(Vector3 worldPos, out float distance)
+    {
+        var lp = moveObject.transform.InverseTransformPoint(worldPos);
+        var accumulated = 0f;
+        var best = float.MaxValue;
+        var bestGeom = 0f;
+        for (var i = 0; i < loopPathPoints.Count - 1; i++)
+        {
+            var a = loopPathPoints[i];
+            var ab = loopPathPoints[i + 1] - a;
+            var segLen = ab.magnitude;
+            if (segLen > 1e-9f)
+            {
+                var t = Mathf.Clamp01(Vector3.Dot(lp - a, ab) / (segLen * segLen));
+                var d = (lp - (a + ab * t)).sqrMagnitude;
+                if (d < best)
+                {
+                    best = d;
+                    bestGeom = accumulated + segLen * t;
+                }
+            }
+            accumulated += segLen;
+        }
+        distance = Mathf.Sqrt(best) * backetScale;
+        // 幾何距離→名目パラメータへ逆変換（GetPositionOnLoopの写像の逆）
+        var geom = bestGeom - unitSetting.backetSetting.pathStartOffset / backetScale;
+        if (backetPathLength > 1e-9f)
+        {
+            geom = Mathf.Repeat(geom, backetPathLength);
+        }
+        if (unitSetting.backetSetting.loopScaling && (backetPathLength > 1e-9f))
+        {
+            return geom / backetPathLength * backetLength;
+        }
+        return geom;
+    }
+
+    /// <summary>
+    /// プッシャーユニット（登録爪モデルを自ユニットのバケットモデルに持つユニット）を解決し、
+    /// Ctrl+Shift確認表示（爪クローンを覆う半透明マゼンタの箱）を生成する
+    /// </summary>
+    private void ResolvePusher()
+    {
+        if (pusherResolved)
+        {
+            return;
+        }
+        var po = unitSetting.backetSetting.pusherObject;
+        if (po == null)
+        {
+            // 設定なし（pusherPath空）／モデル未解決（ParameterLoaderが警告済み）のどちらかを確定ログで残す
+            pusherResolved = true;
+            if (!string.IsNullOrEmpty(unitSetting.backetSetting.pusherPath))
+            {
+                Debug.LogWarning($"バケット設定: {name} プッシャー爪モデルが未解決です（path={unitSetting.backetSetting.pusherPath}）");
+            }
+            else if (!string.IsNullOrEmpty(unitSetting.backetSetting.pusherModel))
+            {
+                Debug.LogWarning($"バケット設定: {name} プッシャー爪モデル\"{unitSetting.backetSetting.pusherModel}\"のパスが出力されていません（KMXToolの再出力が必要）");
+            }
+            return;
+        }
+        AxisMotionBase found = null;
+        foreach (var u in po.GetComponentsInParent<AxisMotionBase>(true))
+        {
+            if (u.moveObject == po)
+            {
+                found = u;
+                break;
+            }
+        }
+        if (found == null)
+        {
+            pusherResolved = true;
+            Debug.LogWarning($"バケット設定: {name} のプッシャー爪モデル\"{po.name}\"を持つバケットユニットが見つかりません");
+            return;
+        }
+        if (found.backets.Count == 0)
+        {
+            // クローン未生成（ロード順）。次フレーム以降に再試行
+            return;
+        }
+        pusherUnit = found;
+        pusherResolved = true;
+        Debug.Log($"バケット設定: {name} プッシャーユニット={pusherUnit.name}（爪モデル={po.name}）");
+        // Ctrl+Shift確認表示：押し手の爪クローンを半透明マゼンタの箱で覆う（クローンに追従）
+        var idx = 0;
+        foreach (var clone in pusherUnit.backets)
+        {
+            idx++;
+            if (clone.obj == null)
+            {
+                continue;
+            }
+            var rends = clone.obj.GetComponentsInChildren<Renderer>();
+            if (rends.Length == 0)
+            {
+                continue;
+            }
+            var bb = rends[0].bounds;
+            for (var i = 1; i < rends.Length; i++)
+            {
+                bb.Encapsulate(rends[i].bounds);
+            }
+            var box = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            box.name = $"PusherHighlight_{name}_{idx}";
+            Destroy(box.GetComponent<Collider>());
+            box.transform.position = bb.center;
+            box.transform.rotation = Quaternion.identity;
+            box.transform.localScale = bb.size * 1.02f;
+            box.transform.SetParent(clone.obj.transform, true);
+            var mat = SafetyZoneScript.MakeZoneMaterial(new Color(1f, 0f, 1f, 0.35f));
+            if (mat != null)
+            {
+                box.GetComponent<Renderer>().sharedMaterial = mat;
+            }
+            box.SetActive(false);
+            BacketPathOverlay.RegisterLine($"{name}_pusher_{idx}", box);
+        }
+    }
+
+    /// <summary>
+    /// プッシャー（別バケットの爪クローン）で手放し後のワークを経路に沿って押す。
+    /// 前フレームの前面位置からの掃引に掛かったワークを前面＋半長の位置まで送る（前進時のみ）
+    /// </summary>
+    private void MovePusherWorks()
+    {
+        // プッシャーユニットの解決＋Ctrl+Shift確認表示の生成（初回のみ。ロード順によるクローン未生成時は再試行）
+        ResolvePusher();
+        // 手放し後ワークの掃除（破棄・非アクティブ・他機構へ移管）
+        for (var i = freeWorks.Count - 1; i >= 0; i--)
+        {
+            var fw = freeWorks[i];
+            if ((fw.obj == null) || !fw.obj.activeInHierarchy || WorkOwnership.IsOwnedByOther(fw.obj, this))
+            {
+                freeWorks.RemoveAt(i);
+            }
+        }
+        if (freeWorks.Count == 0)
+        {
+            return;
+        }
+        if ((pusherUnit == null) || (pusherUnit.backets.Count == 0))
+        {
+            return;
+        }
+        foreach (var clone in pusherUnit.backets)
+        {
+            if ((clone.obj == null) || !clone.obj.activeInHierarchy)
+            {
+                continue;
+            }
+            // 爪クローンのワールドAABB
+            var rends = clone.obj.GetComponentsInChildren<Renderer>();
+            if (rends.Length == 0)
+            {
+                continue;
+            }
+            var b = rends[0].bounds;
+            for (var i = 1; i < rends.Length; i++)
+            {
+                b.Encapsulate(rends[i].bounds);
+            }
+            // この経路への射影。経路から遠い爪は無視（爪サイズ＋余裕）
+            var sCenter = NearestPathParam(b.center, out var dist);
+            if (dist > b.extents.magnitude + 0.05f)
+            {
+                pusherPrevFront.Remove(clone.obj);
+                continue;
+            }
+            // 前面＝AABB8隅のうち接線方向に最も進んだ位置（前進検知・掃引の対象絞り込み用）
+            GetPathFrame(sCenter, out var fp, out _, out var tangentW);
+            var t = tangentW.normalized;
+            var maxAlong = float.MinValue;
+            for (var ci = 0; ci < 8; ci++)
+            {
+                var corner = b.center + Vector3.Scale(b.extents, CornerSign(ci));
+                maxAlong = Mathf.Max(maxAlong, Vector3.Dot(corner - fp, t));
+            }
+            var sFront = Mathf.Repeat(sCenter + maxAlong / backetScale, backetLength);
+            if (pusherPrevFront.TryGetValue(clone.obj, out var prev))
+            {
+                // 移動量（周回またぎ対応の符号付き差分）。流れがパラメータ減少方向の経路もあるため、
+                // 爪自身の実際の移動方向から流れの符号を決める。
+                // ※曲がり部（スプロケット）ではコーナー切替で前面位置が数mm逆行することがあるため、
+                //   符号は3mm以上の確かな移動時のみ更新し、それ以外は前回の符号を保持する
+                var adv = Mathf.Repeat(sFront - prev + backetLength * 0.5f, backetLength) - backetLength * 0.5f;
+                var advMm = Mathf.Abs(adv) * backetScale * 1000f;
+                if (advMm > 3f)
+                {
+                    pusherFlowSign[clone.obj] = Mathf.Sign(adv);
+                }
+                var hasSign = pusherFlowSign.TryGetValue(clone.obj, out var flowSign);
+                // 爪が流れ方向に動いたときのみ押す（停止・逆行中は押さない）
+                if (hasSign && (flowSign * adv > 1e-7f))
+                {
+                    var tf = t * flowSign;   // 流れ方向のワールド接線
+                    var sweep = Mathf.Abs(adv);
+                    var margin = b.extents.magnitude / backetScale;
+                    foreach (var fw in freeWorks)
+                    {
+                        // 前フレーム基準の掃引で対象を粗く絞る（余裕=ワーク全長＋爪サイズぶん。正確な押し量は実形状で決める）
+                        var rel = Mathf.Repeat(flowSign * (fw.pathPos - prev), backetLength);
+                        if (rel > sweep + fw.halfLen * 2f + margin)
+                        {
+                            continue;
+                        }
+                        // 実形状で押す：ワークの高さ帯に実際に重なる爪パーツの前面と、
+                        // ワーク後端との食い込み量ぶんだけ送る（足元の張り出し等、当たらない部分では押さない）
+                        var wrends = fw.obj.GetComponentsInChildren<Renderer>();
+                        if (wrends.Length == 0)
+                        {
+                            continue;
+                        }
+                        var wb = wrends[0].bounds;
+                        for (var wi = 1; wi < wrends.Length; wi++)
+                        {
+                            wb.Encapsulate(wrends[wi].bounds);
+                        }
+                        var front = float.MinValue;
+                        foreach (var rend in rends)
+                        {
+                            var bb = rend.bounds;
+                            // ワークの高さ帯と実質重なるパーツのみ押し面にする（重なり10mm以上）
+                            var overlapH = Mathf.Min(bb.max.y, wb.max.y) - Mathf.Max(bb.min.y, wb.min.y);
+                            if (overlapH < 0.01f)
+                            {
+                                continue;
+                            }
+                            for (var ci = 0; ci < 8; ci++)
+                            {
+                                var corner = bb.center + Vector3.Scale(bb.extents, CornerSign(ci));
+                                front = Mathf.Max(front, Vector3.Dot(corner - fp, tf));
+                            }
+                        }
+                        if (front == float.MinValue)
+                        {
+                            continue;
+                        }
+                        // ワーク後端（流れ方向の最小＝上流側の端）
+                        var rear = float.MaxValue;
+                        for (var ci = 0; ci < 8; ci++)
+                        {
+                            var corner = wb.center + Vector3.Scale(wb.extents, CornerSign(ci));
+                            rear = Mathf.Min(rear, Vector3.Dot(corner - fp, tf));
+                        }
+                        var push = front - rear;   // 食い込み量（ワールドm。正なら押し面がワーク後端を越えている）
+                        // 押し量は爪の前進量＋余裕20mmまでに制限する（曲がり部の投影乱れによるワープ防止）
+                        push = Mathf.Min(push, Mathf.Abs(adv) * backetScale + 0.02f);
+                        if (push > 0f)
+                        {
+                            if (pushLogCount < 30)
+                            {
+                                pushLogCount++;
+                                Debug.Log($"[Backet] {name} 押し: {fw.obj.name} flowSign={flowSign} push={push * 1000f:F1}mm " +
+                                          $"pathMm={fw.pathPos * backetScale * 1000f:F0}→{Mathf.Repeat(fw.pathPos + flowSign * push / backetScale, backetLength) * backetScale * 1000f:F0} " +
+                                          $"adv={adv * backetScale * 1000f:F2}mm t={t:F2} 爪前面s={sFront * backetScale * 1000f:F0}mm");
+                            }
+                            fw.pathPos = Mathf.Repeat(fw.pathPos + flowSign * push / backetScale, backetLength);
+                            GetPathFrame(fw.pathPos, out var wp, out var wr, out _);
+                            fw.obj.transform.position = wp + wr * fw.offsetFrame;
+                            fw.obj.transform.rotation = wr * fw.rotFrame;
+                        }
+                    }
+                }
+            }
+            pusherPrevFront[clone.obj] = sFront;
+        }
     }
 
     /// <summary>

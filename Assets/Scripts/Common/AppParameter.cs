@@ -1416,6 +1416,15 @@ namespace Parameters
         public bool visible { get; set; }
         /// <summary>常に上向き（吊り下げ式。経路を循環しても姿勢を変えない）</summary>
         public bool upright { get; set; }
+        /// <summary>ワーク搬送終了位置(mm・経路開始基準)。ここを越えたワークは爪から手放される（0=全周追従）</summary>
+        public float carryEnd { get; set; }
+        /// <summary>プッシャー爪モデル（別バケットの爪。手放し後のワークをこの経路上で押す）</summary>
+        public string pusherModel { get; set; } = "";
+        public string pusherGroup { get; set; } = "";
+        public string pusherPath { get; set; } = "";
+        /// <summary>プッシャー爪モデルの実体（ロード時にpusherPathから解決される）</summary>
+        [JsonIgnore]
+        public GameObject pusherObject { get; set; }
         /// <summary>参照する経路名（PathInfo.jsonの経路。指定時はベルトモデルより優先）</summary>
         public string pathName { get; set; } = "";
         /// <summary>経路要素（ロード時にpathNameから解決して充填される）</summary>

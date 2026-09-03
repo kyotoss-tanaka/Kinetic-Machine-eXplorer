@@ -1955,6 +1955,26 @@ namespace Parameters
                     }
                 }
             }
+            // 設計パス（prefab内パス）をユニット再構成前に記録する
+            // （再構成後のシーンパスはKMXToolのprefabツリーと一致しないため、
+            //   アセンブリ表示のダブルクリックコピーはこちらを使う）
+            GlobalScript.designPaths.Clear();
+            foreach (Transform root in prefabObj.transform)
+            {
+                RecordDesignPaths(root, root.name);
+            }
+        }
+
+        /// <summary>
+        /// prefab内の設計パスを再帰的に記録する（\区切り。KMXToolの*パス貼り付け形式に合わせる）
+        /// </summary>
+        private void RecordDesignPaths(Transform node, string path)
+        {
+            GlobalScript.designPaths[node.gameObject] = path;
+            foreach (Transform child in node)
+            {
+                RecordDesignPaths(child, path + "\\" + child.name);
+            }
         }
 
         /// <summary>
@@ -2458,6 +2478,16 @@ namespace Parameters
                 {
                     var obj = prefabObj.transform.Find(backet.path);
                     backet.gameObject = obj != null ? obj.gameObject : null;
+                }
+                // プッシャー爪モデル（別バケットの爪。ユニットは実行時に自動特定する）
+                if ((backet.pusherPath != null) && (backet.pusherPath != ""))
+                {
+                    var obj = prefabObj.transform.Find(backet.pusherPath);
+                    backet.pusherObject = obj != null ? obj.gameObject : null;
+                    if (backet.pusherObject == null)
+                    {
+                        Debug.LogWarning($"バケット設定: {backet.name} のプッシャー爪モデル\"{backet.pusherPath}\"が見つかりません");
+                    }
                 }
                 // 経路名参照の解決（同一機番の経路設定から要素を引き当てる）
                 if ((backet.pathName != null) && (backet.pathName != ""))

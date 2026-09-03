@@ -257,11 +257,32 @@ public class MultiObjectFactoryScript : UseTagBaseScript
         multiObjects.Clear();
         foreach (var work in works)
         {
+            // アクティブワークを破棄する（バケット生成ワークはファクトリ配下でリロード後も残るため明示的に消す）
+            foreach (var obj in work.Value.activeObjects)
+            {
+                if (obj != null)
+                {
+                    Destroy(obj);
+                }
+            }
+            work.Value.activeObjects.Clear();
             work.Value.pool.Clear();
             work.Value.pool.Dispose();
 
         }
         works.Clear();
+        // ドメインリロード（エディタの再コンパイル）でプール台帳が消えた後の残骸も掃除する：
+        // バケット生成ワーク・プール在庫はファクトリ配下に親付けされるため、台帳に頼らず直接破棄する
+        for (var i = transform.childCount - 1; i >= 0; i--)
+        {
+            var child = transform.GetChild(i).gameObject;
+            if (child.GetComponent<ObjectScript>() != null)
+            {
+                Destroy(child);
+            }
+        }
+        // 所有権も全消去（リロード後に旧参照が残らないように）
+        WorkOwnership.Clear();
     }
 
     // Update is called once per frame
@@ -424,14 +445,31 @@ public class MultiObjectFactoryScript : UseTagBaseScript
                         setting.objBase.transform.position + setting.objBase.transform.rotation * setting.CreatePoint);
                 }
                 var change = false;
-                // 生成前にチェック
-                var near = setting.objBase.transform.GetComponentsInChildren<ObjectScript>()
-                    .ToList()
-                    .Find(d => Vector2.Distance(
-                        new Vector2(d.transform.localPosition.x, d.transform.localPosition.z),
-                        new Vector2(createPoint.x, createPoint.z)
-                    ) < 0.001f);
                 var work = works[setting.WorkName];
+                var isBucket = setting.backetInfo != null;
+                ObjectScript near = null;
+                var bucketWorldPos = Vector3.zero;
+                var bucketWorldRot = Quaternion.identity;
+                var bucketBlocked = false;
+                if (isBucket)
+                {
+                    // バケット生成: 爪の子にせず、ワールド配置＋経路搬送の論理紐づけを使う。
+                    // 重複チェックは紐づけ済みワークの実位置で行う
+                    bucketWorldPos = setting.objBase.transform.TransformPoint(createPoint);
+                    bucketWorldRot = setting.objBase.transform.rotation * Quaternion.Euler(createRotate);
+                    var bu = setting.backetInfo.unit;
+                    bucketBlocked = (bu != null) && bu.HasBoundWorkNear(setting.backetInfo, bucketWorldPos);
+                }
+                else
+                {
+                    // 生成前にチェック
+                    near = setting.objBase.transform.GetComponentsInChildren<ObjectScript>()
+                        .ToList()
+                        .Find(d => Vector2.Distance(
+                            new Vector2(d.transform.localPosition.x, d.transform.localPosition.z),
+                            new Vector2(createPoint.x, createPoint.z)
+                        ) < 0.001f);
+                }
                 if (near != null)
                 {
                     if (setting.IsChange)
@@ -444,13 +482,29 @@ public class MultiObjectFactoryScript : UseTagBaseScript
                         }
                     }
                 }
-                if ((setting.IsChange && change) || (!setting.IsChange && (near == null)))
+                if (!bucketBlocked && ((setting.IsChange && change) || (!setting.IsChange && (near == null))))
                 {
                     var obj = work.pool.Get();
-                    obj.transform.parent = setting.objBase.transform;
-                    obj.transform.localPosition = createPoint;
-                    obj.transform.localEulerAngles = createRotate;
-                    obj.transform.localScale = Vector3.one;
+                    if (isBucket)
+                    {
+                        // ワールド直接配置（親はファクトリ＝静止。スケールは従来の「爪の子」と同じ見た目に合わせる）
+                        obj.transform.parent = transform;
+                        obj.transform.position = bucketWorldPos;
+                        obj.transform.rotation = bucketWorldRot;
+                        obj.transform.localScale = setting.objBase.transform.lossyScale;
+                        if (setting.backetInfo.unit != null)
+                        {
+                            // 爪への論理紐づけ（経路の角度に沿って追従。搬送区間を抜けたら手放す）
+                            setting.backetInfo.unit.BindWorkToBacket(obj, setting.backetInfo);
+                        }
+                    }
+                    else
+                    {
+                        obj.transform.parent = setting.objBase.transform;
+                        obj.transform.localPosition = createPoint;
+                        obj.transform.localEulerAngles = createRotate;
+                        obj.transform.localScale = Vector3.one;
+                    }
                     var script = obj.GetComponent<ObjectScript>();
                     if (script == null)
                     {

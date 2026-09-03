@@ -117,12 +117,6 @@ public class ConveyorScript : KssBaseScript
     private readonly HashSet<GameObject> captured = new HashSet<GameObject>();
 
     /// <summary>
-    /// ワークの所有コンベア（オーバーラップ区間で下流が奪わないための所有権。
-    /// 上流が領域外へ出して手放してから次のコンベアが捕捉する）
-    /// </summary>
-    private static readonly Dictionary<GameObject, ConveyorScript> owners = new Dictionary<GameObject, ConveyorScript>();
-
-    /// <summary>
     /// 全コンベア（終端の受け渡し先判定用）
     /// </summary>
     private static readonly List<ConveyorScript> conveyors = new List<ConveyorScript>();
@@ -244,8 +238,8 @@ public class ConveyorScript : KssBaseScript
             {
                 continue;
             }
-            // 他コンベアが搬送中のワークは奪わない（上流が手放してから拾う）
-            if (owners.TryGetValue(obj, out var owner) && (owner != null) && (owner != this))
+            // 他機構（コンベア/バケット）が搬送中のワークは奪わない（上流が手放してから拾う）
+            if (WorkOwnership.IsOwnedByOther(obj, this))
             {
                 continue;
             }
@@ -274,7 +268,7 @@ public class ConveyorScript : KssBaseScript
         // 前フレームまで搬送していて外れたワーク（領域外・削除・プール返却）は手放す→次のコンベアが拾える
         foreach (var w in entries)
         {
-            owners[w.obj] = this;
+            WorkOwnership.Claim(w.obj, this);
         }
         foreach (var old in captured)
         {
@@ -287,9 +281,9 @@ public class ConveyorScript : KssBaseScript
                     break;
                 }
             }
-            if (!still && owners.TryGetValue(old, out var o) && (o == this))
+            if (!still)
             {
-                owners.Remove(old);
+                WorkOwnership.Release(old, this);
             }
         }
         // 今フレームの捕捉状態を記録（領域から出たワークは次に入り直したとき再着地する）
@@ -493,7 +487,7 @@ public class ConveyorScript : KssBaseScript
             if (w.rect.fMin > region.fMax)
             {
                 // 所有権を手放す（次のコンベアが拾えるように）
-                owners.Remove(w.obj);
+                WorkOwnership.Release(w.obj, this);
                 // 物理落下：他コンベアがその場で受け取れる（面高さが合う）なら落とさず受け渡す
                 if ((cv.endMode == 1) && !CanHandOff(w.obj))
                 {
@@ -1132,18 +1126,7 @@ public class ConveyorScript : KssBaseScript
     /// </summary>
     private void ReleaseAllOwned()
     {
-        var stale = new List<GameObject>();
-        foreach (var kv in owners)
-        {
-            if (kv.Value == this)
-            {
-                stale.Add(kv.Key);
-            }
-        }
-        foreach (var key in stale)
-        {
-            owners.Remove(key);
-        }
+        WorkOwnership.ReleaseAll(this);
     }
 
     protected override void OnDestroy()

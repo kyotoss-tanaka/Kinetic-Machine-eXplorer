@@ -243,8 +243,13 @@ public class CanvasMenuAssemblyScript : CanvasMenuBaseScript
                 {
                     // 一瞬テキスト色を変える
                     StartCoroutine(TextEffect(text));
-                    // クリップボードにコピー
-                    GUIUtility.systemCopyBuffer = "*" + text.name;
+                    // クリップボードにコピー：prefab内の設計パスを優先する
+                    // （再構成後のシーンパスはKMXToolのprefabツリーと一致しないため、
+                    //   KMXToolの*パス貼り付けで解決できる設計パスを記録から引く）
+                    var path = ((selectedVisible != null) && GlobalScript.designPaths.TryGetValue(selectedVisible, out var designPath))
+                        ? designPath
+                        : text.name;
+                    GUIUtility.systemCopyBuffer = "*" + path;
                 }
             }
         }

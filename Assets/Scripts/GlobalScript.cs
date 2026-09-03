@@ -262,6 +262,12 @@ public static class GlobalScript
     public static Dictionary<string, GameObject> workModels = new Dictionary<string, GameObject>();
 
     /// <summary>
+    /// 設計パス（prefab内パス・\区切り）。ユニット再構成前に記録し、
+    /// アセンブリ表示のダブルクリックでKMXToolへ貼り付け可能な*パスをコピーするのに使う
+    /// </summary>
+    public static Dictionary<GameObject, string> designPaths = new Dictionary<GameObject, string>();
+
+    /// <summary>
     /// 機構登録情報
     /// </summary>
     public static Dictionary<string, List<GameObject>> regObjects = new Dictionary<string, List<GameObject>>();
