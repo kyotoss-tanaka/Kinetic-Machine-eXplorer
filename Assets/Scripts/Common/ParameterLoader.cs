@@ -1859,6 +1859,8 @@ namespace Parameters
         private void CreateBoxCollider(List<Renderer> meshRenderers, bool ignore = false)
         {
             int collisionFlipped = 0;
+            var pickLayer = SetupPickLayer();
+            int pickAssigned = 0;
             foreach (var mr in meshRenderers)
             {
                 // Line / 特殊用途は除外
@@ -1904,6 +1906,18 @@ namespace Parameters
                                 collisionFlipped++;
                             }
                         }
+                        // クリック選択専用として残った isTrigger コライダーは Pick レイヤへ移す。
+                        // Pick は全レイヤと衝突しない設定（SetupPickLayer）なので、ブロードフェーズの
+                        // 重なりペア生成とトリガーイベント配送から丸ごと外れる。
+                        // ※選択に使う Physics.RaycastAll はレイヤ衝突設定の影響を受けないため機能は不変。
+                        // ※isTrigger=false に反転したもの（collision=1ユニット／ROS2障害物）は
+                        //   実体として衝突させる必要があるため Default に残す。
+                        // ※XRモードはインタラクタ側の挙動を変えないため対象外。
+                        if (box.isTrigger && (pickLayer >= 0) && !GlobalScript.isXRMode)
+                        {
+                            mr.gameObject.layer = pickLayer;
+                            pickAssigned++;
+                        }
                         if (GlobalScript.isXRMode)
                         {
                             // XRモード時はインタラクタ追加
@@ -1919,6 +1933,34 @@ namespace Parameters
             {
                 Debug.Log($"[Collision] collision=1 ユニットの BoxCollider {collisionFlipped}個 を isTrigger=false（ignore={ignore}）");
             }
+            if (pickAssigned > 0)
+            {
+                Debug.Log($"[Collision] クリック選択専用コライダー {pickAssigned}個 を Pick レイヤへ（衝突判定から除外）");
+            }
+        }
+
+        /// <summary>
+        /// Pick レイヤを解決し、全レイヤとの衝突を無効化する。
+        /// クリック選択のためだけに付けている大量の isTrigger コライダーが、
+        /// 毎サブステップで重なりペア計算とトリガーイベント配送のコストを払っていたため、
+        /// 物理シミュレーションから完全に切り離す。
+        /// Physics.IgnoreLayerCollision は Layer Collision Matrix と同じ設定を行うもので、
+        /// Physics.Raycast 等のシーンクエリには影響しない（＝クリック選択は従来どおり動く）。
+        /// </summary>
+        /// <returns>Pick レイヤ番号。未定義なら -1</returns>
+        private static int SetupPickLayer()
+        {
+            var layer = LayerMask.NameToLayer("Pick");
+            if (layer < 0)
+            {
+                Debug.LogWarning("[Collision] Pick レイヤが未定義のため、クリック選択専用コライダーの衝突除外を行いません");
+                return -1;
+            }
+            for (var i = 0; i < 32; i++)
+            {
+                Physics.IgnoreLayerCollision(layer, i, true);
+            }
+            return layer;
         }
 
         #region ロード処理本体

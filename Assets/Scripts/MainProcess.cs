@@ -164,7 +164,7 @@ public class MainProcess : KssBaseScript
             GameObject clickedGameObject = null;
             Vector3 rotateCenter = Vector3.zero;
             Ray ray = Camera.main.ScreenPointToRay(mousePos);
-            var hits = Physics.RaycastAll(ray, 100, LayerMask.GetMask("Default"), QueryTriggerInteraction.Collide).ToList();
+            var hits = Physics.RaycastAll(ray, 100, LayerMask.GetMask("Default", "Pick"), QueryTriggerInteraction.Collide).ToList();
             hits = hits.Where(h => !float.IsNaN(h.distance)).ToList();
             try
             {
