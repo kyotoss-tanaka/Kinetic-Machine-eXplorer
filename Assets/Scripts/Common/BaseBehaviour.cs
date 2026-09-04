@@ -70,9 +70,12 @@ public class BaseBehaviour : MonoBehaviour
         // 全スクリプトの MyFixedUpdate がこのコルーチン1本に合算されて計測されるため、
         // 実体クラス名のマーカーを付けてプロファイラで内訳が見えるようにする
         marker = new Unity.Profiling.ProfilerMarker(GetType().Name + ".MyFixedUpdate");
+        // WaitForFixedUpdate は状態を持たないので使い回す。
+        // ループ内で new すると「全インスタンス×毎FixedUpdate」でゴミが出続ける
+        var wait = new WaitForFixedUpdate();
         while (true)
         {
-            yield return new WaitForFixedUpdate();
+            yield return wait;
             InvokeMyFixedUpdate();
         }
     }

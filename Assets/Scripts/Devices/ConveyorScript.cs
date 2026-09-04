@@ -138,6 +138,49 @@ public class ConveyorScript : KssBaseScript
     private readonly Dictionary<GameObject, RideAnchor> rideAnchors = new Dictionary<GameObject, RideAnchor>();
 
     /// <summary>
+    /// 今フレームの搬送対象ワーク（MyFixedUpdate内でのみ使う作業用。毎フレームnewしないため使い回す）
+    /// </summary>
+    private readonly List<WorkEntry> entries = new List<WorkEntry>();
+
+    /// <summary>
+    /// 上記を流れ方向順に並べ替えたもの（同上）
+    /// </summary>
+    private readonly List<WorkEntry> byF = new List<WorkEntry>();
+
+    /// <summary>
+    /// WorkEntry の使い回しプール。WorkEntry はクラス（rectをその場で書き換えるためstructにできない）なので、
+    /// 毎フレームnewすると「全コンベア×全搬送ワーク×サブステップ数」でゴミが出続ける
+    /// </summary>
+    private readonly List<WorkEntry> entryPool = new List<WorkEntry>();
+
+    /// <summary>
+    /// 今フレームでプールから貸し出した数
+    /// </summary>
+    private int entryPoolUsed;
+
+    /// <summary>
+    /// 作業用リストを空にしてプールを貸し出し前へ戻す
+    /// </summary>
+    private void ResetEntries()
+    {
+        entries.Clear();
+        byF.Clear();
+        entryPoolUsed = 0;
+    }
+
+    /// <summary>
+    /// プールから WorkEntry を1つ借りる（足りなければ作って足す）
+    /// </summary>
+    private WorkEntry RentEntry()
+    {
+        if (entryPoolUsed >= entryPool.Count)
+        {
+            entryPool.Add(new WorkEntry());
+        }
+        return entryPool[entryPoolUsed++];
+    }
+
+    /// <summary>
     /// 直近フレームの搬送領域（他コンベアからの受け渡し判定用）
     /// </summary>
     private FrameRect lastRegion;
@@ -221,7 +264,7 @@ public class ConveyorScript : KssBaseScript
             {
                 continue;
             }
-            if (obj.GetComponent<ConveyorFallScript>() != null)
+            if (obj.TryGetComponent<ConveyorFallScript>(out _))
             {
                 // 落下開始済みは物理に任せる
                 continue;
@@ -231,7 +274,7 @@ public class ConveyorScript : KssBaseScript
         }
 
         // 搬送対象ワークの収集（全プールのアクティブワークから境界で判定）
-        var entries = new List<WorkEntry>();
+        ResetEntries();
         foreach (var obj in MultiObjectFactoryScript.EnumerateActiveWorks())
         {
             var rect = GetWorldRect(obj);
@@ -263,7 +306,10 @@ public class ConveyorScript : KssBaseScript
                     rect.uMax += snap;
                 }
             }
-            entries.Add(new WorkEntry { obj = obj, rect = rect });
+            var entry = RentEntry();
+            entry.obj = obj;
+            entry.rect = rect;
+            entries.Add(entry);
         }
         // 所有権の更新: 今フレーム搬送するワークは自分の所有。
         // 前フレームまで搬送していて外れたワーク（領域外・削除・プール返却）は手放す→次のコンベアが拾える
@@ -377,7 +423,7 @@ public class ConveyorScript : KssBaseScript
 
         // 前押しの下流伝搬: 押されたワークが先行ワークへ食い込んだら、先行ワークも前へ送る（渋滞列ごと押す）。
         // 行き先がストッパーで塞がれている場合はそこで止め、押し込んだ側を戻す（ジャム）
-        var byF = new List<WorkEntry>(entries);
+        byF.AddRange(entries);
         byF.Sort((a, b) => a.rect.fMin.CompareTo(b.rect.fMin));
         for (var i = 0; i < byF.Count; i++)
         {
@@ -502,7 +548,7 @@ public class ConveyorScript : KssBaseScript
         var invRot = Quaternion.Inverse(transform.rotation);
         foreach (var w in entries)
         {
-            if (w.obj.GetComponent<ConveyorFallScript>() != null)
+            if (w.obj.TryGetComponent<ConveyorFallScript>(out _))
             {
                 continue;
             }
@@ -994,8 +1040,7 @@ public class ConveyorScript : KssBaseScript
     /// </summary>
     private void Capture(GameObject obj)
     {
-        var fall = obj.GetComponent<ConveyorFallScript>();
-        if (fall != null)
+        if (obj.TryGetComponent<ConveyorFallScript>(out var fall))
         {
             Destroy(fall);
         }
@@ -1025,7 +1070,7 @@ public class ConveyorScript : KssBaseScript
     /// </summary>
     private void StartFall(GameObject obj)
     {
-        if (obj.GetComponent<ConveyorFallScript>() != null)
+        if (obj.TryGetComponent<ConveyorFallScript>(out _))
         {
             return;
         }

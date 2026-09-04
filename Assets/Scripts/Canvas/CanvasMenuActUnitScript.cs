@@ -815,13 +815,23 @@ public class CanvasMenuActUnitScript : CanvasMenuBaseScript
             uiLinearInfo.SetActive(false);
         }
         actUnitContentsActList.GetComponent<RectTransform>().sizeDelta = new Vector2(600, 30 * actUnitInfos.Count);
-        if ((unitSetting != null) && (actUnitInfos.Count > 0) && (pointsInfos.Count > 0) && !isSelectProcess)
+        // モデル選択の条件は「ユニットが選ばれている」ことだけ。
+        // ※以前は actUnitInfos / pointsInfos の件数も条件だったが、pointsInfos はリニア機構の
+        //   点情報でしか埋まらないため、リニア以外のユニットでは選択処理ごとスキップされていた。
+        // ※isSelectProcess は「モデルクリック→ドロップダウン設定→再選択」のループ防止なので残す。
+        if ((unitSetting != null) && !isSelectProcess)
         {
             //オブジェクト選択
-            var obj = GameObject.FindObjectsByType<Transform>(FindObjectsSortMode.None).Where(d => d.name == unitSetting.name).First();
-            if (obj != null)
+            // First() は該当なしで例外を投げる（直後のnullチェックが効かず、以降の処理が中断していた）
+            var obj = GameObject.FindObjectsByType<Transform>(FindObjectsSortMode.None).FirstOrDefault(d => d.name == unitSetting.name);
+            var target = obj != null ? obj.gameObject : unitSetting.unitObject;
+            if (target != null)
             {
-                menuInfoScript.SetAssemblyObject(((Transform)obj).gameObject);
+                menuInfoScript.SetAssemblyObject(target);
+            }
+            else
+            {
+                Debug.LogWarning($"[ActUnit] ユニット名 '{unitSetting.name}' に一致するオブジェクトが見つかりません（モデル選択をスキップ）");
             }
         }
     }
