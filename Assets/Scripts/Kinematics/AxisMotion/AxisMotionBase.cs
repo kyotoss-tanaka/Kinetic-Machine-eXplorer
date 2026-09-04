@@ -1503,6 +1503,9 @@ public class AxisMotionBase : KinematicsBase
         pusherLatSign.Clear();
         pusherRefs.Clear();
         pushersResolved = false;
+        pusherTracking = false;
+        rendCache.Clear();
+        mfCache.Clear();
         // 移管先探索用の登録簿へ登録（破棄済みの残骸も掃除）
         backetUnits.RemoveAll(d => d == null);
         if (!backetUnits.Contains(this))
@@ -2151,6 +2154,35 @@ public class AxisMotionBase : KinematicsBase
     /// <summary>横方向プッシャーの前フレーム位置（対象オブジェクトごと・横軸座標m）と押し方向符号</summary>
     private readonly Dictionary<GameObject, float> pusherPrevLat = new Dictionary<GameObject, float>();
     private readonly Dictionary<GameObject, float> pusherLatSign = new Dictionary<GameObject, float>();
+    /// <summary>押し手追跡が生きているか（自由ワーク0個の間は止めて負荷を掛けない）</summary>
+    private bool pusherTracking;
+    /// <summary>捕捉判定の次回時刻（毎フレームは重いため間引く）</summary>
+    private float nextCaptureTime;
+    /// <summary>レンダラ/メッシュフィルタのキャッシュ（GetComponentsInChildrenの毎フレームGC回避）</summary>
+    private readonly Dictionary<GameObject, Renderer[]> rendCache = new Dictionary<GameObject, Renderer[]>();
+    private readonly Dictionary<GameObject, MeshFilter[]> mfCache = new Dictionary<GameObject, MeshFilter[]>();
+
+    /// <summary>レンダラ一覧（キャッシュ。確認表示の箱は除外）</summary>
+    private Renderer[] CachedRenderers(GameObject go)
+    {
+        if (!rendCache.TryGetValue(go, out var rends))
+        {
+            rends = System.Array.FindAll(go.GetComponentsInChildren<Renderer>(), d => !IsOverlayNode(d.gameObject));
+            rendCache[go] = rends;
+        }
+        return rends;
+    }
+
+    /// <summary>メッシュフィルタ一覧（キャッシュ）</summary>
+    private MeshFilter[] CachedMeshFilters(GameObject go)
+    {
+        if (!mfCache.TryGetValue(go, out var mfs))
+        {
+            mfs = System.Array.FindAll(go.GetComponentsInChildren<MeshFilter>(), d => !IsOverlayNode(d.gameObject));
+            mfCache[go] = mfs;
+        }
+        return mfs;
+    }
     /// <summary>プッシャー爪クローンごとの前フレーム前面位置（名目パラメータ）</summary>
     private readonly Dictionary<GameObject, float> pusherPrevFront = new Dictionary<GameObject, float>();
     /// <summary>プッシャー爪クローンごとの流れ符号（曲がり部の投影揺らぎで反転しないよう、確かな移動時のみ更新して保持）</summary>
@@ -2260,9 +2292,9 @@ public class AxisMotionBase : KinematicsBase
     /// <summary>
     /// ワーク底面の高さ（origin基準・up方向の最小射影。レンダラなしはfloat.MaxValue）
     /// </summary>
-    private static float WorkBottomAlong(GameObject work, Vector3 origin, Vector3 up)
+    private float WorkBottomAlong(GameObject work, Vector3 origin, Vector3 up)
     {
-        var rends = work.GetComponentsInChildren<Renderer>();
+        var rends = CachedRenderers(work);
         var bottom = float.MaxValue;
         foreach (var rend in rends)
         {
@@ -2433,13 +2465,13 @@ public class AxisMotionBase : KinematicsBase
     /// ワークの高さ帯[minY, maxY]に入る頂点のみ評価するため、L字爪の足先（ワークの下に潜る部分）は押し面にならない。
     /// 頂点が読めない場合はfloat.MinValueを返す（呼び出し側でAABBにフォールバック）
     /// </summary>
-    private static float PusherFrontByMesh(GameObject clone, Vector3 origin, Vector3 flowDir, float minY, float maxY)
+    private float PusherFrontByMesh(GameObject clone, Vector3 origin, Vector3 flowDir, float minY, float maxY)
     {
         var front = float.MinValue;
-        foreach (var mf in clone.GetComponentsInChildren<MeshFilter>())
+        foreach (var mf in CachedMeshFilters(clone))
         {
             var mesh = mf.sharedMesh;
-            if ((mesh == null) || IsOverlayNode(mf.gameObject))
+            if (mesh == null)
             {
                 continue;
             }
@@ -2520,7 +2552,7 @@ public class AxisMotionBase : KinematicsBase
     {
         GetPathFrame(pathPos, out _, out _, out var tangentW);
         var t = tangentW.normalized;
-        var rends = work.GetComponentsInChildren<Renderer>();
+        var rends = CachedRenderers(work);
         if ((rends.Length == 0) || (t == Vector3.zero))
         {
             return 0.02f / backetScale;   // 既定20mm
@@ -2828,10 +2860,26 @@ public class AxisMotionBase : KinematicsBase
             }
         }
         // 搬送面の捕捉（吸い付き）: 無所有ワークが搬送面高さ±許容に入ったら自由ワークとして拾う
-        CaptureNearbyWorks();
-        // ※自由ワークが0個でも押し手の位置・方向符号の追跡は毎フレーム続ける。
-        //   ここで止めると、移管でワークが来た瞬間に前回位置が古いままで移動量(adv)が巨大になり、
-        //   押し量上限（前進量+20mm）が効かず1フレームでワープする
+        // ※全ワーク×経路全周スキャンで重いため0.1秒間隔に間引く
+        if ((unitSetting.backetSetting.carryMargin > 0f) && (Time.time >= nextCaptureTime))
+        {
+            nextCaptureTime = Time.time + 0.1f;
+            CaptureNearbyWorks();
+        }
+        // 自由ワークが0個の間は押し手追跡を止める（毎フレームの走査負荷を掛けない）。
+        // 追跡記憶をクリアしておくことで、次にワークが来たとき前回位置は初期化から始まり
+        // （初回フレームは記録のみで押さない）、古い記憶による巨大な移動量→ワープは起きない
+        if (freeWorks.Count == 0)
+        {
+            if (pusherTracking)
+            {
+                pusherPrevFront.Clear();
+                pusherPrevLat.Clear();
+                pusherTracking = false;
+            }
+            return;
+        }
+        pusherTracking = true;
         foreach (var r in pusherRefs)
         {
             if (!r.resolved)
@@ -2857,7 +2905,7 @@ public class AxisMotionBase : KinematicsBase
     /// </summary>
     private void FlowPush(GameObject target, float offsetM)
     {
-        var rends = System.Array.FindAll(target.GetComponentsInChildren<Renderer>(), d => !IsOverlayNode(d.gameObject));
+        var rends = CachedRenderers(target);
         if (rends.Length == 0)
         {
             return;
@@ -2966,7 +3014,7 @@ public class AxisMotionBase : KinematicsBase
     /// </summary>
     private void LateralPush(GameObject target, float offsetM)
     {
-        var rends = System.Array.FindAll(target.GetComponentsInChildren<Renderer>(), d => !IsOverlayNode(d.gameObject));
+        var rends = CachedRenderers(target);
         if (rends.Length == 0)
         {
             return;
@@ -3068,9 +3116,9 @@ public class AxisMotionBase : KinematicsBase
     }
 
     /// <summary>ワークのワールドAABB（レンダラなしはnull）</summary>
-    private static Bounds? WorkBounds(GameObject work)
+    private Bounds? WorkBounds(GameObject work)
     {
-        var rends = work.GetComponentsInChildren<Renderer>();
+        var rends = CachedRenderers(work);
         if (rends.Length == 0)
         {
             return null;
@@ -3087,7 +3135,7 @@ public class AxisMotionBase : KinematicsBase
     /// 押し面（指定軸方向の最前）。ワークの高さ帯に入るメッシュ実頂点で求め、
     /// 頂点が読めない場合は高さ帯に10mm以上重なるレンダラAABBで代用する。なければfloat.MinValue
     /// </summary>
-    private static float PusherFace(GameObject target, Renderer[] rends, Vector3 origin, Vector3 axis, Bounds wb)
+    private float PusherFace(GameObject target, Renderer[] rends, Vector3 origin, Vector3 axis, Bounds wb)
     {
         var face = PusherFrontByMesh(target, origin, axis, wb.min.y + 0.002f, wb.max.y - 0.002f);
         if (face == float.MinValue)
