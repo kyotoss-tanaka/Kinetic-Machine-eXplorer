@@ -1190,9 +1190,14 @@ public class MotionLinear : AxisMotionBase
     /// </summary>
     protected override void FixedUpdate()
     {
-        // サイクルタグ設定
-        var tag = GlobalScript.callbackTags.Find(d => d.database == unitSetting.Database);
-        cycleTag = cycleTag != null ? cycleTag : tag == null ? null : (tag.cycle.Tag == "" ? null : tag.cycle);
+        // サイクルタグ設定（未解決のときだけ探す）
+        // ※解決後も毎フレーム Find していたため、ラムダのクロージャ割り当てと線形探索の
+        //   コストを無駄に払っていた。結果は cycleTag が null のときしか使われないので挙動は同一
+        if (cycleTag == null)
+        {
+            var tag = GlobalScript.callbackTags.Find(d => d.database == unitSetting.Database);
+            cycleTag = tag == null ? null : (tag.cycle.Tag == "" ? null : tag.cycle);
+        }
         // タグ更新
         foreach (var t in tags)
         {
