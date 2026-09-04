@@ -1,4 +1,4 @@
-using MongoDB.Driver;
+﻿using MongoDB.Driver;
 using NUnit.Framework;
 using Oculus.Interaction;
 using Oculus.Interaction.Surfaces;
@@ -244,6 +244,7 @@ namespace Parameters
             yield return null; // 1フレーム待
             BacketPathOverlay.Clear();
             WorkAdjustPanel.Clear();
+            ConveyorScript.ClearWorkFilterCache();
             GlobalScript.ClearDictionary();
             yield return null; // 1フレーム待
 

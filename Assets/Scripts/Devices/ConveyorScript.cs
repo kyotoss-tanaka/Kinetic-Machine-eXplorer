@@ -1,4 +1,4 @@
-using Parameters;
+﻿using Parameters;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
@@ -186,6 +186,7 @@ public class ConveyorScript : KssBaseScript
         {
             return;
         }
+        PurgeWorkFilters();
         var dt = Time.fixedDeltaTime;
 
         // 目標速度（上から評価し最初にONのタグの速度。タグ未入力の行は常時ON。全OFFで停止）
@@ -649,6 +650,67 @@ public class ConveyorScript : KssBaseScript
     }
 
     /// <summary>
+    /// ワークのMeshFilterキャッシュ。
+    /// GetComponentsInChildren は階層全走査＋配列アロケートを伴い、これを
+    /// 「全コンベア×全アクティブワーク×物理サブステップ数」で毎フレーム呼ぶと支配的なコストになる。
+    /// ワークはプール再利用で階層が固定、実行中のメッシュ差し替えも無いため使い回せる。
+    /// ※複数コンベアで共有するため static
+    /// </summary>
+    private static readonly Dictionary<GameObject, MeshFilter[]> workFilters = new Dictionary<GameObject, MeshFilter[]>();
+
+    /// <summary>
+    /// 次にキャッシュを掃除する時刻
+    /// </summary>
+    private static float nextFilterPurgeTime;
+
+    /// <summary>
+    /// ワークのMeshFilterを取得する（初回のみ階層走査）
+    /// </summary>
+    private static MeshFilter[] GetWorkFilters(GameObject obj)
+    {
+        if (workFilters.TryGetValue(obj, out var filters))
+        {
+            return filters;
+        }
+        filters = obj.GetComponentsInChildren<MeshFilter>();
+        workFilters[obj] = filters;
+        return filters;
+    }
+
+    /// <summary>
+    /// 破棄済みワークのキャッシュを定期的に捨てる（放置すると辞書が際限なく増える）
+    /// </summary>
+    private static void PurgeWorkFilters()
+    {
+        if (Time.time < nextFilterPurgeTime)
+        {
+            return;
+        }
+        nextFilterPurgeTime = Time.time + 5f;
+        var stale = new List<GameObject>();
+        foreach (var pair in workFilters)
+        {
+            if (pair.Key == null)
+            {
+                stale.Add(pair.Key);
+            }
+        }
+        foreach (var key in stale)
+        {
+            workFilters.Remove(key);
+        }
+    }
+
+    /// <summary>
+    /// キャッシュを破棄する（設定再読み込み時。ワークが作り直されるため）
+    /// </summary>
+    public static void ClearWorkFilterCache()
+    {
+        workFilters.Clear();
+        nextFilterPurgeTime = 0f;
+    }
+
+    /// <summary>
     /// オブジェクトのメッシュ形状からフレーム矩形を得る。
     /// レンダラのワールドAABBはワークが回転すると膨らみ（斜め45°で最大√2倍）、
     /// ターンテーブル上で判定位置がずれてワークが勝手に動く原因になるため、メッシュ実寸の8隅を使う
@@ -657,9 +719,9 @@ public class ConveyorScript : KssBaseScript
     {
         var rect = new FrameRect();
         var has = false;
-        foreach (var mf in obj.GetComponentsInChildren<MeshFilter>())
+        foreach (var mf in GetWorkFilters(obj))
         {
-            if (mf.sharedMesh == null)
+            if ((mf == null) || (mf.sharedMesh == null))
             {
                 continue;
             }

@@ -67,9 +67,25 @@ public class BaseBehaviour : MonoBehaviour
 
     IEnumerator UpdateProcess()
     {
+        // 全スクリプトの MyFixedUpdate がこのコルーチン1本に合算されて計測されるため、
+        // 実体クラス名のマーカーを付けてプロファイラで内訳が見えるようにする
+        marker = new Unity.Profiling.ProfilerMarker(GetType().Name + ".MyFixedUpdate");
         while (true)
         {
             yield return new WaitForFixedUpdate();
+            InvokeMyFixedUpdate();
+        }
+    }
+
+    private Unity.Profiling.ProfilerMarker marker;
+
+    /// <summary>
+    /// 計測マーカー付きで MyFixedUpdate を呼ぶ（using をイテレータ外に置くため別メソッドにする）
+    /// </summary>
+    private void InvokeMyFixedUpdate()
+    {
+        using (marker.Auto())
+        {
             MyFixedUpdate();
         }
     }
