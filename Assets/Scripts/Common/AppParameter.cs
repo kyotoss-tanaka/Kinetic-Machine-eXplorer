@@ -1427,13 +1427,30 @@ namespace Parameters
         public bool upright { get; set; }
         /// <summary>ワーク搬送終了位置(mm・経路開始基準)。ここを越えたワークは爪から手放される（0=全周追従）</summary>
         public float carryEnd { get; set; }
-        /// <summary>プッシャー爪モデル（別バケットの爪。手放し後のワークをこの経路上で押す）</summary>
+        /// <summary>搬送面高さ(mm・経路からの上方向)。0以外なら生成/移管/捕捉時にワーク底面をこの高さへスナップする</summary>
+        public float carrySurface { get; set; }
+        /// <summary>搬送面の捕捉許容(mm)。0より大きいと、無所有ワークが搬送面±許容内に入ったとき自動で拾う（吸い付き）</summary>
+        public float carryMargin { get; set; }
+        /// <summary>プッシャー1件（爪/押し板モデル。種別=流れ方向/横方向）</summary>
+        public class BacketPusher
+        {
+            public string model { get; set; } = "";
+            public string group { get; set; } = "";
+            public string path { get; set; } = "";
+            /// <summary>0=流れ方向（経路に沿って押す） 1=横方向（横から吐き出す）</summary>
+            public int dir { get; set; }
+            /// <summary>押し面オフセット(mm)。+で押し面をワーク側へ広げる</summary>
+            public float offset { get; set; }
+            /// <summary>実体（ロード時にpathから解決される）</summary>
+            [JsonIgnore]
+            public GameObject gameObject { get; set; }
+        }
+        /// <summary>プッシャー（複数。ワークを押す機構）</summary>
+        public List<BacketPusher> pushers { get; set; } = new();
+        /// <summary>旧形式のプッシャー爪モデル（後方互換。ロード時にpushersへ移行される）</summary>
         public string pusherModel { get; set; } = "";
         public string pusherGroup { get; set; } = "";
         public string pusherPath { get; set; } = "";
-        /// <summary>プッシャー爪モデルの実体（ロード時にpusherPathから解決される）</summary>
-        [JsonIgnore]
-        public GameObject pusherObject { get; set; }
         /// <summary>参照する経路名（PathInfo.jsonの経路。指定時はベルトモデルより優先）</summary>
         public string pathName { get; set; } = "";
         /// <summary>経路要素（ロード時にpathNameから解決して充填される）</summary>

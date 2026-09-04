@@ -469,6 +469,12 @@ public class ExMechScript : UseTagBaseScript
     /// <param name="move"></param>
     public void SetExTarget(Vector3 move)
     {
+        if (mechInfo == null)
+        {
+            // 機構情報が未初期化（設定不備・初期化失敗）の場合は無視する
+            // （ここでNREを出すとロードコルーチンが死んでF5が効かなくなる）
+            return;
+        }
         if (mechType == 4)
         {
             // 揺動機構: ユニットの動作方向(±)を駆動符号として反映する。

@@ -1309,10 +1309,21 @@ namespace Parameters
         /// <summary>
         /// パラメータリロード
         /// </summary>
+        /// <summary>ロード開始時刻（リロードのスタック検知用）</summary>
+        private float loadStartTime;
+
         public void ReloadParameter(bool isEditMode = false)
         {
+            // ロード中の例外等でisLoadingが立ちっぱなしになってもF5が効くように、
+            // 60秒以上ロード中のままなら固まったとみなして強制リロードを許可する
+            if (GlobalScript.isLoading && (Time.realtimeSinceStartup - loadStartTime > 60f))
+            {
+                Debug.LogWarning("リロード: 前回ロードが60秒以上完了していないため強制リロードします");
+                GlobalScript.isLoading = false;
+            }
             if (!GlobalScript.isLoading)
             {
+                loadStartTime = Time.realtimeSinceStartup;
                 GlobalScript.isLoading = true;
                 GlobalScript.isLoaded = false;
                 CommonFunction.DebugLog($"Start Reload");
@@ -2501,14 +2512,32 @@ namespace Parameters
                     var obj = prefabObj.transform.Find(backet.path);
                     backet.gameObject = obj != null ? obj.gameObject : null;
                 }
-                // プッシャー爪モデル（別バケットの爪。ユニットは実行時に自動特定する）
-                if ((backet.pusherPath != null) && (backet.pusherPath != ""))
+                // プッシャー（複数、流れ方向/横方向）。旧形式（単一pusherPath）はpushersへ移行する
+                if (backet.pushers == null)
                 {
-                    var obj = prefabObj.transform.Find(backet.pusherPath);
-                    backet.pusherObject = obj != null ? obj.gameObject : null;
-                    if (backet.pusherObject == null)
+                    backet.pushers = new List<BacketSetting.BacketPusher>();
+                }
+                if ((backet.pushers.Count == 0) && !string.IsNullOrEmpty(backet.pusherPath))
+                {
+                    backet.pushers.Add(new BacketSetting.BacketPusher
                     {
-                        Debug.LogWarning($"バケット設定: {backet.name} のプッシャー爪モデル\"{backet.pusherPath}\"が見つかりません");
+                        model = backet.pusherModel,
+                        group = backet.pusherGroup,
+                        path = backet.pusherPath,
+                        dir = 0,
+                    });
+                }
+                foreach (var pusher in backet.pushers)
+                {
+                    if (string.IsNullOrEmpty(pusher.path))
+                    {
+                        continue;
+                    }
+                    var pobj = prefabObj.transform.Find(pusher.path);
+                    pusher.gameObject = pobj != null ? pobj.gameObject : null;
+                    if (pusher.gameObject == null)
+                    {
+                        Debug.LogWarning($"バケット設定: {backet.name} のプッシャーモデル\"{pusher.path}\"が見つかりません");
                     }
                 }
                 // 経路名参照の解決（同一機番の経路設定から要素を引き当てる）

@@ -18,6 +18,12 @@ public static class WorkOwnership
         return owners.TryGetValue(work, out var o) && (o != null) && !ReferenceEquals(o, me);
     }
 
+    /// <summary>誰かが所有しているか</summary>
+    public static bool IsOwned(GameObject work)
+    {
+        return owners.TryGetValue(work, out var o) && (o != null);
+    }
+
     /// <summary>自分が所有しているか</summary>
     public static bool IsOwner(GameObject work, object me)
     {
