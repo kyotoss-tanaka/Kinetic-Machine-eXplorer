@@ -33,6 +33,10 @@ public class WorkAdjustPanel : MonoBehaviour
         public GameObject axes;
         /// <summary>軸マーカーの探索済みフラグ（毎フレームFindしないため）</summary>
         public bool axesResolved;
+        /// <summary>この対象を駆動するタグ名（表示用。設定値の文字列をそのまま持つ）</summary>
+        public string tagName;
+        /// <summary>タグの現在値を返す（表示用。nullならタグ行を出さない）</summary>
+        public Func<int> getTagValue;
     }
 
     private static readonly List<Target> targets = new();
@@ -323,6 +327,23 @@ public class WorkAdjustPanel : MonoBehaviour
         }
         GUILayout.EndHorizontal();
         GUILayout.Label(t.label, titleStyle);
+        if (!string.IsNullOrEmpty(t.tagName))
+        {
+            // どのタグで動く設定なのかと、その現在値を出す。
+            // 「位置は合っているのに動かない」ときにタグ側の問題かを切り分けられる
+            GUILayout.BeginHorizontal();
+            GUILayout.Label("タグ", GUILayout.Width(38f));
+            GUILayout.Label(t.tagName, GUILayout.Width(180f));
+            if (t.getTagValue != null)
+            {
+                var value = t.getTagValue();
+                var style = new GUIStyle(GUI.skin.label);
+                style.normal.textColor = value != 0 ? new Color(0.35f, 0.7f, 1f) : new Color(1f, 0.45f, 0.45f);
+                style.fontStyle = FontStyle.Bold;
+                GUILayout.Label(value != 0 ? "ON" : "OFF", style, GUILayout.Width(40f));
+            }
+            GUILayout.EndHorizontal();
+        }
         GUILayout.Space(4f);
 
         var pos = t.getPos();

@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
@@ -160,6 +160,7 @@ public sealed class MachineInterferenceChecker : MonoBehaviour
             if (t.name.StartsWith("WorkDeleteZone")) { return; }   // 削除範囲（球）
             if (t.name.StartsWith("WorkChange")) { return; }       // 変換範囲（球）／変換元・変換先の形状
             if (t.name.StartsWith("WorkCreate")) { return; }       // 生成位置の形状
+            if (t.name.StartsWith("WorkAttach")) { return; }       // アタッチ範囲（球）
         }
         if (!seen.Add(mf)) { return; }
         var sm = mf.sharedMesh;

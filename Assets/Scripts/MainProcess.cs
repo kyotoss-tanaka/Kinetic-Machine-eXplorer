@@ -164,7 +164,15 @@ public class MainProcess : KssBaseScript
             GameObject clickedGameObject = null;
             Vector3 rotateCenter = Vector3.zero;
             Ray ray = Camera.main.ScreenPointToRay(mousePos);
-            var hits = Physics.RaycastAll(ray, 100, LayerMask.GetMask("Default", "Pick"), QueryTriggerInteraction.Collide).ToList();
+            // クリック選択専用コライダーは Pick レイヤへ分離してある（物理演算から外すため）。
+            // レイヤ名が未解決でも番号で運用されるので、名前ではなく実際に使われている番号でマスクを組む。
+            // ※GetMask("Default","Pick") は名前が無いと Pick を黙って落とし、選択できなくなる
+            var pickMask = LayerMask.GetMask("Default");
+            if (ParameterLoader.PickLayer >= 0)
+            {
+                pickMask |= 1 << ParameterLoader.PickLayer;
+            }
+            var hits = Physics.RaycastAll(ray, 100, pickMask, QueryTriggerInteraction.Collide).ToList();
             hits = hits.Where(h => !float.IsNaN(h.distance)).ToList();
             try
             {

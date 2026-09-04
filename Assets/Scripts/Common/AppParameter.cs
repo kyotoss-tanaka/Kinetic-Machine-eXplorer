@@ -1189,7 +1189,15 @@ namespace Parameters
         /// </summary>
         public float range { get; set; }
         /// <summary>
-        /// 変換先の配置オフセット(m)。変換元と変換先でモデル原点が違う場合の補正（変換モードのみ）
+        /// 保持位置を固定するか（アタッチモードのみ）。
+        /// trueなら掴んだ瞬間に offset / offsetRot で決めた姿勢へスナップする。
+        /// falseなら掴んだ実位置・実姿勢のまま保持する（従来動作）
+        /// </summary>
+        public bool fix { get; set; }
+        /// <summary>
+        /// 配置オフセット(m)。
+        /// 変換モード＝変換先の配置補正（変換元と変換先でモデル原点が違う場合）。
+        /// アタッチモード＝fix=true のときの保持位置（動作部基準）
         /// </summary>
         public List<float> offset { get; set; }
         /// <summary>
@@ -1632,6 +1640,23 @@ namespace Parameters
     [Serializable]
     public class CardboardSetting
     {
+        /// <summary>
+        /// 製函の進行を止めるチェックポイント。
+        /// 動作テーブル（Excel）の絶対時間で指定した時刻に達したら、そのタグがONになるまで
+        /// 再生を止める。装置が遅れても製函の絵だけが先に進むのを防ぐ
+        /// </summary>
+        public class CheckPoint
+        {
+            /// <summary>待機する時刻(ms)。動作テーブルのtimeと同じ絶対時間軸</summary>
+            public float time { get; set; }
+            /// <summary>この時刻でONを待つタグ</summary>
+            public string tag { get; set; } = "";
+        }
+        /// <summary>
+        /// チェックポイント一覧（時刻順）。後から追加した任意項目なので旧JSONでは欠落する。
+        /// 空なら従来動作（掴んだ瞬間から時間で進むだけ）
+        /// </summary>
+        public List<CheckPoint> checkPoints { get; set; }
         /// <summary>
         /// 機番
         /// </summary>

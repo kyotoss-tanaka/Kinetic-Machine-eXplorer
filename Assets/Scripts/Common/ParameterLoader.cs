@@ -245,6 +245,7 @@ namespace Parameters
             BacketPathOverlay.Clear();
             WorkAdjustPanel.Clear();
             ConveyorScript.ClearWorkFilterCache();
+            CardboardScript.ClearInstances();
             GlobalScript.ClearDictionary();
             yield return null; // 1フレーム待
 
@@ -1516,6 +1517,9 @@ namespace Parameters
             ledSettings = (List<LedSetting>)await tLed;
             prefabSettings = (List<PrefabSetting>)await tPrefab;
             cardboardSettings = (List<CardboardSetting>)await tCardboard;
+            // 段ボールのユニットを登録する。テンプレートの生成は親モデルの存在が条件で、
+            // 無い場合は実行中にワークが生成されるまで実体が現れないため、設定側で先に押さえる
+            CardboardScript.RegisterUnits(cardboardSettings);
             changeOverSettings = (List<ChangeOverSetting>)await tChangeOver;
             debugSettings = (List<DebugSetting>)await tDebug;
             GlobalScript.buildConfig = (BuildConfig)await tBuildConfig;
@@ -1947,19 +1951,44 @@ namespace Parameters
         /// Physics.IgnoreLayerCollision は Layer Collision Matrix と同じ設定を行うもので、
         /// Physics.Raycast 等のシーンクエリには影響しない（＝クリック選択は従来どおり動く）。
         /// </summary>
-        /// <returns>Pick レイヤ番号。未定義なら -1</returns>
+        /// <returns>Pick レイヤ番号。使用できない場合は -1</returns>
+        /// <summary>
+        /// Pick レイヤの既定番号（TagManager の User Layer 6）。
+        /// 名前解決に失敗したときのフォールバックに使う
+        /// </summary>
+        private const int PickLayerFallback = 6;
+
+        /// <summary>
+        /// 実際に使用しているPickレイヤ番号。使用していない場合は -1。
+        /// クリック選択のレイキャストマスクを組むために公開する
+        /// </summary>
+        public static int PickLayer { get; private set; } = -1;
+
         private static int SetupPickLayer()
         {
             var layer = LayerMask.NameToLayer("Pick");
             if (layer < 0)
             {
-                Debug.LogWarning("[Collision] Pick レイヤが未定義のため、クリック選択専用コライダーの衝突除外を行いません");
-                return -1;
+                // TagManager.asset を外部から書き換えても Unity は起動中に再読込しないため、
+                // ファイルに 'Pick' があっても名前解決に失敗することがある。
+                // レイヤは名前が無くても番号で機能するので、既定番号が空きなら番号で運用する。
+                // ※名前解決に失敗したまま黙って性能対策が無効化されるのを防ぐのが目的
+                var used = LayerMask.LayerToName(PickLayerFallback);
+                if (!string.IsNullOrEmpty(used))
+                {
+                    Debug.LogWarning($"[Collision] Pick レイヤが未定義で、番号 {PickLayerFallback} は '{used}' が使用中のため衝突除外を行いません");
+                    PickLayer = -1;
+                    return -1;
+                }
+                layer = PickLayerFallback;
+                Debug.LogWarning($"[Collision] Pick レイヤ名が未解決のため番号 {PickLayerFallback} で動作します"
+                    + $"（Project Settings > Tags and Layers の User Layer {PickLayerFallback} に 'Pick' を設定すると解消）");
             }
             for (var i = 0; i < 32; i++)
             {
                 Physics.IgnoreLayerCollision(layer, i, true);
             }
+            PickLayer = layer;
             return layer;
         }
 
@@ -2377,6 +2406,12 @@ namespace Parameters
                 if (unit != null && byName.TryGetValue(unit.parent, out var cardboard))
                 {
                     var c = works.Find(d => d.key == cb.name);
+                    if ((c != null) && (c.obj == null))
+                    {
+                        // 前回ロードのモデルが破棄済み。作り直す
+                        works.Remove(c);
+                        c = null;
+                    }
                     if (c == null)
                     {
                         cardboard.transform.parent = prefabObj.transform;
@@ -2386,6 +2421,18 @@ namespace Parameters
                         var cbs = c.obj.AddComponent<CardboardScript>();
                         cbs.SetParameter(unit, cb);
                         c.obj.SetActive(false);
+                    }
+                    else
+                    {
+                        // F5の再読み込み。works は保持されるためモデルは作り直さないが、
+                        // 設定は入れ替わっているので既存の実体へ反映する
+                        // （反映しないとチェックポイントのタグが更新されない）
+                        var cbs = c.obj.GetComponent<CardboardScript>();
+                        if (cbs == null)
+                        {
+                            cbs = c.obj.AddComponent<CardboardScript>();
+                        }
+                        cbs.SetParameter(unit, cb);
                     }
                 }
             }
@@ -2401,6 +2448,9 @@ namespace Parameters
             // 段ボールはユニットは作成しない
             foreach (var cb in cardboardSettings)
             {
+                // ユニットオブジェクトは作らないのでリストから外すが、ActUnitInfo で
+                // 製函状態を見るために UnitSetting は退避しておく
+                CardboardScript.RegisterUnitDefs(unitSettings.FindAll(d => d.name == cb.name));
                 unitSettings.RemoveAll(d => d.name == cb.name);
             }
             foreach (var unitSetting in unitSettings)

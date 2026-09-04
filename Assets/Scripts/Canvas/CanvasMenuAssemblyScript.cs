@@ -217,7 +217,22 @@ public class CanvasMenuAssemblyScript : CanvasMenuBaseScript
                             {
                                 StartCoroutine(SelectObject(obj));
                                 selectedVisible = obj;
-                                if ((motionUnits.Count > 0) && (actScript != null))
+                                // 段ボールは動作機構ではないため AxisMotionBase を持たず、
+                                // 従来は部品選択に流れてドロップダウンがクリアされていた。
+                                // 製函状態を見られるようユニット選択として扱う
+                                var cardboard = obj == null ? null : obj.GetComponentInParent<CardboardScript>();
+                                if ((cardboard != null) && (actScript != null))
+                                {
+                                    // 段ボール選択（クリックした個体の時間を表示する）
+                                    // 通常ユニットと同じく ActUnitInfo を自動で開く
+                                    menuInfoScript.btnMotion_Visible(true);
+                                    var cbUnit = cardboard.GetUnitSetting();
+                                    actScript.SelectUnit(cbUnit == null ? obj.name : cbUnit.name);
+                                    // ※SelectUnit がドロップダウンを変えて行を作り直すので、個体指定は後に行う
+                                    actScript.SelectCardboard(cardboard);
+                                    menuInfoScript.SetAssemblyObject(obj, true);
+                                }
+                                else if ((motionUnits.Count > 0) && (actScript != null))
                                 {
                                     // ユニット選択
                                     menuInfoScript.btnMotion_Visible(true);

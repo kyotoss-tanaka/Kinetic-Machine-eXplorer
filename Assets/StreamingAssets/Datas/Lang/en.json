@@ -106,5 +106,12 @@
   "（このロボにステップ未定義）": "(No steps defined for this robot)",
   "現在速度": "Speed",
   "速度": "Speed",
-  "常時ON": "Always ON"
+  "常時ON": "Always ON",
+  "現在時間": "Time",
+  "チェックポイント": "Checkpoint",
+  "待機": "Wait",
+  "進行中": "Running",
+  "通過数": "Passed",
+  "ワーク未生成": "No work",
+  "なし（従来動作）": "None (legacy)"
 }

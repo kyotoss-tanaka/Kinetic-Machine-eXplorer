@@ -169,8 +169,24 @@ public class MultiObjectFactoryScript : UseTagBaseScript
         /// <summary>コンベア参照の解決済みフラグ（未装着でも毎回GetComponentしないため）</summary>
         public bool isConveyorResolved = false;
 
-        /// <summary>削除範囲の確認表示（球）。基準が動的なコンベア用に毎フレーム追従させる</summary>
+        /// <summary>削除範囲の確認表示（球）。基準が動的なコンベア用に毎フレーム追従させる。
+        /// アタッチでは取り込み範囲（球）を保持し、タグON/OFFを不透明度で示すのに使う</summary>
         public GameObject zoneObj;
+
+        /// <summary>アタッチで保持位置を固定するか（trueならAttachOffsetの姿勢へスナップする）</summary>
+        public bool IsAttachFix;
+
+        /// <summary>アタッチの保持位置（動作部基準・実寸m）</summary>
+        public Vector3 AttachOffset;
+
+        /// <summary>アタッチの保持姿勢（動作部基準・度）</summary>
+        public Vector3 AttachOffsetRotate;
+
+        /// <summary>確認表示の不透明度に反映済みのタグ状態（変化時だけマテリアルを触るため）</summary>
+        public bool? zoneStat;
+
+        /// <summary>確認表示のレンダラ（毎サブステップGetComponentしないためキャッシュ）</summary>
+        public Renderer zoneRenderer;
 
         /// <summary>バケット削除の発動位置（経路上の固定点・ワールド）を使うか</summary>
         public bool IsFixedDeletePos = false;
@@ -316,6 +332,8 @@ public class MultiObjectFactoryScript : UseTagBaseScript
         }
         // 所有権も全消去（リロード後に旧参照が残らないように）
         WorkOwnership.Clear();
+        // レンダラキャッシュも破棄（ワークが作り直されるため）
+        workRenderers.Clear();
     }
 
     // Update is called once per frame
@@ -330,6 +348,7 @@ public class MultiObjectFactoryScript : UseTagBaseScript
             {
                 pool.Value.activeObjects.RemoveAll(d => d == null);
             }
+            PurgeWorkRenderers();
         }
         foreach (var setting in multiObjects)
         {
@@ -583,8 +602,106 @@ public class MultiObjectFactoryScript : UseTagBaseScript
     /// </summary>
     /// <param name="setting"></param>
     /// <param name="stat"></param>
+    /// <summary>
+    /// アタッチ範囲の確認表示にタグ状態を反映する。ONで濃く、OFFで薄く表示し、
+    /// 設定したタグが実際に動いているかを球の見た目だけで判断できるようにする。
+    /// </summary>
+    /// <returns>今回がタグの立ち上がり（OFF→ON）なら true</returns>
+    private static bool ApplyAttachZoneStat(MultiObjectInfo setting, bool stat)
+    {
+        var isRise = stat && (setting.zoneStat != true);
+        if (setting.zoneStat == stat)
+        {
+            return isRise;
+        }
+        setting.zoneStat = stat;
+        if (setting.zoneRenderer != null)
+        {
+            var m = setting.zoneRenderer.sharedMaterial;
+            if (m != null)
+            {
+                // MakeZoneMaterial は呼び出しごとに新規生成されるため、他の表示には影響しない
+                var c = ZoneColorAttach;
+                var col = new Color(c.r, c.g, c.b, stat ? 0.75f : 0.10f);
+                if (m.HasProperty("_BaseColor")) { m.SetColor("_BaseColor", col); }
+                if (m.HasProperty("_Color")) { m.SetColor("_Color", col); }
+            }
+        }
+        return isRise;
+    }
+
+    /// <summary>
+    /// ワークのレンダラキャッシュ。
+    /// GetComponentsInChildren は階層走査＋配列アロケートを伴い、判定で毎サブステップ呼ぶと
+    /// ゴミが出続ける。ワークはプール再利用で階層が固定なので使い回せる
+    /// </summary>
+    private static readonly Dictionary<GameObject, Renderer[]> workRenderers = new Dictionary<GameObject, Renderer[]>();
+
+    /// <summary>
+    /// ワークのレンダラを取得する（初回のみ階層走査）
+    /// </summary>
+    private static Renderer[] GetWorkRenderers(GameObject obj)
+    {
+        if (workRenderers.TryGetValue(obj, out var rends))
+        {
+            return rends;
+        }
+        rends = obj.GetComponentsInChildren<Renderer>();
+        workRenderers[obj] = rends;
+        return rends;
+    }
+
+    /// <summary>
+    /// 破棄済みワークのレンダラキャッシュを捨てる（定期掃除から呼ぶ）
+    /// </summary>
+    private static void PurgeWorkRenderers()
+    {
+        var stale = new List<GameObject>();
+        foreach (var pair in workRenderers)
+        {
+            if (pair.Key == null)
+            {
+                stale.Add(pair.Key);
+            }
+        }
+        foreach (var key in stale)
+        {
+            workRenderers.Remove(key);
+        }
+    }
+
+    /// <summary>
+    /// ワークの形状（全レンダラのワールド境界）を得る。
+    /// CADモデルの原点は形状の外にあることが多いため、原点だけでなく形状でも判定するのに使う。
+    /// </summary>
+    private static bool TryGetWorkBounds(GameObject obj, out Bounds bounds)
+    {
+        bounds = new Bounds();
+        var has = false;
+        foreach (var rend in GetWorkRenderers(obj))
+        {
+            if ((rend == null) || (rend is LineRenderer))
+            {
+                continue;
+            }
+            if (!has)
+            {
+                bounds = rend.bounds;
+                has = true;
+            }
+            else
+            {
+                bounds.Encapsulate(rend.bounds);
+            }
+        }
+        return has;
+    }
+
     private void ProcessAttach(MultiObjectInfo setting, bool stat)
     {
+        // 確認表示（Ctrl+Shift）の不透明度でタグON/OFFを示す。
+        // 設定したタグが実際に動いているかを、球を見るだけで判断できるようにする
+        var isRise = ApplyAttachZoneStat(setting, stat);
         if (stat)
         {
             // 範囲内のワークを取り込む（実位置・実姿勢のまま子化）
@@ -592,6 +709,13 @@ public class MultiObjectFactoryScript : UseTagBaseScript
             // 生成・削除の判定と同じ「ワールド位置＋姿勢回転」で求める
             var center = setting.objBase.transform.position
                 + setting.objBase.transform.rotation * setting.CreatePoint;
+            var candidates = 0;
+            var taken = 0;
+            var nearest = float.MaxValue;
+            var nearestName = "";
+            var nearestShape = -1f;
+            var nearestSurface = -1f;
+            var nearestSize = Vector3.zero;
             foreach (var pool in works)
             {
                 if ((setting.WorkName != null) && (setting.WorkName != "") && (pool.Key != setting.WorkName))
@@ -608,9 +732,48 @@ public class MultiObjectFactoryScript : UseTagBaseScript
                     {
                         continue;
                     }
-                    if (Vector3.Distance(obj.transform.position, center) <= setting.AliveDistance)
+                    // 判定はワーク原点との距離だけでなく、形状（レンダラのワールド境界）とも比較する。
+                    // CADモデルの原点は形状の外にあることが多く（例：455x510mmのシートで原点が321mm外）、
+                    // 見た目が範囲に完全に入っていても掴めない事故が起きるため。
+                    // ※既存設定を壊さないよう「原点が範囲内」または「形状が範囲内」の和で判定する
+                    var dist = Vector3.Distance(obj.transform.position, center);
+                    var inRange = dist <= setting.AliveDistance;
+                    var shapeDist = -1f;
+                    if (TryGetWorkBounds(obj, out var wb))
                     {
+                        shapeDist = Vector3.Distance(wb.ClosestPoint(center), center);
+                        inRange = inRange || (shapeDist <= setting.AliveDistance);
+                    }
+                    if (dist < nearest)
+                    {
+                        nearest = dist;
+                        nearestName = pool.Key;
+                        if (isRise && TryGetWorkBounds(obj, out var nb))
+                        {
+                            nearestShape = Vector3.Distance(nb.center, center);
+                            nearestSurface = shapeDist;
+                            nearestSize = nb.size;
+                        }
+                    }
+                    candidates++;
+                    if (inRange)
+                    {
+                        taken++;
                         obj.transform.SetParent(setting.objBase.transform, true);
+                        if (setting.IsAttachFix)
+                        {
+                            // 保持位置を固定する（吸盤の posFixed/rotFixed 相当）。
+                            // 「ワールド位置＋姿勢回転」の実寸規約で置く。localPositionに入れると
+                            // 親スケール(1/25.4等)が掛かってオフセットが縮む
+                            obj.transform.SetPositionAndRotation(
+                                setting.objBase.transform.position
+                                    + setting.objBase.transform.rotation * setting.AttachOffset,
+                                setting.objBase.transform.rotation * Quaternion.Euler(setting.AttachOffsetRotate));
+                        }
+                        // 保持中のワークをコンベア／バケットが同時に搬送しないよう所有権を主張する。
+                        // 所有者はアタッチ設定そのもの＝ユニット単位の粒度になる。
+                        // コンベア側は既に IsOwnedByOther を見ているのでコンベアの改修は不要
+                        WorkOwnership.Claim(obj, setting);
                         var rigi = obj.GetComponentInChildren<Rigidbody>();
                         if (rigi != null)
                         {
@@ -623,6 +786,18 @@ public class MultiObjectFactoryScript : UseTagBaseScript
                         }
                     }
                 }
+            }
+            if (isRise)
+            {
+                // タグONの瞬間に1回だけ出す。掴めないときの切り分け材料
+                // ※判定はワークの原点位置と中心の距離。見た目が球に重なっていても
+                //   原点が範囲外なら掴まない（形状の端に原点があるモデルで起こりやすい）
+                Debug.Log($"[WorkAttach] {setting.objBase.name} 対象名='{setting.WorkName}' "
+                    + $"範囲={setting.AliveDistance:F3}m 候補={candidates}個 取込={taken}個 "
+                    + $"最近ワーク={(nearestName == "" ? "なし" : nearestName)} "
+                    + $"距離[原点]={(nearest == float.MaxValue ? -1f : nearest):F3}m "
+                    + $"距離[形状中心]={nearestShape:F3}m 距離[形状表面]={nearestSurface:F3}m "
+                    + $"外形={nearestSize.x:F3}x{nearestSize.y:F3}x{nearestSize.z:F3}m");
             }
         }
         else if (setting.Attached.Count > 0)
@@ -639,6 +814,10 @@ public class MultiObjectFactoryScript : UseTagBaseScript
                     continue;
                 }
                 obj.transform.SetParent(null, true);
+                // 所有権を手放して下流（コンベア等）が拾えるようにする。
+                // 他ユニットに奪われたワークは上の親チェックで既に除外されているため、
+                // ここに来るのは自分が本当に手放すものだけ
+                WorkOwnership.Release(obj, setting);
                 var rigi = obj.GetComponentInChildren<Rigidbody>();
                 if (rigi != null)
                 {
@@ -762,6 +941,9 @@ public class MultiObjectFactoryScript : UseTagBaseScript
         }
         var objScript = work.GetComponentInParent<ObjectScript>();
         var root = objScript != null ? objScript.gameObject : work;
+        // 所有権を消す。残したままプールへ返すと、使い回されたワークが前の所有者のものと判定され、
+        // コンベア等が永久に手を出せなくなる
+        WorkOwnership.Forget(root);
         if (works.ContainsKey(root.name))
         {
             if (works[root.name].activeObjects.Contains(root))
@@ -817,6 +999,12 @@ public class MultiObjectFactoryScript : UseTagBaseScript
                 pool.activeObjects.Remove(obj);
                 // 搬送記憶（紐づけ/自由ワーク登録/所有権）を消す。プールで使い回すため前の人生を残さない
                 AxisMotionBase.ForgetWorkStatic(obj);
+                // 段ボールは製函の再生状態を戻す。Startはプール再利用で再実行されないため、
+                // ここで戻さないと2個目以降が前の個体の進行度を引き継いだまま出てくる
+                if (obj.TryGetComponent<CardboardScript>(out var cardboard))
+                {
+                    cardboard.ResetPlayback();
+                }
             },
             actionOnDestroy: obj => DestroyImmediate(obj),
             defaultCapacity: 250
@@ -1002,10 +1190,20 @@ public class MultiObjectFactoryScript : UseTagBaseScript
                 ChangeOffsetRotate = ToVector3(wk.offsetRot),
                 ChangeFromOffset = ToVector3(wk.fromOffset),
                 ChangeFromOffsetRotate = ToVector3(wk.fromOffsetRot),
+                // アタッチの保持位置固定。位置・回転は変換と同じ offset/offsetRot を流用する
+                // （アタッチモードでは変換先オフセットを使わないため衝突しない）
+                IsAttachFix = wk.fix,
+                AttachOffset = ToVector3(wk.offset),
+                AttachOffsetRotate = ToVector3(wk.offsetRot),
                 objBase = objBase
             };
             multiObject.transferSettings.Add(setting);
-            if (wk.mode == 1)
+            if (wk.mode == 0)
+            {
+                // アタッチ範囲の確認表示（Ctrl+Shift押下中のみ表示）を生成する
+                CreateAttachZone(setting, unitSetting, wk);
+            }
+            else if (wk.mode == 1)
             {
                 // 変換範囲の確認表示（Ctrl+Shift押下中のみ表示）を生成する
                 CreateChangeZone(setting, unitSetting, wk);
@@ -1067,6 +1265,11 @@ public class MultiObjectFactoryScript : UseTagBaseScript
 
     /// <summary>変換元ゴーストの色。変換先（オレンジ）と対比させる中立色（KMXToolの無効カードと同じグレー）</summary>
     private static readonly Color ZoneColorChangeFrom = new Color(0.62f, 0.62f, 0.62f, 0.3f);
+
+    /// <summary>
+    /// アタッチ範囲の色（KMXToolのワーク図のアタッチ＝SteelBlue と一致させる）
+    /// </summary>
+    private static readonly Color ZoneColorAttach = new Color(70f / 255f, 130f / 255f, 180f / 255f, 0.3f);
 
     /// <summary>
     /// 確認表示用の半透明球を1個生成する。
@@ -1142,6 +1345,9 @@ public class MultiObjectFactoryScript : UseTagBaseScript
         WorkAdjustPanel.Register(new WorkAdjustPanel.Target
         {
             label = $"{unitSetting.name} / {wk.work} / 削除位置",
+            // どのタグで動くかと現在値を出す（動かないときの切り分け用）
+            tagName = wk.tag,
+            getTagValue = () => GetTagValueForDisplay(unitSetting, wk.tag),
             getPos = () => setting.CreatePoint,
             setPos = v => setting.CreatePoint = v,
             apply = () => ApplyDeleteZonePose(setting),
@@ -1176,10 +1382,18 @@ public class MultiObjectFactoryScript : UseTagBaseScript
     private GameObject CreateWorkGhost(string zoneName, string workName, Transform parent,
         Vector3 worldPos, Quaternion worldRot, Transform objBase, Color color)
     {
-        if ((parent == null) || (objBase == null)
-            || !works.TryGetValue(workName, out var pool) || (pool.work == null))
+        if ((parent == null) || (objBase == null))
         {
-            Debug.Log($"[WorkZone] ゴースト作成不可 {zoneName} work={workName} プール有無={works.ContainsKey(workName)}");
+            Debug.Log($"[WorkZone] ゴースト作成不可 {zoneName} work={workName} parent/objBaseがnull");
+            return null;
+        }
+        // ユニットの読み込み順に依存しないようプールを用意してから形状を取る。
+        // アタッチ／変換のユニットが生成ユニットより先に処理されると、まだプールが無く
+        // 「プール有無=False」で表示できなかった（プールは名前からモデルを解決できるので先に作れる）
+        var pool = GetOrCreatePool(workName);
+        if ((pool == null) || (pool.work == null))
+        {
+            Debug.Log($"[WorkZone] ゴースト作成不可 {zoneName} work={workName} プールを用意できません（ワークモデル未登録の可能性）");
             return null;
         }
         var old = parent.Find(zoneName);
@@ -1244,6 +1458,111 @@ public class MultiObjectFactoryScript : UseTagBaseScript
     }
 
     /// <summary>
+    /// ワークアタッチの確認表示。取り込み判定範囲（青の球）を出す。
+    /// 判定中心・半径はProcessAttachと同一（objBase基準のCreatePoint／AliveDistance）。
+    /// 球はobjBase配下に作るため、機構の動作にそのまま追従する（毎フレームの再配置は不要）。
+    /// </summary>
+    private void CreateAttachZone(MultiObjectInfo setting, UnitSetting unitSetting, WorkTransferSetting wk)
+    {
+        if ((setting.AliveDistance <= 0f) || (setting.objBase == null))
+        {
+            Debug.Log($"[WorkZone] アタッチ表示スキップ {unitSetting.name}/{wk.work} range={setting.AliveDistance} objBase={(setting.objBase == null ? "null" : setting.objBase.name)}");
+            return;
+        }
+        var zone = CreateZoneSphere($"WorkAttachZone_{unitSetting.name}_{wk.tag}_{wk.work}",
+            setting.objBase.transform, setting.CreatePoint, setting.AliveDistance * 2f, ZoneColorAttach);
+        if (zone != null)
+        {
+            // 球だけでは基準の向きが分からないため、他の確認表示と同じ原点軸を付ける
+            AddOriginAxes(zone, 0.05f);
+            // タグON/OFFを不透明度で示すため保持する
+            setting.zoneObj = zone;
+            setting.zoneRenderer = zone.GetComponent<Renderer>();
+        }
+        if (!setting.IsAttachFix)
+        {
+            // 保持位置を固定しない設定ではオフセットが効かないので、ゴーストも調整対象も作らない
+            return;
+        }
+        var baseTr = setting.objBase.transform;
+        // 保持位置に固定したときのワーク形状（何がどの向きで保持されるかを示す）。
+        // ※ワーク名が空欄（＝範囲内の全ワーク対象）だと形状を特定できないためゴーストは出せない。
+        //   ただしオフセットの数値調整はゴースト無しでも行えるので、F9登録は必ず行う
+        GameObject ghost = null;
+        if ((setting.WorkName != null) && (setting.WorkName != ""))
+        {
+            ghost = CreateWorkGhost($"WorkAttachGhost_{unitSetting.name}_{wk.tag}_{wk.work}",
+                setting.WorkName, baseTr, AttachGhostPos(setting, baseTr), AttachGhostRot(setting, baseTr),
+                baseTr, ZoneColorAttach);
+        }
+        else
+        {
+            Debug.Log($"[WorkZone] {unitSetting.name} アタッチ保持位置のゴーストは出せません"
+                + "（対象ワーク名が空欄のため形状が特定できない）。F9での数値調整は可能です");
+        }
+        Action apply = () =>
+        {
+            if (ghost != null)
+            {
+                ghost.transform.SetPositionAndRotation(AttachGhostPos(setting, baseTr), AttachGhostRot(setting, baseTr));
+            }
+        };
+        // F9パネルからの調整対象に登録（実行中に見ながら保持位置を決めるため）
+        WorkAdjustPanel.Register(new WorkAdjustPanel.Target
+        {
+            label = $"{unitSetting.name} / {wk.work} / アタッチ保持位置",
+            // どのタグで動くかと現在値を出す（動かないときの切り分け用）
+            tagName = wk.tag,
+            getTagValue = () => GetTagValueForDisplay(unitSetting, wk.tag),
+            getPos = () => setting.AttachOffset,
+            setPos = v => setting.AttachOffset = v,
+            getRot = () => setting.AttachOffsetRotate,
+            setRot = v => setting.AttachOffsetRotate = v,
+            apply = apply,
+            hitObject = ghost,
+        });
+    }
+
+    /// <summary>
+    /// F9パネル表示用のタグ現在値を返す。
+    /// ※GlobalScript.GetTagData(TagInfo) は tagDatas[..][TagInfo.Tag] で再検索するため使えない。
+    ///   デバイスアドレス形式（d_plc_y1[896]等）で解決されたタグは TagInfo.Tag が空で、
+    ///   再検索が必ず失敗して常に0になる。工場側と同じく TagInfo.Value を直接読む
+    /// </summary>
+    private static int GetTagValueForDisplay(UnitSetting unitSetting, string tagName)
+    {
+        if ((unitSetting == null) || string.IsNullOrEmpty(tagName))
+        {
+            return 0;
+        }
+        // 「-」始まりは反転入力（OFFで動作）。工場側と同じ扱いにする
+        var isReverse = tagName[0] == '-';
+        var name = isReverse ? tagName.Substring(1) : tagName;
+        var info = GlobalScript.GetTagInfo(unitSetting.Database, unitSetting.mechId, name);
+        if (info == null)
+        {
+            return 0;
+        }
+        return isReverse ? (info.Value < 1 ? 1 : 0) : (info.Value >= 1 ? 1 : 0);
+    }
+
+    /// <summary>
+    /// アタッチ保持位置のワールド座標（ProcessAttachのスナップと同一式）
+    /// </summary>
+    private static Vector3 AttachGhostPos(MultiObjectInfo setting, Transform baseTr)
+    {
+        return baseTr.position + baseTr.rotation * setting.AttachOffset;
+    }
+
+    /// <summary>
+    /// アタッチ保持位置のワールド姿勢（ProcessAttachのスナップと同一式）
+    /// </summary>
+    private static Quaternion AttachGhostRot(MultiObjectInfo setting, Transform baseTr)
+    {
+        return baseTr.rotation * Quaternion.Euler(setting.AttachOffsetRotate);
+    }
+
+    /// <summary>
     /// ワーク変換の確認表示。判定範囲（オレンジの球）と、変換先ワークの形状（オレンジ半透明）を出す。
     /// 判定中心・半径はProcessChangeと同一（objBase基準のCreatePoint／AliveDistance）。
     /// </summary>
@@ -1282,6 +1601,9 @@ public class MultiObjectFactoryScript : UseTagBaseScript
         WorkAdjustPanel.Register(new WorkAdjustPanel.Target
         {
             label = $"{unitSetting.name} / {wk.work} / 変換元オフセット（変換先にも加算）",
+            // どのタグで動くかと現在値を出す（動かないときの切り分け用）
+            tagName = wk.tag,
+            getTagValue = () => GetTagValueForDisplay(unitSetting, wk.tag),
             getPos = () => setting.ChangeFromOffset,
             setPos = v => setting.ChangeFromOffset = v,
             getRot = () => setting.ChangeFromOffsetRotate,
@@ -1292,6 +1614,9 @@ public class MultiObjectFactoryScript : UseTagBaseScript
         WorkAdjustPanel.Register(new WorkAdjustPanel.Target
         {
             label = $"{unitSetting.name} / {wk.workTo} / 変換先オフセット",
+            // どのタグで動くかと現在値を出す（動かないときの切り分け用）
+            tagName = wk.tag,
+            getTagValue = () => GetTagValueForDisplay(unitSetting, wk.tag),
             getPos = () => setting.ChangeOffset,
             setPos = v => setting.ChangeOffset = v,
             getRot = () => setting.ChangeOffsetRotate,
@@ -1422,6 +1747,9 @@ public class MultiObjectFactoryScript : UseTagBaseScript
         WorkAdjustPanel.Register(new WorkAdjustPanel.Target
         {
             label = $"{unitSetting.name} / {wk.work} / 生成位置",
+            // どのタグで動くかと現在値を出す（動かないときの切り分け用）
+            tagName = wk.tag,
+            getTagValue = () => GetTagValueForDisplay(unitSetting, wk.tag),
             getPos = () => setting.CreatePoint,
             setPos = v => setting.CreatePoint = v,
             getRot = () => setting.CreateRotate,

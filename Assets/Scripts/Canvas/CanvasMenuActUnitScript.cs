@@ -131,6 +131,17 @@ public class CanvasMenuActUnitScript : CanvasMenuBaseScript
     private bool isSelectProcess = false;
 
     /// <summary>
+    /// 段ボールの状態行を出しているか（毎フレームの更新対象を切り替える）
+    /// </summary>
+    private bool isCardboardRows = false;
+
+    /// <summary>
+    /// クリックで選ばれた段ボールの個体。
+    /// 同時に複数の段ボールが流れるため、クリックした個体の時間を表示する
+    /// </summary>
+    private CardboardScript selectedCardboard;
+
+    /// <summary>
     /// 拡張機構スクリプト
     /// </summary>
     private ExMechScript exScript;
@@ -271,12 +282,56 @@ public class CanvasMenuActUnitScript : CanvasMenuBaseScript
     }
 
     /// <summary>
+    /// クリックされた段ボールの個体を表示対象にする。
+    /// 同時に複数流れるため、稼働中の先頭ではなくクリックした個体を優先して表示する
+    /// </summary>
+    public void SelectCardboard(CardboardScript cbs)
+    {
+        selectedCardboard = cbs;
+    }
+
+    /// <summary>
+    /// 段ボールの製函状態を表示行へ反映する。ワーク未生成のときは待機表示にする
+    /// </summary>
+    private void UpdateCardboardRows()
+    {
+        // クリックで指定された個体を優先。破棄／非稼働になったら稼働中の個体へ戻す
+        var cbs = ((selectedCardboard != null) && selectedCardboard.gameObject.activeInHierarchy)
+            ? selectedCardboard
+            : CardboardScript.FindActive(unitSetting);
+        if (cbs == null)
+        {
+            actUnitInfos[0].txtStart.text = Lang.T("ワーク未生成");
+            actUnitInfos[0].txtStart.color = Color.gray;
+            actUnitInfos[0].txtEnd.text = "-";
+            actUnitInfos[1].txtStart.text = "-";
+            actUnitInfos[1].txtEnd.text = "-";
+            return;
+        }
+        actUnitInfos[0].txtStart.text = cbs.PlayHead.ToString("0") + " ms";
+        actUnitInfos[0].txtStart.color = cbs.IsWaiting ? Color.red : Color.blue;
+        actUnitInfos[0].txtEnd.text = cbs.IsWaiting
+            ? Lang.T("待機") + " " + cbs.WaitTag + " @" + cbs.WaitTime.ToString("0")
+            : Lang.T("進行中");
+        actUnitInfos[1].txtStart.text = cbs.CheckPointCount == 0
+            ? Lang.T("なし（従来動作）")
+            : cbs.CheckPointIndex + " / " + cbs.CheckPointCount;
+        actUnitInfos[1].txtEnd.text = cbs.CheckPointCount == 0 ? "-" : Lang.T("通過数");
+    }
+
+    /// <summary>
     /// 更新処理
     /// </summary>
     protected override void Update()
     {
         base.Update();
-        if (unitSetting != null)
+        if (isCardboardRows && (unitSetting != null) && (actUnitInfos.Count >= 2))
+        {
+            // 段ボールの製函状態。unitSetting.actionSetting が null なので、
+            // それを参照する下の処理より前に独立して扱う
+            UpdateCardboardRows();
+        }
+        else if (unitSetting != null)
         {
             if (unitSetting.actionSetting.isLinear)
             {
@@ -385,6 +440,9 @@ public class CanvasMenuActUnitScript : CanvasMenuBaseScript
             Destroy(info.actObject);
         }
         actUnitInfos.Clear();
+        // 行の意味づけもリセットする（別ユニットを選び直したときに前の表示が残らないように）
+        isCardboardRows = false;
+        selectedCardboard = null;
         foreach (var mover in moverInfos)
         {
             Destroy(mover.moverObject);
@@ -442,9 +500,25 @@ public class CanvasMenuActUnitScript : CanvasMenuBaseScript
         var list = new List<string>();
         dropDown.ClearOptions();
         list.Add("ユニット名");
-        foreach (var unitSetting in unitSettings.FindAll(d => d.actionSetting != null))
+        // 段ボールは actionSetting を持たず、さらに ParameterLoader.CreateUnitObject で
+        // unitSettings から除去される（ユニットオブジェクトを作らないため）。
+        // 退避しておいたユニット定義を足して走査する
+        var candidates = unitSettings.FindAll(d => (d.actionSetting != null) || CardboardScript.HasUnit(d));
+        foreach (var cb in CardboardScript.UnitDefs)
         {
-            if (unitSetting.actionSetting.isInternal)
+            if ((cb != null) && !candidates.Contains(cb))
+            {
+                candidates.Add(cb);
+            }
+        }
+        foreach (var unitSetting in candidates)
+        {
+            if (CardboardScript.HasUnit(unitSetting))
+            {
+                // 段ボール（製函の再生時間とチェックポイントを見るため一覧に出す）
+                // ※actionSetting が null のことがあるので、他の判定より先に見る
+            }
+            else if (unitSetting.actionSetting.isInternal)
             {
             }
             else if (unitSetting.actionSetting.isExternal)
@@ -569,7 +643,13 @@ public class CanvasMenuActUnitScript : CanvasMenuBaseScript
     public void SelectParts(GameObject parts)
     {
         // 選択クリア
-        dropDown.value = 0;
+        // ※ドロップダウンでユニットを選んだ結果としてモデルが選択された場合はクリアしない。
+        //   クリアすると OnValueChanged(0) が再入し、直前に作った表示行を全部消してしまう
+        //   （ドロップダウン選択 → モデル選択 → SelectParts → 選択クリア の循環）
+        if (!isSelectProcess)
+        {
+            dropDown.value = 0;
+        }
         // 位置更新
         txtPosX.text = parts.transform.localPosition.x.ToString("0.000");
         txtPosY.text = parts.transform.localPosition.y.ToString("0.000");
@@ -592,6 +672,9 @@ public class CanvasMenuActUnitScript : CanvasMenuBaseScript
             Destroy(info.actObject);
         }
         actUnitInfos.Clear();
+        // 行の意味づけもリセットする（別ユニットを選び直したときに前の表示が残らないように）
+        isCardboardRows = false;
+        selectedCardboard = null;
         foreach (var mover in moverInfos)
         {
             Destroy(mover.moverObject);
@@ -612,9 +695,29 @@ public class CanvasMenuActUnitScript : CanvasMenuBaseScript
         }
         else
         {
-            unitSetting = unitSettings.Find(d => d.name == dropDown.options[index].text);
+            var selectedName = dropDown.options[index].text;
+            // 段ボールは unitSettings から除去されているので退避リストからも探す
+            unitSetting = unitSettings.Find(d => d.name == selectedName)
+                ?? CardboardScript.UnitDefs.Find(d => d.name == selectedName);
         }
-        if ((unitSetting != null) && (unitSetting != prvSelectedUnit))
+        if ((unitSetting != null) && CardboardScript.HasUnit(unitSetting))
+        {
+            // 段ボール（製函の再生時間とチェックポイントの消化状況）。
+            // ※段ボールは unitObject も actionSetting も null なので、
+            //   それらを参照する下の処理より前に、独立した分岐として扱う
+            var now = CreateActRow();
+            now.txtTarget.text = Lang.T("現在時間");
+            now.txtStart.text = "-";
+            now.txtEnd.text = "-";
+            actUnitInfos.Add(now);
+            var cp = CreateActRow();
+            cp.txtTarget.text = Lang.T("チェックポイント");
+            cp.txtStart.text = "-";
+            cp.txtEnd.text = "-";
+            actUnitInfos.Add(cp);
+            isCardboardRows = true;
+        }
+        else if ((unitSetting != null) && (unitSetting != prvSelectedUnit))
         {
             var mi = unitSetting.unitObject.GetComponent<AxisMotionBase>();
             exScript = mi == null ? null : mi.exScript;
@@ -821,17 +924,27 @@ public class CanvasMenuActUnitScript : CanvasMenuBaseScript
         // ※isSelectProcess は「モデルクリック→ドロップダウン設定→再選択」のループ防止なので残す。
         if ((unitSetting != null) && !isSelectProcess)
         {
-            //オブジェクト選択
-            // First() は該当なしで例外を投げる（直後のnullチェックが効かず、以降の処理が中断していた）
-            var obj = GameObject.FindObjectsByType<Transform>(FindObjectsSortMode.None).FirstOrDefault(d => d.name == unitSetting.name);
-            var target = obj != null ? obj.gameObject : unitSetting.unitObject;
-            if (target != null)
+            // モデル選択が SelectParts 経由でドロップダウンを戻すのを防ぐ。
+            // 例外が出ても必ず戻す（立てたままだと次回の選択が無反応になる）
+            isSelectProcess = true;
+            try
             {
-                menuInfoScript.SetAssemblyObject(target);
+                //オブジェクト選択
+                // First() は該当なしで例外を投げる（直後のnullチェックが効かず、以降の処理が中断していた）
+                var obj = GameObject.FindObjectsByType<Transform>(FindObjectsSortMode.None).FirstOrDefault(d => d.name == unitSetting.name);
+                var target = obj != null ? obj.gameObject : unitSetting.unitObject;
+                if (target != null)
+                {
+                    menuInfoScript.SetAssemblyObject(target);
+                }
+                else
+                {
+                    Debug.LogWarning($"[ActUnit] ユニット名 '{unitSetting.name}' に一致するオブジェクトが見つかりません（モデル選択をスキップ）");
+                }
             }
-            else
+            finally
             {
-                Debug.LogWarning($"[ActUnit] ユニット名 '{unitSetting.name}' に一致するオブジェクトが見つかりません（モデル選択をスキップ）");
+                isSelectProcess = false;
             }
         }
     }

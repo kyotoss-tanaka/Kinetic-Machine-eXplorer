@@ -269,6 +269,13 @@ public class ConveyorScript : KssBaseScript
                 // 落下開始済みは物理に任せる
                 continue;
             }
+            if (WorkOwnership.IsOwnedByOther(obj, this))
+            {
+                // 他機構（アタッチ等）に掴まれたワークは追従させない。
+                // 下の収集で captured から外れるが、それを待つと1サブステップだけ
+                // 座標を上書きしてしまい受け渡しの瞬間に引っ張られる
+                continue;
+            }
             obj.transform.position = transform.position + transform.rotation * anchor.pos;
             obj.transform.rotation = transform.rotation * anchor.rot;
         }
