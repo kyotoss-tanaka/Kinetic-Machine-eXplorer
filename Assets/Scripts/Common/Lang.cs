@@ -103,17 +103,29 @@ public static class Lang
         }
         foreach (var text in UnityEngine.Object.FindObjectsByType<UnityEngine.UI.Text>(FindObjectsInactive.Include, FindObjectsSortMode.None))
         {
-            if ((text.text != null) && dictionary.TryGetValue(text.text.Trim(), out var translated))
+            TranslateOne(text);
+        }
+    }
+
+    /// <summary>1テキストを辞書一致で置換する（定期スイープ用の公開版）</summary>
+    public static void TranslateOne(TMP_Text text)
+    {
+        Translate(text);
+    }
+
+    /// <summary>1テキストを辞書一致で置換する（uGUI Text）</summary>
+    public static void TranslateOne(UnityEngine.UI.Text text)
+    {
+        if ((text != null) && (text.text != null) && dictionary.TryGetValue(text.text.Trim(), out var translated))
+        {
+            // 枠に収まらない場合は自動縮小して収める
+            if (!text.resizeTextForBestFit)
             {
-                // 枠に収まらない場合は自動縮小して収める
-                if (!text.resizeTextForBestFit)
-                {
-                    text.resizeTextMaxSize = text.fontSize;
-                    text.resizeTextMinSize = Mathf.Max(1, text.fontSize / 2);
-                    text.resizeTextForBestFit = true;
-                }
-                text.text = translated;
+                text.resizeTextMaxSize = text.fontSize;
+                text.resizeTextMinSize = Mathf.Max(1, text.fontSize / 2);
+                text.resizeTextForBestFit = true;
             }
+            text.text = translated;
         }
     }
 
