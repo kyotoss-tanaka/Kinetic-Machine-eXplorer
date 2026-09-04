@@ -23,6 +23,11 @@ public class BacketPathOverlay : MonoBehaviour
     private static readonly Dictionary<string, GameObject> lines = new();
     /// <summary>Prefab非表示時にも表示を維持するモデル（経路のスプロケット/経由点で参照しているモデル）</summary>
     public static readonly HashSet<Transform> KeepVisibleModels = new();
+    /// <summary>
+    /// Ctrl+Shift押下と同等の表示を強制する。調整パネル（F9）のようにボタン操作を伴う機能では
+    /// キーを押しっぱなしにできないため、開いている間これを立てて表示を維持する。
+    /// </summary>
+    public static bool ForceShow;
     private GUIStyle style;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
@@ -65,9 +70,10 @@ public class BacketPathOverlay : MonoBehaviour
         {
             return;
         }
-        // Ctrl+Shift 押下中のみ経路ラインを表示（周長オーバーレイと同じ操作系）
+        // Ctrl+Shift 押下中のみ経路ラインを表示（周長オーバーレイと同じ操作系）。
+        // 調整パネル表示中は押しっぱなしにできないため ForceShow で維持する
         var kb = UnityEngine.InputSystem.Keyboard.current;
-        var show = kb != null && kb.ctrlKey.isPressed && kb.shiftKey.isPressed;
+        var show = ForceShow || ((kb != null) && kb.ctrlKey.isPressed && kb.shiftKey.isPressed);
         foreach (var line in lines.Values)
         {
             if (line != null && line.activeSelf != show)
@@ -83,9 +89,9 @@ public class BacketPathOverlay : MonoBehaviour
         {
             return;
         }
-        // Ctrl+Shift 押下中のみ表示（WebGlFpsDebug と同じ操作系）
+        // Ctrl+Shift 押下中のみ表示（WebGlFpsDebug と同じ操作系）。調整パネル表示中は ForceShow で維持
         var kb = UnityEngine.InputSystem.Keyboard.current;
-        if (kb == null || !(kb.ctrlKey.isPressed && kb.shiftKey.isPressed))
+        if (!ForceShow && ((kb == null) || !(kb.ctrlKey.isPressed && kb.shiftKey.isPressed)))
         {
             return;
         }

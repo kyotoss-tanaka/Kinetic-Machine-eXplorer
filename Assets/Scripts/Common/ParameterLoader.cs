@@ -243,6 +243,7 @@ namespace Parameters
             // データ削除
             yield return null; // 1フレーム待
             BacketPathOverlay.Clear();
+            WorkAdjustPanel.Clear();
             GlobalScript.ClearDictionary();
             yield return null; // 1フレーム待
 

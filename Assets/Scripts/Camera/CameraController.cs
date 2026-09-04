@@ -437,7 +437,16 @@ public class CameraController : MonoBehaviour
     /// </summary>
     public void FocusTo()
     {
-        var position = GlobalScript.selectedObject == null ? targetPosition : GlobalScript.selectedObject.transform.position;
+        // 通常オブジェクトが未選択なら、調整パネル(F9)で選択中の対象へフォーカスする
+        var position = targetPosition;
+        if (GlobalScript.selectedObject != null)
+        {
+            position = GlobalScript.selectedObject.transform.position;
+        }
+        else if (WorkAdjustPanel.TryGetSelectedPosition(out var adjustPos))
+        {
+            position = adjustPos;
+        }
         focusDistance = focusDistance <= 1f ? 3f : 1f;
         Vector3 forward = transform.forward;
         transform.position = position - forward * focusDistance;

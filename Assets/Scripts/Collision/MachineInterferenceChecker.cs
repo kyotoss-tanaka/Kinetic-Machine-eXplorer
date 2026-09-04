@@ -155,7 +155,11 @@ public sealed class MachineInterferenceChecker : MonoBehaviour
         for (var t = mf.transform; t != null; t = t.parent)
         {
             if (t.name == "SafetyZones") { return; }
-            if (t.name.StartsWith("WorkDeleteZone")) { return; }   // ワーク削除範囲の確認表示（半透明球）も対象外
+            // ワーク操作の確認表示（Ctrl+Shift／F9調整パネル）は見せるだけの半透明表示なので干渉対象外。
+            // 種類が増えても漏れないよう接頭辞でまとめて除外する
+            if (t.name.StartsWith("WorkDeleteZone")) { return; }   // 削除範囲（球）
+            if (t.name.StartsWith("WorkChange")) { return; }       // 変換範囲（球）／変換元・変換先の形状
+            if (t.name.StartsWith("WorkCreate")) { return; }       // 生成位置の形状
         }
         if (!seen.Add(mf)) { return; }
         var sm = mf.sharedMesh;

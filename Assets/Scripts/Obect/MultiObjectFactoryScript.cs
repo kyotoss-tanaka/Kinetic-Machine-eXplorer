@@ -85,6 +85,27 @@ public class MultiObjectFactoryScript : UseTagBaseScript
         public Vector3 CreateRotate;
 
         /// <summary>
+        /// 変換先の配置オフセット(m)。変換元と変換先でモデル原点が違う場合の補正（変換モードのみ）
+        /// </summary>
+        public Vector3 ChangeOffset;
+
+        /// <summary>
+        /// 変換先の配置オフセット角度(度)（変換モードのみ）
+        /// </summary>
+        public Vector3 ChangeOffsetRotate;
+
+        /// <summary>
+        /// 変換元の基準オフセット(m)。前工程で作られたワークに灰色の変換元ゴーストを重ねるための補正で、
+        /// 変換後の配置にも加算される（実配置＝ChangeFromOffset＋ChangeOffset）。
+        /// </summary>
+        public Vector3 ChangeFromOffset;
+
+        /// <summary>
+        /// 変換元の基準オフセット角度(度)
+        /// </summary>
+        public Vector3 ChangeFromOffsetRotate;
+
+        /// <summary>
         /// ワークオブジェクト
         /// </summary>
         public GameObject WorkObject;
@@ -138,6 +159,18 @@ public class MultiObjectFactoryScript : UseTagBaseScript
         /// 出力先親モデル
         /// </summary>
         public GameObject objBase;
+
+        /// <summary>
+        /// コンベアユニットなら搬送面基準（最上流×天面×幅中央）で削除位置を解釈するための参照。
+        /// ConveyorScript は削除設定の登録より後に付与されるため、初回判定時に遅延解決する
+        /// </summary>
+        public ConveyorScript conveyor;
+
+        /// <summary>コンベア参照の解決済みフラグ（未装着でも毎回GetComponentしないため）</summary>
+        public bool isConveyorResolved = false;
+
+        /// <summary>削除範囲の確認表示（球）。基準が動的なコンベア用に毎フレーム追従させる</summary>
+        public GameObject zoneObj;
 
         /// <summary>バケット削除の発動位置（経路上の固定点・ワールド）を使うか</summary>
         public bool IsFixedDeletePos = false;
@@ -302,6 +335,15 @@ public class MultiObjectFactoryScript : UseTagBaseScript
         {
             foreach (var tag in setting.Value)
             {
+                // 削除範囲の確認表示を基準へ追従させる。コンベアは搬送面基準（毎フレーム算出）のため
+                // 親子付けだけでは追従できない。表示中のみなので非表示時のコストは無い
+                foreach (var del in tag.Value.deleteSettings)
+                {
+                    if ((del.zoneObj != null) && del.zoneObj.activeSelf)
+                    {
+                        ApplyDeleteZonePose(del);
+                    }
+                }
                 if (tag.Value.CreateTag == null)
                 {
                     // -始まりは反転入力（OFFで動作）
@@ -367,9 +409,10 @@ public class MultiObjectFactoryScript : UseTagBaseScript
                 // 削除位置・範囲は実寸(m)。objBaseにスケールが掛かっていても実寸で判定できるよう、
                 // 削除位置はobjBase原点からの回転付きオフセット（スケール除外）でワールドへ変換して比較する
                 // バケット削除は経路上の固定点（表示球と同一）、それ以外はobjBase基準の実寸オフセットで判定する
+                GetDeleteBase(setting, out var basePos, out var baseRot);
                 var worldDelete = setting.IsFixedDeletePos
                     ? setting.FixedDeletePos
-                    : setting.objBase.transform.position + setting.objBase.transform.rotation * setting.CreatePoint;
+                    : basePos + baseRot * setting.CreatePoint;
                 var deleted = 0;
                 var candidates = 0;
                 foreach (var pool in works.ToList())
@@ -545,7 +588,10 @@ public class MultiObjectFactoryScript : UseTagBaseScript
         if (stat)
         {
             // 範囲内のワークを取り込む（実位置・実姿勢のまま子化）
-            var center = setting.objBase.transform.TransformPoint(setting.CreatePoint);
+            // 中心オフセットは実寸(m)。TransformPointだと親のスケール(1/25.4等)が掛かって縮むため、
+            // 生成・削除の判定と同じ「ワールド位置＋姿勢回転」で求める
+            var center = setting.objBase.transform.position
+                + setting.objBase.transform.rotation * setting.CreatePoint;
             foreach (var pool in works)
             {
                 if ((setting.WorkName != null) && (setting.WorkName != "") && (pool.Key != setting.WorkName))
@@ -616,7 +662,10 @@ public class MultiObjectFactoryScript : UseTagBaseScript
         {
             return;
         }
-        var center = setting.objBase.transform.TransformPoint(setting.CreatePoint);
+        // 中心オフセットは実寸(m)。TransformPointだと親のスケール(1/25.4等)が掛かって縮むため、
+        // 生成・削除の判定と同じ「ワールド位置＋姿勢回転」で求める
+        var center = setting.objBase.transform.position
+            + setting.objBase.transform.rotation * setting.CreatePoint;
         foreach (var pool in works.ToList())
         {
             if (pool.Key == setting.WorkTo)
@@ -638,10 +687,16 @@ public class MultiObjectFactoryScript : UseTagBaseScript
                 {
                     continue;
                 }
-                // 新ワークを実位置・親を引き継いで生成
+                // 新ワークを実位置・親を引き継いで生成。
+                // 変換元と変換先でモデル原点が違う場合はオフセットで補正する
+                // （オフセットは変換元ワークの姿勢基準・実寸m。0なら原点一致＝従来動作）
                 var newObj = toPool.pool.Get();
                 newObj.transform.SetParent(old.transform.parent, false);
-                newObj.transform.SetPositionAndRotation(old.transform.position, old.transform.rotation);
+                // 実配置に効くのは変換先オフセットのみ。変換元オフセットはKMX上の表示合わせ専用で
+                // 保存されないため、挙動には影響させない（→ ChangeFromOffset の説明を参照）
+                var newRot = old.transform.rotation * Quaternion.Euler(setting.ChangeOffsetRotate);
+                var newPos = old.transform.position + old.transform.rotation * setting.ChangeOffset;
+                newObj.transform.SetPositionAndRotation(newPos, newRot);
                 newObj.transform.localScale = Vector3.one;
                 var newScript = newObj.GetComponent<ObjectScript>();
                 if (newScript == null)
@@ -775,6 +830,43 @@ public class MultiObjectFactoryScript : UseTagBaseScript
     /// </summary>
     /// <param name="objFactoryObj"></param>
     /// <returns></returns>
+    /// <summary>
+    /// 削除位置オフセットの基準（原点と姿勢）を求める。機構の種類で基準が違う。
+    ///  ・コンベア  = 搬送面の最上流×天面×幅中央（X=横/Y=上/Z=流れ）。面や領域を変えても追従する
+    ///  ・通常機構  = 動作部（取出し等の動きに追従する）
+    ///  ・バケット  = 経路上の固定点（呼び出し側の IsFixedDeletePos で処理するためここは通らない）
+    /// </summary>
+    private static void GetDeleteBase(MultiObjectInfo setting, out Vector3 pos, out Quaternion rot)
+    {
+        if (!setting.isConveyorResolved)
+        {
+            // ConveyorScriptは削除設定の登録より後に付与されるため、初回判定時に解決する
+            setting.isConveyorResolved = true;
+            setting.conveyor = (setting.objBase != null)
+                ? setting.objBase.GetComponent<ConveyorScript>()
+                : null;
+        }
+        if ((setting.conveyor != null) && setting.conveyor.TryGetSurfaceOrigin(out pos, out rot))
+        {
+            return;
+        }
+        pos = setting.objBase.transform.position;
+        rot = setting.objBase.transform.rotation;
+    }
+
+    /// <summary>
+    /// JSONの座標リストをVector3へ変換する。後から追加した任意項目は旧JSONに存在しないため、
+    /// null・要素不足はゼロ扱いにしてロードを壊さない。
+    /// </summary>
+    private static Vector3 ToVector3(List<float> values)
+    {
+        if ((values == null) || (values.Count < 3))
+        {
+            return Vector3.zero;
+        }
+        return new Vector3(values[0], values[1], values[2]);
+    }
+
     private GameObject GetObjectFactoryBase(GameObject objFactoryObj)
     {
         var objFactory = objFactoryObj.transform.GetComponentsInChildren<Transform>().ToList().Find(d => d.name == "ObjectFactory" && (d.parent == objFactoryObj.transform));
@@ -866,6 +958,8 @@ public class MultiObjectFactoryScript : UseTagBaseScript
                 setting.DesignTemplate = template;
             }
             multiObject.createSettings.Add(setting);
+            // 生成位置の確認表示（Ctrl+Shift押下中のみ表示）を生成する
+            CreateCreateGhost(setting, unitSetting, wk);
         }
         else if (obj.GetType() == typeof(WorkTransferSetting))
         {
@@ -903,9 +997,19 @@ public class MultiObjectFactoryScript : UseTagBaseScript
                     z = wk.pos[2]
                 },
                 AliveDistance = wk.range,
+                // オフセットは後から追加した任意項目。旧JSONでは欠落するためnull/要素不足を許容する
+                ChangeOffset = ToVector3(wk.offset),
+                ChangeOffsetRotate = ToVector3(wk.offsetRot),
+                ChangeFromOffset = ToVector3(wk.fromOffset),
+                ChangeFromOffsetRotate = ToVector3(wk.fromOffsetRot),
                 objBase = objBase
             };
             multiObject.transferSettings.Add(setting);
+            if (wk.mode == 1)
+            {
+                // 変換範囲の確認表示（Ctrl+Shift押下中のみ表示）を生成する
+                CreateChangeZone(setting, unitSetting, wk);
+            }
         }
         else if (obj.GetType() == typeof(WorkDeleteSetting))
         {
@@ -935,7 +1039,12 @@ public class MultiObjectFactoryScript : UseTagBaseScript
                 AliveDistance = wk.distance,
                 backetInfo = backetInfo,
                 BacketNo = backetInfo != null ? wk.backetno : -1,
-                objBase = backetInfo != null ? backetInfo.obj : unitSetting.unitObject,
+                // 通常機構の削除位置は動作部基準（生成・変換と同じ）。ユニット根本を基準にすると
+                // 取出し等が動いても削除位置が固定されたままになる。
+                // バケットは経路上の固定点で判定するため爪オブジェクトを基準にする
+                objBase = backetInfo != null
+                    ? backetInfo.obj
+                    : (unitSetting.moveObject != null ? unitSetting.moveObject : unitSetting.unitObject),
                 // バケット削除は経路上の固定点（AxisMotionBaseが算出）で判定する
                 IsFixedDeletePos = (backetInfo != null) && wk.isFixedPos,
                 FixedDeletePos = wk.fixedWorldPos
@@ -946,9 +1055,68 @@ public class MultiObjectFactoryScript : UseTagBaseScript
         }
     }
 
+    #region ワーク操作の確認表示（Ctrl+Shift押下中のみ）
+    /// <summary>削除範囲の色。KMXToolのワーク図と一致させる（IndianRed）</summary>
+    private static readonly Color ZoneColorDelete = new Color(205f / 255f, 92f / 255f, 92f / 255f, 0.3f);
+
+    /// <summary>変換範囲の色。KMXToolのワーク図と一致させる（DarkOrange）</summary>
+    private static readonly Color ZoneColorChange = new Color(255f / 255f, 140f / 255f, 0f, 0.3f);
+
+    /// <summary>生成位置ゴーストの色。KMXToolのワーク図と一致させる（SeaGreen）</summary>
+    private static readonly Color ZoneColorCreate = new Color(46f / 255f, 139f / 255f, 87f / 255f, 0.35f);
+
+    /// <summary>変換元ゴーストの色。変換先（オレンジ）と対比させる中立色（KMXToolの無効カードと同じグレー）</summary>
+    private static readonly Color ZoneColorChangeFrom = new Color(0.62f, 0.62f, 0.62f, 0.3f);
+
     /// <summary>
-    /// ワーク削除範囲（削除位置中心・半径=範囲の球）を半透明で可視化するオブジェクトを生成する。
+    /// 確認表示用の半透明球を1個生成する。
     /// 表示切替（Ctrl+Shift押下中のみ）はBacketPathOverlayが行う。再Setup時は同名の旧表示を作り直す。
+    /// </summary>
+    /// <param name="zoneName">オブジェクト名（再Setup時の作り直し判定に使う）</param>
+    /// <param name="parent">親。この配下のローカル座標へ配置する</param>
+    /// <param name="pointM">親の姿勢基準での中心オフセット（実寸m）</param>
+    /// <param name="diameterM">直径（実寸m）</param>
+    /// <param name="color">表示色</param>
+    private GameObject CreateZoneSphere(string zoneName, Transform parent, Vector3 pointM, float diameterM, Color color)
+    {
+        if ((parent == null) || (diameterM <= 0f))
+        {
+            return null;
+        }
+        var old = parent.Find(zoneName);
+        if (old != null)
+        {
+            Destroy(old.gameObject);
+        }
+        var zone = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+        zone.name = zoneName;
+        // 判定は距離比較なのでコライダは不要（ワークとの物理干渉を避けるため必ず除去する）
+        var col = zone.GetComponent<Collider>();
+        if (col != null)
+        {
+            Destroy(col);
+        }
+        zone.transform.SetParent(parent, false);
+        // 位置・範囲は実寸(m)。親のスケール（バケットクローンは約1/25）を打ち消して実寸で表示する
+        var ls = parent.lossyScale;
+        var inv = new Vector3(
+            1f / Mathf.Max(Mathf.Abs(ls.x), 1e-6f),
+            1f / Mathf.Max(Mathf.Abs(ls.y), 1e-6f),
+            1f / Mathf.Max(Mathf.Abs(ls.z), 1e-6f));
+        zone.transform.localPosition = Vector3.Scale(pointM, inv);
+        zone.transform.localScale = Vector3.Scale(inv, Vector3.one * diameterM);
+        var rend = zone.GetComponent<Renderer>();
+        if (rend != null)
+        {
+            rend.sharedMaterial = SafetyZoneScript.MakeZoneMaterial(color);
+        }
+        zone.SetActive(false);
+        BacketPathOverlay.RegisterLine($"{zoneName}_{zone.GetInstanceID()}", zone);
+        return zone;
+    }
+
+    /// <summary>
+    /// ワーク削除範囲（削除位置中心・半径=範囲の球）を半透明で可視化する。
     /// </summary>
     private void CreateDeleteZone(MultiObjectInfo setting, UnitSetting unitSetting, WorkDeleteSetting wk)
     {
@@ -963,34 +1131,312 @@ public class MultiObjectFactoryScript : UseTagBaseScript
             return;
         }
         var zoneName = $"WorkDeleteZone_{unitSetting.name}_{wk.tag}_{wk.pos[0]}_{wk.pos[1]}_{wk.pos[2]}";
-        var old = setting.objBase.transform.Find(zoneName);
+        setting.zoneObj = CreateZoneSphere(zoneName, setting.objBase.transform, setting.CreatePoint,
+            setting.AliveDistance * 2f, ZoneColorDelete);
+        if (setting.zoneObj != null)
+        {
+            // 球だけでは基準の向きと選択状態が分からないため、ゴーストと同じ原点軸を付ける
+            AddOriginAxes(setting.zoneObj, 0.05f);
+        }
+        // F9パネルからの調整対象に登録（削除は位置のみ。角度設定を持たない）
+        WorkAdjustPanel.Register(new WorkAdjustPanel.Target
+        {
+            label = $"{unitSetting.name} / {wk.work} / 削除位置",
+            getPos = () => setting.CreatePoint,
+            setPos = v => setting.CreatePoint = v,
+            apply = () => ApplyDeleteZonePose(setting),
+            hitObject = setting.zoneObj,
+        });
+    }
+
+    /// <summary>
+    /// 削除範囲の確認表示を現在の基準（コンベア＝搬送面／通常＝動作部）へ合わせる
+    /// </summary>
+    private static void ApplyDeleteZonePose(MultiObjectInfo setting)
+    {
+        if ((setting.zoneObj == null) || setting.IsFixedDeletePos)
+        {
+            return;
+        }
+        GetDeleteBase(setting, out var basePos, out var baseRot);
+        setting.zoneObj.transform.SetPositionAndRotation(basePos + baseRot * setting.CreatePoint, baseRot);
+    }
+
+    /// <summary>
+    /// ワーク形状の半透明ゴーストを1個生成する（生成位置=緑／変換先=オレンジ）。
+    /// 実ワークは objBase 配下で localScale=1 のため、ワールド倍率をそれに合わせる。
+    /// </summary>
+    /// <param name="zoneName">オブジェクト名（再Setup時の作り直し判定に使う）</param>
+    /// <param name="workName">表示するワーク名（プールの原型を複製する）</param>
+    /// <param name="parent">吊り先。非アクティブな親だと表示できないため必ずアクティブなものを渡す</param>
+    /// <param name="worldPos">配置位置（ワールド）</param>
+    /// <param name="worldRot">配置姿勢（ワールド）</param>
+    /// <param name="objBase">実ワークの親。ワールド倍率の基準に使う</param>
+    /// <param name="color">表示色</param>
+    private GameObject CreateWorkGhost(string zoneName, string workName, Transform parent,
+        Vector3 worldPos, Quaternion worldRot, Transform objBase, Color color)
+    {
+        if ((parent == null) || (objBase == null)
+            || !works.TryGetValue(workName, out var pool) || (pool.work == null))
+        {
+            Debug.Log($"[WorkZone] ゴースト作成不可 {zoneName} work={workName} プール有無={works.ContainsKey(workName)}");
+            return null;
+        }
+        var old = parent.Find(zoneName);
         if (old != null)
         {
             Destroy(old.gameObject);
         }
-        var zone = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-        zone.name = zoneName;
-        // 削除判定は距離比較なのでコライダは不要（ワークとの物理干渉を避けるため必ず除去する）
-        var col = zone.GetComponent<Collider>();
-        if (col != null)
+        var ghost = Instantiate(pool.work);
+        ghost.name = zoneName;
+        ghost.transform.SetParent(parent, false);
+        // 実ワークは objBase 配下で localScale=1 → ワールド倍率 = objBase.lossyScale。親が違うぶんを割り戻す
+        var pls = parent.lossyScale;
+        var target = objBase.lossyScale;
+        ghost.transform.localScale = new Vector3(
+            target.x / Mathf.Max(Mathf.Abs(pls.x), 1e-6f),
+            target.y / Mathf.Max(Mathf.Abs(pls.y), 1e-6f),
+            target.z / Mathf.Max(Mathf.Abs(pls.z), 1e-6f));
+        ghost.transform.SetPositionAndRotation(worldPos, worldRot);
+        // 表示専用にする（物理・ロジックへ一切参加させない）
+        foreach (var mb in ghost.GetComponentsInChildren<MonoBehaviour>(true))
         {
-            Destroy(col);
+            Destroy(mb);
         }
-        zone.transform.SetParent(setting.objBase.transform, false);
-        // 削除位置・範囲は実寸(m)。objBaseのスケール（バケットクローンは約1/25）を打ち消して実寸で表示する
-        var ls = setting.objBase.transform.lossyScale;
-        var inv = new Vector3(
+        foreach (var rb in ghost.GetComponentsInChildren<Rigidbody>(true))
+        {
+            Destroy(rb);
+        }
+        foreach (var c in ghost.GetComponentsInChildren<Collider>(true))
+        {
+            Destroy(c);
+        }
+        var mat = SafetyZoneScript.MakeZoneMaterial(color);
+        var rends = ghost.GetComponentsInChildren<Renderer>(true);
+        foreach (var rend in rends)
+        {
+            // 元モデルは非表示化されていることがある。ルートだけ有効化しても子が無効なら描画されないため、
+            // 描画ノードまでの経路を全て有効化し、Renderer自体も有効に戻す
+            for (var t = rend.transform; (t != null) && (t != ghost.transform); t = t.parent)
+            {
+                if (!t.gameObject.activeSelf)
+                {
+                    t.gameObject.SetActive(true);
+                }
+            }
+            rend.enabled = true;
+            var mats = new Material[rend.sharedMaterials.Length];
+            for (var i = 0; i < mats.Length; i++)
+            {
+                mats[i] = mat;
+            }
+            rend.sharedMaterials = mats;
+        }
+        var size = (rends.Length > 0) ? rends[0].bounds.size : Vector3.zero;
+        // モデル原点の位置・姿勢が分かるようXYZ軸を付ける（マテリアル差し替えの後に追加する）
+        AddOriginAxes(ghost, 0.05f);
+        ghost.SetActive(false);
+        BacketPathOverlay.RegisterLine($"{zoneName}_{ghost.GetInstanceID()}", ghost);
+        Debug.Log($"[WorkZone] {zoneName} 親={parent.name} 親有効={parent.gameObject.activeInHierarchy}"
+            + $" 位置={worldPos:F3} 描画数={rends.Length} 外形={size:F3}m"
+            + $" 倍率(ghost/parent/objBase)={ghost.transform.lossyScale:F4}/{pls:F4}/{target:F4}");
+        return ghost;
+    }
+
+    /// <summary>
+    /// ワーク変換の確認表示。判定範囲（オレンジの球）と、変換先ワークの形状（オレンジ半透明）を出す。
+    /// 判定中心・半径はProcessChangeと同一（objBase基準のCreatePoint／AliveDistance）。
+    /// </summary>
+    private void CreateChangeZone(MultiObjectInfo setting, UnitSetting unitSetting, WorkTransferSetting wk)
+    {
+        if ((setting.AliveDistance <= 0f) || (setting.objBase == null))
+        {
+            Debug.Log($"[WorkZone] 変換表示スキップ {unitSetting.name}/{wk.work} range={setting.AliveDistance} objBase={(setting.objBase == null ? "null" : setting.objBase.name)}");
+            return;
+        }
+        var baseTr = setting.objBase.transform;
+        // 判定範囲（球）
+        CreateZoneSphere($"WorkChangeZone_{unitSetting.name}_{wk.tag}_{wk.work}",
+            baseTr, setting.CreatePoint, setting.AliveDistance * 2f, ZoneColorChange);
+        // 変換元ワークの形状（グレー）。変換元オフセットを効かせて前工程のワークに重ねる基準にする
+        var fromGhost = CreateWorkGhost($"WorkChangeFromGhost_{unitSetting.name}_{wk.tag}_{wk.work}",
+            setting.WorkName, baseTr, FromGhostPos(setting, baseTr), FromGhostRot(setting, baseTr),
+            baseTr, ZoneColorChangeFrom);
+        // 変換先ワークの形状（何に変わるかを示す）。変換元＋変換先オフセットの位置＝実際の配置と一致する
+        var toGhost = CreateWorkGhost($"WorkChangeGhost_{unitSetting.name}_{wk.tag}_{wk.workTo}",
+            setting.WorkTo, baseTr, ToGhostPos(setting, baseTr), ToGhostRot(setting, baseTr),
+            baseTr, ZoneColorChange);
+        // 両ゴーストを現在値で再配置する（変換元を動かすと変換先も連動する）
+        Action apply = () =>
+        {
+            if (fromGhost != null)
+            {
+                fromGhost.transform.SetPositionAndRotation(FromGhostPos(setting, baseTr), FromGhostRot(setting, baseTr));
+            }
+            if (toGhost != null)
+            {
+                toGhost.transform.SetPositionAndRotation(ToGhostPos(setting, baseTr), ToGhostRot(setting, baseTr));
+            }
+        };
+        // F9パネルからの調整対象に登録（実行中に見ながらオフセットを決めるため）
+        WorkAdjustPanel.Register(new WorkAdjustPanel.Target
+        {
+            label = $"{unitSetting.name} / {wk.work} / 変換元オフセット（変換先にも加算）",
+            getPos = () => setting.ChangeFromOffset,
+            setPos = v => setting.ChangeFromOffset = v,
+            getRot = () => setting.ChangeFromOffsetRotate,
+            setRot = v => setting.ChangeFromOffsetRotate = v,
+            apply = apply,
+            hitObject = fromGhost,
+        });
+        WorkAdjustPanel.Register(new WorkAdjustPanel.Target
+        {
+            label = $"{unitSetting.name} / {wk.workTo} / 変換先オフセット",
+            getPos = () => setting.ChangeOffset,
+            setPos = v => setting.ChangeOffset = v,
+            getRot = () => setting.ChangeOffsetRotate,
+            setRot = v => setting.ChangeOffsetRotate = v,
+            apply = apply,
+            hitObject = toGhost,
+        });
+    }
+
+    /// <summary>
+    /// ゴーストの原点にXYZ軸マーカー（X=赤/Y=緑/Z=青）を付ける。
+    /// 変換元と変換先でモデル原点がどこにあるか分かりにくいため、原点と姿勢を目視できるようにする。
+    /// ゴーストの子なので位置・姿勢はそのまま追従する。
+    /// </summary>
+    /// <param name="ghost">対象ゴースト</param>
+    /// <param name="lengthM">軸の長さ（ワールド実寸m）</param>
+    private static void AddOriginAxes(GameObject ghost, float lengthM)
+    {
+        var root = new GameObject("OriginAxes");
+        root.transform.SetParent(ghost.transform, false);
+        // LineRendererの座標はローカル（親スケールが掛かる）。ゴーストは実ワークと同倍率（約1/25）のため
+        // 打ち消して軸長をワールド実寸にする（線幅はスケール非適用なので補正不要）
+        var ls = ghost.transform.lossyScale;
+        root.transform.localScale = new Vector3(
             1f / Mathf.Max(Mathf.Abs(ls.x), 1e-6f),
             1f / Mathf.Max(Mathf.Abs(ls.y), 1e-6f),
             1f / Mathf.Max(Mathf.Abs(ls.z), 1e-6f));
-        zone.transform.localPosition = Vector3.Scale(setting.CreatePoint, inv);
-        zone.transform.localScale = Vector3.Scale(inv, Vector3.one * setting.AliveDistance * 2f);
-        var rend = zone.GetComponent<Renderer>();
-        if (rend != null)
-        {
-            rend.sharedMaterial = SafetyZoneScript.MakeZoneMaterial(new Color(1f, 0.2f, 0.2f, 0.3f));
-        }
-        zone.SetActive(false);
-        BacketPathOverlay.RegisterLine($"{zoneName}_{zone.GetInstanceID()}", zone);
+        AddAxisLine(root.transform, Vector3.right * lengthM, Color.red);
+        AddAxisLine(root.transform, Vector3.up * lengthM, Color.green);
+        AddAxisLine(root.transform, Vector3.forward * lengthM, Color.blue);
     }
+
+    /// <summary>原点マーカーの軸1本を作る</summary>
+    private static void AddAxisLine(Transform parent, Vector3 to, Color color)
+    {
+        var go = new GameObject("Axis");
+        go.transform.SetParent(parent, false);
+        var lr = go.AddComponent<LineRenderer>();
+        lr.useWorldSpace = false;
+        lr.positionCount = 2;
+        lr.SetPosition(0, Vector3.zero);
+        lr.SetPosition(1, to);
+        lr.widthMultiplier = 0.003f;
+        lr.numCornerVertices = 0;
+        lr.numCapVertices = 0;
+        var sh = Shader.Find("Universal Render Pipeline/Unlit");
+        if (sh == null)
+        {
+            sh = Shader.Find("Sprites/Default");
+        }
+        if (sh != null)
+        {
+            var mat = new Material(sh);
+            if (mat.HasProperty("_BaseColor"))
+            {
+                mat.SetColor("_BaseColor", color);
+            }
+            if (mat.HasProperty("_Color"))
+            {
+                mat.SetColor("_Color", color);
+            }
+            lr.sharedMaterial = mat;
+        }
+        lr.startColor = color;
+        lr.endColor = color;
+    }
+
+    /// <summary>変換元ゴーストの表示位置（判定中心＋変換元オフセット）</summary>
+    private static Vector3 FromGhostPos(MultiObjectInfo setting, Transform baseTr)
+    {
+        return baseTr.position + baseTr.rotation * (setting.CreatePoint + setting.ChangeFromOffset);
+    }
+
+    /// <summary>変換元ゴーストの表示姿勢</summary>
+    private static Quaternion FromGhostRot(MultiObjectInfo setting, Transform baseTr)
+    {
+        return baseTr.rotation * Quaternion.Euler(setting.ChangeFromOffsetRotate);
+    }
+
+    /// <summary>変換先ゴーストの表示位置（判定中心＋変換元表示合わせ＋変換先オフセット）。
+    /// 変換元を実ワークへ重ねてあれば、この位置が実際の着地点と一致する</summary>
+    private static Vector3 ToGhostPos(MultiObjectInfo setting, Transform baseTr)
+    {
+        return baseTr.position
+            + baseTr.rotation * (setting.CreatePoint + setting.ChangeFromOffset + setting.ChangeOffset);
+    }
+
+    /// <summary>変換先ゴーストの表示姿勢</summary>
+    private static Quaternion ToGhostRot(MultiObjectInfo setting, Transform baseTr)
+    {
+        return baseTr.rotation * Quaternion.Euler(setting.ChangeFromOffsetRotate + setting.ChangeOffsetRotate);
+    }
+
+    /// <summary>
+    /// ワーク生成位置に、生成されるワークそのものを半透明（緑）で表示する。
+    /// 姿勢はUpdateObjectの生成座標算出と同じ式で求める。
+    /// </summary>
+    private void CreateCreateGhost(MultiObjectInfo setting, UnitSetting unitSetting, WorkCreateSetting wk)
+    {
+        if (setting.backetInfo != null)
+        {
+            // バケット生成は経路上へ配置されるため、経路表示（AxisMotionBase）側で確認する
+            Debug.Log($"[WorkZone] 生成表示スキップ(バケット) {unitSetting.name}/{wk.work}");
+            return;
+        }
+        if (setting.objBase == null)
+        {
+            Debug.Log($"[WorkZone] 生成表示スキップ {unitSetting.name}/{wk.work} objBase=null");
+            return;
+        }
+        var useDesign = setting.IsDesignPos && (setting.DesignTemplate != null);
+        // 親の選び方:
+        //  ・設計位置指定 → 生成位置はワールド固定（設計モデルの位置）。テンプレート自体は非表示化されて
+        //    いることがあり、その配下だとSetActive(true)しても activeInHierarchy が false で見えないため、
+        //    常にアクティブなファクトリ直下に吊って姿勢だけ合わせる。
+        //  ・手入力オフセット → 生成元ユニット基準なので objBase 配下に吊り、ユニットの動きに追従させる。
+        var parent = useDesign ? transform : setting.objBase.transform;
+        var baseRot = useDesign ? setting.DesignTemplate.transform.rotation : setting.objBase.transform.rotation;
+        var basePos = useDesign ? setting.DesignTemplate.transform.position : setting.objBase.transform.position;
+        var worldPos = basePos + baseRot * setting.CreatePoint;
+        var worldRot = baseRot * Quaternion.Euler(setting.CreateRotate);
+        var ghost = CreateWorkGhost($"WorkCreateGhost_{unitSetting.name}_{wk.tag}_{wk.work}",
+            setting.WorkName, parent, worldPos, worldRot, setting.objBase.transform, ZoneColorCreate);
+        // F9パネルからの調整対象に登録（実行中に見ながら生成位置を決めるため）。
+        // 設計位置指定でもX/Y/Z・RX/RY/RZは「設計位置からの相対オフセット」として効くため対象に含める
+        // （UpdateObjectの生成座標算出と同じ扱い）
+        var baseTr = useDesign ? setting.DesignTemplate.transform : setting.objBase.transform;
+        WorkAdjustPanel.Register(new WorkAdjustPanel.Target
+        {
+            label = $"{unitSetting.name} / {wk.work} / 生成位置",
+            getPos = () => setting.CreatePoint,
+            setPos = v => setting.CreatePoint = v,
+            getRot = () => setting.CreateRotate,
+            setRot = v => setting.CreateRotate = v,
+            hitObject = ghost,
+            apply = () =>
+            {
+                if (ghost != null)
+                {
+                    ghost.transform.SetPositionAndRotation(
+                        baseTr.position + baseTr.rotation * setting.CreatePoint,
+                        baseTr.rotation * Quaternion.Euler(setting.CreateRotate));
+                }
+            },
+        });
+    }
+    #endregion ワーク操作の確認表示（Ctrl+Shift押下中のみ）
 }

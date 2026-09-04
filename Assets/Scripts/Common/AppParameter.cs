@@ -1188,6 +1188,23 @@ namespace Parameters
         /// 対象範囲の距離
         /// </summary>
         public float range { get; set; }
+        /// <summary>
+        /// 変換先の配置オフセット(m)。変換元と変換先でモデル原点が違う場合の補正（変換モードのみ）
+        /// </summary>
+        public List<float> offset { get; set; }
+        /// <summary>
+        /// 変換先の配置オフセット回転(度)（変換モードのみ）
+        /// </summary>
+        public List<float> offsetRot { get; set; }
+        /// <summary>
+        /// 変換元の基準オフセット(m)。前工程で作られたワークに変換元表示を重ねるための補正で、
+        /// 変換後の配置にも加算される（実配置＝変換元＋変換先）
+        /// </summary>
+        public List<float> fromOffset { get; set; }
+        /// <summary>
+        /// 変換元の基準オフセット回転(度)
+        /// </summary>
+        public List<float> fromOffsetRot { get; set; }
     }
 
     [Serializable]

@@ -605,6 +605,31 @@ public class ConveyorScript : KssBaseScript
     /// <summary>
     /// ワールド点をフレーム矩形へ取り込む
     /// </summary>
+    /// <summary>
+    /// 削除位置等の基準フレームを返す。原点＝搬送面の「最上流(fMin)×天面(uMax)×幅中央(l中点)」。
+    /// 姿勢はUnity標準の軸対応（X=横 / Y=上 / Z=流れ）で、fDir/lDir/uDir がそのまま Z/X/Y に対応する。
+    /// 搬送面は物体形状設定やベルトモデルから毎フレーム算出されるため、面高さや領域を変えても追従する。
+    /// 領域未算出（ロード直後・設定不備）では false を返す。
+    /// </summary>
+    /// <param name="pos">基準原点（ワールド）</param>
+    /// <param name="rot">基準姿勢（ワールド）</param>
+    /// <returns>取得できたか</returns>
+    public bool TryGetSurfaceOrigin(out Vector3 pos, out Quaternion rot)
+    {
+        pos = Vector3.zero;
+        rot = Quaternion.identity;
+        if (!lastRegionValid)
+        {
+            return false;
+        }
+        // regionは fDir/lDir/uDir への絶対射影なので、正規直交基底で線形結合すれば元のワールド点に戻る
+        pos = (fDir * lastRegion.fMin)
+            + (uDir * lastRegion.uMax)
+            + (lDir * ((lastRegion.lMin + lastRegion.lMax) * 0.5f));
+        rot = Quaternion.LookRotation(fDir, uDir);
+        return true;
+    }
+
     private void Encapsulate(ref FrameRect rect, Vector3 p, ref bool has)
     {
         var f = Vector3.Dot(p, fDir);
