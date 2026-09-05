@@ -1087,10 +1087,6 @@ namespace Parameters
         /// </summary>
         public bool gravity { get; set; }
         /// <summary>
-        /// 変更
-        /// </summary>
-        public bool change { get; set; }
-        /// <summary>
         /// 動作無視
         /// </summary>
         public bool ignoreMove { get; set; }

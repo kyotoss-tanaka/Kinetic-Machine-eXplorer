@@ -153,7 +153,6 @@ public class MultiObjectFactoryScript : UseTagBaseScript
         /// <summary>
         /// ワーク変更
         /// </summary>
-        public bool IsChange = false;
 
         /// <summary>
         /// 出力先親モデル
@@ -500,7 +499,6 @@ public class MultiObjectFactoryScript : UseTagBaseScript
                     createPoint = setting.objBase.transform.InverseTransformPoint(
                         setting.objBase.transform.position + setting.objBase.transform.rotation * setting.CreatePoint);
                 }
-                var change = false;
                 var work = works[setting.WorkName];
                 var isBucket = setting.backetInfo != null;
                 ObjectScript near = null;
@@ -526,19 +524,8 @@ public class MultiObjectFactoryScript : UseTagBaseScript
                             new Vector2(createPoint.x, createPoint.z)
                         ) < 0.001f);
                 }
-                if (near != null)
-                {
-                    if (setting.IsChange)
-                    {
-                        if (!near.name.Contains(work.work.name) && setting.IsChange)
-                        {
-                            // Destroyでなくプールへ返却する（アクティブリストにnullを残さない）
-                            ReleaseWork(near.gameObject);
-                            change = true;
-                        }
-                    }
-                }
-                if (!bucketBlocked && ((setting.IsChange && change) || (!setting.IsChange && (near == null))))
+                // 近傍に既にワークがあれば作らない（多重生成の防止）
+                if (!bucketBlocked && (near == null))
                 {
                     var obj = work.pool.Get();
                     if (isBucket)
@@ -1100,7 +1087,6 @@ public class MultiObjectFactoryScript : UseTagBaseScript
                     z = wk.rot[2]
                 },
                 AliveDistance = wk.alive,
-                IsChange = wk.change,
                 backetInfo = backetInfo,
                 BacketNo = backetInfo != null ? wk.backetno : -1,
                 objBase = objBase
