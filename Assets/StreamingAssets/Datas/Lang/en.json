@@ -113,5 +113,13 @@
   "進行中": "Running",
   "通過数": "Passed",
   "ワーク未生成": "No work",
-  "なし（従来動作）": "None (legacy)"
+  "なし（従来動作）": "None (legacy)",
+  "リアルタイム": "Realtime",
+  "履歴": "History",
+  "ワーク位置調整 (F9)": "Work Position Adjust (F9)",
+  "調整できる対象がありません。\n生成位置は「設計位置を使用」がOFFの設定のみ対象です。": "No adjustable target.\nCreate positions are listed only when \"Use design position\" is OFF.",
+  "タグ": "Tag",
+  "値をコピー": "Copy Values",
+  "0 に戻す": "Reset to 0",
+  "軸名(青)を左右ドラッグで連続調整（Shift=×10 / Ctrl=×0.1）。＜＞は10mm・1°刻み。欄へ直接入力も可。値はKMXTool側へ転記してください（KMXの変更は保存されません）": "Drag the axis name (blue) left/right for continuous adjustment (Shift=x10 / Ctrl=x0.1). < > step by 10mm / 1deg. Direct entry is also possible. Transfer the values back to KMXTool (changes made in KMX are not saved)."
 }

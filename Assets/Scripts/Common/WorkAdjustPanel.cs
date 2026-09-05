@@ -298,14 +298,14 @@ public class WorkAdjustPanel : MonoBehaviour
             };
             dragLabelStyle.normal.textColor = new Color(0.35f, 0.55f, 0.85f);
         }
-        window = GUILayout.Window(GetInstanceID(), window, DrawWindow, "ワーク位置調整 (F9)");
+        window = GUILayout.Window(GetInstanceID(), window, DrawWindow, Lang.T("ワーク位置調整 (F9)"));
     }
 
     private void DrawWindow(int id)
     {
         if (targets.Count == 0)
         {
-            GUILayout.Label("調整できる対象がありません。\n生成位置は「設計位置を使用」がOFFの設定のみ対象です。");
+            GUILayout.Label(Lang.T("調整できる対象がありません。\n生成位置は「設計位置を使用」がOFFの設定のみ対象です。"));
             GUI.DragWindow();
             return;
         }
@@ -332,7 +332,7 @@ public class WorkAdjustPanel : MonoBehaviour
             // どのタグで動く設定なのかと、その現在値を出す。
             // 「位置は合っているのに動かない」ときにタグ側の問題かを切り分けられる
             GUILayout.BeginHorizontal();
-            GUILayout.Label("タグ", GUILayout.Width(38f));
+            GUILayout.Label(Lang.T("タグ"), GUILayout.Width(38f));
             GUILayout.Label(t.tagName, GUILayout.Width(180f));
             if (t.getTagValue != null)
             {
@@ -414,7 +414,7 @@ public class WorkAdjustPanel : MonoBehaviour
 
         GUILayout.Space(6f);
         GUILayout.BeginHorizontal();
-        if (GUILayout.Button("値をコピー"))
+        if (GUILayout.Button(Lang.T("値をコピー")))
         {
             // KMXTool の入力欄へ貼る用。位置mm・角度度の順
             GUIUtility.systemCopyBuffer = string.Join(", ", new string[]
@@ -427,7 +427,7 @@ public class WorkAdjustPanel : MonoBehaviour
                 values[5].ToString("0.###", CultureInfo.InvariantCulture),
             });
         }
-        if (GUILayout.Button("0 に戻す"))
+        if (GUILayout.Button(Lang.T("0 に戻す")))
         {
             t.setPos(Vector3.zero);
             t.setRot?.Invoke(Vector3.zero);
@@ -435,8 +435,8 @@ public class WorkAdjustPanel : MonoBehaviour
             editedIndex = -1;
         }
         GUILayout.EndHorizontal();
-        GUILayout.Label("軸名(青)を左右ドラッグで連続調整（Shift=×10 / Ctrl=×0.1）。＜＞は10mm・1°刻み。"
-            + "欄へ直接入力も可。値はKMXTool側へ転記してください（KMXの変更は保存されません）",
+        GUILayout.Label(Lang.T("軸名(青)を左右ドラッグで連続調整（Shift=×10 / Ctrl=×0.1）。＜＞は10mm・1°刻み。"
+            + "欄へ直接入力も可。値はKMXTool側へ転記してください（KMXの変更は保存されません）"),
             new GUIStyle(GUI.skin.label) { fontSize = 10, wordWrap = true });
         GUI.DragWindow();
     }

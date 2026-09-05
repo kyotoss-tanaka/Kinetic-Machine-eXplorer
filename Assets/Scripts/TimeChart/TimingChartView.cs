@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.IO;
 using UnityEngine;
 using UnityEngine.EventSystems;
@@ -453,7 +453,7 @@ namespace KyotoSS.TimingChart
 
             // タイトル
             var titleLbl = MakeTMP("Title", ulContent, 9, new Color(0.7f, 0.7f, 0.7f));
-            titleLbl.text = "表示ユニット";
+            titleLbl.text = Lang.T("表示ユニット");
             titleLbl.alignment = TextAlignmentOptions.Center;
             titleLbl.raycastTarget = true;  // クリック受け付け
             var titleLE = titleLbl.gameObject.AddComponent<LayoutElement>();
@@ -2213,7 +2213,7 @@ namespace KyotoSS.TimingChart
                 }
             });
             var lbl = MakeTMP("Text", go.transform, 11, Color.white);
-            lbl.text = "計測";
+            lbl.text = Lang.T("計測");
             lbl.alignment = TextAlignmentOptions.Center;
             lbl.rectTransform.anchorMin = Vector2.zero;
             lbl.rectTransform.anchorMax = Vector2.one;
@@ -2240,7 +2240,7 @@ namespace KyotoSS.TimingChart
             btn.colors = colors;
             btn.onClick.AddListener(() => OnModeToggleRequested?.Invoke());
             m_ModeButtonLbl = MakeTMP("Text", go.transform, 11, Color.white);
-            m_ModeButtonLbl.text = "● リアルタイム";
+            m_ModeButtonLbl.text = "● " + Lang.T("リアルタイム");
             m_ModeButtonLbl.alignment = TextAlignmentOptions.Center;
             m_ModeButtonLbl.rectTransform.anchorMin = Vector2.zero;
             m_ModeButtonLbl.rectTransform.anchorMax = Vector2.one;
@@ -2383,12 +2383,12 @@ namespace KyotoSS.TimingChart
             if (mode == TimeChartController.ChartMode.Realtime)
             {
                 m_ModeButtonImg.color = new Color(0.2f, 0.35f, 0.55f);
-                m_ModeButtonLbl.text = "● リアルタイム";
+                m_ModeButtonLbl.text = "● " + Lang.T("リアルタイム");
             }
             else
             {
                 m_ModeButtonImg.color = new Color(0.45f, 0.3f, 0.15f);
-                m_ModeButtonLbl.text = "■ 履歴";
+                m_ModeButtonLbl.text = "■ " + Lang.T("履歴");
             }
         }
 

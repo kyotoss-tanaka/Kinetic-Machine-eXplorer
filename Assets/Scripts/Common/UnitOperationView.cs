@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using Parameters;
 using TMPro;
 using UnityEngine;
@@ -1078,7 +1078,7 @@ public class UnitOperationView : MonoBehaviour
         {
             return;
         }
-        ufOpenBtn.tmp.text = unitPanelOpen ? "閉じる" : "ユニット選択";
+        ufOpenBtn.tmp.text = unitPanelOpen ? Lang.T("閉じる") : Lang.T("ユニット選択");
         PlaceButton(ufOpenBtn, UfOpenRect(), true);   // 開くボタンは常時
 
         bool open = unitPanelOpen;
@@ -1092,7 +1092,7 @@ public class UnitOperationView : MonoBehaviour
             if (open)
             {
                 SetRect(ufTitle.rectTransform, UfTitleRect());
-                ufTitle.text = drillPrefix.Count == 0 ? "ユニット一覧" : string.Join(" ＞ ", drillPrefix);
+                ufTitle.text = drillPrefix.Count == 0 ? Lang.T("ユニット一覧") : string.Join(" ＞ ", drillPrefix);
             }
             SetGoActive(ufTitle.gameObject, open);
         }
