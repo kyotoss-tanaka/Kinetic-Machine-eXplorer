@@ -556,6 +556,15 @@ public class MultiObjectFactoryScript : UseTagBaseScript
                         obj.transform.localEulerAngles = createRotate;
                         obj.transform.localScale = Vector3.one;
                     }
+                    // プールから取り出したワークは寝たまま復帰することがある。
+                    // 位置を置き直した直後に起こさないと重力が働かず生成位置に居座り、
+                    // 次サイクルで near != null となって新しいワークが作られなくなる
+                    // （以前は ObjectScript が毎フレーム全ワークを起こしていたため隠れていた）
+                    var newRigi = obj.GetComponentInChildren<Rigidbody>();
+                    if ((newRigi != null) && !newRigi.isKinematic)
+                    {
+                        newRigi.WakeUp();
+                    }
                     var script = obj.GetComponent<ObjectScript>();
                     if (script == null)
                     {
