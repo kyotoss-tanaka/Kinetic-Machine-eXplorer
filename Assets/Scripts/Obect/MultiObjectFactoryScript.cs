@@ -452,15 +452,9 @@ public class MultiObjectFactoryScript : UseTagBaseScript
                         // ワークのレンダラ境界ボックス上の最近点と削除位置の距離で判定する
                         // （中心点判定だと背の高いワークの下部に球が重なっていても中心が範囲外で消えない）
                         var nearest = obj.transform.position;
-                        var rends = obj.GetComponentsInChildren<Renderer>();
-                        if (rends.Length > 0)
+                        if (TryGetWorkBounds(obj, out var delBounds))
                         {
-                            var bounds = rends[0].bounds;
-                            for (var ri = 1; ri < rends.Length; ri++)
-                            {
-                                bounds.Encapsulate(rends[ri].bounds);
-                            }
-                            nearest = bounds.ClosestPoint(worldDelete);
+                            nearest = delBounds.ClosestPoint(worldDelete);
                         }
                         var dis = Vector3.Distance(nearest, worldDelete);
                         if (dis >= setting.AliveDistance)
@@ -606,13 +600,11 @@ public class MultiObjectFactoryScript : UseTagBaseScript
     /// アタッチ範囲の確認表示にタグ状態を反映する。ONで濃く、OFFで薄く表示し、
     /// 設定したタグが実際に動いているかを球の見た目だけで判断できるようにする。
     /// </summary>
-    /// <returns>今回がタグの立ち上がり（OFF→ON）なら true</returns>
-    private static bool ApplyAttachZoneStat(MultiObjectInfo setting, bool stat)
+    private static void ApplyAttachZoneStat(MultiObjectInfo setting, bool stat)
     {
-        var isRise = stat && (setting.zoneStat != true);
         if (setting.zoneStat == stat)
         {
-            return isRise;
+            return;
         }
         setting.zoneStat = stat;
         if (setting.zoneRenderer != null)
@@ -627,7 +619,6 @@ public class MultiObjectFactoryScript : UseTagBaseScript
                 if (m.HasProperty("_Color")) { m.SetColor("_Color", col); }
             }
         }
-        return isRise;
     }
 
     /// <summary>
@@ -701,7 +692,7 @@ public class MultiObjectFactoryScript : UseTagBaseScript
     {
         // 確認表示（Ctrl+Shift）の不透明度でタグON/OFFを示す。
         // 設定したタグが実際に動いているかを、球を見るだけで判断できるようにする
-        var isRise = ApplyAttachZoneStat(setting, stat);
+        ApplyAttachZoneStat(setting, stat);
         if (stat)
         {
             // 範囲内のワークを取り込む（実位置・実姿勢のまま子化）
@@ -709,13 +700,6 @@ public class MultiObjectFactoryScript : UseTagBaseScript
             // 生成・削除の判定と同じ「ワールド位置＋姿勢回転」で求める
             var center = setting.objBase.transform.position
                 + setting.objBase.transform.rotation * setting.CreatePoint;
-            var candidates = 0;
-            var taken = 0;
-            var nearest = float.MaxValue;
-            var nearestName = "";
-            var nearestShape = -1f;
-            var nearestSurface = -1f;
-            var nearestSize = Vector3.zero;
             foreach (var pool in works)
             {
                 if ((setting.WorkName != null) && (setting.WorkName != "") && (pool.Key != setting.WorkName))
@@ -738,27 +722,12 @@ public class MultiObjectFactoryScript : UseTagBaseScript
                     // ※既存設定を壊さないよう「原点が範囲内」または「形状が範囲内」の和で判定する
                     var dist = Vector3.Distance(obj.transform.position, center);
                     var inRange = dist <= setting.AliveDistance;
-                    var shapeDist = -1f;
-                    if (TryGetWorkBounds(obj, out var wb))
+                    if (!inRange && TryGetWorkBounds(obj, out var wb))
                     {
-                        shapeDist = Vector3.Distance(wb.ClosestPoint(center), center);
-                        inRange = inRange || (shapeDist <= setting.AliveDistance);
+                        inRange = Vector3.Distance(wb.ClosestPoint(center), center) <= setting.AliveDistance;
                     }
-                    if (dist < nearest)
-                    {
-                        nearest = dist;
-                        nearestName = pool.Key;
-                        if (isRise && TryGetWorkBounds(obj, out var nb))
-                        {
-                            nearestShape = Vector3.Distance(nb.center, center);
-                            nearestSurface = shapeDist;
-                            nearestSize = nb.size;
-                        }
-                    }
-                    candidates++;
                     if (inRange)
                     {
-                        taken++;
                         obj.transform.SetParent(setting.objBase.transform, true);
                         if (setting.IsAttachFix)
                         {
@@ -786,18 +755,6 @@ public class MultiObjectFactoryScript : UseTagBaseScript
                         }
                     }
                 }
-            }
-            if (isRise)
-            {
-                // タグONの瞬間に1回だけ出す。掴めないときの切り分け材料
-                // ※判定はワークの原点位置と中心の距離。見た目が球に重なっていても
-                //   原点が範囲外なら掴まない（形状の端に原点があるモデルで起こりやすい）
-                Debug.Log($"[WorkAttach] {setting.objBase.name} 対象名='{setting.WorkName}' "
-                    + $"範囲={setting.AliveDistance:F3}m 候補={candidates}個 取込={taken}個 "
-                    + $"最近ワーク={(nearestName == "" ? "なし" : nearestName)} "
-                    + $"距離[原点]={(nearest == float.MaxValue ? -1f : nearest):F3}m "
-                    + $"距離[形状中心]={nearestShape:F3}m 距離[形状表面]={nearestSurface:F3}m "
-                    + $"外形={nearestSize.x:F3}x{nearestSize.y:F3}x{nearestSize.z:F3}m");
             }
         }
         else if (setting.Attached.Count > 0)
@@ -862,7 +819,16 @@ public class MultiObjectFactoryScript : UseTagBaseScript
                 {
                     continue;
                 }
-                if (Vector3.Distance(old.transform.position, center) > setting.AliveDistance)
+                // 判定はワーク原点との距離だけでなく、形状（レンダラのワールド境界）とも比較する。
+                // CADモデルの原点は形状の外にあることが多く、見た目が範囲に入っていても
+                // 変換されない事故が起きる（アタッチで実際に踏んだ）。
+                // ※既存設定を壊さないよう「原点が範囲内」または「形状が範囲内」の和で判定する
+                var inRange = Vector3.Distance(old.transform.position, center) <= setting.AliveDistance;
+                if (!inRange && TryGetWorkBounds(old, out var oldBounds))
+                {
+                    inRange = Vector3.Distance(oldBounds.ClosestPoint(center), center) <= setting.AliveDistance;
+                }
+                if (!inRange)
                 {
                     continue;
                 }
@@ -1525,9 +1491,7 @@ public class MultiObjectFactoryScript : UseTagBaseScript
 
     /// <summary>
     /// F9パネル表示用のタグ現在値を返す。
-    /// ※GlobalScript.GetTagData(TagInfo) は tagDatas[..][TagInfo.Tag] で再検索するため使えない。
-    ///   デバイスアドレス形式（d_plc_y1[896]等）で解決されたタグは TagInfo.Tag が空で、
-    ///   再検索が必ず失敗して常に0になる。工場側と同じく TagInfo.Value を直接読む
+    /// 「-」始まりの反転入力を工場側と同じ扱いにするため、専用に用意している
     /// </summary>
     private static int GetTagValueForDisplay(UnitSetting unitSetting, string tagName)
     {

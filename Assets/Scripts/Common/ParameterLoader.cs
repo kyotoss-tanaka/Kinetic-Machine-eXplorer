@@ -246,6 +246,20 @@ namespace Parameters
             WorkAdjustPanel.Clear();
             ConveyorScript.ClearWorkFilterCache();
             CardboardScript.ClearInstances();
+            // ワークのテンプレート実体を破棄する。
+            // GlobalScript.works（プールの供給元）は ClearDictionary で毎回作り直されるのに、
+            // その中身を作る側のこのリストは保持されたままだった。そのためF5では初回ロード時の
+            // インスタンスが使われ続け、プレハブやワークモデルを差し替えても反映されない。
+            // MultiObjectFactoryScript 側はプールを完全に破棄・再構築しているので、
+            // テンプレートも作り直すのが整合する
+            foreach (var w in works)
+            {
+                if (w.obj != null)
+                {
+                    Destroy(w.obj);
+                }
+            }
+            works.Clear();
             GlobalScript.ClearDictionary();
             yield return null; // 1フレーム待
 
@@ -2424,9 +2438,8 @@ namespace Parameters
                     }
                     else
                     {
-                        // F5の再読み込み。works は保持されるためモデルは作り直さないが、
-                        // 設定は入れ替わっているので既存の実体へ反映する
-                        // （反映しないとチェックポイントのタグが更新されない）
+                        // 安全網。works はロード開始時に破棄されるため通常はここへ来ないが、
+                        // 同一ロード内で再度呼ばれた場合に設定を取りこぼさないようにする
                         var cbs = c.obj.GetComponent<CardboardScript>();
                         if (cbs == null)
                         {

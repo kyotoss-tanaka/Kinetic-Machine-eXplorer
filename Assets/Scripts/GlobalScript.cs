@@ -627,7 +627,24 @@ public static class GlobalScript
         {
             return 0;
         }
-        return GetTagData(tag.Database, tag.MechId, tag.Tag);
+        // まず登録済みのTagInfoを名前で引く。
+        // 各機構がScriptableObject.CreateInstanceで組み立てたTagInfoは自身に値が入らないため、
+        // 登録済みインスタンスを引き当てないと値が取れない
+        if ((tag.Database != null) && (tag.MechId != null) && !string.IsNullOrEmpty(tag.Tag)
+            && tagDatas.ContainsKey(tag.Database) && tagDatas[tag.Database].ContainsKey(tag.MechId)
+            && tagDatas[tag.Database][tag.MechId].ContainsKey(tag.Tag))
+        {
+            var t = tagDatas[tag.Database][tag.MechId][tag.Tag];
+            t.wasRead = true;   // デジタルツイン: 読まれたタグを記録（購読対象の絞り込み）
+            return t.Value;
+        }
+        // 名前で引けない場合は自身の値を返す。
+        // GetTagInfo が返した登録済みインスタンスは、デバイスアドレス形式
+        // （d_plc_y1[896]等）で登録されていると Tag が空で名前検索できないが、
+        // インスタンス自体は更新されているため Value がそのまま使える。
+        // ※以前は常に名前検索していたため、この種のタグがONでも0を返していた
+        tag.wasRead = true;
+        return tag.Value;
     }
 
     /// <summary>

@@ -639,9 +639,7 @@ public class CardboardScript : KssBaseScript
             var next = checkPoints[checkIndex];
             if (playHead >= next.time)
             {
-                // ※GlobalScript.GetTagData(TagInfo) は tagDatas[..][TagInfo.Tag] で再検索するため使えない。
-                //   デバイスアドレス形式（d_plc_y1[896]等）で解決されたタグは TagInfo.Tag が空で、
-                //   再検索が必ず失敗して常に0になり、ONでも待機し続ける。TagInfo.Value を直接読む
+                // 解決済みのTagInfoなので値を直接読む（毎サブステップの辞書引きを避ける）
                 if ((next.tag != null) && (next.tag.Value < 1))
                 {
                     // 待機中。時刻を止めたまま返す

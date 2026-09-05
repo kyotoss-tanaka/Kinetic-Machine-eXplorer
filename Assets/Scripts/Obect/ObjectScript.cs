@@ -92,10 +92,14 @@ public class ObjectScript : BaseBehaviour
             MultiObjectFactoryScript.ReleaseWorkStatic(this.gameObject);
             return;
         }
-        if (rigi.IsSleeping() && !rigi.isKinematic)
-        {
-            rigi.WakeUp();
-        }
+        // 静止ワークの強制起床。吸盤の接触検出（OnCollisionStay）は接触ペアの両方が寝ると
+        // 呼ばれないため、拾う前の静止ワークを起こす目的で入れていた。
+        // 吸盤をアタッチ（距離判定）へ移行したため不要と判断して停止する。
+        // ※戻す場合はこのコメントを外すこと。吸盤を使う案件では必要になる
+        //if (rigi.IsSleeping() && !rigi.isKinematic)
+        //{
+        //    rigi.WakeUp();
+        //}
         //        transform.localEulerAngles = this.fixedAngles;
     }
 
