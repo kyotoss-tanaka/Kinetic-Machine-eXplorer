@@ -13,7 +13,7 @@ PlayerSettings:
   useOnDemandResources: 0
   accelerometerFrequency: 60
   companyName: Kyoto Seisakusho Co., Ltd.
-  productName: KMX 1503_PACK EXPO PMI2
+  productName: "KMX R0230_\u65B0\u578BKTB-100(\u9006\u52DD\u624B)"
   defaultCursor: {fileID: 0}
   cursorHotspot: {x: 0, y: 0}
   m_SplashScreenBackgroundColor: {r: 0.13725491, g: 0.12156863, b: 0.1254902, a: 1}
@@ -172,7 +172,7 @@ PlayerSettings:
   androidMinAspectRatio: 1
   applicationIdentifier:
     Android: com.kyotoss.kmx_R8790_vr
-    Standalone: com.kyotoss.kmx-1503
+    Standalone: com.kyotoss.kmx-R0230
     WebGL: com.kyotoss.kmx-R0230
   buildNumber:
     Standalone: 0
