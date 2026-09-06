@@ -1,4 +1,5 @@
-﻿using System.Collections;
+﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -83,13 +84,44 @@ public class BaseBehaviour : MonoBehaviour
     private Unity.Profiling.ProfilerMarker marker;
 
     /// <summary>
+    /// MyFixedUpdate で例外が出た回数
+    /// </summary>
+    private int errorCount = 0;
+
+    /// <summary>
+    /// 同じ例外を出し続けたときにログへ出す間隔(回)。50Hz で約6秒ごと
+    /// </summary>
+    private const int ErrorLogInterval = 300;
+
+    /// <summary>
     /// 計測マーカー付きで MyFixedUpdate を呼ぶ（using をイテレータ外に置くため別メソッドにする）
     /// </summary>
     private void InvokeMyFixedUpdate()
     {
         using (marker.Auto())
         {
-            MyFixedUpdate();
+            try
+            {
+                MyFixedUpdate();
+            }
+            catch (Exception ex)
+            {
+                // コルーチンの中で例外を外へ投げると、Unity はそのコルーチンを停止する。
+                // つまり一度の例外でこのスクリプトの更新が二度と呼ばれなくなり、
+                // エラーが1行出たあとは静かに何もしなくなる
+                // （実際に MultiObjectFactoryScript が止まってワーク生成が停止した）。
+                // 通常の Update/FixedUpdate は Unity 側が呼び出しごとに例外を受け止めるので
+                // こうはならない。コルーチン経路だけの問題なのでここで受ける。
+                //
+                // 握りつぶすと原因が分からなくなるため、内容とスタックは必ずログへ出す。
+                // 毎フレーム出続けるとログが埋まるので、最初の1回と一定回数ごとに絞る。
+                errorCount++;
+                if ((errorCount == 1) || ((errorCount % ErrorLogInterval) == 0))
+                {
+                    Debug.LogError($"[{GetType().Name}] {name} の MyFixedUpdate で例外が発生しました"
+                        + $"（{errorCount}回目・処理は継続します）: {ex}");
+                }
+            }
         }
     }
 
