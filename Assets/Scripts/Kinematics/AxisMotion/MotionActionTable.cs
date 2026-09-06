@@ -91,6 +91,12 @@ public class MotionActionTable : AxisMotionBase
     }
 
     /// <summary>
+    /// 動作テーブル内の現在位置。cycle はサイクルごとに0へ戻るが、
+    /// その際も後方 walk で復帰する（1サイクルに1回だけの走査で済む）
+    /// </summary>
+    private int tableIndex = -1;
+
+    /// <summary>
     /// 更新処理
     /// </summary>
     protected override void MyFixedUpdate()
@@ -103,8 +109,7 @@ public class MotionActionTable : AxisMotionBase
         if ((actionTableData != null) && (actionTableData.datas.Count > 0))
         {
             value = 0;
-            var before = actionTableData.datas.LastOrDefault(d => d.time <= cycle);
-            var after = actionTableData.datas.FirstOrDefault(d => d.time >= cycle);
+            CommonFunction.FindActionSpan(actionTableData.datas, cycle, ref tableIndex, out var before, out var after);
             if (before != null && after != null && before.time != after.time)
             {
                 value = before.value + (after.value - before.value) * (cycle - before.time) / (after.time - before.time);

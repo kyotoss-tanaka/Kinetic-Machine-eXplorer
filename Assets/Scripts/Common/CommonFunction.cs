@@ -1,4 +1,5 @@
 ﻿using System;
+using Parameters;
 using System.Collections.Generic;
 using System.Numerics;
 using UnityEngine;
@@ -141,4 +142,57 @@ public static class CommonFunction
     #endregion デバッグ用
 
     #endregion メソッド
+
+    /// <summary>
+    /// 動作テーブルから、指定時刻を挟む前後の行を求める。datas は time 昇順である前提
+    /// （利用側の初期化で OrderBy 済み）。
+    ///
+    /// 元は LastOrDefault / FirstOrDefault を使っていたが、述語つきの LastOrDefault は
+    /// 一致を探すためにリスト全体を走査し、さらに時刻を捕まえるクロージャを毎回確保する。
+    /// time/value が decimal で比較自体も重く、テーブルは最大557行あるため、
+    /// 参照するオブジェクトの数に比例して積み上がっていた（段ボール9個で6.25ms・GC 23.4KB）。
+    /// 再生ヘッドはほぼ前進するので、前回位置から進める形にすれば1回あたり数比較で済む。
+    /// 戻った場合（リセットや別個体の使い回し）も後方へ walk して自力で復帰する。
+    /// </summary>
+    /// <param name="datas">動作テーブル（time昇順）</param>
+    /// <param name="t">求める時刻</param>
+    /// <param name="index">前回の探索位置。呼び出しごとに更新する</param>
+    /// <param name="before">time &lt;= t を満たす最後の行。無ければ null</param>
+    /// <param name="after">time &gt;= t を満たす最初の行。無ければ null</param>
+    public static void FindActionSpan(List<ActionData> datas, decimal t, ref int index, out ActionData before, out ActionData after)
+    {
+        before = null;
+        after = null;
+        var count = datas.Count;
+        if (count == 0)
+        {
+            return;
+        }
+        if (index >= count)
+        {
+            index = count - 1;
+        }
+        // time <= t を満たす最後の位置まで進める／戻す
+        while ((index + 1 < count) && (datas[index + 1].time <= t))
+        {
+            index++;
+        }
+        while ((index >= 0) && (datas[index].time > t))
+        {
+            index--;
+        }
+        before = (index >= 0) ? datas[index] : null;
+        // time >= t を満たす最初の位置。同一時刻が並ぶ場合は先頭を採る（LastOrDefault/FirstOrDefault と同じ結果にする）
+        var next = index + 1;
+        if ((index >= 0) && (datas[index].time == t))
+        {
+            next = index;
+            while ((next > 0) && (datas[next - 1].time == t))
+            {
+                next--;
+            }
+        }
+        after = (next < count) ? datas[next] : null;
+    }
+
 }

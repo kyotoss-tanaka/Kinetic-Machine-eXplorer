@@ -398,7 +398,7 @@ public class CardboardScript : KssBaseScript
                 if ((parts.actionTableData != null) && (parts.actionTableData.datas.Count > 0))
                 {
                     parts.value = 0;
-                    FindSpan(parts.actionTableData.datas, cycle, ref parts.tableIndex, out var before, out var after);
+                    CommonFunction.FindActionSpan(parts.actionTableData.datas, cycle, ref parts.tableIndex, out var before, out var after);
                     if (before != null && after != null && before.time != after.time)
                     {
                         parts.value = before.value + (after.value - before.value) * (cycle - before.time) / (after.time - before.time);
@@ -638,58 +638,6 @@ public class CardboardScript : KssBaseScript
     /// 次のチェックポイント時刻に達したら、そのタグがONになるまで止める（到達時に既にONなら通過）。
     /// IOがOFFに戻っても巻き戻さない（製函は一方通行）
     /// </summary>
-    /// <summary>
-    /// 動作テーブルから、指定時刻を挟む前後の行を求める。datas は time 昇順である前提
-    /// （<see cref="SetPartsData"/> でソート済み）。
-    ///
-    /// 元は LastOrDefault / FirstOrDefault を使っていたが、述語つきの LastOrDefault は
-    /// 一致を探すためにリスト全体を走査し、さらに時刻を捕まえるクロージャを毎回確保する。
-    /// テーブルは最大557行、1個の段ボールにテーブル付きパーツが9つあり、
-    /// 段ボールの個数に比例して積み上がっていた（9個で6.25ms・GC 23.4KB）。
-    /// 再生ヘッドはほぼ前進するので、前回位置から進める形にすれば1回あたり数比較で済む。
-    /// 戻った場合（リセットや別個体の使い回し）も後方へ walk して自力で復帰する。
-    /// </summary>
-    /// <param name="datas">動作テーブル（time昇順）</param>
-    /// <param name="t">求める時刻</param>
-    /// <param name="index">前回の探索位置。呼び出しごとに更新する</param>
-    /// <param name="before">time &lt;= t を満たす最後の行。無ければ null</param>
-    /// <param name="after">time &gt;= t を満たす最初の行。無ければ null</param>
-    private static void FindSpan(List<ActionData> datas, decimal t, ref int index, out ActionData before, out ActionData after)
-    {
-        before = null;
-        after = null;
-        var count = datas.Count;
-        if (count == 0)
-        {
-            return;
-        }
-        if (index >= count)
-        {
-            index = count - 1;
-        }
-        // time <= t を満たす最後の位置まで進める／戻す
-        while ((index + 1 < count) && (datas[index + 1].time <= t))
-        {
-            index++;
-        }
-        while ((index >= 0) && (datas[index].time > t))
-        {
-            index--;
-        }
-        before = (index >= 0) ? datas[index] : null;
-        // time >= t を満たす最初の位置。同一時刻が並ぶ場合は先頭を採る（LastOrDefault/FirstOrDefault と同じ結果にする）
-        var next = index + 1;
-        if ((index >= 0) && (datas[index].time == t))
-        {
-            next = index;
-            while ((next > 0) && (datas[next - 1].time == t))
-            {
-                next--;
-            }
-        }
-        after = (next < count) ? datas[next] : null;
-    }
-
     private void AdvancePlayHead()
     {
         if (checkIndex < checkPoints.Count)

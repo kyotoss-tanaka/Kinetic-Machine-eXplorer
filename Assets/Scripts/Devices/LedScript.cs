@@ -51,6 +51,28 @@ public class LedScript : KssBaseScript
     [SerializeField]
     protected List<int> values;
 
+    /// <summary>
+    /// 色を変える対象のマテリアル。
+    /// renderer.materials はアクセスのたびに配列を確保し、初回はマテリアルの複製も起こすため、
+    /// 毎フレーム触ってよいものではない。初期化時に1度だけ集める
+    /// </summary>
+    private Material[] targetMaterials;
+
+    /// <summary>前回適用した色</summary>
+    private Color appliedColor;
+
+    /// <summary>前回適用した発光有無</summary>
+    private bool appliedEmission;
+
+    /// <summary>1度でも適用したか</summary>
+    private bool hasApplied = false;
+
+    /// <summary>シェーダプロパティID（文字列引きを避ける）</summary>
+    private static readonly int emissionColorId = Shader.PropertyToID("_EmissionColor");
+
+    /// <summary>シェーダプロパティID（文字列引きを避ける）</summary>
+    private static readonly int baseColorId = Shader.PropertyToID("_BaseColor");
+
     /*
     /// <summary>
     /// ポストプロセス
@@ -90,6 +112,7 @@ public class LedScript : KssBaseScript
         */
         // 初期値セット
         InitLedColor();
+        CacheMaterials();
     }
 
     protected override void OnDestroy()
@@ -111,49 +134,76 @@ public class LedScript : KssBaseScript
         {
             leds = new();
         }
-        if (leds.Count > 0)
+        if (leds.Count == 0)
         {
-            // タグ更新
-            if (!isManual)
+            return;
+        }
+        // タグ更新
+        if (!isManual)
+        {
+            for (var i = 0; i < leds.Count; i++)
             {
-                for (var i = 0; i < leds.Count; i++)
-                {
-                    values[i] = GetTagValue(leds[i].name, ref leds[i]._tag);
-                }
+                values[i] = GetTagValue(leds[i].name, ref leds[i]._tag);
             }
-            // LEDセット
-            if (type == 0)
+        }
+        // 適用すべき色と発光を決める
+        Color color;
+        bool emission;
+        if (type == 0)
+        {
+            emission = (values[0] == 1);
+            color = leds[0].material.color;
+        }
+        else
+        {
+            var c = Color.black;
+            for (var i = 0; i < leds.Count; i++)
             {
-                foreach (var renderer in meshRenderers)
-                {
-                    SetColor(renderer, leds[0].material.color, values[0] == 1);
-                }
+                c += (values[i] == 1) ? leds[i].material.color : Color.black;
             }
-            else
+            var max = c.r;
+            if (max < c.b)
             {
-                Color c = Color.black;
-                foreach (var led in leds)
+                max = c.b;
+            }
+            if (max < c.g)
+            {
+                max = c.g;
+            }
+            c = (max == 0) ? Color.black : new Color(c.r / max, c.g / max, c.b / max, 1);
+            emission = (c != Color.black);
+            color = emission ? c : Color.white;
+        }
+        // LEDの状態は滅多に変わらない。同じ値を入れ直してもシェーダキーワードの切替と
+        // マテリアル更新が毎フレーム走るので、変化したときだけ適用する
+        if (hasApplied && (emission == appliedEmission) && (color == appliedColor))
+        {
+            return;
+        }
+        hasApplied = true;
+        appliedEmission = emission;
+        appliedColor = color;
+        SetColor(color, emission);
+    }
+
+    /// <summary>
+    /// 色を変える対象のマテリアルを集める。
+    /// 対象は各MeshRendererのマテリアルのうち、線描画用を除いたもの
+    /// </summary>
+    private void CacheMaterials()
+    {
+        var list = new List<Material>();
+        foreach (var renderer in meshRenderers)
+        {
+            foreach (var mat in renderer.materials)
+            {
+                if (!mat.name.Contains("Default Line Material"))
                 {
-                    var index = leds.IndexOf(led);
-                    c += values[index] == 1 ? led.material.color : Color.black;
-                }
-                var max = c.r;
-                if (max < c.b)
-                {
-                    max = c.b;
-                }
-                if (max < c.g)
-                {
-                    max = c.g;
-                }
-                c = max == 0 ? Color.black : new Color(c.r / max, c.g / max, c.b / max, 1);
-                bool emission = c != Color.black;
-                foreach (var renderer in meshRenderers)
-                {
-                    SetColor(renderer, emission ? c : Color.white, emission);
+                    list.Add(mat);
                 }
             }
         }
+        targetMaterials = list.ToArray();
     }
 
     private void InitLedColor()
@@ -173,30 +223,29 @@ public class LedScript : KssBaseScript
         }
     }
 
-    private void SetColor(MeshRenderer renderer, Color color, bool emission)
+    /// <summary>
+    /// 対象マテリアルへ色と発光を適用する
+    /// </summary>
+    private void SetColor(Color color, bool emission)
     {
-        /*
-        ppvs[renderer].isGlobal = emission;
-        blooms[renderer].color.value = color;
-        */
-        MaterialPropertyBlock mpb = new MaterialPropertyBlock();
-        renderer.GetPropertyBlock(mpb);
-        mpb.SetColor("_Color", color);
-        foreach (var mat in renderer.materials)
+        if (targetMaterials == null)
         {
-            if (!mat.name.Contains("Default Line Material"))
+            CacheMaterials();
+        }
+        var emissionColor = color * Mathf.LinearToGammaSpace(CommonDefine.EmissionIntensity);
+        var baseColor = color * (emission ? 1f : 0.5f);
+        foreach (var mat in targetMaterials)
+        {
+            if (emission)
             {
-                if (emission)
-                {
-                    mat.EnableKeyword("_EMISSION");
-                }
-                else
-                {
-                    mat.DisableKeyword("_EMISSION");
-                }
-                mat.SetColor("_EmissionColor", color * Mathf.LinearToGammaSpace(CommonDefine.EmissionIntensity));
-                mat.SetColor("_BaseColor", color * (emission ? 1f : 0.5f));
+                mat.EnableKeyword("_EMISSION");
             }
+            else
+            {
+                mat.DisableKeyword("_EMISSION");
+            }
+            mat.SetColor(emissionColorId, emissionColor);
+            mat.SetColor(baseColorId, baseColor);
         }
     }
 
@@ -218,6 +267,7 @@ public class LedScript : KssBaseScript
         }
         leds = new();
         values = new();
+        hasApplied = false;
         var ledSetting = (LedSetting)obj;
         type = ledSetting.type;
         foreach (var data in ledSetting.ledDatas)

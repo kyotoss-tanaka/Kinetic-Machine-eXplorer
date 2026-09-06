@@ -692,12 +692,31 @@ public static class GlobalScript
     /// <param name="value"></param>
     public static void SetTagData(TagInfo tag, int value)
     {
-        if (tag != null)
+        if (tag == null)
         {
-            tag.Value = value;
-            SetTagDatas(new List<TagInfo> { tag });
+            return;
         }
+        tag.Value = value;
+        if (tag.Database == null)
+        {
+            return;
+        }
+        // 1タグのために List と Dictionary を確保しない。
+        // センサ・吸引・サイクルタグ通知など毎フレーム呼ばれる経路が多く、
+        // 対象の個数ぶんそのまま積み上がる。
+        // 通信スクリプトは自前スレッドからも呼ぶため、バッファはスレッドごとに持つ。
+        // 各 SetDatas は渡されたリストを保持せず同期的に読み切るので使い回して問題ない
+        singleTagBuffer ??= new List<TagInfo>(1);
+        singleTagBuffer.Clear();
+        singleTagBuffer.Add(tag);
+        SendTagsToDatabase(tag.Database, singleTagBuffer);
     }
+
+    /// <summary>
+    /// 1タグ設定用の使い回しバッファ（スレッドごと）
+    /// </summary>
+    [ThreadStatic]
+    private static List<TagInfo> singleTagBuffer;
 
     /// <summary>
     /// タグに値をセット
@@ -720,48 +739,59 @@ public static class GlobalScript
         }
         foreach (var tag in dctTagInfo)
         {
-            if (postgreses.ContainsKey(tag.Key))
-            {
-                postgreses[tag.Key].SetDatas(tag.Value);
-            }
-            else if (mongos.ContainsKey(tag.Key))
-            {
-                mongos[tag.Key].SetDatas(tag.Value);
-            }
-            else if (opcuaapis.ContainsKey(tag.Key))
-            {
-                opcuaapis[tag.Key].SetDatas(tag.Value);
-            }
-            else if (mqtts.ContainsKey(tag.Key))
-            {
-                mqtts[tag.Key].SetDatas(tag.Value);
-            }
-            else if (redises.ContainsKey(tag.Key))
-            {
-                redises[tag.Key].SetDatas(tag.Value);
-            }
-            else if (inners.ContainsKey(tag.Key))
-            {
-                inners[tag.Key].SetDatas(tag.Value);
-            }
-            else if (mcprotocols.ContainsKey(tag.Key))
-            {
-                mcprotocols[tag.Key].SetDatas(tag.Value);
-            }
-            else if (mickses.ContainsKey(tag.Key))
-            {
-                mickses[tag.Key].SetDatas(tag.Value);
-            }
-            else if (opcuas.ContainsKey(tag.Key))
-            {
-                opcuas[tag.Key].SetDatas(tag.Value);
-            }
-            else if (ethernetips.ContainsKey(tag.Key))
-            {
-                ethernetips[tag.Key].SetDatas(tag.Value);
-            }
+            SendTagsToDatabase(tag.Key, tag.Value);
         }
     }
+
+    /// <summary>
+    /// 同一データベースのタグ群を、該当する通信スクリプトへ渡す
+    /// </summary>
+    /// <param name="database">データベース名</param>
+    /// <param name="tags">渡すタグ（呼び出し中のみ有効。呼ばれた側は保持しない）</param>
+    private static void SendTagsToDatabase(string database, List<TagInfo> tags)
+    {
+        if (postgreses.ContainsKey(database))
+        {
+            postgreses[database].SetDatas(tags);
+        }
+        else if (mongos.ContainsKey(database))
+        {
+            mongos[database].SetDatas(tags);
+        }
+        else if (opcuaapis.ContainsKey(database))
+        {
+            opcuaapis[database].SetDatas(tags);
+        }
+        else if (mqtts.ContainsKey(database))
+        {
+            mqtts[database].SetDatas(tags);
+        }
+        else if (redises.ContainsKey(database))
+        {
+            redises[database].SetDatas(tags);
+        }
+        else if (inners.ContainsKey(database))
+        {
+            inners[database].SetDatas(tags);
+        }
+        else if (mcprotocols.ContainsKey(database))
+        {
+            mcprotocols[database].SetDatas(tags);
+        }
+        else if (mickses.ContainsKey(database))
+        {
+            mickses[database].SetDatas(tags);
+        }
+        else if (opcuas.ContainsKey(database))
+        {
+            opcuas[database].SetDatas(tags);
+        }
+        else if (ethernetips.ContainsKey(database))
+        {
+            ethernetips[database].SetDatas(tags);
+        }
+    }
+
 
     /// <summary>
     /// タグを使用しているオブジェクト取得
