@@ -99,3 +99,7 @@ crashlytics-build.properties
 /Assets/Fonts/NotoSansJP
 /Assets/Fonts
 /Assets/3DModels~
+
+# Unity のクラッシュ復旧用バックアップ（実体はローカルに残す）
+/Assets/_Recovery
+/Assets/_Recovery.meta
