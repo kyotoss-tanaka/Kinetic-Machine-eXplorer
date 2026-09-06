@@ -57,6 +57,35 @@ public class ComBaseScript : KssBaseScript
     protected object objLock = new object();
 
     /// <summary>
+    /// 未解決のデータ交換を引き直す間隔(呼び出し回数)。
+    /// 実機PLC/MICKS接続時は初回で解決してキャッシュされるのでこの間引きは働かない。
+    /// 内部モードのように相手側のタグがまだ存在しない構成で、毎フレームの空振り検索を防ぐ。
+    /// </summary>
+    private const int ResolveRetryCount = 50;
+
+    /// <summary>
+    /// 未解決データ交換の引き直しカウンタ
+    /// </summary>
+    private int resolveCount = 0;
+
+    /// <summary>
+    /// サイクル統計の更新間隔(呼び出し回数)。Inspector表示専用なので毎回でなくてよい
+    /// </summary>
+    private const int StatsInterval = 30;
+
+    /// <summary>
+    /// サイクル統計の更新カウンタ
+    /// </summary>
+    private int statsCount = 0;
+
+    #region 計測マーカー（負荷調査用）
+    /// <summary>データ交換処理の計測</summary>
+    private static readonly Unity.Profiling.ProfilerMarker markerDataExchange = new("ComBase.DataExchange");
+    /// <summary>サイクル統計(Max/Min/Average)の計測</summary>
+    private static readonly Unity.Profiling.ProfilerMarker markerStats = new("ComBase.Stats");
+    #endregion 計測マーカー
+
+    /// <summary>
     /// 書き込みデータ
     /// </summary>
     protected volatile List<TagInfoCom> writeDatas = new List<TagInfoCom>();
@@ -105,7 +134,7 @@ public class ComBaseScript : KssBaseScript
     /// </summary>
     protected virtual void DataExchangeProcess()
     {
-        var tags = new List<TagInfo>();
+        using var _ = markerDataExchange.Auto();
         if (isFirst)
         {
             // 初回のみ
@@ -115,21 +144,31 @@ public class ComBaseScript : KssBaseScript
                 if (data.Output != null)
                 {
                     data.Output.Value = data.InitValue;
-//                    tags.Add(data.Output);
                 }
             }
         }
+        // 出力タグが未解決の項目は、この回に書き込みが起きないことが確定している。
+        // GetTagValue は解決成功時しかキャッシュしないため、毎回引くと
+        // 未定義タグの数だけ辞書検索が積み上がる（現案件は511件×2＝1022回/回が全て空振り）。
+        // 後からタグが作られる構成に追従できるよう、一定間隔でだけ引き直す。
+        var isResolve = (++resolveCount >= ResolveRetryCount);
+        if (isResolve)
+        {
+            resolveCount = 0;
+        }
         foreach (var data in dataExchanges)
         {
+            if ((data.Output == null) && !isResolve)
+            {
+                continue;
+            }
             var input = GetTagValue(data.InputTag, ref data.Input);
             GetTagValue(data.OutputTag, ref data.Output);
             if (data.Output != null)
             {
                 data.Output.Value = input;
-//                tags.Add(data.Output);
             }
         }
-//        GlobalScript.SetTagDatas(tags);
         // DBのデータ作成完了していないとスルーされる
         isFirst = !isRcvDb;
     }
@@ -146,12 +185,21 @@ public class ComBaseScript : KssBaseScript
             nowCycle = sw.ElapsedMilliseconds;
             cycleLaps.Add(nowCycle);
             processLaps.Add(processTime);
-            maxCycle = cycleLaps.Max();
-            minCycle = cycleLaps.Min();
-            avgCycle = cycleLaps.Average();
-            maxProcess = processLaps.Max();
-            minProcess = processLaps.Min();
-            avgProcess = processLaps.Average();
+            // Max/Min/Average は Inspector 表示専用。
+            // 最大1000要素のリストを6本ぶん毎回走査する必要はないので間引く
+            if (++statsCount >= StatsInterval)
+            {
+                statsCount = 0;
+                using (markerStats.Auto())
+                {
+                    maxCycle = cycleLaps.Max();
+                    minCycle = cycleLaps.Min();
+                    avgCycle = cycleLaps.Average();
+                    maxProcess = processLaps.Max();
+                    minProcess = processLaps.Min();
+                    avgProcess = processLaps.Average();
+                }
+            }
             if (cycleLaps.Count > 1000)
             {
                 cycleLaps.RemoveAt(0);

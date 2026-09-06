@@ -95,9 +95,30 @@ public class ComInner : ComBaseScript, ITagCom
     }
 
     /// <summary>
-    /// サーバー名
+    /// サーバー名。
+    /// RenewData から1回の更新で数十回参照されるため、毎回連結すると
+    /// その都度2つ文字列を確保することになる。Server/Port が変わったときだけ作り直す
     /// </summary>
-    public string Name { get { return Server + ":" + Port.ToString(); } }
+    public string Name
+    {
+        get
+        {
+            if ((cachedName == null) || (cachedServer != Server) || (cachedPort != Port))
+            {
+                cachedServer = Server;
+                cachedPort = Port;
+                cachedName = Server + ":" + Port.ToString();
+            }
+            return cachedName;
+        }
+    }
+
+    /// <summary>キャッシュ済みのサーバー名</summary>
+    private string cachedName;
+    /// <summary>キャッシュ時のサーバー</summary>
+    private string cachedServer;
+    /// <summary>キャッシュ時のポート</summary>
+    private int cachedPort = -1;
 
     /// <summary>
     /// 時間停止
@@ -129,10 +150,36 @@ public class ComInner : ComBaseScript, ITagCom
     /// </summary>
     private readonly HashSet<(string mechId, string tag)> internalInputKeys = new();
 
+    #region 計測マーカー（負荷調査用）
+    /// <summary>サイクルタグのコールバック通知</summary>
+    private static readonly Unity.Profiling.ProfilerMarker markerCallback = new("ComInner.Callback");
+    /// <summary>I/Oタイミングのセット</summary>
+    private static readonly Unity.Profiling.ProfilerMarker markerTimings = new("ComInner.Timings");
+    /// <summary>動作設定のセット</summary>
+    private static readonly Unity.Profiling.ProfilerMarker markerActs = new("ComInner.Acts");
+    /// <summary>Inspector表示用の値の詰め替え</summary>
+    private static readonly Unity.Profiling.ProfilerMarker markerInspector = new("ComInner.Inspector");
+    #endregion 計測マーカー
+
     /// <summary>
     /// タイミング用
     /// </summary>
     System.Diagnostics.Stopwatch swTiming = new();
+
+    /// <summary>
+    /// 処理時間計測用。毎回 new せず使い回す
+    /// </summary>
+    private readonly System.Diagnostics.Stopwatch swProcess = new();
+
+    /// <summary>
+    /// ON にするタグ。毎回 new せず Clear して使い回す
+    /// </summary>
+    private readonly List<TagInfo> onTags = new();
+
+    /// <summary>
+    /// OFF にするタグ。毎回 new せず Clear して使い回す
+    /// </summary>
+    private readonly List<TagInfo> offTags = new();
 
     /// <summary>
     /// 現在の時間
@@ -222,8 +269,7 @@ public class ComInner : ComBaseScript, ITagCom
     public override void RenewData()
     {
         base.RenewData();
-        var sw = new System.Diagnostics.Stopwatch();
-        sw.Start();
+        swProcess.Restart();
 
         // 経過時間作成
         var lap = swTiming.ElapsedMilliseconds;
@@ -238,13 +284,22 @@ public class ComInner : ComBaseScript, ITagCom
         }
         prvElapsedMilliseconds = lap;
         time = (int)elapsedMilliseconds;
-        foreach (var tags in GlobalScript.callbackTags)
+        using (markerCallback.Auto())
         {
-            GlobalScript.SetTagData(tags.cycle, time);
+            foreach (var tags in GlobalScript.callbackTags)
+            {
+                GlobalScript.SetTagData(tags.cycle, time);
+            }
         }
         try
         {
+            // 3段の文字列キー辞書を毎回たどると、参照回数ぶんハッシュ計算が積み上がる。
+            // 機番までは回内で変わらないので先に引いておく（キーが無ければ従来どおり catch へ）
+            var tagDb = GlobalScript.tagDatas[Name];
+
             // I/Oタイミングセット
+            using (markerTimings.Auto())
+            {
             foreach (var timing in timings)
             {
                 var now = time % timing.cycle;
@@ -263,12 +318,15 @@ public class ComInner : ComBaseScript, ITagCom
                         value = 1;
                     }
                 }
-                GlobalScript.tagDatas[Name][timing.mechId][timing.tag].Value = value;
+                tagDb[timing.mechId][timing.tag].Value = value;
+            }
             }
 
             // 動作設定セット
-            var onTags = new List<TagInfo>();
-            var offTags = new List<TagInfo>();
+            onTags.Clear();
+            offTags.Clear();
+            using (markerActs.Auto())
+            {
             foreach (var act in acts)
             {
                 var input = act.timings[act.no].input;
@@ -278,18 +336,19 @@ public class ComInner : ComBaseScript, ITagCom
                 {
                     continue;
                 }
+                var mechTags = tagDb[act.mechId];
                 // 入力が内部デバイス(仮想I/O)ならサイクル駆動しない＝スイッチ等が駆動する（内部モードでも保持・上書きしない）。
                 if (internalInputKeys.Contains((act.mechId, input)))
                 {
                     act.prvCycle = act.nowCycle;
                     continue;
                 }
-                if (GlobalScript.tagDatas[Name][act.mechId][input].Value == 1)
+                if (mechTags[input].Value == 1)
                 {
                     // ON中完了信号待ち
-                    if (GlobalScript.tagDatas[Name][act.mechId][output].Value == 1)
+                    if (mechTags[output].Value == 1)
                     {
-                        offTags.Add(GlobalScript.tagDatas[Name][act.mechId][input]);
+                        offTags.Add(mechTags[input]);
                         act.no = (act.no + 1) % act.timings.Count;
                     }
                 }
@@ -310,7 +369,7 @@ public class ComInner : ComBaseScript, ITagCom
                             // 通常処理
                             if (trg >= act.prvCycle && trg < act.nowCycle)
                             {
-                                onTags.Add(GlobalScript.tagDatas[Name][act.mechId][input]);
+                                onTags.Add(mechTags[input]);
                             }
                         }
                         else
@@ -318,12 +377,13 @@ public class ComInner : ComBaseScript, ITagCom
                             // 反転処理
                             if ((trg >= act.prvCycle) || (trg <= act.nowCycle))
                             {
-                                onTags.Add(GlobalScript.tagDatas[Name][act.mechId][input]);
+                                onTags.Add(mechTags[input]);
                             }
                         }
                     }
                 }
                 act.prvCycle = act.nowCycle;
+            }
             }
             // 一括出力
             foreach (var tag in onTags)
@@ -334,6 +394,8 @@ public class ComInner : ComBaseScript, ITagCom
             {
                 tag.Value = 0;
             }
+            using (markerInspector.Auto())
+            {
             if (acts.Count > actIndex)
             {
                 var act = acts[actIndex];
@@ -349,18 +411,20 @@ public class ComInner : ComBaseScript, ITagCom
                 }
                 this.actCycle = act.nowCycle;
                 no = act.no;
+                var viewTags = tagDb[act.mechId];
                 for (var i = 0; i < inputs.Count; i++)
                 {
-                    inputs[i] = GlobalScript.tagDatas[Name][act.mechId][act.timings[i].input].Value;
-                    outputs[i] = GlobalScript.tagDatas[Name][act.mechId][act.timings[i].output].Value;
+                    inputs[i] = viewTags[act.timings[i].input].Value;
+                    outputs[i] = viewTags[act.timings[i].output].Value;
                 }
+            }
             }
         }
         catch (Exception ex)
         {
             UnityEngine.Debug.Log("ComInner : " + ex.Message);
         }
-        processTime = sw.ElapsedMilliseconds;
+        processTime = swProcess.ElapsedMilliseconds;
     }
 
     /// <summary>
