@@ -50,6 +50,13 @@ namespace Parameters
         private GameObject globalSetting;
         private GameObject prefabObj;
         private GameObject deviceObj;
+
+        /// <summary>
+        /// ワークのテンプレート置き場。
+        /// テンプレートは親なしで Instantiate されるためシーンのルートに散らばっていた。
+        /// PrefabObjects / PreLoadPrefab / #機番 と同じ粒度でまとめる
+        /// </summary>
+        private GameObject workObj;
         private GameObject prePrefabObj;
         private GameObject mtRoom;
         private List<GameObject> hiddenObjs = new List<GameObject>();
@@ -266,6 +273,12 @@ namespace Parameters
             // 必要オブジェクト作成
             prefabObj = new GameObject("PrefabObjects");
             deviceObj = new GameObject("DeviceObjects");
+            // テンプレートは直前のループで破棄済み。入れ物も作り直して残骸を残さない
+            if (workObj != null)
+            {
+                Destroy(workObj);
+            }
+            workObj = new GameObject("WorkObjects");
             if (prePrefabObj == null)
             {
                 prePrefabObj = new GameObject("PreLoadPrefab");
@@ -329,6 +342,12 @@ namespace Parameters
                     foreach (var work in works)
                     {
                         GlobalScript.works[work.key] = work.obj;
+                        if (work.obj != null)
+                        {
+                            // ワールド姿勢は維持する。テンプレートの姿勢は
+                            // Instantiate 後の初期配置に効くため、親付けで動かしてはいけない
+                            work.obj.transform.SetParent(workObj.transform, true);
+                        }
                     }
 
                     // ユニットにDB設定を保持
