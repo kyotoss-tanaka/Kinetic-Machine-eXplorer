@@ -62,8 +62,44 @@ public class BaseBehaviour : MonoBehaviour
     {
         if (updateProceess == null)
         {
-            updateProceess = StartCoroutine(UpdateProcess());
+            StartUpdateProcess();
+            return;
         }
+        // SetActive(false) を受けると Unity はそのGameObjectのコルーチンを停止するが、
+        // updateProceess の参照は残るため、プール再利用で再度有効化されても
+        // 上の null 判定を通らず再起動されない。
+        // 結果、一度プールへ返却されたワークは以後 MyFixedUpdate が二度と動かなくなる。
+        // 実際に ObjectScript の生存距離判定（原点から alive を超えたらプールへ返却）が止まり、
+        // 落下したワークが永久に残って全コンベアの走査対象になり続けていた。
+        //
+        // OnDisable で参照を消す手もあるが、派生クラスが base を呼ばないと破綻する。
+        // コルーチンが生きていれば毎FixedUpdateの直後に tickFrame が更新されるので、
+        // 更新が止まっていることをもって停止と判断し、張り直す。
+        if ((Time.frameCount - tickFrame) > RestartFrames)
+        {
+            StopCoroutine(updateProceess);
+            StartUpdateProcess();
+        }
+    }
+
+    /// <summary>
+    /// コルーチンが最後に回ったフレーム
+    /// </summary>
+    private int tickFrame;
+
+    /// <summary>
+    /// この数を超えてコルーチンが回っていなければ停止したとみなす。
+    /// 生きていれば同一フレーム内で更新されるので、2フレームあれば誤検知しない
+    /// </summary>
+    private const int RestartFrames = 2;
+
+    /// <summary>
+    /// 更新コルーチンを開始する
+    /// </summary>
+    private void StartUpdateProcess()
+    {
+        tickFrame = Time.frameCount;
+        updateProceess = StartCoroutine(UpdateProcess());
     }
 
     IEnumerator UpdateProcess()
@@ -77,6 +113,7 @@ public class BaseBehaviour : MonoBehaviour
         while (true)
         {
             yield return wait;
+            tickFrame = Time.frameCount;
             InvokeMyFixedUpdate();
         }
     }
