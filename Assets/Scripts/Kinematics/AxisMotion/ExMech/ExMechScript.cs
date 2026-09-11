@@ -464,6 +464,18 @@ public class ExMechScript : UseTagBaseScript
     }
 
     /// <summary>
+    /// 指令値を載せるモデルを渡す（揺動機構のダミー）。
+    /// 主軸を機構が書き換えるため、指令の入力を主軸から分離する
+    /// </summary>
+    public void SetCommandModel(GameObject model)
+    {
+        if (mechInfo != null)
+        {
+            mechInfo.commandModel = model;
+        }
+    }
+
+    /// <summary>
     /// 目標座標セット
     /// </summary>
     /// <param name="move"></param>

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -84,12 +84,15 @@ public class ExMechSwingInfo : ExMechInfo
             Debug.LogWarning($"揺動機構: 直動軸本体/揺動アーム/リンクの3スロットが必要です");
             return;
         }
-        if (!exModeChange)
+        if (commandModel == null)
         {
-            Debug.LogWarning($"揺動機構: 動作設定の「拡張機構モード変更」がOFFです（直動指令が機構に届きません）");
+            Debug.LogWarning($"揺動機構: 指令モデル（ダミー）が未設定です（直動指令が機構に届きません）");
+            return;
         }
-        // 駆動値（ローカル位置）の基準
-        initExPos = mainAxis.model.transform.localPosition;
+        // 駆動値（ローカル位置）の基準。
+        // 指令はダミー（commandModel）に載る。主軸モデルは下の RenewPos で機構が姿勢を
+        // 書き換えるため、指令の入力には使えない（自分の出力を読み返してしまう）
+        initExPos = commandModel.transform.localPosition;
 
         // 各スロットの基準点（モデル本体のroot、またはモデル未登録なら回転中心指定部品の中心＝位置参照のみ）。
         // 位置参照のみのスロットは、他ユニット・他機構が管理しているモデルの回転中心だけを借り、モデルは一切動かさない
@@ -211,11 +214,13 @@ public class ExMechSwingInfo : ExMechInfo
         var dir0w = frame.TransformDirection(dir0L);
 
         // ストローク（初期位置からの直動量・ワールドm。初期軸方向への射影なので符号も自動で決まる）
+        // 指令は MotionInternal / MotionExternal がダミー（commandModel）の localPosition に書く。
+        // ダミーは機構が一切書き換えないので、読み返しても指令値そのものが得られる
         var stroke = 0f;
-        if (hasMovePos)
+        if (commandModel != null)
         {
-            var parent = mainAxis.model.transform.parent;
-            var deltaLocal = moveExPos - initExPos;
+            var parent = commandModel.transform.parent;
+            var deltaLocal = commandModel.transform.localPosition - initExPos;
             var world = parent != null ? parent.TransformVector(deltaLocal) : deltaLocal;
             stroke = Vector3.Dot(world, dir0w);
         }

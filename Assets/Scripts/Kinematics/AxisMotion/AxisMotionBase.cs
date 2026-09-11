@@ -652,6 +652,26 @@ public class AxisMotionBase : KinematicsBase
         exObj.transform.localScale = new(1, 1, 1);
         exScript = unitSetting.exMechSetting.datas[0].gameObject.AddComponent<ExMechScript>();
         exScript.SetParameter(unitSetting, unitSetting.exMechSetting);
+        // 揺動機構は機構側が主軸モデル（ロッド）の位置・姿勢を毎フレーム書き換えるため、
+        // 主軸をそのまま動作指令の入力に使えない（自分の出力を読み返すことになる）。
+        // 指令だけを受ける空のダミーを作って moveObject をすり替え、機構はそれを読む。
+        // ダミーはロッドと同じ親・同じ初期ローカル姿勢で作るので、
+        // 動作テーブルの数値の意味（零点・親空間）は一切変わらない。
+        // ※ SetParameter の後に行う。先にすり替えると機構の主軸(mainAxis)がダミーになり、
+        //   ロッドを動かせなくなる
+        if (unitSetting.exMechSetting.type == 4)
+        {
+            var rod = unitSetting.moveObject;
+            var command = new GameObject(rod.name + "_Command");
+            command.transform.SetParent(rod.transform.parent, false);
+            command.transform.localPosition = rod.transform.localPosition;
+            command.transform.localRotation = rod.transform.localRotation;
+            command.transform.localScale = Vector3.one;
+            unitSetting.moveObject = command;
+            moveObject = command;
+            exScript.SetCommandModel(command);
+            Debug.Log($"揺動機構: {unitSetting.name} 動作指令を {command.name} に分離（ロッド={rod.name}）");
+        }
         // 親子関係チェック
         var datas = unitSetting.exMechSetting.datas.Where(d => d.gameObject != null).ToList();
         foreach (var data in datas)
@@ -932,6 +952,15 @@ public class AxisMotionBase : KinematicsBase
             {
                 // 機構拡張
                 exModeChange = unitSetting.actionSetting.exModeChange;
+                // 揺動機構は指令をダミーの moveObject に載せ、機構がそれを読む方式にした。
+                // exModeChange（回転⇔直動の反転）は一方向の機構である揺動には無関係なので無視する。
+                // ※既存データは以前の実装の名残で true が入っている（KMXToolが強制ONしていた）。
+                //   ここで無視しないと MotionInternal が注入経路のまま transform を書かず、
+                //   ダミーに指令が載らないため機構が動かない
+                if (unitSetting.exMechSetting.type == 4)
+                {
+                    exModeChange = false;
+                }
                 SetExMechSetting();
             }
             // センサ生成設定

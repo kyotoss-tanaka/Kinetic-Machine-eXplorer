@@ -42,6 +42,15 @@ public class ExMechInfo
     public Vector3 sliderOffset;
     public Vector3 initExPos;
     public Vector3 moveExPos;
+
+    /// <summary>
+    /// 指令値を載せるモデル。
+    /// 機構が主軸モデル自身の姿勢を書き換える機構（揺動）では、主軸を指令の入力に使えない
+    /// （自分が前フレームに書いた値を読み返すことになる）。
+    /// そこで動作指令だけを受ける専用のダミーを別に用意し、機構はそれを読む。
+    /// null の機構は主軸の姿勢から計算する（ゼネバ・レバー・並行リンク）
+    /// </summary>
+    public GameObject commandModel;
     protected Vector3 _mainDir;
     protected Vector3 mainMask;
     protected Vector3 _moveDir;
