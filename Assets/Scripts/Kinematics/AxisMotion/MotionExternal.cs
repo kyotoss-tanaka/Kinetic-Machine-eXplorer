@@ -54,6 +54,23 @@ public class MotionExternal : AxisMotionBase
         {
             value = GetTagValue(unitSetting.actionSetting.tag, ref actTag);
         }
+        if (isBacket)
+        {
+            // バケットは moveObject を直接動かさず、経路上の送り量(mm)で爪を進める。
+            // タグ値はバケット長の範囲で折り返すが（100→10 は逆転ではなく110へ前進）、
+            // MoveBacket が「値が戻ったら方向転換ではなく駆動値リセット」として
+            // それまでの位置を積算に繰り入れるため、生の値をそのまま渡してよい。
+            // 単位は同期スレーブ側（BacketTravelMm * syncRate * syncDir + syncOffset）と同じスカラのmm。
+            // 直動側が value/rate をメートルとして扱うので、mmへは Thousand を掛ける
+            // （rate は1メートルあたりのカウント数。KMXToolの 1μm→1000000 等）。
+            // 動作方向は dir を掛けない。バケットは基本が正転で、進行方向は
+            // MoveBacket が前回値との差分から判断する。ここで dir を掛けると
+            // 値列の増減が反転し、毎回「逆転」と判定されてしまう
+            var travelMm = value / (rate == 0 ? 1000f : rate) * Thousand
+                + unitSetting.actionSetting.offset;
+            MoveBacket(travelMm);
+            return;
+        }
         var data = moveDir * unitSetting.actionSetting.dir * value / (rate == 0 ? 1000f : rate) + (moveDir * unitSetting.actionSetting.offset / (isRotate ? 1f : 1000f));
         if (isRotate)
         {
