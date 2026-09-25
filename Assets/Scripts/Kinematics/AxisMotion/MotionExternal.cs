@@ -27,6 +27,21 @@ public class MotionExternal : AxisMotionBase
     /// </summary>
     protected float rate;
 
+    /// <summary>
+    /// 前回のタグ由来位置(mm)。折り返しの展開に使う
+    /// </summary>
+    private float prevBacketMm;
+
+    /// <summary>
+    /// 展開後の経路上の位置(mm)
+    /// </summary>
+    private float backetTravelMm;
+
+    /// <summary>
+    /// バケット位置を一度でも受け取ったか（初回は差分を取らない）
+    /// </summary>
+    private bool hasBacketMm;
+
     // Start is called before the first frame update
     protected override void Start()
     {
@@ -56,19 +71,52 @@ public class MotionExternal : AxisMotionBase
         }
         if (isBacket)
         {
-            // バケットは moveObject を直接動かさず、経路上の送り量(mm)で爪を進める。
-            // タグ値はバケット長の範囲で折り返すが（100→10 は逆転ではなく110へ前進）、
-            // MoveBacket が「値が戻ったら方向転換ではなく駆動値リセット」として
-            // それまでの位置を積算に繰り入れるため、生の値をそのまま渡してよい。
-            // 単位は同期スレーブ側（BacketTravelMm * syncRate * syncDir + syncOffset）と同じスカラのmm。
-            // 直動側が value/rate をメートルとして扱うので、mmへは Thousand を掛ける
+            // バケットは moveObject を直接動かさず、経路上の位置(mm)で爪を進める。
+            // 単位は直動側が value/rate をメートルとして扱うのに合わせ Thousand を掛ける
             // （rate は1メートルあたりのカウント数。KMXToolの 1μm→1000000 等）。
-            // 動作方向は dir を掛けない。バケットは基本が正転で、進行方向は
-            // MoveBacket が前回値との差分から判断する。ここで dir を掛けると
-            // 値列の増減が反転し、毎回「逆転」と判定されてしまう
-            var travelMm = value / (rate == 0 ? 1000f : rate) * Thousand
+            // 動作方向に dir は掛けない。バケットは基本が正転で、進行方向は値の増減が表す。
+            // 掛けると値列の増減が反転してしまう
+            var mm = value / (rate == 0 ? 1000f : rate) * Thousand
                 + unitSetting.actionSetting.offset;
-            MoveBacket(travelMm);
+            var loopMm = BacketLoopMm;
+            if (!hasBacketMm)
+            {
+                hasBacketMm = true;
+                backetTravelMm = mm;
+            }
+            else
+            {
+                // タグはバケット長で折り返す絶対位置（実機ではサーボの現在位置）。
+                // 半周を超える飛びだけを折り返しとみなして展開する。
+                // それ未満の戻りはサーボのゲインによる揺れ（±数カウント）なので
+                // そのまま戻す＝実機と同じくその場で揺れる。
+                // ※ MoveBacket のリセット検出は差分の符号だけを見て大きさを問わないため、
+                //   生の値を渡すと揺れのたびに経路上をワープしてしまう
+                var delta = mm - prevBacketMm;
+                if (loopMm > 0.001f)
+                {
+                    if (delta < -loopMm * 0.5f)
+                    {
+                        delta += loopMm;
+                    }
+                    else if (delta > loopMm * 0.5f)
+                    {
+                        delta -= loopMm;
+                    }
+                }
+                backetTravelMm += delta;
+                if (loopMm > 0.001f)
+                {
+                    // 長時間運転でも精度が落ちないよう周長で正規化する（位置は剰余で決まるので挙動は不変）
+                    backetTravelMm %= loopMm;
+                    if (backetTravelMm < 0f)
+                    {
+                        backetTravelMm += loopMm;
+                    }
+                }
+            }
+            prevBacketMm = mm;
+            SetBacketPosition(backetTravelMm);
             return;
         }
         var data = moveDir * unitSetting.actionSetting.dir * value / (rate == 0 ? 1000f : rate) + (moveDir * unitSetting.actionSetting.offset / (isRotate ? 1f : 1000f));

@@ -2057,6 +2057,38 @@ public class AxisMotionBase : KinematicsBase
     }
 
     /// <summary>
+    /// バケット経路の周長(mm)。周長設定があればその値、無ければ経路長から算出する
+    /// （backetLength経由のfloat往復誤差を避けるため設定値を優先する）
+    /// </summary>
+    protected float BacketLoopMm
+    {
+        get
+        {
+            return unitSetting.backetSetting.loopLength > 0f
+                ? unitSetting.backetSetting.loopLength
+                : backetLength * backetScale * Thousand;
+        }
+    }
+
+    /// <summary>
+    /// バケットの経路上の絶対位置(mm)を直接指定する。
+    /// 外部タグ（サーボの現在位置）のように「今どこに居るか」がそのまま得られる場合に使う。
+    ///
+    /// MoveBacket のリセット検出は差分の符号だけを見て大きさを問わないため、
+    /// サーボのゲインによる微小な揺れ（±数カウント）でも折り返しと誤判定し、
+    /// そのときの値を丸ごと積算へ繰り入れて経路上をワープしてしまう。
+    /// 絶対位置が分かっているときは検出を通さずに与える。
+    /// 同期スレーブのバケットが backetAccum へ代入して MoveBacket(0f) を呼ぶのと同じ形
+    /// </summary>
+    /// <param name="positionMm">経路上の位置(mm)</param>
+    protected void SetBacketPosition(float positionMm)
+    {
+        backetAccum = positionMm;
+        backetPos = 0f;
+        MoveBacket(0f);
+    }
+
+    /// <summary>
     /// バケット移動
     /// </summary>
     /// <param name="pos"></param>
@@ -2080,10 +2112,7 @@ public class AxisMotionBase : KinematicsBase
                     backetAccum -= backetPos;
                 }
                 // 発散防止に周長で正規化しておく（位置は周長の剰余で決まるため挙動は不変）
-                // 周長設定があればその値(mm)をそのまま使う（backetLength経由のfloat往復誤差を避ける）
-                var loopMm = unitSetting.backetSetting.loopLength > 0f
-                    ? unitSetting.backetSetting.loopLength
-                    : backetLength * backetScale * 1000f;
+                var loopMm = BacketLoopMm;
                 if (loopMm > 0.001f)
                 {
                     backetAccum %= loopMm;
