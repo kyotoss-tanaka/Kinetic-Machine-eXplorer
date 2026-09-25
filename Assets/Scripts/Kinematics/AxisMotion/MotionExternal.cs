@@ -65,6 +65,18 @@ public class MotionExternal : AxisMotionBase
     /// </summary>
     protected override void MyFixedUpdate()
     {
+        if (!GlobalScript.isLoaded)
+        {
+            // ロード中は動かさない。
+            // 子ユニットの親付け替え（拡張機構の動作端へ／取付先モデルへ）は
+            // いずれもワールド姿勢を維持して行うため、付け替えた瞬間の親の姿勢が
+            // そのままローカル位置として焼き付く。ここでロード中から書き込むと
+            // 親の機構が既に動いた状態で付け替えられ、子の取り付け位置がずれる
+            // （offset を持つユニットはタグ値0でも即座にその分動くため必ず起きる）。
+            // 内部動作は動作が発火するまで書かないのでこの問題が出ない。
+            // 内部と外部で挙動を揃える意味でもロード完了まで待つ
+            return;
+        }
         if (!isManual)
         {
             value = GetTagValue(unitSetting.actionSetting.tag, ref actTag);
