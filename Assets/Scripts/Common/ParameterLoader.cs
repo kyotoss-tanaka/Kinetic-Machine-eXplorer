@@ -2675,6 +2675,7 @@ namespace Parameters
                         backet.pathElements = pathInfo.elements;
                         backet.loopLength = pathInfo.loopLength;
                         backet.loopScaling = pathInfo.loopScaling;
+                        backet.loopCurveScaling = pathInfo.curveScaling;
                         backet.pathStartOffset = pathInfo.startOffset;
                         backet.pathReverse = pathInfo.reverse;
                     }
@@ -2696,13 +2697,53 @@ namespace Parameters
                     }
                 }
             }
-            // リニア設定
+            // リニア設定（ユニットのモデル=ムーバー、ループ=経路設定）
             foreach (var linear in linearSettings)
             {
-                if ((linear.path != null) && (linear.path != ""))
+                if (!string.IsNullOrEmpty(linear.pathName))
                 {
+                    // 経路名参照の解決（同一機番の経路設定から要素を引き当てる）
+                    var pathInfo = pathInfoSettings.Find(d => (d.mechId == linear.mechId) && (d.name == linear.pathName));
+                    if (pathInfo != null)
+                    {
+                        linear.pathElements = pathInfo.elements;
+                        linear.loopLength = pathInfo.loopLength;
+                        linear.loopScaling = pathInfo.loopScaling;
+                        linear.loopCurveScaling = pathInfo.curveScaling;
+                        linear.pathStartOffset = pathInfo.startOffset;
+                        linear.pathReverse = pathInfo.reverse;
+                    }
+                    else
+                    {
+                        Debug.LogWarning($"リニア設定: {linear.name} の経路名\"{linear.pathName}\"が経路設定に見つかりません");
+                    }
+                }
+                else if (!string.IsNullOrEmpty(linear.path))
+                {
+                    // 旧形式（ユニットのモデル=軌道、pathのモデル=ムーバー）を新形式へ読み替える
+                    // KMXToolは読み込み時に同じ変換をするが、旧ツールで出力したデータもそのまま動かすため
                     var obj = prefabObj.transform.Find(linear.path);
                     linear.gameObject = obj != null ? obj.gameObject : null;
+                    var unit = unitSettings.Find(d => (d.mechId == linear.mechId) && (d.name == linear.name));
+                    if ((unit != null) && (unit.moveObject != null) && (linear.gameObject != null))
+                    {
+                        linear.pathElements = new List<BacketSetting.PathElement>
+                        {
+                            new BacketSetting.PathElement { type = 2, gameObject = unit.moveObject }
+                        };
+                        linear.loopLength = linear.length;
+                        // リニアは直線がそのままの長さで、周長との差はカーブで吸収する（エンコーダが外形より内側にあるため）
+                        linear.loopScaling = true;
+                        linear.loopCurveScaling = true;
+                        unit.moveObject = linear.gameObject;
+                        // 旧形式の子モデルは軌道に付いて静止していた。残すとムーバーごとに複製されて動くので外す
+                        unit.children.RemoveAll(d => !d.isUnit);
+                        Debug.Log($"リニア設定: {linear.name} は旧形式のため、ユニットのモデルをムーバーに読み替えました");
+                    }
+                    else
+                    {
+                        Debug.LogWarning($"リニア設定: {linear.name} の旧形式データを読み替えられません（ユニットまたはムーバーモデルが見つかりません）");
+                    }
                 }
             }
             SortUnitSettings(unitNames, unitSettings, ref tmpUnits);

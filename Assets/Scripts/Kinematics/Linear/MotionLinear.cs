@@ -1101,42 +1101,19 @@ public class MotionLinear : AxisMotionBase
     protected Dictionary<string, TagStatus> tags = new Dictionary<string, TagStatus>();
 
     /// <summary>
-    /// 流れ方向
-    /// </summary>
-    private int dirL;
-
-    // 高さ方向
-    private int dirH;
-
-    /// <summary>
-    /// 奥行方向
-    /// </summary>
-    private int dirD;
-
-    /// <summary>
-    /// 計算長
-    /// </summary>
-    private float calcLength;
-
-    /// <summary>
-    /// 周長
+    /// 周長（名目、m）。ムーバーとポイントの位置はこの長さの中で扱う
     /// </summary>
     private float totalLength;
 
     /// <summary>
-    /// 直線距離
+    /// 経路の幾何長（moveObjectローカル単位）
     /// </summary>
-    private float straightLength;
+    private float pathLength;
 
     /// <summary>
-    /// カーブ距離(理論上)
+    /// 経路のローカル単位→ワールド(m)換算スケール
     /// </summary>
-    private float curveLength;
-
-    /// <summary>
-    /// カーブ距離
-    /// </summary>
-    private float calcCurveLength;
+    private float linearScale = 1f;
 
     /// <summary>
     /// ムーバーピッチ
@@ -1149,24 +1126,30 @@ public class MotionLinear : AxisMotionBase
     private float moverOffsetPos;
 
     /// <summary>
-    /// 高さ方向オフセット
+    /// ループ面の法線（moveObjectローカル）。経路に沿った回転の軸
     /// </summary>
-    private float moverOffsetH;
+    private Vector3 loopNormal = Vector3.up;
 
     /// <summary>
-    /// 初期角度オフセット
+    /// 設計位置（ムーバーモデル原点）に最も近い経路上の点（moveObjectローカル）
+    /// ムーバーはこの点との位置関係を保って経路上を移動する
     /// </summary>
-    private Vector3 moverOffsetAng;
-    
-    /// <summary>
-    /// モデル中心
-    /// </summary>
-    private Vector3 center;
+    private Vector3 moverBasePos;
 
     /// <summary>
-    /// ムーバーから一番近い点
+    /// 設計位置での経路の進行方向（moveObjectローカル）。ムーバーの向きの基準
     /// </summary>
-    private VerticeInfo near;
+    private Vector3 moverBaseDir;
+
+    /// <summary>
+    /// 経路確認ライン（Ctrl+Shift押下中のみ表示）
+    /// </summary>
+    private GameObject pathLineObj;
+
+    /// <summary>
+    /// カーブ吸収の換算表（null=均等配分またはスケーリングなし）
+    /// </summary>
+    private LoopScaler linearScaler;
 
     /// <summary>
     /// タイマー
@@ -1454,52 +1437,62 @@ public class MotionLinear : AxisMotionBase
     }
 
     /// <summary>
-    /// ムーバーをの位置を更新
+    /// ムーバーの位置を更新
     /// </summary>
     /// <param name="mover"></param>
     private void RenewMover(MoverInfo mover)
     {
-        GetPositionOnPath(mover.pos, out Vector3 pos, out Vector3 dir, out Quaternion rot);
-        mover.obj.transform.parent = moveObject.transform.parent;
-        mover.obj.transform.localPosition = pos;
-        if (dir != Vector3.zero)
-        {
-            if (dirL == 0)
-            {
-                if (dirH == 1)
-                {
-                    mover.obj.transform.localRotation = rot * Quaternion.Euler(moverOffsetAng);
-                }
-                else
-                {
-
-                    mover.obj.transform.localRotation = rot * Quaternion.Euler(Vector3.zero);
-                    mover.obj.transform.localEulerAngles -= moverOffsetAng;
-                }
-            }
-        }
+        GetMoverPose(mover.pos, out Vector3 pos, out Quaternion rot);
+        mover.obj.transform.SetPositionAndRotation(pos, rot);
     }
 
     /// <summary>
     /// モデル再構築
+    /// ユニットのモデル=ムーバー、ループ=経路設定（種別「リニア」はリニアの種類ごとの名前でセグメントを探す）
     /// </summary>
     protected override void PreModelRestruct()
     {
         base.PreModelRestruct();
 
-        if ((linearSetting != null) && (linearSetting.gameObject != null))
+        if ((linearSetting != null) && (linearSetting.pathElements != null) && (linearSetting.pathElements.Count > 0))
         {
             // リニアパス作成
             CreateLinearPathPoints();
-            
+
             // ムーバー作成
             CreateMoverObject();
+
+            // 経路ライン（Ctrl+Shift押下中のみ表示）。ムーバーの複製後に作る（元モデルの子にすると複製されるため）
+            CreateLinearPathLine();
 
             // ポイント作成
             CreatePointInfo();
 
             // 処理タイマー開始
             sw.Restart();
+        }
+        else if (linearSetting != null)
+        {
+            Debug.LogWarning($"リニア: {name} 経路が設定されていません（経路名\"{linearSetting.pathName}\"）");
+        }
+    }
+
+    /// <summary>
+    /// 種別「リニア」の経路要素で探すセグメント名（部分一致）
+    /// </summary>
+    protected override List<string> GetLinearSegmentNames()
+    {
+        if (linearSetting == null)
+        {
+            return null;
+        }
+        switch (linearSetting.type)
+        {
+            case "XTS":
+                return new List<string> { "081434", "AT2050" };
+            default:
+                // SuperTrak/AcoposTrak は名前未定
+                return new List<string>();
         }
     }
 
@@ -1509,378 +1502,179 @@ public class MotionLinear : AxisMotionBase
     /// </summary>
     private void CreateLinearPathPoints()
     {
-        // カーブセグメント取得
-        var curveNameList = new List<string>();
-        var curveSegments = new List<GameObject>();
-        if (linearSetting.type == "XTS")
+        loopPathPoints.Clear();
+        loopPathArc.Clear();
+        // 基準の座標系は先頭の種別「リニア」「セグメント」の登録モデル（旧形式ではユニットのモデル=軌道）。ループ面・原点・向きをこの座標系で決める
+        var frameObj = linearSetting.pathElements.FirstOrDefault(d => IsSegmentType(d.type) && (d.gameObject != null))?.gameObject;
+        var frame = frameObj != null ? frameObj.transform : moveObject.transform;
+        // 経路の形はバケットと共通の外形ラップで作る（逆回りは下で原点・向きと一緒に扱う）
+        CreatePathPointsFromElements(linearSetting.pathElements, false, frame);
+        if (loopPathPoints.Count < 4)
         {
-            curveNameList.Add("081434");
-            curveNameList.Add("AT2050");
+            Debug.LogWarning($"リニア経路: {name} 経路点数が不足しています（{loopPathPoints.Count}点）");
+            loopPathPoints.Clear();
+            loopPathArc.Clear();
+            return;
         }
-        curveSegments = moveObject.GetComponentsInChildren<Transform>(true)
-            .Where(t => curveNameList.Any(d => t.name.Contains(d)))
-            .Select(t => t.gameObject).ToList();
-        // 真下の子供だけ取得
-        foreach (var child in unitSetting.childrenObject.FindAll(d => d.GetComponent<AxisMotionBase>() == null))
-        {
-            if (curveNameList.Contains(child.name))
-            {
-                curveSegments.Add(child);
-            }
-        }
-        // メッシュフィルター取得
-        var meshFilters = new List<MeshFilter>();
-        foreach (var curve in curveSegments)
-        {
-            foreach (var mesh in curve.GetComponentsInChildren<MeshFilter>())
-            {
-                if (!meshFilters.Contains(mesh))
-                {
-                    meshFilters.Add(mesh);
-                }
-            }
-        }
-        // カーブメッシュだけ取得
-        if (meshFilters.Count > 0)
-        {
-            // 全頂点情報取得
-            var allVerts = new List<VerticeInfo>();
-            var index = 0;
-            foreach (var mf in meshFilters)
-            {
-                var mesh = mf.sharedMesh;
-                var verts = mesh.vertices;
-                var normals = mesh.normals;
-                for (int i = 0; i < verts.Length; i++)
-                {
-                    allVerts.Add(new VerticeInfo
-                    {
-                        id = index,
-                        meshId = meshFilters.IndexOf(mf),
-                        vertice = moveObject.transform.InverseTransformPoint(mf.transform.TransformPoint(verts[i])),
-                        normal = moveObject.transform.InverseTransformPoint(mf.transform.TransformPoint(normals[i]))
-                    });
-                    index++;
-                }
-            }
-            // 全点の最大最小を取得
-            var m = new List<float>{
-                        allVerts.Max(d => d.vertice.x) - allVerts.Min(d => d.vertice.x),
-                        allVerts.Max(d => d.vertice.y) - allVerts.Min(d => d.vertice.y),
-                        allVerts.Max(d => d.vertice.z) - allVerts.Min(d => d.vertice.z)
-                    };
-            // 奥行方向算出
-            dirD = m.Min() == m[0] ? 0 : m.Min() == m[1] ? 1 : 2;
-            // 流れ方向算出
-            dirL = m.Max() == m[0] ? 0 : m.Max() == m[1] ? 1 : 2;
-            // 高さ方向算出
-            dirH = 3 - dirL - dirD;
-            // 奥行方向を削除
-            allVerts = allVerts.Select(d => new VerticeInfo
-            {
-                id = d.id,
-                meshId = d.meshId,
-                vertice = new Vector3(dirD == 0 ? 0f : d.vertice.x, dirD == 1 ? 0f : d.vertice.y, dirD == 2 ? 0f : d.vertice.z),
-                normal = d.normal
-            }).ToList();
-            // 許容誤差（必要に応じて調整）
-            float tolerance = 0.0000001f;
-            // 同一点を削除(0.1μm以下は同一の点とする)
-            allVerts = allVerts.GroupBy(v => new
-            {
-                x = Mathf.Round(v.vertice.x / tolerance),
-                y = Mathf.Round(v.vertice.y / tolerance),
-                z = Mathf.Round(v.vertice.z / tolerance)
-            }).Select(g => g.First()).ToList();
-            // 疑似中心取得
-            center = new Vector3(
-                dirD == 0 ? 0 : allVerts.Average(d => d.vertice.x),
-                dirD == 1 ? 0 : allVerts.Average(d => d.vertice.y),
-                dirD == 2 ? 0 : allVerts.Average(d => d.vertice.z)
-            );
-            // 流れ方向で半分に分ける
-            var plusVerts = allVerts.FindAll(d =>
-                dirL == 0 ? d.vertice.x > center.x :
-                dirL == 1 ? d.vertice.y > center.y :
-                d.vertice.z > center.z
-            );
-            var minusVerts = allVerts.FindAll(d =>
-                dirL == 0 ? d.vertice.x < center.x :
-                dirL == 1 ? d.vertice.y < center.y :
-                d.vertice.z < center.z
-            );
-            // 四隅取得
-            var point1 = minusVerts.OrderByDescending(d => dirH == 0 ? d.vertice.x : dirH == 1 ? d.vertice.y : d.vertice.z).First();
-            var point2 = plusVerts.OrderByDescending(d => dirH == 0 ? d.vertice.x : dirH == 1 ? d.vertice.y : d.vertice.z).First();
-            var point3 = plusVerts.OrderBy(d => dirH == 0 ? d.vertice.x : dirH == 1 ? d.vertice.y : d.vertice.z).First();
-            var point4 = minusVerts.OrderBy(d => dirH == 0 ? d.vertice.x : dirH == 1 ? d.vertice.y : d.vertice.z).First();
-            var lMin = dirL == 0 ? point4.vertice.x : dirL == 1 ? point4.vertice.y : point4.vertice.z;
-            var lMax = dirL == 0 ? point3.vertice.x : dirL == 1 ? point3.vertice.y : point3.vertice.z;
-            var hMin = dirH == 0 ? point3.vertice.x : dirH == 1 ? point3.vertice.y : point3.vertice.z;
-            var hMax = dirH == 0 ? point2.vertice.x : dirH == 1 ? point2.vertice.y : point2.vertice.z;
-            // 外周を作成する
-            var outlines = new List<VerticeInfo>();
-            outlines.AddRange(plusVerts);
-            outlines.AddRange(minusVerts);
-            // 中心算出
-            center = new Vector3(
-                dirL == 0 ? (lMax - lMin) / 2 + lMin : dirH == 0 ? (hMax - hMin) / 2 + hMin : point3.vertice.x,
-                dirL == 1 ? (lMax - lMin) / 2 + lMin : dirH == 1 ? (hMax - hMin) / 2 + hMin : point3.vertice.y,
-                dirL == 2 ? (lMax - lMin) / 2 + lMin : dirH == 2 ? (hMax - hMin) / 2 + hMin : point3.vertice.z
-            );
-            // 凸凹を無くす
-            outlines = ConvexHull(outlines);
-            // 四隅が消えてる可能性があるのでチェックしてなくなっていれば追加
-            if (outlines.Find(d => d.id == point1.id) == null)
-            {
-                outlines.Add(point1);
-            }
-            if (outlines.Find(d => d.id == point2.id) == null)
-            {
-                outlines.Add(point2);
-            }
-            if (outlines.Find(d => d.id == point3.id) == null)
-            {
-                outlines.Add(point3);
-            }
-            if (outlines.Find(d => d.id == point4.id) == null)
-            {
-                outlines.Add(point4);
-            }
-            // 回転方向にソート
-            outlines = outlines.OrderByDescending(d =>
-            {
-                double angle = Math.Atan2(
-                    dirH == 0 ? d.vertice.x - center.x : dirH == 1 ? d.vertice.y - center.y : d.vertice.z - center.z,
-                    dirL == 0 ? d.vertice.x - center.x : dirL == 1 ? d.vertice.y - center.y : d.vertice.z - center.z
-                );
-                if (angle < 0) angle += Math.PI * 2; // 0〜2πに正規化
-                return angle;
-            }).ToList();
-            // 奥行方向をムーバーオブジェクトと合わせる
-            linearSetting.gameObject.transform.parent = moveObject.transform;
-            // ムーバーの位置と一番近い点取得
-            near = outlines.OrderBy(d => Vector3.Distance(linearSetting.gameObject.transform.localPosition, d.vertice)).First();
-            if (dirH == 0)
-            {
-                moverOffsetH = linearSetting.gameObject.transform.localPosition.x - near.vertice.x;
-                if ((hMin < linearSetting.gameObject.transform.localPosition.x) && (hMax > linearSetting.gameObject.transform.localPosition.x))
-                {
-                    moverOffsetH = -moverOffsetH;
-                }
-            }
-            else if (dirH == 1)
-            {
-                moverOffsetH = linearSetting.gameObject.transform.localPosition.y - near.vertice.y;
-                if ((hMin < linearSetting.gameObject.transform.localPosition.y) && (hMax > linearSetting.gameObject.transform.localPosition.y))
-                {
-                    moverOffsetH = -moverOffsetH;
-                }
-            }
-            else
-            {
-                moverOffsetH = linearSetting.gameObject.transform.localPosition.z - near.vertice.z;
-                if ((hMin < linearSetting.gameObject.transform.localPosition.z) && (hMax > linearSetting.gameObject.transform.localPosition.z))
-                {
-                    moverOffsetH = -moverOffsetH;
-                }
-            }
-            // 一番近い距離から並べる
-            index = outlines.FindIndex(d => d.id == near.id);
-            outlines = outlines.Skip(index).Concat(outlines.Take(index)).ToList();
-            // リニア距離分外側へオフセット
-            outlines = OffsetPath(outlines, moverOffsetH);
-            // 逆転判定
-            if (linearSetting.rvs)
-            {
-                outlines = outlines.AsEnumerable().Reverse().ToList();
-            }
-            // ムーバー初期オフセット取得
-            loopPathPoints = outlines.Select(d =>
-            {
-                var pos = new Vector3
-                {
-                    x = dirD == 0 ? linearSetting.gameObject.transform.localPosition.x : d.vertice.x,
-                    y = dirD == 1 ? linearSetting.gameObject.transform.localPosition.y : d.vertice.y,
-                    z = dirD == 2 ? linearSetting.gameObject.transform.localPosition.z : d.vertice.z
-                };
-                return pos;
-            }).ToList();
-            // 一旦パスセット
-            loopPathPoints.Add(loopPathPoints[0]);
-            GetPositionOnPath(0, out Vector3 pos, out Vector3 dir, out Quaternion rot);
-            if (dir != Vector3.zero)
-            {
-                // ダミームーバーで初期角度取得
-                var mover = new GameObject();
-                mover.transform.parent = moveObject.transform;
-                mover.transform.localRotation = rot * Quaternion.Euler(Vector3.zero);
-                // 初期オフセット
-                moverOffsetAng = mover.transform.localEulerAngles - linearSetting.gameObject.transform.localEulerAngles;
-                Destroy(mover);
-            }
-            // 順番入れ替え(正しくないときはそれなりに)
-            var startId = point1.id;
-            startId = linearSetting.org == 0 ? point1.id :
-                      linearSetting.org == 1 ? point2.id :
-                      linearSetting.org == 2 ? point3.id : point4.id;
-            index = outlines.FindIndex(d => d.id == startId);
-            outlines = outlines.Skip(index).Concat(outlines.Take(index)).ToList();
-            // 同一点を削除(1mm以下は同一の点とする)
-            tolerance = 0.001f;
-            outlines = outlines.GroupBy(v => new
-            {
-                x = Mathf.Round(v.vertice.x / tolerance),
-                y = Mathf.Round(v.vertice.y / tolerance),
-                z = Mathf.Round(v.vertice.z / tolerance)
-            }).Select(g => g.First()).ToList();
-            // 開始点セット
-            outlines.Add(outlines[0]);
-            // パスの総距離を計算l
-            calcLength = 0f;
-            for (int i = 0; i < outlines.Count - 1; i++)
-            {
-                calcLength += Vector3.Distance(outlines[i].vertice, outlines[i + 1].vertice);
-            }
-            // カーブ距離算出
-            calcCurveLength = calcLength / 2 - straightLength;
-            // パスにセット
-            loopPathPoints = outlines.Select(d =>
-            {
-                var pos = new Vector3
-                {
-                    x = dirD == 0 ? linearSetting.gameObject.transform.localPosition.x : d.vertice.x,
-                    y = dirD == 1 ? linearSetting.gameObject.transform.localPosition.y : d.vertice.y,
-                    z = dirD == 2 ? linearSetting.gameObject.transform.localPosition.z : d.vertice.z
-                };
-                return pos;
-            }).ToList();
-        }
-    }
+        // 閉ループの末尾（先頭と同じ点）を外して扱う
+        var pts = loopPathPoints.Take(loopPathPoints.Count - 1).ToList();
+        // 区間の種類（arcs[i]=pts[i]→pts[i+1]、末尾は閉じる区間）。点列と同じ並べ替えをする
+        var arcs = (loopPathArc.Count == pts.Count) ? new List<bool>(loopPathArc) : null;
 
-    /// <summary>
-    /// 平面上で凸包を計算
-    /// </summary>
-    /// <param name="points"></param>
-    /// <returns></returns>
-    private List<VerticeInfo> ConvexHull(List<VerticeInfo> points)
-    {
-        // X座標でソート
-        var sorted = points
-            .OrderBy(p => dirL == 0 ? p.vertice.x : dirL == 1 ? p.vertice.y : p.vertice.z)
-            .ThenBy(p => dirH == 0 ? p.vertice.x : dirH == 1 ? p.vertice.y : p.vertice.z)
-            .ToList();
-
-        var hull = new List<VerticeInfo>();
-
-        // 下側
-        foreach (var p in sorted)
+        // 原点位置と向きは従来の定義に合わせる
+        var fp = pts.Select(v => frame.InverseTransformPoint(moveObject.transform.TransformPoint(v))).ToList();
+        var ext = new float[3];
+        for (var k = 0; k < 3; k++)
         {
-            while (hull.Count >= 2 && Cross(hull[hull.Count - 2].vertice, hull[hull.Count - 1].vertice, p.vertice) <= 0)
-                hull.RemoveAt(hull.Count - 1);
-            hull.Add(p);
+            ext[k] = fp.Max(v => v[k]) - fp.Min(v => v[k]);
+        }
+        // 奥行=広がり最小、流れ=最大、高さ=残り
+        var dirD = ext.ToList().IndexOf(ext.Min());
+        var dirL = ext.ToList().IndexOf(ext.Max());
+        if (dirL == dirD)
+        {
+            dirL = (dirD + 1) % 3;
+        }
+        var dirH = 3 - dirL - dirD;
+        var ls = fp.Select(v => v[dirL]).ToList();
+        var hs = fp.Select(v => v[dirH]).ToList();
+        var cl = (ls.Max() + ls.Min()) / 2f;
+
+        // 向き：流れ-高さ面で時計回りが正転、動作反転で反時計回り（経路設定の逆回りでさらに反転）
+        var area = 0f;
+        for (var i = 0; i < pts.Count; i++)
+        {
+            var j = (i + 1) % pts.Count;
+            area += ls[i] * hs[j] - ls[j] * hs[i];
+        }
+        var wantCcw = linearSetting.rvs ^ linearSetting.pathReverse;
+        if ((area > 0f) != wantCcw)
+        {
+            pts.Reverse();
+            if (arcs != null)
+            {
+                // 反転後の区間 i は元の区間 m-2-i（閉じる区間 m-1 はそのまま）
+                var m = arcs.Count;
+                arcs = Enumerable.Range(0, m).Select(i => i < m - 1 ? arcs[m - 2 - i] : arcs[m - 1]).ToList();
+            }
+            ls.Reverse();
+            hs.Reverse();
         }
 
-        // 上側
-        int lower = hull.Count + 1;
-        for (int i = sorted.Count - 2; i >= 0; i--)
+        // 原点：四隅（流れ方向の－側/＋側それぞれで高さ最大/最小の点）から選ぶ
+        //   0=－側の上 1=＋側の上 2=＋側の下 3=－側の下
+        // 高さが同じ点が複数あるときは流れ方向の中央に近い方（直線部の端）を採る
+        int PickCorner(bool plusSide, bool top)
         {
-            var p = sorted[i];
-            while (hull.Count >= lower && Cross(hull[hull.Count - 2].vertice, hull[hull.Count - 1].vertice, p.vertice) <= 0)
-                hull.RemoveAt(hull.Count - 1);
-            hull.Add(p);
-        }
-
-        hull.RemoveAt(hull.Count - 1);
-        return hull;
-    }
-
-    float Cross(Vector3 o, Vector3 a, Vector3 b)
-    {
-        var ax = dirL == 0 ? (a.x - o.x) : dirL == 1 ? (a.y - o.y) : (a.z - o.z);
-        var bz = dirH == 0 ? (b.x - o.x) : dirH == 1 ? (b.y - o.y) : (b.z - o.z);
-        var az = dirH == 0 ? (a.x - o.x) : dirH == 1 ? (a.y - o.y) : (a.z - o.z);
-        var bx = dirL == 0 ? (b.x - o.x) : dirL == 1 ? (b.y - o.y) : (b.z - o.z);
-        return ax * bz - az * bx;
-    }
-
-    /// <summary>
-    /// パスを外側にする
-    /// </summary>
-    /// <param name="path"></param>
-    /// <param name="offsetDistance"></param>
-    /// <returns></returns>
-    private List<VerticeInfo> OffsetPath(List<VerticeInfo> path, float offsetDistance)
-    {
-        var result = new List<VerticeInfo>();
-        for (int i = 0; i < path.Count; i++)
-        {
-            // 前後の点を取得（ループ対応）
-            int prev = (i - 1 + path.Count) % path.Count;
-            int next = (i + 1) % path.Count;
-
-            // 前後の接線ベクトルを計算
-            Vector3 dirPrev = (path[i].vertice - path[prev].vertice).normalized;
-            Vector3 dirNext = (path[next].vertice - path[i].vertice).normalized;
-
-            // 平均接線ベクトル
-            Vector3 tangent = (dirPrev + dirNext).normalized;
-
-            // XZ平面上の法線（接線を90度回転）
-            Vector3 normal = Vector3.zero;
-            if (dirL == 0)
+            var best = -1;
+            for (var i = 0; i < pts.Count; i++)
             {
-                if (dirH == 1)
+                if (plusSide ? (ls[i] <= cl) : (ls[i] >= cl))
                 {
-                    normal = new Vector3(-tangent.y, tangent.x, 0f).normalized;
+                    continue;
                 }
-                if (dirH == 2)
+                if (best < 0)
                 {
-                    normal = new Vector3(-tangent.z, 0f, tangent.x).normalized;
+                    best = i;
+                    continue;
+                }
+                var d = top ? (hs[i] - hs[best]) : (hs[best] - hs[i]);
+                if ((d > 1e-5f) || ((Mathf.Abs(d) <= 1e-5f) && (Mathf.Abs(ls[i] - cl) < Mathf.Abs(ls[best] - cl))))
+                {
+                    best = i;
                 }
             }
-
-            // 外側にオフセット
-            result.Add(new VerticeInfo
-            {
-                id = path[i].id,
-                normal = path[i].normal,
-                vertice = path[i].vertice + normal * offsetDistance
-            });
+            return best < 0 ? 0 : best;
         }
-        return result;
+        var org = Mathf.Clamp(linearSetting.org, 0, 3);
+        var start = org == 0 ? PickCorner(false, true) :
+                    org == 1 ? PickCorner(true, true) :
+                    org == 2 ? PickCorner(true, false) : PickCorner(false, false);
+        pts = pts.Skip(start).Concat(pts.Take(start)).ToList();
+        if (arcs != null)
+        {
+            arcs = arcs.Skip(start).Concat(arcs.Take(start)).ToList();
+        }
+        pts.Add(pts[0]);
+        loopPathPoints = pts;
+        loopPathArc = arcs ?? new List<bool>();
+
+        // 経路長・スケール・周長
+        pathLength = 0f;
+        for (var i = 0; i < loopPathPoints.Count - 1; i++)
+        {
+            pathLength += Vector3.Distance(loopPathPoints[i], loopPathPoints[i + 1]);
+        }
+        linearScale = moveObject.transform.lossyScale.x;
+        if (linearScale < 1e-9f)
+        {
+            linearScale = 1f;
+        }
+        totalLength = linearSetting.loopLength > 0f ? linearSetting.loopLength / 1000f : pathLength * linearScale;
+        // カーブ吸収：直線はそのまま、周長との差をカーブ区間だけで吸収する換算表（作れなければ均等配分）
+        linearScaler = null;
+        if (linearSetting.loopScaling && linearSetting.loopCurveScaling && (linearSetting.loopLength > 0f))
+        {
+            linearScaler = LoopScaler.Build(loopPathPoints, loopPathArc, totalLength / linearScale, name, linearScale);
+        }
+
+        // ループ面の法線（Newell法）
+        var normal = Vector3.zero;
+        for (var i = 0; i < loopPathPoints.Count - 1; i++)
+        {
+            normal += Vector3.Cross(loopPathPoints[i], loopPathPoints[i + 1]);
+        }
+        loopNormal = normal.sqrMagnitude > 1e-12f ? normal.normalized : Vector3.up;
+
+        // 設計位置（moveObjectローカル原点）に最も近い経路上の点を基準にする
+        var accumulated = 0f;
+        var bestDistance = float.MaxValue;
+        var bestOffset = 0f;
+        for (var i = 0; i < loopPathPoints.Count - 1; i++)
+        {
+            var a = loopPathPoints[i];
+            var ab = loopPathPoints[i + 1] - a;
+            var segLen = ab.magnitude;
+            if (segLen > 1e-9f)
+            {
+                var t = Mathf.Clamp01(Vector3.Dot(-a, ab) / (segLen * segLen));
+                var d = (a + ab * t).sqrMagnitude;
+                if (d < bestDistance)
+                {
+                    bestDistance = d;
+                    bestOffset = accumulated + segLen * t;
+                }
+            }
+            accumulated += segLen;
+        }
+        GetLinearPositionOnPath(bestOffset, out moverBasePos, out moverBaseDir);
+
+        Debug.Log($"リニア経路: {name} 経路点={loopPathPoints.Count} 経路長={pathLength * linearScale * 1000f:F1}mm " +
+                  $"周長={totalLength * 1000f:F1}mm スケーリング={(!linearSetting.loopScaling ? "なし" : (linearScaler != null ? "カーブ吸収" : "均等"))} 原点={org} 反転={linearSetting.rvs} " +
+                  $"設計位置と経路の距離={Mathf.Sqrt(bestDistance) * linearScale * 1000f:F1}mm");
     }
     #endregion リニアパス作成
 
     #region ムーバー作成
     /// <summary>
-    /// ムーバーオブジェクト作成
+    /// ムーバーオブジェクト作成（ユニットのモデルを複製する。子ユニットは共通処理でモデルの下へ移っているので一緒に複製される）
     /// </summary>
     private void CreateMoverObject()
     {
-        // ヘッドオブジェクト取得
-        var heads = unitSetting.childrenObject.FindAll(d => d.GetComponent<AxisMotionBase>() != null);
-        // ムーバーオブジェクトにヘッドをセット
-        foreach (var head in heads)
-        {
-            head.transform.parent = linearSetting.gameObject.transform;
-        }
-        // ムーバーオブジェクトを無効化
-        linearSetting.gameObject.SetActive(false);
+        // ムーバーの元モデルを無効化
+        moveObject.SetActive(false);
         if (loopPathPoints.Count > 4)
         {
-            // バケット間隔
             moverPitch = linearSetting.pitch / 1000f;
             moverOffsetPos = linearSetting.offset / 1000f;
-            totalLength = linearSetting.length / 1000f;
-            curveLength = totalLength / 2 - straightLength;
             // 初期位置から
             for (var i = 0; i < linearSetting.count; i++)
             {
                 var mover = new MoverInfo
                 {
                     id = i,
-                    obj = Instantiate(linearSetting.gameObject),
+                    // 親を指定して複製する（親なし複製だと祖先のスケールが失われる）
+                    obj = Instantiate(moveObject, moveObject.transform.parent),
                     pointno = -1,
                     pos = (totalLength - moverPitch * i) % totalLength,
                     size = moverPitch,
@@ -1890,26 +1684,7 @@ public class MotionLinear : AxisMotionBase
                 {
                     mover.CreateStatus(new Vector3(linearSetting.statPos[0] / 1000f, linearSetting.statPos[1] / 1000f, linearSetting.statPos[2] / 1000f));
                 }
-                // パス上のその距離の位置を取得
-                GetPositionOnPath(mover.pos, out Vector3 pos, out Vector3 dir, out Quaternion rot);
-                mover.obj.transform.parent = moveObject.transform.parent;
-                mover.obj.transform.localPosition = pos;
-                if (dir != Vector3.zero)
-                {
-                    if (dirL == 0)
-                    {
-                        if (dirH == 1)
-                        {
-                            mover.obj.transform.localRotation = rot * Quaternion.Euler(moverOffsetAng);
-                        }
-                        else
-                        {
-
-                            mover.obj.transform.localRotation = rot * Quaternion.Euler(Vector3.zero);
-                            mover.obj.transform.localEulerAngles -= moverOffsetAng;
-                        }
-                    }
-                }
+                RenewMover(mover);
                 mover.obj.SetActive(true);
                 movers.Add(mover);
             }
@@ -1934,6 +1709,72 @@ public class MotionLinear : AxisMotionBase
                 }
             }
         }
+        else
+        {
+            Debug.LogWarning($"リニア: {name} 経路が作成できないためムーバーを生成しません");
+        }
+    }
+
+    /// <summary>
+    /// 経路確認ライン（バケットと同じくCtrl+Shift押下中のみ表示）
+    /// 黄=経路、マゼンタの球=原点（位置0）。画面左上に幾何周長と周長設定の差も出す
+    /// </summary>
+    private void CreateLinearPathLine()
+    {
+        if (pathLineObj != null)
+        {
+            Destroy(pathLineObj);
+            pathLineObj = null;
+        }
+        if ((loopPathPoints == null) || (loopPathPoints.Count < 2))
+        {
+            return;
+        }
+        pathLineObj = new GameObject($"LinearPathLine_{name}");
+        // moveObject（ムーバーの元モデル）は無効化されているため、その親にぶら下げて同じローカル変換を複製する
+        // （経路点は moveObject ローカルのまま使える）
+        pathLineObj.transform.SetParent(moveObject.transform.parent, false);
+        pathLineObj.transform.localPosition = moveObject.transform.localPosition;
+        pathLineObj.transform.localRotation = moveObject.transform.localRotation;
+        pathLineObj.transform.localScale = moveObject.transform.localScale;
+        var lr = pathLineObj.AddComponent<LineRenderer>();
+        lr.useWorldSpace = false;
+        lr.loop = false;   // 経路点は終端に始点を追加済み（閉ループ）
+        lr.numCornerVertices = 0;
+        lr.numCapVertices = 0;
+        // 幅はワールド単位：実寸約2mm
+        lr.widthMultiplier = 0.002f;
+        var mat = MakePathLineMaterial(UnityEngine.Color.yellow);
+        if (mat != null)
+        {
+            lr.sharedMaterial = mat;
+            lr.startColor = UnityEngine.Color.yellow;
+            lr.endColor = UnityEngine.Color.yellow;
+        }
+        lr.positionCount = loopPathPoints.Count;
+        lr.SetPositions(loopPathPoints.ToArray());
+        // 原点（位置0＝初期オフセット・開始オフセット込みの経路上の点）
+        GetPositionOnLoop(moverOffsetPos, out var op, out _);
+        var marker = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+        marker.name = "OriginMarker";
+        Destroy(marker.GetComponent<Collider>());
+        marker.transform.SetParent(pathLineObj.transform, false);
+        marker.transform.localPosition = op;
+        // 直径はワールド実寸で約30mm（親のスケールを打ち消す）
+        var ls = pathLineObj.transform.lossyScale;
+        marker.transform.localScale = new Vector3(
+            0.03f / Mathf.Max(Mathf.Abs(ls.x), 1e-6f),
+            0.03f / Mathf.Max(Mathf.Abs(ls.y), 1e-6f),
+            0.03f / Mathf.Max(Mathf.Abs(ls.z), 1e-6f));
+        var omat = MakePathLineMaterial(UnityEngine.Color.magenta);
+        if (omat != null)
+        {
+            marker.GetComponent<Renderer>().sharedMaterial = omat;
+        }
+        pathLineObj.SetActive(false);
+        BacketPathOverlay.RegisterLine(name, pathLineObj);
+        // 周長オーバーレイ（幾何周長と周長設定の差。オフセット調整の目安）
+        BacketPathOverlay.Register(name, linearSetting.pathName, pathLength * linearScale * 1000f, linearSetting.loopLength);
     }
     #endregion ムーバー作成
 
@@ -2167,43 +2008,67 @@ public class MotionLinear : AxisMotionBase
 
     #region 位置算出
     /// <summary>
-    /// パス上のポイント取得
+    /// ムーバーの姿勢（ワールド）
+    /// 設計位置での「経路上の基準点→モデル原点」の関係を、経路の向きに合わせて回して保つ
     /// </summary>
-    /// <param name="path"></param>
-    /// <param name="distance"></param>
-    /// <param name="pos"></param>
-    /// <param name="dir"></param>
-    private void GetPositionOnPath(float distance, out Vector3 pos, out Vector3 dir, out Quaternion rot)
+    /// <param name="distance">周長基準の位置(m)</param>
+    private void GetMoverPose(float distance, out Vector3 pos, out Quaternion rot)
     {
-        Vector3 toPos = Vector3.zero;
-        float accumulated = 0f;
-        distance = CalcLinearPos(distance + moverOffsetPos);
-        for (int i = 0; i < loopPathPoints.Count - 1; i++)
-        {
-            float segLen = Vector3.Distance(loopPathPoints[i], loopPathPoints[i + 1]);
+        GetPositionOnLoop(distance + moverOffsetPos, out Vector3 p, out Vector3 dir);
+        var delta = (dir != Vector3.zero)
+            ? Quaternion.AngleAxis(Vector3.SignedAngle(moverBaseDir, dir, loopNormal), loopNormal)
+            : Quaternion.identity;
+        pos = moveObject.transform.TransformPoint(p - delta * moverBasePos);
+        rot = moveObject.transform.rotation * delta;
+    }
 
-            if (accumulated + segLen >= distance)
+    /// <summary>
+    /// ループ上のポイント取得
+    /// スケーリングON：周長と経路長の差を経路上に均等配分する（周長基準の位置→経路距離を比例換算）
+    /// スケーリングOFF：周長基準の位置をそのまま経路距離として使う
+    /// </summary>
+    /// <param name="distance">周長基準の位置(m)</param>
+    private void GetPositionOnLoop(float distance, out Vector3 pos, out Vector3 dir)
+    {
+        float geom;
+        if (linearSetting.loopScaling && (totalLength > 1e-9f))
+        {
+            geom = linearScaler != null ? linearScaler.ToGeom(distance / linearScale) : distance / totalLength * pathLength;
+        }
+        else
+        {
+            geom = distance / linearScale;
+        }
+        // 経路の開始位置オフセット（この経路を参照する全ユニットに効く）
+        geom += linearSetting.pathStartOffset / linearScale;
+        if (pathLength > 1e-9f)
+        {
+            geom %= pathLength;
+            if (geom < 0f)
             {
-                float t = (distance - accumulated) / segLen;
+                geom += pathLength;
+            }
+        }
+        GetLinearPositionOnPath(geom, out pos, out dir);
+    }
+
+    /// <summary>
+    /// パス上のポイント取得（moveObjectローカル）
+    /// </summary>
+    /// <param name="distance">経路距離（moveObjectローカル単位）</param>
+    /// <param name="pos">位置</param>
+    /// <param name="dir">進行方向</param>
+    private void GetLinearPositionOnPath(float distance, out Vector3 pos, out Vector3 dir)
+    {
+        var accumulated = 0f;
+        for (var i = 0; i < loopPathPoints.Count - 1; i++)
+        {
+            var segLen = Vector3.Distance(loopPathPoints[i], loopPathPoints[i + 1]);
+            if ((segLen > 1e-9f) && (accumulated + segLen >= distance))
+            {
+                var t = (distance - accumulated) / segLen;
                 pos = Vector3.Lerp(loopPathPoints[i], loopPathPoints[i + 1], t);
                 dir = (loopPathPoints[i + 1] - loopPathPoints[i]).normalized;
-                if (!linearSetting.rvs)
-                {
-                    dir = -dir;
-                }
-                // 角度算出
-                if (dirL == 0)
-                {
-                    if (dirD == 1)
-                    {
-                        toPos = (pos - new Vector3(center.x, pos.y, center.z)).normalized;
-                    }
-                    else if (dirD == 2)
-                    {
-                        toPos = (pos - new Vector3(center.x, center.y, pos.z)).normalized;
-                    }
-                }
-                rot = Quaternion.LookRotation(dir, toPos);
                 return;
             }
             accumulated += segLen;
@@ -2211,48 +2076,6 @@ public class MotionLinear : AxisMotionBase
         // パスの終端
         pos = loopPathPoints[loopPathPoints.Count - 1];
         dir = (loopPathPoints[loopPathPoints.Count - 1] - loopPathPoints[loopPathPoints.Count - 2]).normalized;
-        if (!linearSetting.rvs)
-        {
-            dir = -dir;
-        }
-        // 角度算出
-        if (dirL == 0)
-        {
-            if (dirD == 1)
-            {
-                toPos = (pos - new Vector3(center.x, pos.y, center.z)).normalized;
-            }
-            else if (dirD == 2)
-            {
-                toPos = (pos - new Vector3(center.x, center.y, pos.z)).normalized;
-            }
-        }
-        rot = Quaternion.LookRotation(dir, toPos);
-    }
-
-    /// <summary>
-    /// リニア位置を計算
-    /// </summary>
-    /// <returns></returns>
-    private float CalcLinearPos(float pos)
-    {
-        var ret = (pos + totalLength) % totalLength;
-        if (pos <= straightLength)
-        {
-        }
-        else if (pos <= straightLength + curveLength)
-        {
-            ret = straightLength + (pos - straightLength) * calcCurveLength / curveLength;
-        }
-        else if (pos <= straightLength * 2 + curveLength)
-        {
-            ret = straightLength + calcCurveLength + (pos - straightLength - curveLength);
-        }
-        else
-        {
-            ret = straightLength * 2 + calcCurveLength + +(pos - straightLength - straightLength - curveLength) * calcCurveLength / curveLength;
-        }
-        return ret;
     }
     #endregion 位置算出
 

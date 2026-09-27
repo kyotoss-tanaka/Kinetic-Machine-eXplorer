@@ -860,10 +860,14 @@ namespace Parameters
         }
         public string mechId { get; set; }
         public string name { get; set; }
+        /// <summary>旧形式のムーバーモデル（新形式では空。ロード時に新形式へ読み替える）</summary>
         public string model { get; set; }
         public string group { get; set; }
         public string path { get; set; }
+        /// <summary>参照する経路名（PathInfo.json。ループの形と周長）</summary>
+        public string pathName { get; set; } = "";
         public string type { get; set; }
+        /// <summary>旧形式の周長(mm)。新形式では経路設定の周長を使う</summary>
         public float length { get; set; }
         public int count { get; set; }
         public float pitch { get; set; }
@@ -874,8 +878,27 @@ namespace Parameters
         public List<float> statPos { get; set; }
         public List<PointInfo> points { get; set; }
         public List<SpdInfo> spds { get; set; }
+        /// <summary>旧形式のムーバーモデル実体（ロード時にpathから解決。新形式では未使用）</summary>
         [JsonIgnore]
         public GameObject gameObject { get; set; }
+        /// <summary>経路要素（ロード時にpathNameから解決して充填される）</summary>
+        [JsonIgnore]
+        public List<BacketSetting.PathElement> pathElements { get; set; } = new();
+        /// <summary>周長(mm)。ロード時に経路設定から充填される（0=経路から算出）</summary>
+        [JsonIgnore]
+        public float loopLength { get; set; }
+        /// <summary>周長と経路長の差を経路上に配分する。ロード時に経路設定から充填される</summary>
+        [JsonIgnore]
+        public bool loopScaling { get; set; }
+        /// <summary>スケーリングON時、周長との差をカーブ区間だけで吸収する（直線はそのまま）。ロード時に経路設定から充填される</summary>
+        [JsonIgnore]
+        public bool loopCurveScaling { get; set; }
+        /// <summary>経路の開始位置オフセット(m)。ロード時に経路設定から充填される</summary>
+        [JsonIgnore]
+        public float pathStartOffset { get; set; }
+        /// <summary>逆回り。ロード時に経路設定から充填される</summary>
+        [JsonIgnore]
+        public bool pathReverse { get; set; }
     }
 
     [Serializable]
@@ -1412,7 +1435,7 @@ namespace Parameters
         [Serializable]
         public class PathElement
         {
-            /// <summary>0=スプロケット、1=経由点</summary>
+            /// <summary>0=スプロケット、1=経由点、2=リニア（登録モデル配下からリニアの種類ごとの名前でセグメントを探す。回転しない）、3=セグメント（登録モデルをそのままセグメントとして使う。回転しない）</summary>
             public int type { get; set; }
             public string path { get; set; } = "";
             /// <summary>半径オフセット(m)。スプロケット=モデル検出半径への補正、経由点=角丸め半径(0=そのまま通過)</summary>
@@ -1434,9 +1457,12 @@ namespace Parameters
         /// <summary>周長(mm)。ロード時に経路設定(PathInfo)から充填される（0=経路から算出）</summary>
         [JsonIgnore]
         public float loopLength { get; set; }
-        /// <summary>周長と経路長の差を経路上に均等配分する。ロード時に経路設定(PathInfo)から充填される</summary>
+        /// <summary>周長と経路長の差を経路上に配分する。ロード時に経路設定(PathInfo)から充填される</summary>
         [JsonIgnore]
         public bool loopScaling { get; set; }
+        /// <summary>スケーリングON時、周長との差をカーブ区間だけで吸収する（直線はそのまま）。ロード時に経路設定から充填される</summary>
+        [JsonIgnore]
+        public bool loopCurveScaling { get; set; }
         /// <summary>経路の開始位置オフセット(m)。ロード時に経路設定(PathInfo)から充填される</summary>
         [JsonIgnore]
         public float pathStartOffset { get; set; }
@@ -1491,8 +1517,10 @@ namespace Parameters
         public string name { get; set; } = "";
         /// <summary>周長(mm)。この距離の移動でちょうど1周する（0=経路から算出）</summary>
         public float loopLength { get; set; }
-        /// <summary>周長と経路長の差を経路上に均等配分する（false=経路長を超えた時点で先頭へ戻る）</summary>
+        /// <summary>周長と経路長の差を経路上に配分する（false=経路長を超えた時点で先頭へ戻る）</summary>
         public bool loopScaling { get; set; }
+        /// <summary>スケーリングON時の配分方法。true=直線はそのまま、差をカーブ区間だけで吸収する。false=経路全体に均等配分</summary>
+        public bool curveScaling { get; set; }
         /// <summary>開始位置オフセット(m)。経路の開始位置を進行方向にずらす（参照する全ユニットに効く）</summary>
         public float startOffset { get; set; }
         /// <summary>逆回り（ループの進行方向を反転）</summary>

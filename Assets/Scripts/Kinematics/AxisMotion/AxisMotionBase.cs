@@ -98,6 +98,17 @@ public class AxisMotionBase : KinematicsBase
     protected List<Vector3> loopPathPoints = new List<Vector3>();
 
     /// <summary>
+    /// 経路の各区間がカーブ（要素の外形に沿う区間）か。loopPathPoints[i]→[i+1] の区間に対応（要素数=点数-1）
+    /// 外形ラップで作った経路だけが持つ。空=区別なし（カーブ吸収は均等配分に戻る）
+    /// </summary>
+    protected List<bool> loopPathArc = new List<bool>();
+
+    /// <summary>
+    /// バケットのカーブ吸収の換算表（null=均等配分またはスケーリングなし）
+    /// </summary>
+    private LoopScaler backetScaler;
+
+    /// <summary>
     /// バケット情報
     /// </summary>
     private List<BacketInfo> backets = new List<BacketInfo>();
@@ -1006,11 +1017,12 @@ public class AxisMotionBase : KinematicsBase
     private void CreateBacketPathPoints()
     {
         loopPathPoints.Clear();
+        loopPathArc.Clear();
         var elements = unitSetting.backetSetting.pathElements;
         if ((elements != null) && (elements.Count >= 2))
         {
             // スプロケット/経由点から経路を自動生成（ベルトモデル不要）
-            CreatePathPointsFromElements(elements);
+            CreatePathPointsFromElements(elements, unitSetting.backetSetting.pathReverse);
             return;
         }
         if (unitSetting.backetSetting.gameObject != null)
@@ -1085,14 +1097,176 @@ public class AxisMotionBase : KinematicsBase
     }
 
     /// <summary>
+    /// セグメント系の種別か（2=リニア：名前で探して展開、3=セグメント：登録モデルをそのまま使う）
+    /// どちらも回転させず、ループ面は全セグメントの広がり、中心は外形の中心で決める
+    /// </summary>
+    protected static bool IsSegmentType(int type)
+    {
+        return (type == 2) || (type == 3);
+    }
+
+    /// <summary>
+    /// 種別「リニア」の要素で探すセグメント名（部分一致）。リニアの種類を持つユニットが返す
+    /// </summary>
+    /// <returns>null=リニアの種類を持たない</returns>
+    protected virtual List<string> GetLinearSegmentNames()
+    {
+        return null;
+    }
+
+    /// <summary>
+    /// 種別「リニア」の要素を、登録モデル配下（登録モデル自身を含む）の名前が一致するセグメントへ展開する
+    /// 展開したセグメントはループ面上の角度順に並べる（外形ラップはループを一周する順を前提にするため）
+    /// </summary>
+    private List<BacketSetting.PathElement> ExpandLinearElements(List<BacketSetting.PathElement> source, Transform planeFrame)
+    {
+        var result = new List<BacketSetting.PathElement>();
+        foreach (var element in source)
+        {
+            if (element.type != 2)
+            {
+                result.Add(element);
+                continue;
+            }
+            if (element.gameObject == null)
+            {
+                Debug.LogWarning($"リニア経路: {name} 種別「リニア」の要素のモデルが見つかりません");
+                continue;
+            }
+            // 登録モデル（軌道全体）はPrefab非表示時にも表示を維持する
+            // （経路に使うのはカーブのセグメントだけだが、直線部も含めて軌道として見せる）
+            BacketPathOverlay.KeepVisibleModels.Add(element.gameObject.transform);
+            var names = GetLinearSegmentNames();
+            if ((names == null) || (names.Count == 0))
+            {
+                Debug.LogWarning($"リニア経路: {name} リニアの種類に対応するセグメント名がありません（{element.gameObject.name}）");
+                continue;
+            }
+            var matched = element.gameObject.GetComponentsInChildren<Transform>(true)
+                .Where(t => names.Any(n => t.name.Contains(n)))
+                .ToList();
+            // 一致したセグメントの子孫も名前が一致することがある。重複して包まないよう最上位だけ残す
+            var matchedSet = new HashSet<Transform>(matched);
+            var segments = matched.Where(t =>
+            {
+                for (var p = t.parent; (p != null) && (p != element.gameObject.transform.parent); p = p.parent)
+                {
+                    if (matchedSet.Contains(p))
+                    {
+                        return false;
+                    }
+                }
+                return true;
+            }).ToList();
+            // 外形の中心（ループ面の座標系）。メッシュのバウンズ8隅から求める
+            var centers = new List<Vector3>();
+            var all = new Bounds();
+            var first = true;
+            var valid = new List<Transform>();
+            foreach (var seg in segments)
+            {
+                var b = new Bounds();
+                var has = false;
+                foreach (var mf in seg.GetComponentsInChildren<MeshFilter>(true))
+                {
+                    if (mf.sharedMesh == null)
+                    {
+                        continue;
+                    }
+                    var mb = mf.sharedMesh.bounds;
+                    for (var k = 0; k < 8; k++)
+                    {
+                        var corner = mb.center + Vector3.Scale(mb.extents, new Vector3((k & 1) == 0 ? -1 : 1, (k & 2) == 0 ? -1 : 1, (k & 4) == 0 ? -1 : 1));
+                        var w = mf.transform.TransformPoint(corner);
+                        if (planeFrame != null)
+                        {
+                            w = planeFrame.InverseTransformPoint(w);
+                        }
+                        if (!has)
+                        {
+                            b = new Bounds(w, Vector3.zero);
+                            has = true;
+                        }
+                        else
+                        {
+                            b.Encapsulate(w);
+                        }
+                    }
+                }
+                if (!has)
+                {
+                    continue;
+                }
+                valid.Add(seg);
+                centers.Add(b.center);
+                if (first)
+                {
+                    all = b;
+                    first = false;
+                }
+                else
+                {
+                    all.Encapsulate(b);
+                }
+            }
+            if (valid.Count == 0)
+            {
+                Debug.LogWarning($"リニア経路: {name} {element.gameObject.name} の配下にセグメント（{string.Join(",", names)}）が見つかりません");
+                continue;
+            }
+            // 全体の広がりが最小の軸をループ面の法線として、面内の角度順（反時計回り）に並べる
+            var size = all.size;
+            var axis = ((size.x <= size.y) && (size.x <= size.z)) ? 0 : (size.y <= size.z ? 1 : 2);
+            var c2 = To2D(all.center, axis);
+            var order = Enumerable.Range(0, valid.Count)
+                .OrderBy(i =>
+                {
+                    var p = To2D(centers[i], axis) - c2;
+                    return Mathf.Atan2(p.y, p.x);
+                }).ToList();
+            foreach (var i in order)
+            {
+                result.Add(new BacketSetting.PathElement
+                {
+                    type = 2,
+                    path = element.path,
+                    offset = element.offset,
+                    pos = element.pos,
+                    gameObject = valid[i].gameObject,
+                });
+            }
+            Debug.Log($"リニア経路: {name} {element.gameObject.name} からセグメント{valid.Count}個を検出 " +
+                      string.Join(" ", order.Select(i => valid[i].name)));
+        }
+        return result;
+    }
+
+    /// <summary>
     /// 経路要素（スプロケット/経由点）から循環経路を生成する
     /// 登録順の中心点を結び、各要素を半径の円弧（外周側）で回る角丸多角形の閉ループを作る
     /// スプロケット2個なら直線2本＋半円2つのスタジアム形になる
+    /// 種別「リニア」の要素は登録モデル配下のセグメントへ展開してから同じ方法で包む
     /// </summary>
-    private void CreatePathPointsFromElements(List<BacketSetting.PathElement> elements)
+    /// <param name="sourceElements">経路要素（経路設定の登録順）</param>
+    /// <param name="reverse">逆回り</param>
+    /// <param name="planeFrame">ループ面を決める座標系（null=ワールド）。リニアは軌道モデルの座標系を渡す</param>
+    protected void CreatePathPointsFromElements(List<BacketSetting.PathElement> sourceElements, bool reverse, Transform planeFrame = null)
     {
         // 外形ラップ方式：各要素のメッシュ外形（ループ面に投影した2D凸包）に張ったチェーンとして経路を作る
-        // 計算はすべてワールド座標(m)で行い、最後にmoveObjectローカルへ変換する
+        // 計算はループ面の座標系（既定はワールド座標(m)）で行い、最後にmoveObjectローカルへ変換する
+        // ※ループ面は座標系の軸に平行な面に限る。軌道が斜めに置かれても崩れないよう、リニアは軌道モデルの座標系で計算する
+        Vector3 ToFrame(Vector3 w) => planeFrame != null ? planeFrame.InverseTransformPoint(w) : w;
+        Vector3 FromFrame(Vector3 f) => planeFrame != null ? planeFrame.TransformPoint(f) : f;
+        // 要素の半径オフセット(m)をループ面の座標系の単位へ換算する
+        var frameScale = planeFrame != null ? Mathf.Max(planeFrame.lossyScale.x, 1e-9f) : 1f;
+
+        // 種別「リニア」はセグメントへ展開する（スプロケット駆動の登録キーは元のリストのまま使う）
+        var elements = ExpandLinearElements(sourceElements, planeFrame);
+        if (elements.Count == 0)
+        {
+            Debug.LogWarning($"経路生成: {name} 有効な経路要素がありません");
+            return;
+        }
 
         // 要素ごとの頂点（ワールド）と代表点を収集し、ループ面の法線軸を決める
         var vertsList = new List<List<Vector3>>();
@@ -1116,7 +1290,7 @@ public class AxisMotionBase : KinematicsBase
                     }
                     foreach (var v in mf.sharedMesh.vertices)
                     {
-                        var w = mf.transform.TransformPoint(v);
+                        var w = ToFrame(mf.transform.TransformPoint(v));
                         verts.Add(w);
                         if (first)
                         {
@@ -1132,12 +1306,13 @@ public class AxisMotionBase : KinematicsBase
                 if (verts.Count == 0)
                 {
                     verts = null;
-                    rep = element.gameObject.transform.position;
+                    rep = ToFrame(element.gameObject.transform.position);
                 }
                 else
                 {
                     // 中心はモデルの原点を使う（KMXの共通規約。外形中心は使わない）
-                    rep = element.gameObject.transform.position;
+                    // ただしセグメント（リニア/セグメント）は原点が回転中心ではないため外形の中心を使う
+                    rep = IsSegmentType(element.type) ? bounds.center : ToFrame(element.gameObject.transform.position);
                     if ((depthAxis < 0) && (element.type == 0))
                     {
                         // スプロケットの最薄軸=回転軸=ループ面の法線
@@ -1149,7 +1324,7 @@ public class AxisMotionBase : KinematicsBase
             else
             {
                 // 手入力座標（KMX座標系X,Y,Z→Unity X,Z,Y。動作部モデル位置からのワールド軸オフセット）
-                rep = moveObject.transform.position + new Vector3(element.pos[0], element.pos[2], element.pos[1]);
+                rep = ToFrame(moveObject.transform.position + new Vector3(element.pos[0], element.pos[2], element.pos[1]));
             }
             vertsList.Add(verts);
             repPoints.Add(rep);
@@ -1157,6 +1332,18 @@ public class AxisMotionBase : KinematicsBase
             if (element.gameObject != null)
             {
                 BacketPathOverlay.KeepVisibleModels.Add(element.gameObject.transform);
+            }
+        }
+        if (depthAxis < 0)
+        {
+            // セグメントは1個ずつだと最薄軸が法線とは限らないため、全セグメントを合わせた広がりが最小の軸を法線とする
+            var linearVerts = vertsList.Where((v, i) => IsSegmentType(elements[i].type) && (v != null)).SelectMany(v => v).ToList();
+            if (linearVerts.Count > 0)
+            {
+                var ex = linearVerts.Max(d => d.x) - linearVerts.Min(d => d.x);
+                var ey = linearVerts.Max(d => d.y) - linearVerts.Min(d => d.y);
+                var ez = linearVerts.Max(d => d.z) - linearVerts.Min(d => d.z);
+                depthAxis = ((ex <= ey) && (ex <= ez)) ? 0 : (ey <= ez ? 1 : 2);
             }
         }
         if (depthAxis < 0)
@@ -1192,13 +1379,13 @@ public class AxisMotionBase : KinematicsBase
                 for (var k = 0; k < 36; k++)
                 {
                     var ang = k * Mathf.PI * 2f / 36f;
-                    outline.Add(c + new Vector2(Mathf.Cos(ang), Mathf.Sin(ang)) * elements[i].offset);
+                    outline.Add(c + new Vector2(Mathf.Cos(ang), Mathf.Sin(ang)) * (elements[i].offset / frameScale));
                 }
             }
             else if ((outline.Count > 2) && (Math.Abs(elements[i].offset) > 1e-6f))
             {
                 // 半径オフセットの膨張/収縮はモデル原点を放射中心にする
-                outline = OffsetOutline(outline, elements[i].offset, To2D(repPoints[i], depthAxis));
+                outline = OffsetOutline(outline, elements[i].offset / frameScale, To2D(repPoints[i], depthAxis));
             }
             outlines.Add(outline);
             // 要素の中心はモデル原点（外形重心は使わない）
@@ -1225,12 +1412,16 @@ public class AxisMotionBase : KinematicsBase
         {
             sprocketDrivers.Remove(key);
         }
-        if (!sprocketDrivers.TryGetValue(elements, out var spDriver) || (spDriver == null))
+        if (!sprocketDrivers.TryGetValue(sourceElements, out var spDriver) || (spDriver == null))
         {
-            sprocketDrivers[elements] = this;
+            sprocketDrivers[sourceElements] = this;
             // 2D平面のCCW回転が対応するワールド軸まわりの符号（(x,z)平面のCCWは-Y回り）
             var axisSign = depthAxis == 1 ? -1f : 1f;
             var axisWorld = depthAxis == 0 ? Vector3.right : (depthAxis == 1 ? Vector3.up : Vector3.forward);
+            if (planeFrame != null)
+            {
+                axisWorld = planeFrame.TransformDirection(axisWorld);
+            }
             for (var i = 0; i < elements.Count; i++)
             {
                 if ((elements[i].type != 0) || (elements[i].gameObject == null) || (outlines[i].Count < 3))
@@ -1247,7 +1438,7 @@ public class AxisMotionBase : KinematicsBase
                 sprockets.Add(new SprocketInfo
                 {
                     obj = elements[i].gameObject,
-                    centerLocal = moveObject.transform.InverseTransformPoint(To3D(centroids[i], depthAxis, depth)),
+                    centerLocal = moveObject.transform.InverseTransformPoint(FromFrame(To3D(centroids[i], depthAxis, depth))),
                     axisLocal = moveObject.transform.InverseTransformDirection(axisWorld),
                     radius = radius,
                     sign = winding * axisSign,
@@ -1263,6 +1454,14 @@ public class AxisMotionBase : KinematicsBase
         for (var i = 0; i < n; i++)
         {
             var j = (i + 1) % n;
+            if (n == 1)
+            {
+                // 要素1個（ループ全体が1つのセグメント等）は外形を一周する
+                var cnt1 = outlines[0].Count;
+                tInIdx[0] = 0;
+                tOutIdx[0] = ((-winding) % cnt1 + cnt1) % cnt1;
+                break;
+            }
             if (!FindTangent(outlines[i], outlines[j], winding, out var ai, out var bj))
             {
                 // 接線が見つからない（外形同士が重なっている等）場合は相手側重心に最も近い頂点で代用
@@ -1276,6 +1475,8 @@ public class AxisMotionBase : KinematicsBase
 
         // 到着接点→出発接点まで外形の縁に沿って歩く（要素間の直線は隣接する縁の端点間で自動的にできる）
         var points = new List<Vector2>();
+        // 各点がどの要素の外形上か（同じ要素の点同士の区間=カーブ、要素をまたぐ区間=直線）
+        var pointElems = new List<int>();
         for (var i = 0; i < n; i++)
         {
             var outline = outlines[i];
@@ -1284,6 +1485,7 @@ public class AxisMotionBase : KinematicsBase
             for (var guard = 0; guard <= cnt; guard++)
             {
                 points.Add(outline[idx]);
+                pointElems.Add(i);
                 if (idx == tOutIdx[i])
                 {
                     break;
@@ -1292,22 +1494,65 @@ public class AxisMotionBase : KinematicsBase
             }
         }
 
-        // 3D（ワールド）に戻してmoveObjectローカルへ変換し、閉ループにする
-        foreach (var p in points)
+        // 経路の内訳（直線=要素間の接線、カーブ=要素の外形に沿って回る区間）。周長設定・オフセット調整の目安
         {
-            var v = moveObject.transform.InverseTransformPoint(To3D(p, depthAxis, depth));
+            var mm = frameScale * 1000f;
+            var arcTexts = new List<string>();
+            var lineTexts = new List<string>();
+            var arcSum = 0f;
+            var lineSum = 0f;
+            for (var i = 0; i < n; i++)
+            {
+                var outline = outlines[i];
+                var cnt = outline.Count;
+                var idx = tInIdx[i];
+                var arc = 0f;
+                for (var guard = 0; (guard < cnt) && (idx != tOutIdx[i]); guard++)
+                {
+                    var next = (idx + winding + cnt) % cnt;
+                    arc += Vector2.Distance(outline[idx], outline[next]);
+                    idx = next;
+                }
+                arcSum += arc;
+                arcTexts.Add($"[{i}]={arc * mm:F1}");
+                if (n > 1)
+                {
+                    var j = (i + 1) % n;
+                    var line = Vector2.Distance(outline[tOutIdx[i]], outlines[j][tInIdx[j]]);
+                    lineSum += line;
+                    lineTexts.Add($"[{i}→{j}]={line * mm:F1}");
+                }
+            }
+            Debug.Log($"経路内訳: {name} 直線 {string.Join(" ", lineTexts)} 計={lineSum * mm:F1}mm / " +
+                      $"カーブ {string.Join(" ", arcTexts)} 計={arcSum * mm:F1}mm / 合計={(lineSum + arcSum) * mm:F1}mm");
+        }
+
+        // 3D（ワールド）に戻してmoveObjectローカルへ変換し、閉ループにする
+        loopPathArc.Clear();
+        var lastElem = -1;
+        var firstElem = pointElems.Count > 0 ? pointElems[0] : -1;
+        for (var k = 0; k < points.Count; k++)
+        {
+            var v = moveObject.transform.InverseTransformPoint(FromFrame(To3D(points[k], depthAxis, depth)));
             if ((loopPathPoints.Count == 0) || (Vector3.Distance(loopPathPoints[loopPathPoints.Count - 1], v) > 1e-6f))
             {
+                if (loopPathPoints.Count > 0)
+                {
+                    loopPathArc.Add(lastElem == pointElems[k]);
+                }
                 loopPathPoints.Add(v);
             }
+            // 重なって省いた点でも所属は更新する（次の区間の種類は新しい要素側で決まる）
+            lastElem = pointElems[k];
         }
         if (loopPathPoints.Count < 2)
         {
             loopPathPoints.Clear();
+            loopPathArc.Clear();
             return;
         }
         // 流れ方向（最初の要素間直線の主軸）
-        var dir3 = To3D(outlines[1 % n][tInIdx[1 % n]], depthAxis, depth) - To3D(outlines[0][tOutIdx[0]], depthAxis, depth);
+        var dir3 = FromFrame(To3D(outlines[1 % n][tInIdx[1 % n]], depthAxis, depth)) - FromFrame(To3D(outlines[0][tOutIdx[0]], depthAxis, depth));
         if (dir3 == Vector3.zero)
         {
             dir3 = loopPathPoints[1] - loopPathPoints[0];
@@ -1325,10 +1570,13 @@ public class AxisMotionBase : KinematicsBase
             backetDir = dir3.z > 0 ? Vector3.forward : Vector3.back;
         }
         loopPathPoints.Add(loopPathPoints[0]);
-        if (unitSetting.backetSetting.pathReverse)
+        // 閉じる区間（末尾→先頭）。要素1個なら外形上、それ以外は最後の要素→最初の要素の直線
+        loopPathArc.Add(lastElem == firstElem);
+        if (reverse)
         {
             // 逆回り：点列を反転して進行方向を逆にする（閉ループなので先頭/末尾の一致は保たれる）
             loopPathPoints.Reverse();
+            loopPathArc.Reverse();
             backetDir = -backetDir;
         }
     }
@@ -1579,6 +1827,12 @@ public class AxisMotionBase : KinematicsBase
                 backetCountMax = (int)Math.Round(totalLength / backetPitch);
                 backetLength = backetCountMax * backetPitch;
             }
+            // カーブ吸収：直線はそのまま、周長との差をカーブ区間だけで吸収する換算表（作れなければ均等配分）
+            backetScaler = null;
+            if (unitSetting.backetSetting.loopScaling && unitSetting.backetSetting.loopCurveScaling && (unitSetting.backetSetting.loopLength > 0f))
+            {
+                backetScaler = LoopScaler.Build(loopPathPoints, loopPathArc, backetLength, name, backetScale);
+            }
             backetCenter = new Vector3(loopPathPoints.Average(d => d.x), loopPathPoints.Average(d => d.y), loopPathPoints.Average(d => d.z));
             // 設計位置（moveObjectローカル原点）に最も近い経路上の点を探し、その姿勢を基準にする
             // （基準位置ではバケットが元モデルと同じ向きになり、経路に沿って回転していく）
@@ -1820,7 +2074,7 @@ public class AxisMotionBase : KinematicsBase
     }
 
     /// <summary>経路ライン用マテリアル（URP Unlit。安全ゾーンの枠線と同方式）</summary>
-    private static Material MakePathLineMaterial(Color col)
+    protected static Material MakePathLineMaterial(Color col)
     {
         var sh = Shader.Find("Universal Render Pipeline/Unlit");
         if (sh == null) { sh = Shader.Find("Sprites/Default"); }
@@ -1904,6 +2158,112 @@ public class AxisMotionBase : KinematicsBase
     }
 
     /// <summary>
+    /// 周長基準の位置（名目）と経路距離（幾何）の換算表（カーブ吸収）
+    /// 直線区間は1:1のまま、周長と経路長の差をカーブ区間（要素の外形に沿う区間）だけに配分する
+    /// 単位は経路点の座標系（moveObjectローカル）
+    /// </summary>
+    protected class LoopScaler
+    {
+        /// <summary>区間の始点での累積名目距離（要素数=区間数+1）</summary>
+        private float[] nomAcc;
+        /// <summary>区間の始点での累積経路距離（要素数=区間数+1）</summary>
+        private float[] geoAcc;
+
+        /// <summary>
+        /// 換算表を作る。区間の種類が分からない・カーブがない・周長が直線の合計以下のときは null（均等配分に戻す）
+        /// </summary>
+        /// <param name="points">閉ループの経路点（末尾=先頭）</param>
+        /// <param name="arcs">各区間がカーブか（points[i]→[i+1]）</param>
+        /// <param name="nominalTotal">周長（経路点の座標系の単位）</param>
+        /// <param name="unitName">ログ用のユニット名</param>
+        /// <param name="scale">経路点の座標系→ワールド(m)換算（ログ用）</param>
+        public static LoopScaler Build(List<Vector3> points, List<bool> arcs, float nominalTotal, string unitName, float scale)
+        {
+            var segs = points.Count - 1;
+            if ((segs < 1) || (arcs == null) || (arcs.Count != segs))
+            {
+                Debug.LogWarning($"カーブ吸収: {unitName} 区間の種類が分からない経路のため均等配分にします");
+                return null;
+            }
+            var straight = 0f;
+            var arc = 0f;
+            for (var i = 0; i < segs; i++)
+            {
+                var len = Vector3.Distance(points[i], points[i + 1]);
+                if (arcs[i])
+                {
+                    arc += len;
+                }
+                else
+                {
+                    straight += len;
+                }
+            }
+            if (arc < 1e-9f)
+            {
+                Debug.LogWarning($"カーブ吸収: {unitName} カーブ区間がないため均等配分にします");
+                return null;
+            }
+            var k = (nominalTotal - straight) / arc;
+            if (k <= 0f)
+            {
+                Debug.LogWarning($"カーブ吸収: {unitName} 周長が直線部の合計（{straight * scale * 1000f:F1}mm）以下のため均等配分にします");
+                return null;
+            }
+            var scaler = new LoopScaler
+            {
+                nomAcc = new float[segs + 1],
+                geoAcc = new float[segs + 1],
+            };
+            for (var i = 0; i < segs; i++)
+            {
+                var len = Vector3.Distance(points[i], points[i + 1]);
+                scaler.geoAcc[i + 1] = scaler.geoAcc[i] + len;
+                scaler.nomAcc[i + 1] = scaler.nomAcc[i] + (arcs[i] ? len * k : len);
+            }
+            Debug.Log($"カーブ吸収: {unitName} 直線={straight * scale * 1000f:F1}mm カーブ(外形)={arc * scale * 1000f:F1}mm " +
+                      $"→ カーブ(周長基準)={(nominalTotal - straight) * scale * 1000f:F1}mm 倍率={k:F4}");
+            return scaler;
+        }
+
+        /// <summary>名目距離→経路距離</summary>
+        public float ToGeom(float nominal)
+        {
+            return Map(nomAcc, geoAcc, nominal);
+        }
+
+        /// <summary>経路距離→名目距離</summary>
+        public float ToNominal(float geom)
+        {
+            return Map(geoAcc, nomAcc, geom);
+        }
+
+        private static float Map(float[] from, float[] to, float v)
+        {
+            var total = from[from.Length - 1];
+            v = Mathf.Repeat(v, total);
+            // v を含む区間を二分探索
+            var lo = 0;
+            var hi = from.Length - 2;
+            while (lo < hi)
+            {
+                var mid = (lo + hi + 1) / 2;
+                if (from[mid] <= v)
+                {
+                    lo = mid;
+                }
+                else
+                {
+                    hi = mid - 1;
+                }
+            }
+            var span = from[lo + 1] - from[lo];
+            var t = span > 1e-12f ? (v - from[lo]) / span : 0f;
+            return to[lo] + (to[lo + 1] - to[lo]) * t;
+        }
+    }
+
+    /// <summary>
     /// ループ上のポイント取得
     /// 既定：名目距離（周長基準）をそのまま経路距離として使い、幾何経路長を超えたら先頭へ戻る
     /// 周長スケーリングON：周長と経路長の差を経路上に均等配分する（名目距離→経路距離を比例換算）
@@ -1913,7 +2273,7 @@ public class AxisMotionBase : KinematicsBase
         float geom;
         if (unitSetting.backetSetting.loopScaling && (backetLength > 1e-9f))
         {
-            geom = distance / backetLength * backetPathLength;
+            geom = backetScaler != null ? backetScaler.ToGeom(distance) : distance / backetLength * backetPathLength;
         }
         else
         {
@@ -2661,7 +3021,7 @@ public class AxisMotionBase : KinematicsBase
         }
         if (unitSetting.backetSetting.loopScaling && (backetPathLength > 1e-9f))
         {
-            return geom / backetPathLength * backetLength;
+            return backetScaler != null ? backetScaler.ToNominal(geom) : geom / backetPathLength * backetLength;
         }
         return geom;
     }
