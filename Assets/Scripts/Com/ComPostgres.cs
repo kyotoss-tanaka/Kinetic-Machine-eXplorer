@@ -432,7 +432,9 @@ public class ComPostgres : ComBaseScript, ITagCom
                         }
                         catch (Exception ex)
                         {
-                            Debug.LogError(ex.InnerException.Message);
+                            // InnerException が無い例外だとここで NullReferenceException になり、
+                            // 下の isProcessing=false に到達せず以後の通信が永久に止まっていた
+                            Debug.LogError($"ComPostgres: {(ex.InnerException ?? ex).Message}");
                         }
                     }
                     processTime = sw.ElapsedMilliseconds;
