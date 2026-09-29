@@ -1,6 +1,7 @@
 ﻿using System.Linq;
 using UnityEngine;
 using UnityEngine.InputSystem;
+using UnityEngine.EventSystems;
 using System.Reflection;
 
 #if UNITY_EDITOR
@@ -206,6 +207,12 @@ public class CameraController : MonoBehaviour
     /// <param name="mousePos"></param>
     private void MouseWheelEvent(Vector2 scrollDelta)
     {
+        // UI の上（コンボボックスの一覧・メニューのスクロール等）ではカメラを動かさない
+        // （一覧をホイールで選んでいる時に画面まで拡大縮小していた）
+        if ((EventSystem.current != null) && EventSystem.current.IsPointerOverGameObject())
+        {
+            return;
+        }
         float dist = Vector3.Distance(transform.position, targetPosition);
         float speedFactor = Mathf.Clamp01(dist / 10f);  // 距離10以上なら最大速、近いときは遅く
         float moveSpeed = wheelSpeed * speedFactor;
