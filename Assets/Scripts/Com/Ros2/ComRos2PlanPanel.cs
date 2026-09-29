@@ -100,6 +100,13 @@ public class ComRos2PlanPanel : MonoBehaviour
     private Font uiFont;
     private GameObject canvasGo;                                      // 生成した Canvas（破棄/掃除用）
     private GameObject panelRootGo;                                   // パネル本体（表示トグル対象。Canvas/EventSystem は常時活性）
+    private RectTransform panelRect;                                  // パネル（最小化で大きさを変える）
+    private RectTransform titleRect;                                  // タイトルバー
+    private RectTransform bodyRect;                                   // タイトルバー以外の中身（最小化で丸ごと隠す）
+    private Text titleLbl;                                            // 「▼/▶ 経路計画」（最小化時の幅の基準）
+    private float expandedHeight;                                     // 展開時のパネルの高さ
+    private bool collapsed;                                           // 最小化中（機種切替の再構築でも維持する）
+    private const float PanelWidth = 360f;                            // 展開時のパネル幅
     private const string CanvasName = "Ros2PlanPanelCanvas";
 
     private void Start()
@@ -148,6 +155,34 @@ public class ComRos2PlanPanel : MonoBehaviour
             canvasGo = null;
         }
         if (tcpMarker != null) { Destroy(tcpMarker); tcpMarker = null; }   // TCPマーカーも掃除
+    }
+
+    /// <summary>最小化/展開を切り替える（タイトル左のアイコンをクリック）。</summary>
+    private void ToggleCollapsed()
+    {
+        collapsed = !collapsed;
+        ApplyCollapsed();
+    }
+
+    /// <summary>
+    /// 最小化状態を反映する。最小化時は「▶ 経路計画」だけのタイトルバーにし、本体とROS状態表示を隠す
+    /// </summary>
+    private void ApplyCollapsed()
+    {
+        if ((panelRect == null) || (titleRect == null) || (bodyRect == null))
+        {
+            return;
+        }
+        // アイコンで状態を示す（▼=展開中 / ▶=最小化中）。最小化時の幅を正しく測るため訳した文言で入れる
+        titleLbl.text = (collapsed ? "▶ " : "▼ ") + Lang.T("経路計画");
+        bodyRect.gameObject.SetActive(!collapsed);
+        if (commText != null)
+        {
+            commText.gameObject.SetActive(!collapsed);
+        }
+        var width = collapsed ? Mathf.Ceil(8f + titleLbl.preferredWidth + 10f) : PanelWidth;
+        panelRect.sizeDelta = new Vector2(width, collapsed ? titleRect.sizeDelta.y : expandedHeight);
+        titleRect.sizeDelta = new Vector2(width, titleRect.sizeDelta.y);
     }
 
     /// <summary>パネル本体の表示/非表示（Canvas と EventSystem は常時活性のまま＝他UIの入力を止めない）。</summary>
@@ -367,9 +402,23 @@ public class ComRos2PlanPanel : MonoBehaviour
         var titleImg = title.gameObject.AddComponent<Image>();
         titleImg.color = new Color(0.15f, 0.3f, 0.55f, 0.98f);
         title.gameObject.AddComponent<Ros2PanelDrag>().target = panel;
-        var titleLbl = MakeLabel(title, "TitleText", "≡ 経路計画", 15, new Vector2(8f, 0f), 180f, 26f);
+        titleRect = title;
+        // 文言は ApplyCollapsed で状態に合わせて入れる（▼=展開 / ▶=最小化）
+        titleLbl = MakeLabel(title, "TitleText", "", 15, new Vector2(8f, 0f), 180f, 26f);
         titleLbl.alignment = TextAnchor.MiddleLeft;
         titleLbl.raycastTarget = false;   // タイトルバー(Image)でドラッグを拾わせる
+        // タイトル左のアイコン（▼/▶）をクリックで最小化/展開。クリックだけこのボタンが受け、ドラッグは親のタイトルバーが拾う
+        var iconRt = MakeRect("CollapseIcon", title);
+        iconRt.anchorMin = new Vector2(0f, 1f);
+        iconRt.anchorMax = new Vector2(0f, 1f);
+        iconRt.pivot = new Vector2(0f, 1f);
+        iconRt.anchoredPosition = new Vector2(2f, 0f);
+        iconRt.sizeDelta = new Vector2(24f, 26f);
+        var iconImg = iconRt.gameObject.AddComponent<Image>();
+        iconImg.color = new Color(1f, 1f, 1f, 0f);   // 透明（当たり判定のみ）
+        var iconBtn = iconRt.gameObject.AddComponent<Button>();
+        iconBtn.transition = Selectable.Transition.None;
+        iconBtn.onClick.AddListener(ToggleCollapsed);
         // ROS通信状態（タイトルバー右）。Update で色/文言を更新。
         commText = MakeLabel(title, "Comm", "ROS ●", 13, new Vector2(W - 130f, 0f), 122f, 26f);
         commText.alignment = TextAnchor.MiddleRight;
@@ -578,6 +627,29 @@ public class ComRos2PlanPanel : MonoBehaviour
 
         // 内容に合わせて背景の高さを確定（下の余白を詰める）
         panel.sizeDelta = new Vector2(W, -y + 34f + 8f);
+        panelRect = panel;
+        expandedHeight = panel.sizeDelta.y;
+        // タイトルバー以外を本体へ移す（最小化で丸ごと隠すため。個々の表示/非表示の状態はそのまま保たれる）
+        // 本体はパネルと同じ矩形・左上基準なので、中身の配置は変わらない
+        bodyRect = MakeRect("Body", panel);
+        bodyRect.anchorMin = Vector2.zero;
+        bodyRect.anchorMax = Vector2.one;
+        bodyRect.pivot = new Vector2(0f, 1f);
+        bodyRect.offsetMin = Vector2.zero;
+        bodyRect.offsetMax = Vector2.zero;
+        var contents = new List<Transform>();
+        foreach (Transform child in panel)
+        {
+            if ((child != title) && (child != bodyRect))
+            {
+                contents.Add(child);
+            }
+        }
+        foreach (var child in contents)
+        {
+            child.SetParent(bodyRect, false);
+        }
+        ApplyCollapsed();
         UpdateRobotRow();   // ロボット名ラベル/ボタン活性を現状に合わせる
     }
 
