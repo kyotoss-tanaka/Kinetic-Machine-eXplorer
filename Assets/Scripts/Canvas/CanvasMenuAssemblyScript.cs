@@ -491,7 +491,7 @@ public class CanvasMenuAssemblyScript : CanvasMenuBaseScript
         size.y = height + (width >= 380 ? 20 : 0);
         sv.sizeDelta = size;
         size.y += 30;
-        GetComponent<RectTransform>().sizeDelta = size;
+        SetPanelSize(size);   // 最小化中は展開時の大きさとして控えるだけ
         menuInfoScript.btnAsm_Visible(index != 0);
 //        this.gameObject.SetActive();
         if (viewTexts.Count > 0)

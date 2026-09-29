@@ -119,6 +119,8 @@ public class CanvasMenuInfoScript : KssBaseScript
     protected override void Awake()
     {
         base.Awake();
+        // メニューバーの上にパネルを重ねないよう、自動配置で避ける対象にする
+        KmxPanelLayout.Register((RectTransform)transform);
 
         // 設定
         globalSetting = GameObject.FindObjectsByType<GameObject>(FindObjectsSortMode.None).Where(d => d.name == "GlobalSetting").ToList()[0];
@@ -392,6 +394,39 @@ public class CanvasMenuInfoScript : KssBaseScript
     {
         // 軸更新
         AxisUpdate();
+        // パネル側の閉じるボタンで閉じた時に、ボタンの押下状態(黄色)と開閉フラグを合わせる
+        SyncClosed(ref visibleSetting, uiSetting, btnSetting);
+        SyncClosed(ref visibleInner, uiInner, btnInner);
+        SyncClosed(ref visibleDirect, uiDirectCom, btnDirect);
+        SyncClosed(ref visibleMotion, uiActUnitInfo, btnMotion);
+        SyncClosed(ref visibleAsm, uiAssembly, btnAsm);
+        SyncClosed(ref visibleSlice, uiSlice, btnSlice);
+        SyncClosed(ref visibleSysRec, uiSysRec, btnSysRec);
+        SyncClosed(ref visibleTimeChart, uiTimeChart, btnTimeChart);
+        if (visibleRoboPath && (btnRoboPath != null))
+        {
+            var panel = globalSetting != null ? globalSetting.GetComponent<ComRos2PlanPanel>() : null;
+            if ((panel == null) || !panel.IsVisible)
+            {
+                visibleRoboPath = false;
+                SetButtonColor(btnRoboPath, false);
+            }
+        }
+    }
+
+    /// <summary>
+    /// 開いているはずのパネルが閉じていたら（パネル側の閉じるボタン等）、開閉フラグとボタンの色を戻す
+    /// </summary>
+    private void SyncClosed(ref bool visible, GameObject ui, Button button)
+    {
+        if (visible && (ui != null) && !ui.activeSelf)
+        {
+            visible = false;
+            if (button != null)
+            {
+                SetButtonColor(button, false);
+            }
+        }
     }
 
     /// <summary>

@@ -6,7 +6,7 @@ using UnityEngine.EventSystems;
 using UnityEngine.InputSystem;
 using UnityEngine.UI;
 
-public class CanvasMenuBaseScript : KssBaseScript, IDragHandler
+public class CanvasMenuBaseScript : KssBaseScript, IBeginDragHandler, IDragHandler, IEndDragHandler
 {
     /// <summary>
     /// 右
@@ -29,10 +29,6 @@ public class CanvasMenuBaseScript : KssBaseScript, IDragHandler
     /// </summary>
     private Canvas canvas;
     /// <summary>
-    /// 初期表示エリア
-    /// </summary>
-    private Rect initRect;
-    /// <summary>
     /// 有効無効切り替えボタン
     /// </summary>
     private Button btnEnable;
@@ -41,21 +37,33 @@ public class CanvasMenuBaseScript : KssBaseScript, IDragHandler
     /// </summary>
     private List<Transform> objContents = new();
     /// <summary>
-    /// 開く画像
+    /// タイトルバー（ドラッグはここで押し始めた時だけ受け付ける）
     /// </summary>
-    Sprite imgExpand;
+    private RectTransform titleBar;
     /// <summary>
-    /// 閉じる画像
+    /// 最小化アイコン（▼。最小化中は回して右向き）
     /// </summary>
-    Sprite imgShrink;
+    private RectTransform collapseIcon;
     /// <summary>
-    /// 通常の幅
+    /// タイトル文字
     /// </summary>
-    private float normalWidth;
+    private TextMeshProUGUI titleText;
     /// <summary>
-    /// 最小の幅
+    /// 最小化中
     /// </summary>
-    private float minWidth;
+    private bool collapsed;
+    /// <summary>
+    /// タイトルバーで押し始めたドラッグの最中（判定はドラッグ開始時に1回だけ行う）
+    /// </summary>
+    private bool draggingTitle;
+    /// <summary>
+    /// 最小化する直前の大きさ（コードで大きさを変えるパネルもあるため、Awake時ではなく最小化時に控える）
+    /// </summary>
+    private Vector2 expandedSize;
+    /// <summary>
+    /// 最小化する直前の各コンテンツの表示状態（展開時にそのまま戻す）
+    /// </summary>
+    private readonly Dictionary<Transform, bool> contentsActive = new();
     /// <summary>
     /// 幅
     /// </summary>
@@ -76,24 +84,153 @@ public class CanvasMenuBaseScript : KssBaseScript, IDragHandler
         canvas = this.transform.parent.GetComponent<Canvas>();
         raycaster = canvas.GetComponent<GraphicRaycaster>();
         eventSystem = EventSystem.current;
-        initRect = ((RectTransform)transform).rect;
         btnEnable = GetComponentsInChildren<Button>().ToList().Find(d => d.name.Contains("Expand"));
-        var title = btnEnable.gameObject.GetComponentInChildren<TextMeshProUGUI>().gameObject;
+        titleText = btnEnable.gameObject.GetComponentInChildren<TextMeshProUGUI>();
 
-        // 画像取得
-        Sprite[] sprites = Resources.LoadAll<Sprite>("Icons/sprits");
-        imgExpand = sprites.FirstOrDefault(d => d.name == "icon_full-screen_24_Filled");
-        imgShrink = sprites.FirstOrDefault(d => d.name == "icon_full-screen-exit_24_Filled");
-        btnEnable.image.sprite = imgShrink;
+        // 見た目を共通の定義にそろえる（Prefab は変えずに実行時に組み立てる）
+        BuildChrome();
 
         // 初期位置セット
-        isRight = ((RectTransform)transform).anchorMax.x != 0;
-        ((RectTransform)transform).anchoredPosition = new Vector2(0, 0);
+        // 全パネルを左上基準にそろえる（右基準だと最小化で右へ縮み ▼ の位置が動くため）。
+        // 重なりは開いた時の自動配置（KmxPanelLayout）で避ける
+        var rt = (RectTransform)transform;
+        rt.anchorMin = new Vector2(0f, 1f);
+        rt.anchorMax = new Vector2(0f, 1f);
+        rt.pivot = new Vector2(0f, 1f);
+        isRight = false;
+        rt.anchoredPosition = new Vector2(0, 0);
+        KmxPanelLayout.Register(rt);
 
         // 初期値セット
         lastWidth = (int)canvas.pixelRect.width;
         lastHeight = (int)canvas.pixelRect.height;
-        minWidth = ((RectTransform)title.transform).sizeDelta.x + 40;
+    }
+
+    /// <summary>
+    /// パネル本体の大きさ（最小化中は展開時の大きさ）
+    /// </summary>
+    protected Vector2 PanelSize => collapsed ? expandedSize : ((RectTransform)transform).sizeDelta;
+
+    /// <summary>
+    /// パネル本体の大きさを変える。最小化中は展開時の大きさとして控えるだけにする
+    /// （最小化中に内容の更新で大きさだけ戻り、中身が空の大きなパネルになるのを防ぐ）
+    /// </summary>
+    protected void SetPanelSize(Vector2 size)
+    {
+        if (collapsed)
+        {
+            expandedSize = size;
+            return;
+        }
+        ((RectTransform)transform).sizeDelta = size;
+    }
+
+    /// <summary>
+    /// 表示時：他の表示中のパネルと重なっていれば空いている位置へ移す
+    /// </summary>
+    protected override void OnEnable()
+    {
+        base.OnEnable();
+        if (canvas != null)
+        {
+            KmxPanelLayout.PlaceWithoutOverlap((RectTransform)transform);
+            RenewPosition();
+        }
+    }
+
+    /// <summary>
+    /// 破棄時：自動配置の対象から外す
+    /// </summary>
+    protected override void OnDestroy()
+    {
+        base.OnDestroy();
+        KmxPanelLayout.Unregister((RectTransform)transform);
+    }
+
+    /// <summary>
+    /// パネルの枠（背景・タイトルバー・最小化アイコン）を共通の見た目で組み立てる
+    /// </summary>
+    private void BuildChrome()
+    {
+        var root = (RectTransform)transform;
+        // 背景
+        var bg = GetComponent<Image>();
+        if (bg != null)
+        {
+            bg.color = KmxUiStyle.PanelBackground;
+        }
+        // タイトルバー（最背面・パネルの幅に追従。Prefab の中身はこの帯の下から並んでいる）
+        titleBar = new GameObject("TitleBar", typeof(RectTransform), typeof(Image)).GetComponent<RectTransform>();
+        titleBar.SetParent(root, false);
+        titleBar.SetAsFirstSibling();
+        titleBar.anchorMin = new Vector2(0f, 1f);
+        titleBar.anchorMax = new Vector2(1f, 1f);
+        titleBar.pivot = new Vector2(0.5f, 1f);
+        titleBar.anchoredPosition = Vector2.zero;
+        titleBar.sizeDelta = new Vector2(0f, KmxUiStyle.MenuTitleHeight);
+        titleBar.GetComponent<Image>().color = KmxUiStyle.TitleBar;
+        // 最小化ボタン：画像はやめて当たり判定だけ残し、▼の文字を載せる
+        btnEnable.transition = Selectable.Transition.None;
+        if (btnEnable.image != null)
+        {
+            btnEnable.image.sprite = null;
+            btnEnable.image.color = new Color(1f, 1f, 1f, 0f);
+        }
+        var icon = new GameObject("CollapseIcon", typeof(RectTransform), typeof(TextMeshProUGUI));
+        collapseIcon = icon.GetComponent<RectTransform>();
+        collapseIcon.SetParent(btnEnable.transform, false);
+        collapseIcon.anchorMin = new Vector2(0.5f, 0.5f);
+        collapseIcon.anchorMax = new Vector2(0.5f, 0.5f);
+        collapseIcon.pivot = new Vector2(0.5f, 0.5f);
+        collapseIcon.anchoredPosition = Vector2.zero;
+        collapseIcon.sizeDelta = new Vector2(24f, 24f);
+        var iconText = icon.GetComponent<TextMeshProUGUI>();
+        if (titleText != null)
+        {
+            iconText.font = titleText.font;
+        }
+        iconText.text = KmxUiStyle.CollapseGlyph;
+        iconText.fontSize = 16f;
+        iconText.color = KmxUiStyle.Text;
+        iconText.alignment = TextAlignmentOptions.Center;
+        iconText.raycastTarget = false;
+        KmxUiStyle.SetCollapseIcon(collapseIcon, false);
+        if (titleText != null)
+        {
+            titleText.color = KmxUiStyle.Text;
+            titleText.raycastTarget = false;   // タイトルバーでドラッグを拾わせる
+        }
+        // 閉じるボタン（タイトルバー右端。最小化中も右端に出る）
+        // 下のメニューのボタンの押下状態は CanvasMenuInfoScript がパネルの表示状態に合わせて戻す
+        var close = new GameObject("CloseButton", typeof(RectTransform), typeof(Image), typeof(Button));
+        var closeRt = close.GetComponent<RectTransform>();
+        closeRt.SetParent(titleBar, false);
+        closeRt.anchorMin = new Vector2(1f, 0.5f);
+        closeRt.anchorMax = new Vector2(1f, 0.5f);
+        closeRt.pivot = new Vector2(1f, 0.5f);
+        closeRt.anchoredPosition = new Vector2(-2f, 0f);
+        closeRt.sizeDelta = new Vector2(KmxUiStyle.CloseButtonWidth, KmxUiStyle.MenuTitleHeight);
+        close.GetComponent<Image>().color = new Color(1f, 1f, 1f, 0f);   // 透明（当たり判定のみ）
+        var closeBtn = close.GetComponent<Button>();
+        closeBtn.transition = Selectable.Transition.None;
+        closeBtn.onClick.AddListener(() => gameObject.SetActive(false));
+        var closeLabel = new GameObject("Label", typeof(RectTransform), typeof(TextMeshProUGUI));
+        var closeLabelRt = closeLabel.GetComponent<RectTransform>();
+        closeLabelRt.SetParent(closeRt, false);
+        closeLabelRt.anchorMin = Vector2.zero;
+        closeLabelRt.anchorMax = Vector2.one;
+        closeLabelRt.offsetMin = Vector2.zero;
+        closeLabelRt.offsetMax = Vector2.zero;
+        var closeText = closeLabel.GetComponent<TextMeshProUGUI>();
+        if (titleText != null)
+        {
+            closeText.font = titleText.font;
+        }
+        closeText.text = KmxUiStyle.CloseGlyph;
+        closeText.fontSize = 22f;
+        closeText.color = KmxUiStyle.Text;
+        closeText.alignment = TextAlignmentOptions.Center;
+        closeText.raycastTarget = false;
     }
 
     /// <summary>
@@ -121,7 +258,7 @@ public class CanvasMenuBaseScript : KssBaseScript, IDragHandler
     /// </summary>
     public virtual void SetEvents()
     {
-        objContents = GetComponentsInChildren<Transform>().ToList().FindAll(d => d.name.Contains("Contents"));
+        objContents = GetComponentsInChildren<Transform>(true).ToList().FindAll(d => d.name.Contains("Contents"));
         ResetEvents();
         btnEnable.onClick.AddListener(expand_onClick);
     }
@@ -135,40 +272,70 @@ public class CanvasMenuBaseScript : KssBaseScript, IDragHandler
     }
 
     /// <summary>
-    /// 表示/非表示
+    /// 最小化/展開
+    /// 以前は「高さが30なら最小化中」と判定しており、元々高さ30のパネルは最小化できず、
+    /// 展開時は生成時の大きさに戻すためコードで大きさを変えたパネルが違う大きさになっていた。
+    /// 状態を持ち、最小化の直前の大きさと各コンテンツの表示状態を控えて戻す
     /// </summary>
     private void expand_onClick()
     {
         var rect = (RectTransform)transform;
-        var y = rect.anchoredPosition.y;// + rect.sizeDelta.y / 2;
-        if (rect.sizeDelta.y == 30)
+        if (collapsed)
         {
-            btnEnable.image.sprite = imgShrink;
             foreach (var obj in objContents)
             {
-                obj.gameObject.SetActive(true);
+                if ((obj != null) && contentsActive.TryGetValue(obj, out var active))
+                {
+                    obj.gameObject.SetActive(active);
+                }
             }
-            rect.sizeDelta = new Vector2(initRect.width, initRect.height);
-            rect.anchoredPosition = new Vector2(rect.anchoredPosition.x, y);
+            contentsActive.Clear();
+            rect.sizeDelta = expandedSize;
+            collapsed = false;
         }
         else
         {
-            btnEnable.image.sprite = imgExpand;
+            expandedSize = rect.sizeDelta;
+            contentsActive.Clear();
             foreach (var obj in objContents)
             {
-                obj.gameObject.SetActive(false);
+                if (obj != null)
+                {
+                    contentsActive[obj] = obj.gameObject.activeSelf;
+                    obj.gameObject.SetActive(false);
+                }
             }
-            rect.sizeDelta = new Vector2(minWidth, 30);
-            rect.anchoredPosition = new Vector2(rect.anchoredPosition.x, y);
+            // タイトル文字の右端＋余白＋閉じるボタンの幅にする（タイトルは左から40の位置）
+            var width = 40f + (titleText != null ? titleText.preferredWidth : 120f) + 12f + KmxUiStyle.CloseButtonWidth;
+            rect.sizeDelta = new Vector2(width, KmxUiStyle.MenuTitleHeight);
+            collapsed = true;
         }
+        KmxUiStyle.SetCollapseIcon(collapseIcon, collapsed);
+        RenewPosition();
     }
 
     /// <summary>
     /// 移動
     /// </summary>
     /// <param name="eventData"></param>
+    public void OnBeginDrag(PointerEventData eventData)
+    {
+        // タイトルバーで押し始めた時だけ動かす（スライダー等の操作中にパネルが動かないように）
+        // ※押し始めの位置は固定でタイトルバーは動くため、ドラッグ中に判定し直すと途中で外れて止まる
+        draggingTitle = (titleBar != null) && RectTransformUtility.RectangleContainsScreenPoint(titleBar, eventData.pressPosition, eventData.pressEventCamera);
+    }
+
+    public void OnEndDrag(PointerEventData eventData)
+    {
+        draggingTitle = false;
+    }
+
     public void OnDrag(PointerEventData eventData)
     {
+        if (!draggingTitle)
+        {
+            return;
+        }
         var rectTransform = (RectTransform)transform;
         var x = rectTransform.anchoredPosition.x + eventData.delta.x;
         var y = rectTransform.anchoredPosition.y + eventData.delta.y;

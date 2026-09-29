@@ -25,14 +25,10 @@ public class CanvasMenuTimeChartScript : CanvasMenuBaseScript
         var text = machineTimeChart.transform.parent.GetComponentInChildren<TextMeshProUGUI>();
         machineTimeChart.SetParameter(text.font, TimeChartController.ChartMode.History);
 
-        // TimeChartSettingのRectTransformを取得
-        var settingRT = GetComponent<RectTransform>();  // または適切な取得方法
-
-        // サイズ変化を購読してTimeChartSettingの幅を同期
+        // サイズ変化を購読してTimeChartSettingの幅を同期（最小化中は展開時の大きさとして控えるだけ）
         machineTimeChart.View.OnSizeChanged += (w, h) =>
         {
-            if (settingRT != null)
-                settingRT.sizeDelta = new Vector2(w, settingRT.sizeDelta.y);
+            SetPanelSize(new Vector2(w, PanelSize.y));
         };
     }
 

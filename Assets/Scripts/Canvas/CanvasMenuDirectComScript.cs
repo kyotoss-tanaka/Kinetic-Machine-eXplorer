@@ -60,7 +60,7 @@ public class CanvasMenuDirectComScript : CanvasMenuBaseScript
         // キャンバス表示更新
         if (directComInfos.Count > 0)
         {
-            GetComponent<RectTransform>().sizeDelta = new Vector2(500, 60 + 30 * directComInfos.Count);
+            SetPanelSize(new Vector2(500, 60 + 30 * directComInfos.Count));   // 最小化中は展開時の大きさとして控えるだけ
             directComContents.GetComponent<RectTransform>().sizeDelta = new Vector2(500, 30 * directComInfos.Count);
         }
     }

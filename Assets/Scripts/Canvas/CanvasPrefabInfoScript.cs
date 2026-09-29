@@ -58,6 +58,8 @@ public class CanvasPrefabInfoScript : KssBaseScript
     protected override void Awake()
     {
         base.Awake();
+        // Prefab バーの上にパネルを重ねないよう、自動配置で避ける対象にする
+        KmxPanelLayout.Register((RectTransform)transform);
 
         // キャンバス作成
         CreateCanvas();

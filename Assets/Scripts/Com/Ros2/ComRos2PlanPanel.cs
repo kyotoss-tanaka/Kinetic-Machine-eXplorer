@@ -3,7 +3,10 @@ using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.EventSystems;
 
-/// <summary>タイトルバーをドラッグして親パネル(target)を移動する（overlay・等倍前提でdelta=1:1）。</summary>
+/// <summary>
+/// タイトルバーをドラッグして親パネル(target)を移動する（overlay・等倍前提でdelta=1:1）。
+/// 他のメニューと同じく画面の外へ出さない（target は左上基準のアンカー・ピボット前提）。
+/// </summary>
 public sealed class Ros2PanelDrag : MonoBehaviour, IDragHandler
 {
     public RectTransform target;
@@ -11,8 +14,34 @@ public sealed class Ros2PanelDrag : MonoBehaviour, IDragHandler
     {
         if (target != null)
         {
-            target.anchoredPosition += e.delta;
+            target.anchoredPosition = Clamp(target.anchoredPosition + e.delta);
         }
+    }
+
+    /// <summary>ウィンドウの大きさの変更や最小化/展開で外に出た時も内側へ戻す</summary>
+    private void LateUpdate()
+    {
+        if (target != null)
+        {
+            var p = Clamp(target.anchoredPosition);
+            if (p != target.anchoredPosition)
+            {
+                target.anchoredPosition = p;
+            }
+        }
+    }
+
+    private Vector2 Clamp(Vector2 p)
+    {
+        var area = target.parent as RectTransform;
+        if (area == null)
+        {
+            return p;
+        }
+        var size = target.rect.size;
+        var x = Mathf.Clamp(p.x, 0f, Mathf.Max(0f, area.rect.width - size.x));
+        var y = Mathf.Clamp(p.y, -Mathf.Max(0f, area.rect.height - size.y), 0f);
+        return new Vector2(x, y);
     }
 }
 
@@ -180,7 +209,7 @@ public class ComRos2PlanPanel : MonoBehaviour
         {
             commText.gameObject.SetActive(!collapsed);
         }
-        var width = collapsed ? Mathf.Ceil(8f + titleLbl.preferredWidth + 10f) : PanelWidth;
+        var width = collapsed ? Mathf.Ceil(8f + titleLbl.preferredWidth + 10f + KmxUiStyle.CloseButtonWidth) : PanelWidth;
         panelRect.sizeDelta = new Vector2(width, collapsed ? titleRect.sizeDelta.y : expandedHeight);
         titleRect.sizeDelta = new Vector2(width, titleRect.sizeDelta.y);
     }
@@ -191,6 +220,11 @@ public class ComRos2PlanPanel : MonoBehaviour
         if (panelRootGo != null)
         {
             panelRootGo.SetActive(v);
+            // 開いた時に他のメニューと重なっていれば空いている位置へ移す
+            if (v && (panelRect != null))
+            {
+                KmxPanelLayout.PlaceWithoutOverlap(panelRect);
+            }
         }
         // パネルを開いたら DCS安全ゾーンを読み直す。F5直後のバインドでは base(crx) 未確定で MatchZone が
         // 成立せず結線できないため、ロード後のこのタイミングで確実に受信・再描画する（非破壊：取れなければ既存維持）。
@@ -390,7 +424,7 @@ public class ComRos2PlanPanel : MonoBehaviour
         panel.anchoredPosition = new Vector2(16f, -16f);
         panel.sizeDelta = new Vector2(W, 400f);
         var bg = panel.gameObject.AddComponent<Image>();
-        bg.color = new Color(0f, 0f, 0f, 0.6f);
+        bg.color = KmxUiStyle.PanelBackground;
 
         // タイトルバー（ドラッグで移動）
         var title = MakeRect("TitleBar", panel);
@@ -400,7 +434,7 @@ public class ComRos2PlanPanel : MonoBehaviour
         title.anchoredPosition = new Vector2(0f, 0f);
         title.sizeDelta = new Vector2(W, 26f);
         var titleImg = title.gameObject.AddComponent<Image>();
-        titleImg.color = new Color(0.15f, 0.3f, 0.55f, 0.98f);
+        titleImg.color = KmxUiStyle.TitleBar;
         title.gameObject.AddComponent<Ros2PanelDrag>().target = panel;
         titleRect = title;
         // 文言は ApplyCollapsed で状態に合わせて入れる（▼=展開 / ▶=最小化）
@@ -419,8 +453,23 @@ public class ComRos2PlanPanel : MonoBehaviour
         var iconBtn = iconRt.gameObject.AddComponent<Button>();
         iconBtn.transition = Selectable.Transition.None;
         iconBtn.onClick.AddListener(ToggleCollapsed);
-        // ROS通信状態（タイトルバー右）。Update で色/文言を更新。
-        commText = MakeLabel(title, "Comm", "ROS ●", 13, new Vector2(W - 130f, 0f), 122f, 26f);
+        // 閉じるボタン（タイトルバー右端。最小化中も右端に出る）。下のメニューのボタン状態は CanvasMenuInfoScript が合わせる
+        var closeRt = MakeRect("CloseButton", title);
+        closeRt.anchorMin = new Vector2(1f, 0.5f);
+        closeRt.anchorMax = new Vector2(1f, 0.5f);
+        closeRt.pivot = new Vector2(1f, 0.5f);
+        closeRt.anchoredPosition = new Vector2(-2f, 0f);
+        closeRt.sizeDelta = new Vector2(KmxUiStyle.CloseButtonWidth, 26f);
+        var closeImg = closeRt.gameObject.AddComponent<Image>();
+        closeImg.color = new Color(1f, 1f, 1f, 0f);   // 透明（当たり判定のみ）
+        var closeBtn = closeRt.gameObject.AddComponent<Button>();
+        closeBtn.transition = Selectable.Transition.None;
+        closeBtn.onClick.AddListener(() => SetVisible(false));
+        var closeLbl = MakeLabel(closeRt, "Label", KmxUiStyle.CloseGlyph, 18, Vector2.zero, KmxUiStyle.CloseButtonWidth, 26f);
+        closeLbl.alignment = TextAnchor.MiddleCenter;
+        closeLbl.raycastTarget = false;
+        // ROS通信状態（タイトルバー右・閉じるボタンの左）。Update で色/文言を更新。
+        commText = MakeLabel(title, "Comm", "ROS ●", 13, new Vector2(W - 130f - KmxUiStyle.CloseButtonWidth, 0f), 122f, 26f);
         commText.alignment = TextAnchor.MiddleRight;
         commText.raycastTarget = false;
 
@@ -628,6 +677,7 @@ public class ComRos2PlanPanel : MonoBehaviour
         // 内容に合わせて背景の高さを確定（下の余白を詰める）
         panel.sizeDelta = new Vector2(W, -y + 34f + 8f);
         panelRect = panel;
+        KmxPanelLayout.Register(panel);
         expandedHeight = panel.sizeDelta.y;
         // タイトルバー以外を本体へ移す（最小化で丸ごと隠すため。個々の表示/非表示の状態はそのまま保たれる）
         // 本体はパネルと同じ矩形・左上基準なので、中身の配置は変わらない
@@ -763,7 +813,7 @@ public class ComRos2PlanPanel : MonoBehaviour
         var bg = MakeRect("BG", rt);
         Stretch(bg);
         var bgImg = bg.gameObject.AddComponent<Image>();
-        bgImg.color = new Color(1f, 1f, 1f, 0.25f);
+        bgImg.color = KmxUiStyle.SliderTrack;
 
         var fillArea = MakeRect("Fill Area", rt);
         Stretch(fillArea);
@@ -772,7 +822,7 @@ public class ComRos2PlanPanel : MonoBehaviour
         fill.anchorMax = new Vector2(0f, 1f);
         fill.sizeDelta = new Vector2(10f, 0f);
         var fillImg = fill.gameObject.AddComponent<Image>();
-        fillImg.color = new Color(0.1f, 0.7f, 1f, 0.9f);
+        fillImg.color = KmxUiStyle.SliderFill;
 
         var handleArea = MakeRect("Handle Slide Area", rt);
         Stretch(handleArea);
@@ -798,7 +848,7 @@ public class ComRos2PlanPanel : MonoBehaviour
         rt.anchoredPosition = pos;
         rt.sizeDelta = new Vector2(w, h);
         var img = rt.gameObject.AddComponent<Image>();
-        img.color = new Color(1f, 1f, 1f, 0.15f);
+        img.color = KmxUiStyle.InputBackground;
         var input = rt.gameObject.AddComponent<InputField>();
 
         var textRt = MakeRect("Text", rt);
@@ -839,7 +889,7 @@ public class ComRos2PlanPanel : MonoBehaviour
         boxRt.anchoredPosition = new Vector2(2f, 0f);
         boxRt.sizeDelta = new Vector2(18f, 18f);
         var boxImg = boxRt.gameObject.AddComponent<Image>();
-        boxImg.color = new Color(1f, 1f, 1f, 0.3f);
+        boxImg.color = KmxUiStyle.CheckBox;
 
         var ckRt = MakeRect("Check", boxRt);
         ckRt.anchorMin = new Vector2(0.15f, 0.15f);
@@ -847,7 +897,7 @@ public class ComRos2PlanPanel : MonoBehaviour
         ckRt.offsetMin = Vector2.zero;
         ckRt.offsetMax = Vector2.zero;
         var ckImg = ckRt.gameObject.AddComponent<Image>();
-        ckImg.color = new Color(0.1f, 0.8f, 1f, 1f);
+        ckImg.color = KmxUiStyle.CheckMark;
 
         var toggle = rt.gameObject.AddComponent<Toggle>();
         toggle.targetGraphic = boxImg;
@@ -869,7 +919,7 @@ public class ComRos2PlanPanel : MonoBehaviour
         rt.anchoredPosition = pos;
         rt.sizeDelta = new Vector2(w, h);
         var img = rt.gameObject.AddComponent<Image>();
-        img.color = new Color(0.2f, 0.4f, 0.7f, 0.95f);
+        img.color = KmxUiStyle.Button;
         var btn = rt.gameObject.AddComponent<Button>();
         btn.targetGraphic = img;
         btn.onClick.AddListener(onClick);
@@ -939,8 +989,8 @@ public class ComRos2PlanPanel : MonoBehaviour
                 }
             }
             SetButtonColor(setGoalBtn, goalSetMode
-                ? new Color(0.8f, 0.5f, 0.1f, 0.95f)     // ゴール表示中=オレンジ
-                : new Color(0.2f, 0.4f, 0.7f, 0.95f));   // 開始表示=通常
+                ? KmxUiStyle.ButtonActive     // ゴール表示中=オレンジ
+                : KmxUiStyle.Button);   // 開始表示=通常
             return;
         }
         goalSetMode = !goalSetMode;
@@ -960,7 +1010,7 @@ public class ComRos2PlanPanel : MonoBehaviour
             // 設定終了：実機現在姿勢の表示へ戻す（goalDeg は保持）。
             if (targetKin != null) { targetKin.SetManual(false); }
         }
-        SetButtonColor(setGoalBtn, goalSetMode ? new Color(0.8f, 0.5f, 0.1f, 0.95f) : new Color(0.2f, 0.4f, 0.7f, 0.95f));
+        SetButtonColor(setGoalBtn, goalSetMode ? KmxUiStyle.ButtonActive : KmxUiStyle.Button);
     }
 
     /// <summary>起動時の一度だけ：ゴール初期値を現在姿勢にしてスライダー/入力へ反映（以後は保持）。</summary>
@@ -1861,7 +1911,7 @@ public class ComRos2PlanPanel : MonoBehaviour
             {
                 startBtn.image.color = needStart
                     ? new Color(1f, 0.5f, 0.1f, 0.98f)      // 未起動→オレンジで強調
-                    : new Color(0.2f, 0.4f, 0.7f, 0.95f);   // 稼働中→通常
+                    : KmxUiStyle.Button;   // 稼働中→通常
             }
         }
         if (stopBtn != null) { stopBtn.interactable = !busy && st != ComRos2Launcher.LaunchState.Stopped; }
@@ -1880,7 +1930,7 @@ public class ComRos2PlanPanel : MonoBehaviour
                               && NormDcsHost(launcher.CurrentDcsHost) != SelDcsHost();
                 switchRobotBtn.image.color = (modelMis || dcsMis)
                     ? new Color(1f, 0.5f, 0.1f, 0.98f)      // 稼働機体≠選択→切替を促す
-                    : new Color(0.2f, 0.4f, 0.7f, 0.95f);
+                    : KmxUiStyle.Button;
             }
         }
     }
@@ -2001,7 +2051,7 @@ public class ComRos2PlanPanel : MonoBehaviour
             // 自動再生へ戻る：手動姿勢を解除して実位置へ（ゴーストは SetMode 側で消える）。
             if (targetKin != null) { targetKin.SetManual(false); }
             goalSetMode = false;
-            SetButtonColor(setGoalBtn, new Color(0.2f, 0.4f, 0.7f, 0.95f));
+            SetButtonColor(setGoalBtn, KmxUiStyle.Button);
             UpdateRegisterLabel();
         }
     }
@@ -2015,7 +2065,7 @@ public class ComRos2PlanPanel : MonoBehaviour
         // 登録モードは J1~J6 に「ゴール＝選択ステップの目標姿勢(poseDeg)」を表示（read-only）。
         // ゴール設定ボタンで開始姿勢(前step終了)のプレビューにトグルできる。
         goalSetMode = true;
-        SetButtonColor(setGoalBtn, new Color(0.8f, 0.5f, 0.1f, 0.95f));   // ゴール表示=オレンジ
+        SetButtonColor(setGoalBtn, KmxUiStyle.ButtonActive);   // ゴール表示=オレンジ
         var steps = SelectedSteps();
         if (steps != null && steps.Count > 0 && stepIdx >= 0 && stepIdx < steps.Count)
         {
