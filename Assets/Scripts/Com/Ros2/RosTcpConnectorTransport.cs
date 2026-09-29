@@ -37,6 +37,13 @@ public sealed class RosTcpConnectorTransport : IRos2Transport
     public void Connect(string ip, int port)
     {
         ros = ROSConnection.GetOrCreateInstance();
+        // ROSConnection.Connect() は呼ぶたびに接続スレッドを追加で起動し、既存のスレッドを止めない
+        // （停止用トークンも上書きされるため、古いスレッドは Disconnect/Play終了でも止まらない。v0.7.0）。
+        // 接続スレッドは切断後も1秒ごとに自動再接続するので、既にあれば張り直さない（二重接続の防止）
+        if (ros.HasConnectionThread)
+        {
+            return;
+        }
         ros.RosIPAddress = ip;
         ros.RosPort = port;
         ros.Connect();
