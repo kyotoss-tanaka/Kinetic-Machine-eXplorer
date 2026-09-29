@@ -1812,9 +1812,10 @@ public class MotionLinear : AxisMotionBase
                 id = this.points.Count,
                 pos = points[i].pos / 1000f,
                 totalLength = totalLength,
-                actTag = points[i].tagAct,
-                processTag = points[i].tagProcess,
-                finTag = points[i].tagFin,
+                // タグ未設定はnullで来ることがある（自動生成したinit等）。以降の判定は空文字前提なのでそろえる
+                actTag = points[i].tagAct ?? "",
+                processTag = points[i].tagProcess ?? "",
+                finTag = points[i].tagFin ?? "",
                 type = points[i].type == "PP" ? PointType.PP : 
                        points[i].type == "BUFF" ? PointType.BUFF : 
                        points[i].type == "TP" ? PointType.TP : PointType.MTP,
@@ -1898,8 +1899,8 @@ public class MotionLinear : AxisMotionBase
                     name = points[i].name + "(通過区間)",
                     pos = points[i].pos / 1000f + points[i].wait / 1000f,
                     totalLength = totalLength,
-                    actTag = points[i].tagAct,
-                    finTag = points[i].tagFin,
+                    actTag = points[i].tagAct ?? "",
+                    finTag = points[i].tagFin ?? "",
                     type = point.type == PointType.TP ? PointType.TPE : PointType.MTPE,
                     spdInfo = new SpeedInfo
                     {
