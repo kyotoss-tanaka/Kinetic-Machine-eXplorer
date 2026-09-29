@@ -67,6 +67,39 @@ public class CanvasMenuActUnitScript : CanvasMenuBaseScript
     /// コンテンツベース
     /// </summary>
     private GameObject actUnitContentsActList;
+    /// <summary>
+    /// Prefab のパネル幅（600px。帯や行はこの幅で作られている）
+    /// </summary>
+    private const float BasePanelWidth = 600f;
+    /// <summary>
+    /// Prefab の目標位置名の列の幅
+    /// </summary>
+    private const float BaseTargetWidth = 120f;
+    /// <summary>
+    /// 目標位置名の列の幅の上限（これを超える名前は末尾を「…」で省く）
+    /// </summary>
+    private const float MaxTargetWidth = 300f;
+    /// <summary>
+    /// 目標位置名の列を広げた分（Prefab の幅からの増分）
+    /// </summary>
+    private float targetColumnExtra;
+    /// <summary>
+    /// パネル幅に合わせて伸ばす帯（コンボボックス・位置/角度・動作の見出し）
+    /// </summary>
+    private readonly List<RectTransform> wideBands = new();
+    /// <summary>
+    /// 動作の見出しの目標位置名
+    /// </summary>
+    private TextMeshProUGUI txtTargetTitle;
+    /// <summary>
+    /// 列を右へずらす見出し（開始/完了）と Prefab での位置
+    /// </summary>
+    private readonly List<(RectTransform rt, float x)> headerColumns = new();
+    /// <summary>
+    /// 行の開始/完了の列の Prefab での位置
+    /// </summary>
+    private float baseStartX = 120f;
+    private float baseEndX = 360f;
 
     /// <summary>
     /// 位置X
@@ -217,6 +250,7 @@ public class CanvasMenuActUnitScript : CanvasMenuBaseScript
         dropDown = GetComponentsInChildren<TMP_Dropdown>().ToList().Find(d => d.name == "DropUnitName");
         actUnitContents = GetComponentsInChildren<Transform>(true).ToList().Find(d => d.name == "ActUnitContents").gameObject;
         actUnitContentsActList= GetComponentsInChildren<Transform>(true).ToList().Find(d => d.name == "ActUnitContentsActList").gameObject;
+        CaptureBaseLayout();
 
         txtPosX = GetComponentsInChildren<TextMeshProUGUI>(true).ToList().Find(d => d.name == "TxtPosX");
         txtPosY = GetComponentsInChildren<TextMeshProUGUI>(true).ToList().Find(d => d.name == "TxtPosY");
@@ -233,7 +267,8 @@ public class CanvasMenuActUnitScript : CanvasMenuBaseScript
         {
             uiLinearInfo = Instantiate(linearUnit[0]);
             uiLinearInfo.transform.SetParent(transform.parent, false);
-            uiLinearInfo.AddComponent<CanvasMenuBaseScript>();
+            // 最小化ボタンの処理を付ける（以前は SetEvents を呼んでおらずボタンが効かなかった）
+            uiLinearInfo.AddComponent<CanvasMenuBaseScript>().SetEvents();
             uiLinearInfo.SetActive(false);
             linearContentsMoverTitle = uiLinearInfo.GetComponentsInChildren<Transform>(true).ToList().Find(d => d.name == "LinearContentsMoverTitle").gameObject;
             linearContentsMoverList = uiLinearInfo.GetComponentsInChildren<Transform>(true).ToList().Find(d => d.name == "LinearScrallContentMover").gameObject;
@@ -475,6 +510,116 @@ public class CanvasMenuActUnitScript : CanvasMenuBaseScript
     }
 
     /// <summary>
+    /// Prefab の配置（帯・見出し・行の列の位置）を控える。列の幅を変える時はここからの増分で決める
+    /// （ユニットを切り替えるたびに計算し直しても、ずれが積み重ならないように）
+    /// </summary>
+    private void CaptureBaseLayout()
+    {
+        var all = GetComponentsInChildren<RectTransform>(true).ToList();
+        foreach (var name in new[] { "DropUnitName", "ActUnitContentsPosTitle", "ActUnitContentsPos", "ActUnitContentsActTitle" })
+        {
+            var rt = all.Find(d => d.name == name);
+            if (rt != null)
+            {
+                wideBands.Add(rt);
+            }
+        }
+        var header = all.Find(d => d.name == "ActUnitContentsActTitle");
+        if (header != null)
+        {
+            var titles = header.GetComponentsInChildren<RectTransform>(true).ToList();
+            txtTargetTitle = titles.Find(d => d.name == "TxtTargetTitle")?.GetComponent<TextMeshProUGUI>();
+            foreach (var name in new[] { "TxtStartTagTitle", "TxtEndTagTitle" })
+            {
+                var rt = titles.Find(d => d.name == name);
+                if (rt != null)
+                {
+                    headerColumns.Add((rt, rt.anchoredPosition.x));
+                }
+            }
+        }
+        if (actUnitContents != null)
+        {
+            var cells = actUnitContents.GetComponentsInChildren<RectTransform>(true).ToList();
+            var start = cells.Find(d => d.name == "TxtStartTag");
+            var end = cells.Find(d => d.name == "TxtEndTag");
+            if (start != null)
+            {
+                baseStartX = start.anchoredPosition.x;
+            }
+            if (end != null)
+            {
+                baseEndX = end.anchoredPosition.x;
+            }
+        }
+    }
+
+    /// <summary>
+    /// 目標位置名の列の幅を、一番長い名前（見出し含む）に合わせる。
+    /// 広げた分だけ開始/完了の列を右へずらし、帯・行・パネルの幅も広げる
+    /// </summary>
+    private void AdjustTargetColumn()
+    {
+        var width = BaseTargetWidth;
+        foreach (var info in actUnitInfos)
+        {
+            if (info.txtTarget != null)
+            {
+                info.txtTarget.textWrappingMode = TextWrappingModes.NoWrap;
+                width = Mathf.Max(width, info.txtTarget.preferredWidth + 10f);
+            }
+        }
+        if (txtTargetTitle != null)
+        {
+            width = Mathf.Max(width, txtTargetTitle.preferredWidth + 10f);
+        }
+        width = Mathf.Ceil(Mathf.Min(width, MaxTargetWidth));
+        targetColumnExtra = width - BaseTargetWidth;
+        var panelWidth = BasePanelWidth + targetColumnExtra;
+
+        // 見出し
+        if (txtTargetTitle != null)
+        {
+            var rt = txtTargetTitle.rectTransform;
+            rt.sizeDelta = new Vector2(width, rt.sizeDelta.y);
+        }
+        foreach (var (rt, x) in headerColumns)
+        {
+            rt.anchoredPosition = new Vector2(x + targetColumnExtra, rt.anchoredPosition.y);
+        }
+        // 行
+        foreach (var info in actUnitInfos)
+        {
+            if (info.actObject != null)
+            {
+                var row = (RectTransform)info.actObject.transform;
+                row.sizeDelta = new Vector2(panelWidth, row.sizeDelta.y);
+            }
+            if (info.txtTarget != null)
+            {
+                var rt = info.txtTarget.rectTransform;
+                rt.sizeDelta = new Vector2(width, rt.sizeDelta.y);
+            }
+            if (info.txtStart != null)
+            {
+                var rt = info.txtStart.rectTransform;
+                rt.anchoredPosition = new Vector2(baseStartX + targetColumnExtra, rt.anchoredPosition.y);
+            }
+            if (info.txtEnd != null)
+            {
+                var rt = info.txtEnd.rectTransform;
+                rt.anchoredPosition = new Vector2(baseEndX + targetColumnExtra, rt.anchoredPosition.y);
+            }
+        }
+        // 帯とパネル
+        foreach (var rt in wideBands)
+        {
+            rt.sizeDelta = new Vector2(panelWidth, rt.sizeDelta.y);
+        }
+        SetPanelSize(new Vector2(panelWidth, PanelSize.y));
+    }
+
+    /// <summary>
     /// 動作行を生成する
     /// </summary>
     private ActUnitInfo CreateActRow()
@@ -657,7 +802,7 @@ public class CanvasMenuActUnitScript : CanvasMenuBaseScript
         txtAngX.text = parts.transform.localEulerAngles.x.ToString("0.000");
         txtAngY.text = parts.transform.localEulerAngles.y.ToString("0.000");
         txtAngZ.text = parts.transform.localEulerAngles.z.ToString("0.000");
-        actUnitContentsActList.GetComponent<RectTransform>().sizeDelta = new Vector2(600, 30 * actUnitInfos.Count);
+        actUnitContentsActList.GetComponent<RectTransform>().sizeDelta = new Vector2(BasePanelWidth + targetColumnExtra, 30 * actUnitInfos.Count);
     }
 
     /// <summary>
@@ -755,7 +900,11 @@ public class CanvasMenuActUnitScript : CanvasMenuBaseScript
                         var endText = endDev + " / " + act.end;
                         starText = starText.Length > 20 ? starText.Substring(0, 18) + ".." : starText;
                         endText = endText.Length > 20 ? endText.Substring(0, 18) + ".." : endText;
-                        txtTarget.text = act.endName == "" ? "Pos" + i : act.endName;
+                        // 動作名はタイムチャートのセル内改行を含むことがある（例:「搬送\r\n横移動高さ」）。
+                        // 行の高さに収まらず隣の行と重なるため、表示だけ1行にし、はみ出す分は末尾を「…」で省く
+                        txtTarget.text = act.endName == "" ? "Pos" + i : act.endName.Replace("\r\n", " ").Replace("\n", " ").Replace("\r", " ");
+                        txtTarget.textWrappingMode = TextWrappingModes.NoWrap;
+                        txtTarget.overflowMode = TextOverflowModes.Ellipsis;
                         txtStart.text = starText;
                         txtEnd.text = endText;
                         actUnitInfos.Add(actInfo);
@@ -917,7 +1066,9 @@ public class CanvasMenuActUnitScript : CanvasMenuBaseScript
         {
             uiLinearInfo.SetActive(false);
         }
-        actUnitContentsActList.GetComponent<RectTransform>().sizeDelta = new Vector2(600, 30 * actUnitInfos.Count);
+        // 目標位置名が見えるよう、一番長い名前に合わせて列の幅を変える
+        AdjustTargetColumn();
+        actUnitContentsActList.GetComponent<RectTransform>().sizeDelta = new Vector2(BasePanelWidth + targetColumnExtra, 30 * actUnitInfos.Count);
         // モデル選択の条件は「ユニットが選ばれている」ことだけ。
         // ※以前は actUnitInfos / pointsInfos の件数も条件だったが、pointsInfos はリニア機構の
         //   点情報でしか埋まらないため、リニア以外のユニットでは選択処理ごとスキップされていた。
