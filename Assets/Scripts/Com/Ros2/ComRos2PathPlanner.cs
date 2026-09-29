@@ -609,7 +609,7 @@ public class ComRos2PathPlanner : MonoBehaviour
         string rep = infeasible
             ? AnalyzeTraj(traj, achMs, mk, out warn, optMinTime, "設定", setSec)
             : AnalyzeTraj(traj, achMs, mk, out warn, optMinTime);
-        string wm = infeasible ? " ⚠目標未達" : "";
+        string wm = infeasible ? " ▲目標未達" : "";
         SetState(PlanState.Preview, $"最適化完了: {rep}{wm}");   // OK/NG はボタンにあるので繰り返さない
         if (warn || infeasible) { Debug.LogWarning($"[ComRos2PathPlanner] 登録最適化: {rep}{wm}"); }
     }
@@ -798,7 +798,7 @@ public class ComRos2PathPlanner : MonoBehaviour
             // 時間を守れた場合も「最短」を併記（例: 所要3.00s（最短2.64s））。守れない時は警告。
             string at = optAchieved > 0.0 ? $"所要{optAchieved:F2}s" : "";
             string minS = optMinTime > 0.0 ? $"（最短{optMinTime:F2}s）" : "";
-            optResultWarn = (!optFeasible && optMinTime > 0.0) ? "⚠ 目標時間未達" : "";
+            optResultWarn = (!optFeasible && optMinTime > 0.0) ? "▲ 目標時間未達" : "";
             optProgress = "最適化完了 " + at + minS + (optResultWarn.Length > 0 ? "  " + optResultWarn : "");
             RefreshOptPreview();   // 軌道が先に届いていた場合（順序非依存）はここでプレビュー表示を更新
         }
@@ -1520,8 +1520,8 @@ public class ComRos2PathPlanner : MonoBehaviour
         }
         double g = PeakTipAccelG(tr, scale, out bool hasG);   // ヘッド先端のピーク加速度(G)
         if (hasG) { s += $" 加速{g:F2}G"; }
-        if (overTime) { s += " ⚠時間<最短"; }
-        if (overSpeed) { s += " ⚠速度超過"; }
+        if (overTime) { s += " ▲時間<最短"; }
+        if (overSpeed) { s += " ▲速度超過"; }
         return s;
     }
 

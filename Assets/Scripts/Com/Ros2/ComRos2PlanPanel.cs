@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.EventSystems;
@@ -82,57 +83,59 @@ public class ComRos2PlanPanel : MonoBehaviour
     private bool jogMode;
     private GameObject tcpMarker;                   // JOG中に TCP(ヘッドオフセット点=吸盤)の位置・向きを可視化する球＋XYZ軸
     private bool suppressRowCallbacks;              // 行の min/max/value 一括更新中はスライダー/入力の誤発火を無視
-    private Text[] rowLabels = new Text[0];         // J1..J6 ↔ X/Y/Z/RX/RY/RZ でラベル切替
+    private TMP_Text[] rowLabels = new TMP_Text[0];         // J1..J6 ↔ X/Y/Z/RX/RY/RZ でラベル切替
     private double[] cartVals = new double[6];       // JOG時の X,Y,Z(mm) / RX,RY,RZ(deg・base軸まわりの累積ジョグ量)
     private Quaternion cartRot = Quaternion.identity;  // JOG目標のTCP姿勢(base相対)。回転は絶対3角度でなくこれに base軸デルタを積む(ジンバルロック回避)
     private static readonly string[] CartLabels = { "X", "Y", "Z", "RX", "RY", "RZ" };
     private const float CartPosRange = 2500f;       // 位置スライダー範囲(±mm)
     private const float CartRotRange = 180f;        // 姿勢スライダー範囲(±deg)
 
-    private Text statusText;
+    private TMP_Text statusText;
     private GameObject bestTooltipGo;     // 「最良」クリックで出す 経路時間ベスト10 ツールチップ
-    private Text bestTooltipText;
-    private Text seekTimeLabel;   // 再生中の時間（現在/総 秒）。シークバー右
+    private TMP_Text bestTooltipText;
+    private TMP_Text seekTimeLabel;   // 再生中の時間（現在/総 秒）。シークバー右
     private Slider returnSpeedSlider;   // 復帰(通常計画)の速度倍率スライダー（実行中に調整可）
-    private Text returnSpeedLabel;      // 「復帰速度 XX%」
+    private TMP_Text returnSpeedLabel;      // 「復帰速度 XX%」
     private Slider progressBar;         // 登録最適化の進捗バー（探索/STOMP候補・OptProgress01連動）
-    private Text goalText;                                            // 旧ゴール表示（撤去・未使用）
-    private Text curText;                                             // ロボットの現在関節角（ライブ表示・旧ゴール行の位置）
+    private TMP_Text goalText;                                            // 旧ゴール表示（撤去・未使用）
+    private TMP_Text curText;                                             // ロボットの現在関節角（ライブ表示・旧ゴール行の位置）
     private double[] curDisplayDeg;                                   // 「現在:」表示値。ゴール表示中は更新せず保持（復帰=現在/登録=始点）
-    private Text commText;                                            // ROS 状態（ROS2起動＋TCP接続 統合・タイトルバー右）
+    private TMP_Text commText;                                            // ROS 状態（ROS2起動＋TCP接続 統合・タイトルバー右）
     private Button startBtn, stopBtn, restartBtn;                     // 起動/停止/再起動
     private Slider[] sliders = new Slider[0];
-    private InputField[] sliderInputs = new InputField[0];   // 角度の直接入力（関節数ぶん）
+    private TMP_InputField[] sliderInputs = new TMP_InputField[0];   // 角度の直接入力（関節数ぶん）
     private Button setGoalBtn, planBtn, okBtn, ngBtn, stopSearchBtn;
     private Button csvExportBtn;  // 現在の経路を FANUC 汎用再生用 CSV(関節角)に出力（Karel/TPが読む）
-    private InputField csvProductInput, csvPathInput;   // CSV命名: 品番(R[89]) / パス番号(R[88]・0=復帰)
+    private TMP_InputField csvProductInput, csvPathInput;   // CSV命名: 品番(R[89]) / パス番号(R[88]・0=復帰)
     private Button dcsReloadBtn;  // DCS安全ゾーン(SafetyZoneInfo.json)を再読込して再描画
     private bool stopSearchLatched;   // 探索停止押下→データ返信まで再押下を無効化するラッチ
     private const int IconPlay = 0xe037;                             // MaterialIcons play_arrow
     private const int IconPause = 0xe034;                            // MaterialIcons pause
     private Slider seekSlider;                                       // ゴースト再生のシーク（経路スクラブ確認・Preview中のみ）
     private Button seekPlayBtn;                                      // 再生/一時停止（シークバー左）
-    private Text seekPlayLabel;                                      // ▶（一時停止中に表示・再生アイコン）
+    private TMP_Text seekPlayLabel;                                      // ▶（一時停止中に表示・再生アイコン）
     private GameObject seekPauseIcon;                                // 一時停止アイコン（縦2本バー・MaterialIcons未取得時のフォールバック）
     private bool seekUseIconFont;                                    // MaterialIcons で / を使うか
     private Toggle registerModeToggle;                               // 自動再生/登録 の切替
-    private Text registerModeLabel;                                  // トグルのラベル（選択テーブル名を表示）
+    private TMP_Text registerModeLabel;                                  // トグルのラベル（選択テーブル名を表示）
     private int selectedStep = 0;                                    // 登録モードで選択中のテーブル（既定=先頭）
     private readonly List<GameObject> stepRows = new();              // ステップ一覧の行（登録モードで表示）
-    private readonly List<Text> stepStatusTexts = new();             // 各行の登録状態ラベル
+    private readonly List<TMP_Text> stepStatusTexts = new();             // 各行の登録状態ラベル
     private readonly List<Button> stepButtons = new();               // 各行の 登録/解除/再生 ボタン（登録保留中は無効化）
-    private Text robotNameText;                     // 選択中ロボット名（◀ 名前 ▶）
+    private TMP_Text robotNameText;                     // 選択中ロボット名（◀ 名前 ▶）
     private Button robotPrevBtn, robotNextBtn;
     private Button switchRobotBtn;                   // 「この機種でROS起動/切替」
-    private InputField budgetInput, ratioInput;                       // 時間予算/大回り許容比の入力
+    private TMP_InputField budgetInput, ratioInput;                       // 時間予算/大回り許容比の入力
     private double planGoodRatioVal;                                  // 大回り許容比（0=ROS2既定）
-    private Font uiFont;
+    private TMP_FontAsset uiFont;
     private GameObject canvasGo;                                      // 生成した Canvas（破棄/掃除用）
     private GameObject panelRootGo;                                   // パネル本体（表示トグル対象。Canvas/EventSystem は常時活性）
     private RectTransform panelRect;                                  // パネル（最小化で大きさを変える）
     private RectTransform titleRect;                                  // タイトルバー
     private RectTransform bodyRect;                                   // タイトルバー以外の中身（最小化で丸ごと隠す）
-    private Text titleLbl;                                            // 「▼/▶ 経路計画」（最小化時の幅の基準）
+    private TMP_Text titleLbl;
+    private RectTransform collapseIconRt;                             // 最小化アイコン（▼。最小化中は回して右向き）
+    private const float TitleTextX = 30f;                             // タイトルの文字の左端（▼の右）                                            // 「▼/▶ 経路計画」（最小化時の幅の基準）
     private float expandedHeight;                                     // 展開時のパネルの高さ
     private bool collapsed;                                           // 最小化中（機種切替の再構築でも維持する）
     private const float PanelWidth = 360f;                            // 展開時のパネル幅
@@ -202,14 +205,15 @@ public class ComRos2PlanPanel : MonoBehaviour
         {
             return;
         }
-        // アイコンで状態を示す（▼=展開中 / ▶=最小化中）。最小化時の幅を正しく測るため訳した文言で入れる
-        titleLbl.text = (collapsed ? "▶ " : "▼ ") + Lang.T("経路計画");
+        // アイコンで状態を示す（▼=展開中、最小化中は回して右向き）。最小化時の幅を正しく測るため訳した文言で入れる
+        titleLbl.text = Lang.T("経路計画");
+        KmxUiStyle.SetCollapseIcon(collapseIconRt, collapsed);
         bodyRect.gameObject.SetActive(!collapsed);
         if (commText != null)
         {
             commText.gameObject.SetActive(!collapsed);
         }
-        var width = collapsed ? Mathf.Ceil(8f + titleLbl.preferredWidth + 10f + KmxUiStyle.CloseButtonWidth) : PanelWidth;
+        var width = collapsed ? Mathf.Ceil(TitleTextX + titleLbl.preferredWidth + 10f + KmxUiStyle.CloseButtonWidth) : PanelWidth;
         panelRect.sizeDelta = new Vector2(width, collapsed ? titleRect.sizeDelta.y : expandedHeight);
         titleRect.sizeDelta = new Vector2(width, titleRect.sizeDelta.y);
     }
@@ -432,14 +436,14 @@ public class ComRos2PlanPanel : MonoBehaviour
         title.anchorMax = new Vector2(0f, 1f);
         title.pivot = new Vector2(0f, 1f);
         title.anchoredPosition = new Vector2(0f, 0f);
-        title.sizeDelta = new Vector2(W, 26f);
+        title.sizeDelta = new Vector2(W, KmxUiStyle.MenuTitleHeight);
         var titleImg = title.gameObject.AddComponent<Image>();
         titleImg.color = KmxUiStyle.TitleBar;
         title.gameObject.AddComponent<Ros2PanelDrag>().target = panel;
         titleRect = title;
         // 文言は ApplyCollapsed で状態に合わせて入れる（▼=展開 / ▶=最小化）
-        titleLbl = MakeLabel(title, "TitleText", "", 15, new Vector2(8f, 0f), 180f, 26f);
-        titleLbl.alignment = TextAnchor.MiddleLeft;
+        titleLbl = MakeLabel(title, "TitleText", "", (int)KmxUiStyle.TitleFontSize, new Vector2(TitleTextX, 0f), 180f, KmxUiStyle.MenuTitleHeight);
+        titleLbl.alignment = TextAlignmentOptions.MidlineLeft;
         titleLbl.raycastTarget = false;   // タイトルバー(Image)でドラッグを拾わせる
         // タイトル左のアイコン（▼/▶）をクリックで最小化/展開。クリックだけこのボタンが受け、ドラッグは親のタイトルバーが拾う
         var iconRt = MakeRect("CollapseIcon", title);
@@ -447,30 +451,38 @@ public class ComRos2PlanPanel : MonoBehaviour
         iconRt.anchorMax = new Vector2(0f, 1f);
         iconRt.pivot = new Vector2(0f, 1f);
         iconRt.anchoredPosition = new Vector2(2f, 0f);
-        iconRt.sizeDelta = new Vector2(24f, 26f);
+        iconRt.sizeDelta = new Vector2(24f, KmxUiStyle.MenuTitleHeight);
         var iconImg = iconRt.gameObject.AddComponent<Image>();
         iconImg.color = new Color(1f, 1f, 1f, 0f);   // 透明（当たり判定のみ）
         var iconBtn = iconRt.gameObject.AddComponent<Button>();
         iconBtn.transition = Selectable.Transition.None;
         iconBtn.onClick.AddListener(ToggleCollapsed);
+        var iconLbl = MakeLabel(iconRt, "Icon", KmxUiStyle.CollapseGlyph, 16, Vector2.zero, 24f, KmxUiStyle.MenuTitleHeight);
+        iconLbl.alignment = TextAlignmentOptions.Center;
+        iconLbl.raycastTarget = false;
+        collapseIconRt = iconLbl.rectTransform;
+        collapseIconRt.pivot = new Vector2(0.5f, 0.5f);   // 中心で回す
+        collapseIconRt.anchorMin = new Vector2(0.5f, 0.5f);
+        collapseIconRt.anchorMax = new Vector2(0.5f, 0.5f);
+        collapseIconRt.anchoredPosition = Vector2.zero;
         // 閉じるボタン（タイトルバー右端。最小化中も右端に出る）。下のメニューのボタン状態は CanvasMenuInfoScript が合わせる
         var closeRt = MakeRect("CloseButton", title);
         closeRt.anchorMin = new Vector2(1f, 0.5f);
         closeRt.anchorMax = new Vector2(1f, 0.5f);
         closeRt.pivot = new Vector2(1f, 0.5f);
         closeRt.anchoredPosition = new Vector2(-2f, 0f);
-        closeRt.sizeDelta = new Vector2(KmxUiStyle.CloseButtonWidth, 26f);
+        closeRt.sizeDelta = new Vector2(KmxUiStyle.CloseButtonWidth, KmxUiStyle.MenuTitleHeight);
         var closeImg = closeRt.gameObject.AddComponent<Image>();
         closeImg.color = new Color(1f, 1f, 1f, 0f);   // 透明（当たり判定のみ）
         var closeBtn = closeRt.gameObject.AddComponent<Button>();
         closeBtn.transition = Selectable.Transition.None;
         closeBtn.onClick.AddListener(() => SetVisible(false));
-        var closeLbl = MakeLabel(closeRt, "Label", KmxUiStyle.CloseGlyph, 18, Vector2.zero, KmxUiStyle.CloseButtonWidth, 26f);
-        closeLbl.alignment = TextAnchor.MiddleCenter;
+        var closeLbl = MakeLabel(closeRt, "Label", KmxUiStyle.CloseGlyph, 22, Vector2.zero, KmxUiStyle.CloseButtonWidth, KmxUiStyle.MenuTitleHeight);
+        closeLbl.alignment = TextAlignmentOptions.Center;
         closeLbl.raycastTarget = false;
         // ROS通信状態（タイトルバー右・閉じるボタンの左）。Update で色/文言を更新。
-        commText = MakeLabel(title, "Comm", "ROS ●", 13, new Vector2(W - 130f - KmxUiStyle.CloseButtonWidth, 0f), 122f, 26f);
-        commText.alignment = TextAnchor.MiddleRight;
+        commText = MakeLabel(title, "Comm", "ROS ●", 13, new Vector2(W - 130f - KmxUiStyle.CloseButtonWidth, 0f), 122f, KmxUiStyle.MenuTitleHeight);
+        commText.alignment = TextAlignmentOptions.MidlineRight;
         commText.raycastTarget = false;
 
         float y = -30f;   // タイトルバーの下から積む
@@ -478,8 +490,10 @@ public class ComRos2PlanPanel : MonoBehaviour
         // ロボット選択（◀ 名前 ▶）。複数ロボット時に切替。1台でも現機体を表示。
         robotPrevBtn = MakeButton(panel, "RobotPrev", "◀", new Vector2(8f, y), 30f, 24f, OnRobotPrev);
         robotNameText = MakeLabel(panel, "RobotName", "ロボット: -", 14, new Vector2(42f, y), W - 42f - 38f, 24f);
-        robotNameText.alignment = TextAnchor.MiddleCenter;
+        robotNameText.alignment = TextAlignmentOptions.Center;
         robotNextBtn = MakeButton(panel, "RobotNext", "▶", new Vector2(W - 38f, y), 30f, 24f, OnRobotNext);
+        SetArrowIcon(robotPrevBtn, "\ue5cb", "<");   // chevron_left
+        SetArrowIcon(robotNextBtn, "\ue5cc", ">");   // chevron_right
         y -= 28f;
 
         // 「この機種でROS起動/切替」：選択機体の robot_model で bringup を(再)起動→再接続→scene再送。
@@ -510,8 +524,8 @@ public class ComRos2PlanPanel : MonoBehaviour
         int nJoints = (jointNames != null && jointNames.Length > 0) ? jointNames.Length : DefaultJointNames.Length;
         if (goalDeg == null || goalDeg.Length != nJoints) { goalDeg = new double[nJoints]; }
         sliders = new Slider[nJoints];
-        sliderInputs = new InputField[nJoints];
-        rowLabels = new Text[nJoints];
+        sliderInputs = new TMP_InputField[nJoints];
+        rowLabels = new TMP_Text[nJoints];
         for (int i = 0; i < nJoints; i++)
         {
             int idx = i;
@@ -570,9 +584,9 @@ public class ComRos2PlanPanel : MonoBehaviour
         // 計画/再生の状態＋Step A 速度解析（空のときは非表示同然）。OK/NG の直上に置く。
         statusText = MakeLabel(panel, "status", "", 14, new Vector2(8f, y), W - 16f, 22f);
         // 解析結果は長くなりがち（所要/設定/軸速/加速G/警告）。枠からはみ出さないよう自動縮小。
-        statusText.resizeTextForBestFit = true;
-        statusText.resizeTextMinSize = 9;
-        statusText.resizeTextMaxSize = 14;
+        statusText.enableAutoSizing = true;
+        statusText.fontSizeMin = 9;
+        statusText.fontSizeMax = 14;
         // 「最良」等のステータスをクリックすると、探索中バッファのベスト10（昇順）をツールチップ表示。
         var statusBtn = statusText.gameObject.AddComponent<Button>();
         statusBtn.transition = Selectable.Transition.None;
@@ -591,13 +605,13 @@ public class ComRos2PlanPanel : MonoBehaviour
         tipTextRt.anchorMax = Vector2.one;
         tipTextRt.offsetMin = new Vector2(8f, 6f);
         tipTextRt.offsetMax = new Vector2(-8f, -6f);
-        bestTooltipText = tipTextRt.gameObject.AddComponent<Text>();
+        bestTooltipText = tipTextRt.gameObject.AddComponent<TextMeshProUGUI>();
         bestTooltipText.font = uiFont;
         bestTooltipText.fontSize = 12;
         bestTooltipText.color = Color.white;
-        bestTooltipText.alignment = TextAnchor.UpperLeft;
-        bestTooltipText.horizontalOverflow = HorizontalWrapMode.Overflow;
-        bestTooltipText.verticalOverflow = VerticalWrapMode.Overflow;
+        bestTooltipText.alignment = TextAlignmentOptions.TopLeft;
+        bestTooltipText.textWrappingMode = TextWrappingModes.NoWrap;
+        bestTooltipText.overflowMode = TextOverflowModes.Overflow;
         bestTooltipGo = tipRt.gameObject;
         bestTooltipGo.SetActive(false);
         y -= 22f;
@@ -611,8 +625,8 @@ public class ComRos2PlanPanel : MonoBehaviour
         progressBar.gameObject.SetActive(false);
         y -= 14f;
         // ゴースト再生の 再生/一時停止 ＋ シークバー（経路スクラブ確認）。Preview 中のみ表示。
-        seekPlayBtn = MakeButton(panel, "seekPlay", "▶", new Vector2(8f, y), 34f, 18f, OnSeekPlayToggle);
-        seekPlayLabel = seekPlayBtn.GetComponentInChildren<Text>();
+        seekPlayBtn = MakeButton(panel, "seekPlay", ">", new Vector2(8f, y), 34f, 18f, OnSeekPlayToggle);   // アイコンフォントが無い時の代わり
+        seekPlayLabel = seekPlayBtn.GetComponentInChildren<TMP_Text>();
         var iconFont = GetIconFont();
         if (iconFont != null)
         {
@@ -636,10 +650,10 @@ public class ComRos2PlanPanel : MonoBehaviour
         seekSlider.onValueChanged.AddListener(OnSeek);
         // 再生中の時間（現在 / 動作時間[最短 or 設定]）。スライダー右端。長い時は自動縮小。
         seekTimeLabel = MakeLabel(panel, "seekTime", "", 12, new Vector2(W - 72f, y), 68f, 18f);
-        seekTimeLabel.alignment = TextAnchor.MiddleRight;
-        seekTimeLabel.resizeTextForBestFit = true;
-        seekTimeLabel.resizeTextMinSize = 8;
-        seekTimeLabel.resizeTextMaxSize = 12;
+        seekTimeLabel.alignment = TextAlignmentOptions.MidlineRight;
+        seekTimeLabel.enableAutoSizing = true;
+        seekTimeLabel.fontSizeMin = 8;
+        seekTimeLabel.fontSizeMax = 12;
         y -= 24f;
         okBtn = MakeButton(panel, "OK", "OK 実行", new Vector2(8f, y), 168f, 34f, OnOk);
         ngBtn = MakeButton(panel, "NG", "NG 破棄", new Vector2(184f, y), 168f, 34f, OnNg);
@@ -651,11 +665,11 @@ public class ComRos2PlanPanel : MonoBehaviour
         // 命名 P<品番>_<パス番号>.CSV（品番=R[89] / パス番号=R[88]・0=復帰）。出力先は Ros2Info.json csvOutputDir。
         MakeLabel(panel, "lblCsvProd", "品種番号", 13, new Vector2(8f, y), 58f, 22f);
         csvProductInput = MakeInput(panel, "csvProd", new Vector2(68f, y), 42f, 22f);
-        csvProductInput.contentType = InputField.ContentType.IntegerNumber;
+        csvProductInput.contentType = TMP_InputField.ContentType.IntegerNumber;
         csvProductInput.text = "1";
         MakeLabel(panel, "lblCsvPath", "パス", 13, new Vector2(114f, y), 28f, 22f);
         csvPathInput = MakeInput(panel, "csvPath", new Vector2(144f, y), 42f, 22f);
-        csvPathInput.contentType = InputField.ContentType.IntegerNumber;
+        csvPathInput.contentType = TMP_InputField.ContentType.IntegerNumber;
         csvPathInput.text = "0";
         // モードから自動で入る（復帰=0 / 登録=テーブル番号1オリジン）が、手動で上書きも可。
         MakeLabel(panel, "hintCsvPath", "0=復帰/登録=表番号", 12, new Vector2(190f, y), 164f, 22f);
@@ -665,11 +679,11 @@ public class ComRos2PlanPanel : MonoBehaviour
 
         // --- robotSteps シーケンス（自動再生／登録モード切替＋ステップ一覧） ---
         var seqSep = MakeLabel(panel, "seqSep", "― ステップ再生 ―", 13, new Vector2(8f, y), W - 16f, 20f);
-        seqSep.alignment = TextAnchor.MiddleCenter;
+        seqSep.alignment = TextAlignmentOptions.Center;
         y -= 24f;
         registerModeToggle = MakeToggle(panel, "togRegister", "登録モード（ロボ停止・教示）", false,
             new Vector2(8f, y), OnRegisterModeChanged);
-        registerModeLabel = registerModeToggle.GetComponentInChildren<Text>();   // ラベル（選択テーブル名を出す）
+        registerModeLabel = registerModeToggle.GetComponentInChildren<TMP_Text>();   // ラベル（選択テーブル名を出す）
         y -= 28f;
         BuildStepRows(panel, ref y);
         UpdateRegisterLabel();
@@ -748,32 +762,11 @@ public class ComRos2PlanPanel : MonoBehaviour
     }
 #endif
 
-    private static Font GetFont()
-    {
-        var f = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-        if (f == null) { f = Resources.GetBuiltinResource<Font>("Arial.ttf"); }
-        if (f == null) { f = Font.CreateDynamicFontFromOSFont("Arial", 14); }
-        return f;
-    }
+    /// <summary>本文のフォント（他のメニューと同じ NotoSansJP）</summary>
+    private static TMP_FontAsset GetFont() => KmxUiStyle.BodyFont;
 
-    private static Font iconFontCache;
-    /// <summary>MaterialIcons フォントを実行時取得（プレハブ等で読込済みのものを探す）。無ければ null。</summary>
-    private static Font GetIconFont()
-    {
-        if (iconFontCache != null)
-        {
-            return iconFontCache;
-        }
-        foreach (var f in Resources.FindObjectsOfTypeAll<Font>())
-        {
-            if (f != null && f.name.IndexOf("MaterialIcons", System.StringComparison.OrdinalIgnoreCase) >= 0)
-            {
-                iconFontCache = f;
-                return f;
-            }
-        }
-        return null;   // 未検出（フォールバックへ）
-    }
+    /// <summary>アイコンのフォント（再生/一時停止。システムレコーダーと同じ MaterialSymbolsRounded）。無ければ null</summary>
+    private static TMP_FontAsset GetIconFont() => KmxUiStyle.IconFont;
 
     private static RectTransform MakeRect(string name, Transform parent)
     {
@@ -782,7 +775,7 @@ public class ComRos2PlanPanel : MonoBehaviour
         return (RectTransform)go.transform;
     }
 
-    private Text MakeLabel(RectTransform parent, string name, string text, int size, Vector2 pos, float w, float h)
+    private TMP_Text MakeLabel(RectTransform parent, string name, string text, int size, Vector2 pos, float w, float h)
     {
         var rt = MakeRect(name, parent);
         rt.anchorMin = new Vector2(0f, 1f);
@@ -790,12 +783,13 @@ public class ComRos2PlanPanel : MonoBehaviour
         rt.pivot = new Vector2(0f, 1f);
         rt.anchoredPosition = pos;
         rt.sizeDelta = new Vector2(w, h);
-        var t = rt.gameObject.AddComponent<Text>();
+        var t = rt.gameObject.AddComponent<TextMeshProUGUI>();
         t.font = uiFont;
         t.fontSize = size;
         t.color = Color.white;
-        t.alignment = TextAnchor.MiddleLeft;
-        t.horizontalOverflow = HorizontalWrapMode.Overflow;
+        t.alignment = TextAlignmentOptions.MidlineLeft;
+        t.textWrappingMode = TextWrappingModes.NoWrap;
+        t.overflowMode = TextOverflowModes.Overflow;
         t.text = text;
         return t;
     }
@@ -839,7 +833,7 @@ public class ComRos2PlanPanel : MonoBehaviour
         return slider;
     }
 
-    private InputField MakeInput(RectTransform parent, string name, Vector2 pos, float w, float h)
+    private TMP_InputField MakeInput(RectTransform parent, string name, Vector2 pos, float w, float h)
     {
         var rt = MakeRect(name, parent);
         rt.anchorMin = new Vector2(0f, 1f);
@@ -849,24 +843,31 @@ public class ComRos2PlanPanel : MonoBehaviour
         rt.sizeDelta = new Vector2(w, h);
         var img = rt.gameObject.AddComponent<Image>();
         img.color = KmxUiStyle.InputBackground;
-        var input = rt.gameObject.AddComponent<InputField>();
-
-        var textRt = MakeRect("Text", rt);
-        textRt.anchorMin = Vector2.zero;
-        textRt.anchorMax = Vector2.one;
-        textRt.offsetMin = new Vector2(4f, 0f);
-        textRt.offsetMax = new Vector2(-4f, 0f);
-        var text = textRt.gameObject.AddComponent<Text>();
+        // TextMeshPro の入力欄は「表示範囲（マスク）＋文字」の構成。部品をそろえてから入力欄を付ける
+        // （付けた時点で有効化の処理が走るため、いったん無効にしておく）
+        rt.gameObject.SetActive(false);
+        var area = MakeRect("Text Area", rt);
+        area.anchorMin = Vector2.zero;
+        area.anchorMax = Vector2.one;
+        area.offsetMin = new Vector2(4f, 0f);
+        area.offsetMax = new Vector2(-4f, 0f);
+        area.gameObject.AddComponent<RectMask2D>();
+        var textRt = MakeRect("Text", area);
+        Stretch(textRt);
+        var text = textRt.gameObject.AddComponent<TextMeshProUGUI>();
         text.font = uiFont;
         text.fontSize = 14;
         text.color = Color.white;
-        text.alignment = TextAnchor.MiddleLeft;
-        text.supportRichText = false;
-
+        text.alignment = TextAlignmentOptions.MidlineLeft;
+        text.richText = false;
+        text.textWrappingMode = TextWrappingModes.NoWrap;
+        var input = rt.gameObject.AddComponent<TMP_InputField>();
+        input.textViewport = area;
         input.textComponent = text;
         input.targetGraphic = img;
-        input.contentType = InputField.ContentType.Standard;   // 符号/小数を許容（float.TryParse で検証）
+        input.contentType = TMP_InputField.ContentType.Standard;   // 符号/小数を許容（float.TryParse で検証）
         input.text = "0";
+        rt.gameObject.SetActive(true);
         return input;
     }
 
@@ -924,11 +925,34 @@ public class ComRos2PlanPanel : MonoBehaviour
         btn.targetGraphic = img;
         btn.onClick.AddListener(onClick);
         var t = MakeLabel(rt, "Text", label, 15, Vector2.zero, w, h);
-        t.alignment = TextAnchor.MiddleCenter;
+        t.alignment = TextAlignmentOptions.Center;
         // ラベルを中央に伸ばす
         var trt = (RectTransform)t.transform;
         Stretch(trt);
         return btn;
+    }
+
+    /// <summary>
+    /// ボタンの文字をアイコンフォントの矢印にする（NotoSansJP に ◀▶ が無いため）。フォントが無ければ代わりの文字
+    /// </summary>
+    private static void SetArrowIcon(Button button, string icon, string fallback)
+    {
+        var label = button != null ? button.GetComponentInChildren<TMP_Text>() : null;
+        if (label == null)
+        {
+            return;
+        }
+        var font = GetIconFont();
+        if (font != null)
+        {
+            label.font = font;
+            label.fontSize = 22;
+            label.text = icon;
+        }
+        else
+        {
+            label.text = fallback;
+        }
     }
 
     private static void Stretch(RectTransform rt)
@@ -2028,7 +2052,7 @@ public class ComRos2PlanPanel : MonoBehaviour
         // 計画ボタンのラベルはモードで切替：復帰モード=復帰計画 / 登録モード=経路計画（選択ステップの登録計画）。
         if (planBtn != null)
         {
-            var pt = planBtn.GetComponentInChildren<Text>();
+            var pt = planBtn.GetComponentInChildren<TMP_Text>();
             if (pt != null) { pt.text = on ? "経路計画" : "復帰計画"; }
         }
         EnsureKin();
