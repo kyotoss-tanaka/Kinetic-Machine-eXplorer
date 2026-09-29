@@ -988,6 +988,18 @@ public class ComProtocolBase : ComBaseScript, ITagCom
             else
             {
                 size = tcp._tcpStream.Read(buffer, 0, buffer.Length);
+                // 応答長が分かるプロトコル（MC）は、TCPで分割されて届いても1応答分そろうまで読む
+                // （1回のReadで切ると残りが次の応答の先頭に混ざる。約1460バイト超の応答で起きうる）
+                int expected;
+                while ((size > 0) && ((expected = GetFrameLength(buffer, size)) > size) && (expected <= buffer.Length))
+                {
+                    var n = tcp._tcpStream.Read(buffer, size, expected - size);
+                    if (n <= 0)
+                    {
+                        return false;
+                    }
+                    size += n;
+                }
             }
         }
         catch
@@ -995,6 +1007,16 @@ public class ComProtocolBase : ComBaseScript, ITagCom
             return false;
         }
         return true;
+    }
+
+    /// <summary>
+    /// 受信中の応答の全長（ヘッダ込み）。分からなければ-1（1回の受信で完結とみなす）
+    /// </summary>
+    /// <param name="buffer">受信バッファ</param>
+    /// <param name="size">受信済みサイズ</param>
+    protected virtual int GetFrameLength(byte[] buffer, int size)
+    {
+        return -1;
     }
 
     /// <summary>
@@ -1293,6 +1315,9 @@ public class ComProtocolBase : ComBaseScript, ITagCom
         }
         CreateSorted(dctReadTags1, ref dctReadSortedTags1);
         CreateSorted(dctReadTags2, ref dctReadSortedTags2);
+        // 起動時に1回、1往復になる単位（ブロック）の構成を出す（通信の組み方の確認用）
+        Debug.Log($"[ComBlocks] {GetType().Name} {Server}:{Port} 読込={DescribeBlocks(dctReadSortedTags1)} / " +
+                  $"書込={DescribeBlocks(dctWriteSortedTags)} / 初回読込(書込タグ)={DescribeBlocks(dctReadSortedTags2)}");
         // ソートされたタグにDBデータをセット
         foreach (var tags in dctWriteSortedTags)
         {
@@ -1301,6 +1326,33 @@ public class ComProtocolBase : ComBaseScript, ITagCom
                 SetDbPointer(tag);
             }
         }
+    }
+
+    /// <summary>
+    /// ブロック構成の文字列（種類 先頭番号 点数、ビットはワード換算も）
+    /// </summary>
+    private string DescribeBlocks(Dictionary<string, List<KMXDBSetting>> dct)
+    {
+        if ((dct == null) || (dct.Count == 0))
+        {
+            return "なし";
+        }
+        var items = new List<string>();
+        var totalWords = 0;
+        foreach (var kv in dct)
+        {
+            foreach (var block in kv.Value)
+            {
+                var count = block.AllDataCount;
+                var isBit = regTypeBit.Contains(kv.Key);
+                var words = isBit ? (count + BIT_COUNT - 1) / BIT_COUNT : count;
+                totalWords += words;
+                items.Add(isBit
+                    ? $"{kv.Key}{block.RegisterNo} {count}点({words}W) タグ{block.sortedDatas.Count}"
+                    : $"{kv.Key}{block.RegisterNo} {count}W タグ{block.sortedDatas.Count}");
+            }
+        }
+        return $"{items.Count}ブロック 計{totalWords}W [{string.Join(", ", items)}]";
     }
 
     /// <summary>
