@@ -86,7 +86,7 @@ public class CanvasMenuActUnitScript : CanvasMenuBaseScript
     /// <summary>
     /// パネル幅に合わせて伸ばす帯（コンボボックス・位置/角度・動作の見出し）
     /// </summary>
-    private readonly List<RectTransform> wideBands = new();
+    private readonly List<(RectTransform rt, float width)> wideBands = new();
     /// <summary>
     /// 動作の見出しの目標位置名
     /// </summary>
@@ -251,6 +251,7 @@ public class CanvasMenuActUnitScript : CanvasMenuBaseScript
         actUnitContents = GetComponentsInChildren<Transform>(true).ToList().Find(d => d.name == "ActUnitContents").gameObject;
         actUnitContentsActList= GetComponentsInChildren<Transform>(true).ToList().Find(d => d.name == "ActUnitContentsActList").gameObject;
         CaptureBaseLayout();
+        StyleTable();
 
         txtPosX = GetComponentsInChildren<TextMeshProUGUI>(true).ToList().Find(d => d.name == "TxtPosX");
         txtPosY = GetComponentsInChildren<TextMeshProUGUI>(true).ToList().Find(d => d.name == "TxtPosY");
@@ -521,7 +522,8 @@ public class CanvasMenuActUnitScript : CanvasMenuBaseScript
             var rt = all.Find(d => d.name == name);
             if (rt != null)
             {
-                wideBands.Add(rt);
+                // 基準の幅は控えた時点の幅（端の部品は内側へ寄せて縮めてあるため、パネル幅ではない）
+                wideBands.Add((rt, rt.sizeDelta.x));
             }
         }
         var header = all.Find(d => d.name == "ActUnitContentsActTitle");
@@ -550,6 +552,42 @@ public class CanvasMenuActUnitScript : CanvasMenuBaseScript
             if (end != null)
             {
                 baseEndX = end.anchoredPosition.x;
+            }
+        }
+    }
+
+    /// <summary>
+    /// 表の見た目を整える。
+    /// ・見出しの帯は「現在/X/Y/Z」の行だけにする（Prefab ではユニット選択の行まで同じ帯に入っていた）
+    /// ・見出しと行ラベルは淡い青灰色、値は白
+    /// ・位置/角度の行を1行おきに薄く塗り分ける（動作の行は AdjustTargetColumn で塗り分ける）
+    /// </summary>
+    private void StyleTable()
+    {
+        var all = GetComponentsInChildren<RectTransform>(true).ToList();
+        var posTitle = all.Find(d => d.name == "ActUnitContentsPosTitle");
+        if (posTitle != null)
+        {
+            var img = posTitle.GetComponent<Image>();
+            if (img != null)
+            {
+                img.color = new Color(0f, 0f, 0f, 0f);
+            }
+            // 2行目（現在/X/Y/Z）だけに見出しの帯
+            KmxUiStyle.AddBand(posTitle, "HeaderBand", -30f, 30f, KmxUiStyle.HeaderBand);
+        }
+        var pos = all.Find(d => d.name == "ActUnitContentsPos");
+        if (pos != null)
+        {
+            // 2行目（角度）を薄く塗り分ける
+            KmxUiStyle.AddBand(pos, "RowStripe", -30f, 30f, KmxUiStyle.RowStripe);
+        }
+        foreach (var name in new[] { "TxtNowTitle", "TxtXTitle", "TxtYitle", "TxtZitle", "TxtTargetTitle", "TxtStartTagTitle", "TxtEndTagTitle", "TxtPosTitle", "TxtAngTitle" })
+        {
+            var t = all.Find(d => d.name == name)?.GetComponent<TextMeshProUGUI>();
+            if (t != null)
+            {
+                t.color = KmxUiStyle.HeaderText;
             }
         }
     }
@@ -587,13 +625,21 @@ public class CanvasMenuActUnitScript : CanvasMenuBaseScript
         {
             rt.anchoredPosition = new Vector2(x + targetColumnExtra, rt.anchoredPosition.y);
         }
-        // 行
-        foreach (var info in actUnitInfos)
+        // 行（1行おきに薄く塗り分ける）
+        for (var i = 0; i < actUnitInfos.Count; i++)
         {
+            var info = actUnitInfos[i];
             if (info.actObject != null)
             {
                 var row = (RectTransform)info.actObject.transform;
                 row.sizeDelta = new Vector2(panelWidth, row.sizeDelta.y);
+                var stripe = info.actObject.GetComponent<Image>();
+                if (stripe == null)
+                {
+                    stripe = info.actObject.AddComponent<Image>();
+                    stripe.raycastTarget = false;
+                }
+                stripe.color = (i % 2 == 1) ? KmxUiStyle.RowStripe : new Color(0f, 0f, 0f, 0f);
             }
             if (info.txtTarget != null)
             {
@@ -612,9 +658,9 @@ public class CanvasMenuActUnitScript : CanvasMenuBaseScript
             }
         }
         // 帯とパネル
-        foreach (var rt in wideBands)
+        foreach (var (rt, baseWidth) in wideBands)
         {
-            rt.sizeDelta = new Vector2(panelWidth, rt.sizeDelta.y);
+            rt.sizeDelta = new Vector2(baseWidth + targetColumnExtra, rt.sizeDelta.y);
         }
         SetPanelSize(new Vector2(panelWidth, PanelSize.y));
     }

@@ -41,6 +41,10 @@ public class CanvasMenuBaseScript : KssBaseScript, IBeginDragHandler, IDragHandl
     /// </summary>
     private RectTransform titleBar;
     /// <summary>
+    /// パネルの背景。中身がパネル本体の外へはみ出す画面もあるため、中身の範囲に毎フレーム合わせる
+    /// </summary>
+    private RectTransform background;
+    /// <summary>
     /// 最小化アイコン（▼。最小化中は回して右向き）
     /// </summary>
     private RectTransform collapseIcon;
@@ -107,22 +111,31 @@ public class CanvasMenuBaseScript : KssBaseScript, IBeginDragHandler, IDragHandl
     }
 
     /// <summary>
-    /// パネル本体の大きさ（最小化中は展開時の大きさ）
+    /// パネルの中身の大きさ（最小化中は展開時の大きさ。余白は含まない）
     /// </summary>
-    protected Vector2 PanelSize => collapsed ? expandedSize : ((RectTransform)transform).sizeDelta;
+    protected Vector2 PanelSize
+    {
+        get
+        {
+            var actual = collapsed ? expandedSize : ((RectTransform)transform).sizeDelta;
+            return new Vector2(actual.x, actual.y - KmxUiStyle.PanelPadding);
+        }
+    }
 
     /// <summary>
-    /// パネル本体の大きさを変える。最小化中は展開時の大きさとして控えるだけにする
+    /// パネルの中身の大きさを変える（余白は自動で足す）。最小化中は展開時の大きさとして控えるだけにする
     /// （最小化中に内容の更新で大きさだけ戻り、中身が空の大きなパネルになるのを防ぐ）
     /// </summary>
     protected void SetPanelSize(Vector2 size)
     {
+        // 指定は中身の大きさ。余白とタイトルが収まる幅を足してパネルの大きさにする
+        var actual = ToActualSize(size);
         if (collapsed)
         {
-            expandedSize = size;
+            expandedSize = actual;
             return;
         }
-        ((RectTransform)transform).sizeDelta = size;
+        ((RectTransform)transform).sizeDelta = actual;
     }
 
     /// <summary>
@@ -153,11 +166,11 @@ public class CanvasMenuBaseScript : KssBaseScript, IBeginDragHandler, IDragHandl
     private void BuildChrome()
     {
         var root = (RectTransform)transform;
-        // 背景
+        // 背景：本体の画像は透明にし（当たり判定は残す）、中身の範囲に合わせる専用の背景を最背面に置く
         var bg = GetComponent<Image>();
         if (bg != null)
         {
-            bg.color = KmxUiStyle.PanelBackground;
+            bg.color = new Color(0f, 0f, 0f, 0f);
         }
         // タイトルバー（最背面・パネルの幅に追従。Prefab の中身はこの帯の下から並んでいる）
         titleBar = new GameObject("TitleBar", typeof(RectTransform), typeof(Image)).GetComponent<RectTransform>();
@@ -169,6 +182,25 @@ public class CanvasMenuBaseScript : KssBaseScript, IBeginDragHandler, IDragHandl
         titleBar.anchoredPosition = Vector2.zero;
         titleBar.sizeDelta = new Vector2(0f, KmxUiStyle.MenuTitleHeight);
         titleBar.GetComponent<Image>().color = KmxUiStyle.TitleBar;
+        background = new GameObject("PanelBackground", typeof(RectTransform), typeof(Image)).GetComponent<RectTransform>();
+        background.SetParent(root, false);
+        background.SetAsFirstSibling();   // タイトルバーより後ろ
+        background.anchorMin = new Vector2(0f, 1f);
+        background.anchorMax = new Vector2(0f, 1f);
+        background.pivot = new Vector2(0f, 1f);
+        background.GetComponent<Image>().color = KmxUiStyle.PanelBackground;
+        // Prefab の中身の帯（Contents）は背景と二重になるので透明にする。表の見出しの行だけごく薄く残す
+        foreach (var img in root.GetComponentsInChildren<Image>(true))
+        {
+            if ((img.GetComponent<Selectable>() != null) || (img.transform == background) || (img.transform == titleBar))
+            {
+                continue;
+            }
+            if (img.name.Contains("Contents") || (img.name == "Scroll View"))
+            {
+                img.color = img.name.Contains("Title") ? KmxUiStyle.HeaderBand : new Color(0f, 0f, 0f, 0f);
+            }
+        }
         // 最小化ボタン：画像はやめて当たり判定だけ残し、▼の文字を載せる
         btnEnable.transition = Selectable.Transition.None;
         if (btnEnable.image != null)
@@ -231,6 +263,172 @@ public class CanvasMenuBaseScript : KssBaseScript, IBeginDragHandler, IDragHandl
         closeText.color = KmxUiStyle.Text;
         closeText.alignment = TextAlignmentOptions.Center;
         closeText.raycastTarget = false;
+
+        // 通常のテキスト（チェックのラベル等）を TextMeshPro に置き換える
+        KmxUiStyle.ConvertLegacyTexts(root);
+        // 中身の部品（ボタン・チェック・スライダー・入力欄・ドロップダウン・スクロールバー）の色をそろえる
+        KmxUiStyle.ApplyToParts(root, new Selectable[] { btnEnable, closeBtn });
+        // フォントを NotoSansJP に、大きさをタイトル16pt・本文15ptにそろえる（アイコンはそのまま）
+        KmxUiStyle.NormalizeFonts(root, titleText);
+
+        // 中身の入れ物（帯）はパネルの幅いっぱいのまま。端に接する文字と部品だけ内側へ寄せる
+        InsetEdgeItems(root);
+        foreach (Transform child in root)
+        {
+            var rt = child as RectTransform;
+            if ((rt == null) || (child == titleBar) || (child == btnEnable.transform) || (child == background))
+            {
+                continue;
+            }
+            if (!Mathf.Approximately(rt.anchorMin.y, rt.anchorMax.y))
+            {
+                // 縦に伸びる中身は下に余白を空ける
+                rt.offsetMin += new Vector2(0f, KmxUiStyle.PanelPadding);
+            }
+        }
+        var size = root.sizeDelta;
+        root.sizeDelta = ToActualSize(new Vector2(size.x, size.y));
+    }
+
+    /// <summary>
+    /// パネルの左端・右端に接する文字は内側の余白（margin）を付け、部品は接する側を縮めて内側へ寄せる
+    /// （帯はパネル幅いっぱいのまま、文字や部品が枠にくっつかないようにする）
+    /// </summary>
+    private void InsetEdgeItems(RectTransform root)
+    {
+        var pad = KmxUiStyle.PanelPadding;
+        // パネルの左端・右端（ローカル座標）。この時点ではまだ元の基準（右上基準のパネルもある）なので、
+        // 0〜幅ではなくパネルの矩形の端と比べる
+        var panelRect = root.rect;
+        var corners = new Vector3[4];
+        bool TouchLeft(RectTransform rt, out bool right)
+        {
+            rt.GetWorldCorners(corners);
+            var min = root.InverseTransformPoint(corners[0]).x;
+            var max = root.InverseTransformPoint(corners[2]).x;
+            right = max >= panelRect.xMax - 0.5f;
+            return min <= panelRect.xMin + 0.5f;
+        }
+        // 部品（部品の中の文字は部品ごと寄せるので、下の文字の処理では除く）
+        var inParts = new HashSet<Transform>();
+        foreach (var sel in root.GetComponentsInChildren<Selectable>(true))
+        {
+            if ((sel == btnEnable) || sel.transform.IsChildOf(titleBar))
+            {
+                continue;
+            }
+            foreach (var t in sel.GetComponentsInChildren<Transform>(true))
+            {
+                inParts.Add(t);
+            }
+            var rt = (RectTransform)sel.transform;
+            if (!Mathf.Approximately(rt.anchorMin.x, rt.anchorMax.x))
+            {
+                continue;   // 親に合わせて伸びる部品は対象外
+            }
+            var left = TouchLeft(rt, out var right);
+            if (left && right)
+            {
+                continue;   // 幅いっぱいの部品（ドロップダウン等）は帯と同じ扱い。中に余白を持つので寄せない
+            }
+            if (left)
+            {
+                // 左側を縮める（右端の位置は変えない）
+                rt.anchoredPosition += new Vector2(pad * (1f - rt.pivot.x), 0f);
+                rt.sizeDelta -= new Vector2(pad, 0f);
+            }
+            if (right)
+            {
+                rt.anchoredPosition -= new Vector2(pad * rt.pivot.x, 0f);
+                rt.sizeDelta -= new Vector2(pad, 0f);
+            }
+        }
+        // 文字
+        foreach (var tmp in root.GetComponentsInChildren<TMP_Text>(true))
+        {
+            if ((tmp == titleText) || inParts.Contains(tmp.transform) || tmp.transform.IsChildOf(titleBar) || tmp.transform.IsChildOf(btnEnable.transform))
+            {
+                continue;
+            }
+            var left = TouchLeft(tmp.rectTransform, out var right);
+            var m = tmp.margin;
+            if (left)
+            {
+                m.x = Mathf.Max(m.x, pad);
+            }
+            if (right)
+            {
+                m.z = Mathf.Max(m.z, pad);
+            }
+            if (!left && !right)
+            {
+                continue;
+            }
+            tmp.margin = m;
+            // 余白を付けると1行に収まらなくなる文字だけ、収まるように少し小さくする（最大70%まで）
+            var need = tmp.GetPreferredValues(tmp.text).x + m.x + m.z;
+            if ((need > tmp.rectTransform.rect.width) && !tmp.enableAutoSizing)
+            {
+                tmp.fontSizeMax = tmp.fontSize;
+                tmp.fontSizeMin = Mathf.Max(8f, tmp.fontSize * 0.7f);
+                tmp.enableAutoSizing = true;
+            }
+        }
+    }
+
+    /// <summary>
+    /// 背景を、パネル本体と表示中の中身（本体の外へはみ出す分を含む）を覆う範囲に合わせる。
+    /// 中身は下に余白を付ける。直下の子の矩形だけを足し合わせる（割り当てなし）
+    /// </summary>
+    private void UpdateBackground()
+    {
+        if (background == null)
+        {
+            return;
+        }
+        var root = (RectTransform)transform;
+        var size = root.rect.size;
+        // パネル本体（ピボット左上）の範囲から始める
+        float xMin = 0f, xMax = size.x, yMin = -size.y, yMax = 0f;
+        foreach (Transform child in root)
+        {
+            // タイトルバーと最小化ボタンはパネル本体の範囲に含まれる（余白を足すと右へはみ出す）
+            if ((child == background) || (child == titleBar) || (child == btnEnable.transform) || !child.gameObject.activeSelf)
+            {
+                continue;
+            }
+            var rt = child as RectTransform;
+            if (rt == null)
+            {
+                continue;
+            }
+            var r = rt.rect;
+            var p = (Vector2)rt.localPosition;
+            xMin = Mathf.Min(xMin, p.x + r.xMin);
+            xMax = Mathf.Max(xMax, p.x + r.xMax);
+            yMin = Mathf.Min(yMin, p.y + r.yMin - KmxUiStyle.PanelPadding);
+            yMax = Mathf.Max(yMax, p.y + r.yMax);
+        }
+        var pos = new Vector2(xMin, yMax);
+        var sizeDelta = new Vector2(xMax - xMin, yMax - yMin);
+        if ((background.anchoredPosition != pos) || (background.sizeDelta != sizeDelta))
+        {
+            background.anchoredPosition = pos;
+            background.sizeDelta = sizeDelta;
+        }
+    }
+
+    /// <summary>
+    /// タイトル（▼・文字・×）が収まる最小の幅
+    /// </summary>
+    private float TitleMinWidth => 40f + (titleText != null ? titleText.preferredWidth : 120f) + 12f + KmxUiStyle.CloseButtonWidth;
+
+    /// <summary>
+    /// 中身の大きさ → パネルの実際の大きさ（下の余白を足し、タイトルが収まる幅は確保する）
+    /// </summary>
+    private Vector2 ToActualSize(Vector2 contents)
+    {
+        return new Vector2(Mathf.Max(contents.x, TitleMinWidth), contents.y + KmxUiStyle.PanelPadding);
     }
 
     /// <summary>
@@ -239,6 +437,7 @@ public class CanvasMenuBaseScript : KssBaseScript, IBeginDragHandler, IDragHandl
     protected override void Update()
     {
         base.Update();
+        UpdateBackground();
         if ((lastWidth != (int)canvas.pixelRect.width) || (lastHeight != (int)canvas.pixelRect.height))
         {
             RenewPosition();
