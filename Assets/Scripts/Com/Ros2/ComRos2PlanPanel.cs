@@ -226,11 +226,13 @@ public class ComRos2PlanPanel : MonoBehaviour
                     default:
                         lbl = "ROS2 ●不明"; c = new Color(0.6f, 0.6f, 0.6f); break;
                 }
-                if (launcher.Busy) { lbl += "(処理中)"; }
+                // 毎フレーム書き込むため、ここで訳す（LangSweeper の1秒ごとの置換と日本語の上書きが交互になり点滅していた）
+                lbl = Lang.T(lbl);
+                if (launcher.Busy) { lbl += Lang.T("(処理中)"); }
             }
             else
             {
-                lbl = up ? "ROS ●接続" : "ROS ●未接続";
+                lbl = Lang.T(up ? "ROS ●接続" : "ROS ●未接続");
                 c = up ? new Color(0.3f, 1f, 0.4f) : new Color(1f, 0.45f, 0.45f);
             }
             commText.text = lbl;
