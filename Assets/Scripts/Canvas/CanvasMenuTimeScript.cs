@@ -56,7 +56,16 @@ public class CanvasMenuTimeScript : CanvasMenuBaseScript
         // 表示セット
         if (comInner != null)
         {
-            cycle.text = $"Cycle Time : {(comInner.time % comInner.viewCycle)} msec";
+            var history = HistoryRecorder.Instance;
+            if ((history != null) && history.IsViewing)
+            {
+                // 過去を表示中：表示している時刻と、今からどれだけ前か
+                cycle.text = $"Cycle Time : {(history.ViewTime % comInner.viewCycle)} msec ({(history.ViewTime - history.NowTime) / 1000f:0.00}s)";
+            }
+            else
+            {
+                cycle.text = $"Cycle Time : {(comInner.time % comInner.viewCycle)} msec";
+            }
         }
     }
 
@@ -110,6 +119,20 @@ public class CanvasMenuTimeScript : CanvasMenuBaseScript
     /// <param name="value"></param>
     private void toggle_onValueChanged(bool value)
     {
+        // 過去を表示中に再生したら、記録をその時刻から再生し、今に追いついたら続きを動かす。
+        // 再生中に止めたら、その時刻で止める
+        var history = HistoryRecorder.Instance;
+        if ((history != null) && history.IsViewing)
+        {
+            if (value)
+            {
+                history.StopPlayback();
+            }
+            else
+            {
+                history.StartPlayback();
+            }
+        }
         comInner.isStop = value;
     }
 
@@ -160,7 +183,17 @@ public class CanvasMenuTimeScript : CanvasMenuBaseScript
         int value = 0;
         if (int.TryParse(inputStep.text, out value))
         {
-            comInner.step = -value;
+            // 記録した見た目を表示する（シミュレーションの時刻は戻さない。戻すと動作設定の行や位置が戻らず崩れるため）。
+            // 履歴を使わない設定の時は従来どおり時刻を戻す
+            var history = HistoryRecorder.Instance;
+            if ((history != null) && history.CanView)
+            {
+                history.StepView(-value);
+            }
+            else
+            {
+                comInner.step = -value;
+            }
         }
     }
 
@@ -173,7 +206,16 @@ public class CanvasMenuTimeScript : CanvasMenuBaseScript
         int value = 0;
         if (int.TryParse(inputStep.text, out value))
         {
-            comInner.step = value;
+            var history = HistoryRecorder.Instance;
+            if ((history != null) && history.IsViewing)
+            {
+                // 過去を表示中は表示を進める（今まで来たら表示をやめる）
+                history.StepView(value);
+            }
+            else
+            {
+                comInner.step = value;
+            }
         }
     }
 

@@ -48,26 +48,26 @@ public class StickLocomotion: MonoBehaviour
         }
         else
         {
-            verticalVelocity += gravity * Time.deltaTime;
+            verticalVelocity += gravity * Time.unscaledDeltaTime;
         }
 
         move.y = verticalVelocity;
-        controller.Move(move * Time.deltaTime);
+        controller.Move(move * Time.unscaledDeltaTime);
 
         // ===== 右スティックで Snap Turn =====
         Vector2 rightStick = OVRInput.Get(OVRInput.Axis2D.SecondaryThumbstick);
 
-        if (Time.time - lastSnapTime >= snapTurnCooldown)
+        if (Time.unscaledTime - lastSnapTime >= snapTurnCooldown)
         {
             if (rightStick.x > snapTurnThreshold)
             {
                 playerRoot.Rotate(0, snapTurnAngle, 0);
-                lastSnapTime = Time.time;
+                lastSnapTime = Time.unscaledTime;
             }
             else if (rightStick.x < -snapTurnThreshold)
             {
                 playerRoot.Rotate(0, -snapTurnAngle, 0);
-                lastSnapTime = Time.time;
+                lastSnapTime = Time.unscaledTime;
             }
         }
     }

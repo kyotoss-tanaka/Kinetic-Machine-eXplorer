@@ -287,7 +287,7 @@ public class CameraController : MonoBehaviour
         {
             if (isShift)
             {
-                transform.Translate(Vector3.up * Time.deltaTime * moveSpeed);
+                transform.Translate(Vector3.up * Time.unscaledDeltaTime * moveSpeed);
             }
             else if (isControl)
             {
@@ -295,14 +295,14 @@ public class CameraController : MonoBehaviour
             }
             else
             {
-                transform.Translate(Vector3.forward * Time.deltaTime * moveSpeed);
+                transform.Translate(Vector3.forward * Time.unscaledDeltaTime * moveSpeed);
             }
         }
         else if (move.y < 0)
         {
             if (isShift)
             {
-                transform.Translate(Vector3.down * Time.deltaTime * moveSpeed);
+                transform.Translate(Vector3.down * Time.unscaledDeltaTime * moveSpeed);
             }
             else if (isControl)
             {
@@ -310,7 +310,7 @@ public class CameraController : MonoBehaviour
             }
             else
             {
-                transform.Translate(Vector3.back * Time.deltaTime * moveSpeed);
+                transform.Translate(Vector3.back * Time.unscaledDeltaTime * moveSpeed);
             }
         }
         // 左右
@@ -322,7 +322,7 @@ public class CameraController : MonoBehaviour
             }
             else
             {
-                transform.Translate(Vector3.left * Time.deltaTime * moveSpeed);
+                transform.Translate(Vector3.left * Time.unscaledDeltaTime * moveSpeed);
             }
         }
         else if (move.x > 0)
@@ -333,7 +333,7 @@ public class CameraController : MonoBehaviour
             }
             else
             {
-                transform.Translate(Vector3.right * Time.deltaTime * moveSpeed);
+                transform.Translate(Vector3.right * Time.unscaledDeltaTime * moveSpeed);
             }
         }
     }

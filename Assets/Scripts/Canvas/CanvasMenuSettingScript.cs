@@ -18,6 +18,7 @@ public class CanvasMenuSettingScript : CanvasMenuBaseScript
     private Toggle useLiensToggle;
     private Toggle usePhysicsToggle;
     private Toggle useColliderToggle;
+    private Toggle useHistoryToggle;
     private List<float> times = new();
     private List<float> fpss = new();
     private float fpsRefreshTimer;   // FPS表示の更新間引き用
@@ -28,6 +29,9 @@ public class CanvasMenuSettingScript : CanvasMenuBaseScript
     /// </summary>
     protected override void Awake()
     {
+        // 履歴のチェックを足す。枠の組み立て（base.Awake）より前に足し、色・フォント・余白を他のチェックとそろえる
+        AddHistoryToggle();
+
         base.Awake();
 
         fpsText = GetComponentsInChildren<TextMeshProUGUI>().Where(d => d.name == "FpsText").ToList()[0];
@@ -35,6 +39,54 @@ public class CanvasMenuSettingScript : CanvasMenuBaseScript
         useLiensToggle = GetComponentsInChildren<Toggle>().ToList().Find(d => d.name == "UseLinesToggle");
         usePhysicsToggle = GetComponentsInChildren<Toggle>().ToList().Find(d => d.name == "UsePhysicsToggle");
         useColliderToggle = GetComponentsInChildren<Toggle>().ToList().Find(d => d.name == "UseColliderToggle");
+        useHistoryToggle = GetComponentsInChildren<Toggle>().ToList().Find(d => d.name == "UseHistoryToggle");
+
+        // 保存してある値でチェックを始める（Prefab の初期値ではなく前回の値。値そのものは起動時に AppSettings が反映済み）
+        useLiensToggle.SetIsOnWithoutNotify(AppSettings.UseLines);
+        usePhysicsToggle.SetIsOnWithoutNotify(AppSettings.UsePhysics);
+        useColliderToggle.SetIsOnWithoutNotify(AppSettings.UseCollision);
+        if (useHistoryToggle != null)
+        {
+            useHistoryToggle.SetIsOnWithoutNotify(AppSettings.UseHistory);
+        }
+    }
+
+    /// <summary>
+    /// 履歴のチェックを足す（Prefab は変えず、衝突のチェックを複製して下に1行足す）
+    /// </summary>
+    private void AddHistoryToggle()
+    {
+        var src = GetComponentsInChildren<Toggle>(true).FirstOrDefault(d => d.name == "UseColliderToggle");
+        if (src == null)
+        {
+            return;
+        }
+        var srcRt = (RectTransform)src.transform;
+        var clone = Instantiate(src.gameObject, srcRt.parent);
+        clone.name = "UseHistoryToggle";
+        var rt = (RectTransform)clone.transform;
+        rt.anchoredPosition = srcRt.anchoredPosition - new Vector2(0f, srcRt.sizeDelta.y);
+        const string label = "Use History (Prev / Next)";
+        var legacy = clone.GetComponentInChildren<UnityEngine.UI.Text>(true);
+        if (legacy != null)
+        {
+            legacy.text = label;
+        }
+        else
+        {
+            var tmp = clone.GetComponentInChildren<TMP_Text>(true);
+            if (tmp != null)
+            {
+                tmp.text = label;
+            }
+        }
+        // 1行分、中身の入れ物とパネルを伸ばす
+        var contents = srcRt.parent as RectTransform;
+        if (contents != null)
+        {
+            contents.sizeDelta += new Vector2(0f, srcRt.sizeDelta.y);
+        }
+        ((RectTransform)transform).sizeDelta += new Vector2(0f, srcRt.sizeDelta.y);
     }
 
     /// <summary>
@@ -53,6 +105,7 @@ public class CanvasMenuSettingScript : CanvasMenuBaseScript
         useLiensToggle.onValueChanged.AddListener(useLiensToggle_onValueChanged);
         usePhysicsToggle.onValueChanged.AddListener(usePhysicsToggle_onValueChanged);
         useColliderToggle.onValueChanged.AddListener(useColliderToggle_onValueChanged);
+        useHistoryToggle?.onValueChanged.AddListener(useHistoryToggle_onValueChanged);
     }
 
     /// <summary>
@@ -64,6 +117,7 @@ public class CanvasMenuSettingScript : CanvasMenuBaseScript
         useLiensToggle.onValueChanged.RemoveAllListeners();
         usePhysicsToggle.onValueChanged.RemoveAllListeners();
         useColliderToggle.onValueChanged.RemoveAllListeners();
+        useHistoryToggle?.onValueChanged.RemoveAllListeners();
     }
     #endregion 初期化処理
 
@@ -113,7 +167,8 @@ public class CanvasMenuSettingScript : CanvasMenuBaseScript
     /// <param name="value"></param>
     public void useLiensToggle_onValueChanged(bool value)
     {
-        GlobalScript.isLiens = value;
+        // 次の起動でも同じ値で始めるよう保存する（以下同じ）
+        AppSettings.UseLines = value;
     }
 
     /// <summary>
@@ -122,7 +177,7 @@ public class CanvasMenuSettingScript : CanvasMenuBaseScript
     /// <param name="value"></param>
     public void usePhysicsToggle_onValueChanged(bool value)
     {
-        Physics.simulationMode = value ? SimulationMode.FixedUpdate : SimulationMode.Script;
+        AppSettings.UsePhysics = value;
     }
 
     /// <summary>
@@ -131,7 +186,16 @@ public class CanvasMenuSettingScript : CanvasMenuBaseScript
     /// <param name="value"></param>
     public void useColliderToggle_onValueChanged(bool value)
     {
-        GlobalScript.isCollision = value;
+        AppSettings.UseCollision = value;
+    }
+
+    /// <summary>
+    /// 履歴使用トグル変更イベント（記録の分だけ処理が重くなるので既定は OFF）
+    /// </summary>
+    /// <param name="value"></param>
+    public void useHistoryToggle_onValueChanged(bool value)
+    {
+        AppSettings.UseHistory = value;
     }
     #endregion イベント
 

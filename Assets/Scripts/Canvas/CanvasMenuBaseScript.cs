@@ -446,7 +446,8 @@ public class CanvasMenuBaseScript : KssBaseScript, IBeginDragHandler, IDragHandl
         }
         if (Mouse.current.leftButton.wasPressedThisFrame || Mouse.current.rightButton.wasPressedThisFrame)
         {
-            float time = Time.time;
+            // 履歴の表示中は timeScale=0 で Time.time が進まず、全てのクリックがダブルクリック扱いになるため実時間で測る
+            float time = Time.unscaledTime;
             DetectClickedText(Mouse.current.rightButton.wasPressedThisFrame, time - lastClickTime < 0.3f);
             lastClickTime = time;
         }

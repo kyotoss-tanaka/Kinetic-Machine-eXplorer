@@ -251,6 +251,8 @@ public class ComInner : ComBaseScript, ITagCom
             {
                 started = true;
                 prvElapsedMilliseconds = swTiming.ElapsedMilliseconds;
+                // 見るだけの履歴（TimeController の Prev/Next で過去の見た目を表示する）
+                HistoryRecorder.Ensure(this);
             }
 
             // システムレコーダーの再生中は値を作らない（記録した値をレコーダーが入れる。直接通信が通信を止めるのと同じ）。
@@ -276,6 +278,14 @@ public class ComInner : ComBaseScript, ITagCom
             // 読み込み直した時は最初の更新からやり直す
             started = false;
         }
+    }
+
+    /// <summary>
+    /// 時刻の基準を今に合わせる（履歴の表示で FixedUpdate を止めていた間の経過時間を時刻に入れない）
+    /// </summary>
+    public void ResyncClock()
+    {
+        prvElapsedMilliseconds = swTiming.ElapsedMilliseconds;
     }
 
     /// <summary>

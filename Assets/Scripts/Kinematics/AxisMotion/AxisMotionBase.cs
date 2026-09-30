@@ -2356,6 +2356,21 @@ public class AxisMotionBase : KinematicsBase
     private readonly List<SprocketInfo> sprockets = new List<SprocketInfo>();
 
     /// <summary>
+    /// ユニットの外にあって、このユニットが動かす物（見るだけの履歴の記録対象）。
+    /// スプロケットは経路の要素として登録されたモデルを直接回すため、ユニットの下にあるとは限らない
+    /// </summary>
+    public void CollectOutsideDriven(List<Transform> list)
+    {
+        foreach (var sp in sprockets)
+        {
+            if (sp.obj != null)
+            {
+                list.Add(sp.obj.transform);
+            }
+        }
+    }
+
+    /// <summary>
     /// 経路ごとのスプロケット駆動ユニット（同一経路を複数ユニットが参照する場合の二重回転防止。
     /// 経路名参照時はpathElementsのList実体が共有されるため、それをキーに先勝ちで1本化する）
     /// </summary>
