@@ -191,6 +191,11 @@ public class ComInner : ComBaseScript, ITagCom
     /// </summary>
     private long prvElapsedMilliseconds = 0;
 
+    /// <summary>
+    /// 読み込み後の最初の更新を済ませたか
+    /// </summary>
+    private bool started = false;
+
     [SerializeField]
     public int actIndex = 0;
     [SerializeField]
@@ -240,6 +245,14 @@ public class ComInner : ComBaseScript, ITagCom
         {
             base.FixedUpdate();
 
+            // 読み込み後の最初の更新。読み込み最後の長いフレームの分は時刻に入れない
+            // （入れると最初の更新で時刻が一度に進み、その間のトリガが一斉に出てしまう）
+            if (!started)
+            {
+                started = true;
+                prvElapsedMilliseconds = swTiming.ElapsedMilliseconds;
+            }
+
             // システムレコーダーの再生中は値を作らない（記録した値をレコーダーが入れる。直接通信が通信を止めるのと同じ）。
             // 時間の基準は進め続け、再生をやめた時にタイムチャートの時刻が再生していた分だけ飛ばないようにする
             if (GlobalScript.isSystemRecorder)
@@ -260,6 +273,8 @@ public class ComInner : ComBaseScript, ITagCom
         else
         {
             swTiming.Restart();
+            // 読み込み直した時は最初の更新からやり直す
+            started = false;
         }
     }
 
