@@ -402,6 +402,11 @@ public class CanvasMenuInfoScript : KssBaseScript
         SyncClosed(ref visibleAsm, uiAssembly, btnAsm);
         SyncClosed(ref visibleSlice, uiSlice, btnSlice);
         SyncClosed(ref visibleSysRec, uiSysRec, btnSysRec);
+        // システムレコーダーは再生中の印も戻す（閉じるボタンで閉じた時に通信・内部処理が止まったままになっていた）
+        if (!visibleSysRec && GlobalScript.isSystemRecorder)
+        {
+            GlobalScript.isSystemRecorder = false;
+        }
         SyncClosed(ref visibleTimeChart, uiTimeChart, btnTimeChart);
         if (visibleRoboPath && (btnRoboPath != null))
         {

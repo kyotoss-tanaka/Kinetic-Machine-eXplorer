@@ -240,6 +240,14 @@ public class ComInner : ComBaseScript, ITagCom
         {
             base.FixedUpdate();
 
+            // システムレコーダーの再生中は値を作らない（記録した値をレコーダーが入れる。直接通信が通信を止めるのと同じ）。
+            // 時間の基準は進め続け、再生をやめた時にタイムチャートの時刻が再生していた分だけ飛ばないようにする
+            if (GlobalScript.isSystemRecorder)
+            {
+                prvElapsedMilliseconds = swTiming.ElapsedMilliseconds;
+                return;
+            }
+
             // データ交換処理
             DataExchangeProcess();
 

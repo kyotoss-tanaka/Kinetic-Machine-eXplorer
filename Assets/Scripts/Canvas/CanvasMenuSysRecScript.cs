@@ -12,6 +12,10 @@ using KyotoSS.TimingChart;
 public class CanvasMenuSysRecScript : CanvasMenuBaseScript
 {
     private ComMcProtocol comMcProtocol;
+    /// <summary>
+    /// 内部処理（直接通信が無い時は、記録した値を内部処理のタグへ入れて再生する）
+    /// </summary>
+    private ComInner comInner;
 
     private Slider SysRecSlider;
     private Slider SysRecSpdSlider;
@@ -36,12 +40,36 @@ public class CanvasMenuSysRecScript : CanvasMenuBaseScript
     private long laps = 0;
     private long lapsMax = 0;
 
+    /// <summary>
+    /// 再生できるか（直接通信の MC プロトコル、または内部処理がある）
+    /// </summary>
     public bool IsEnabled
     {
         get
         {
-            return comMcProtocol != null;
+            return (comMcProtocol != null) || (comInner != null);
         }
+    }
+
+    /// <summary>
+    /// 記録のデバイス（Y5F 等）に対応するタグを引く。
+    /// 直接通信はデバイス名で、内部処理は使用デバイス一覧の対応（Y5F→d_plc_y1[95] 等）でタグ名にしてから引く
+    /// （内部処理のタグはタグ名で登録されていてデバイス名を持たないため）
+    /// </summary>
+    private TagInfo ResolveTag(string mechId, Parameters.DeciceArea area)
+    {
+        if (comMcProtocol != null)
+        {
+            return GlobalScript.GetTagInfoFromDev(comMcProtocol.Name, mechId, area.dev);
+        }
+        if ((comInner != null) && !string.IsNullOrEmpty(area.tag)
+            && GlobalScript.tagDatas.TryGetValue(comInner.Name, out var db)
+            && db.TryGetValue(mechId, out var tags)
+            && tags.TryGetValue(area.tag, out var tag))
+        {
+            return tag;
+        }
+        return null;
     }
 
     /// <summary>
@@ -99,6 +127,8 @@ public class CanvasMenuSysRecScript : CanvasMenuBaseScript
 
         var comMcProtocols = GameObject.FindObjectsByType<ComMcProtocol>(FindObjectsSortMode.None).ToList();
         comMcProtocol = comMcProtocols.Count == 0 ? null : comMcProtocols[0];
+        // 直接通信が無ければ内部処理で再生する（両方ある時は従来どおり直接通信）
+        comInner = (comMcProtocol == null) ? GameObject.FindFirstObjectByType<ComInner>() : null;
         if (IsEnabled)
         {
             SysRecSlider.onValueChanged.AddListener(slider_onValueChanged);
@@ -274,7 +304,7 @@ public class CanvasMenuSysRecScript : CanvasMenuBaseScript
                         {
                             if (SysRecReader.recordDatas.ContainsKey(area.dev))
                             {
-                                SysRecReader.recordDatas[area.dev].tagInfo = GlobalScript.GetTagInfoFromDev(comMcProtocol.Name, mechData.mechId, area.dev);
+                                SysRecReader.recordDatas[area.dev].tagInfo = ResolveTag(mechData.mechId, area);
                             }
                         }
                     }
@@ -286,8 +316,15 @@ public class CanvasMenuSysRecScript : CanvasMenuBaseScript
                     lapsMax = (long)ts.TotalMilliseconds;
                     isRead = true;
 
-                    // タイムチャートデータ表示
-                    machineTimeChart.SwitchHistoryData(true);
+                    // タイムチャートデータ表示（どこからも設定されておらず例外になっていたため、探して見つかった時だけ切り替える）
+                    if (machineTimeChart == null)
+                    {
+                        machineTimeChart = GameObject.FindFirstObjectByType<MachineTimeChart>(FindObjectsInactive.Include);
+                    }
+                    if (machineTimeChart != null)
+                    {
+                        machineTimeChart.SwitchHistoryData(true);
+                    }
                 }
             }
         }
