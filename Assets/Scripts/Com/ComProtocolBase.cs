@@ -1080,6 +1080,27 @@ public class ComProtocolBase : ComBaseScript, ITagCom
             IsPing = false;
             //            Debug.LogWarning($"[{System.DateTime.Now}] Ping NG: {Server}");
         }
+#elif UNITY_EDITOR
+        // ビルド先が WebGL のエディタでは UnityEngine.Ping が使えないため、.NET の Ping で確かめる。
+        // （ここを常に false にすると、Connect() が ping を条件にしているため、WebGL をビルドした後のエディタで直接通信がつながらなくなる）
+        var server = Server;
+        var task = System.Threading.Tasks.Task.Run(() =>
+        {
+            try
+            {
+                using var p = new System.Net.NetworkInformation.Ping();
+                return p.Send(server, 1000).Status == System.Net.NetworkInformation.IPStatus.Success;
+            }
+            catch
+            {
+                return false;
+            }
+        });
+        while (!task.IsCompleted)
+        {
+            yield return null;
+        }
+        IsPing = task.Result;
 #else
         // WebGL: UnityEngine.Ping は非対応。通信クラス自体をWebGLでは生成しないためスタブ。
         IsPing = false;
