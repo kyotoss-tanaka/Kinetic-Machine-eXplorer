@@ -1472,7 +1472,7 @@ public class ComProtocolBase : ComBaseScript, ITagCom
         txtConnected = directCanvas.GetComponentsInChildren<TextMeshProUGUI>().ToList().Find(d => d.name == "TxtConnection");
         txtCycle = directCanvas.GetComponentsInChildren<TextMeshProUGUI>().ToList().Find(d => d.name == "TxtCycle");
         txtProtocol.text = directData.protocol.ToString();
-        txtIpAddress.text = directData.IpAddress;
+        txtIpAddress.text = $"{directData.IpAddress}:{directData.PortNo}";
         txtPing.text = "False";
         txtConnected.text = "False";
         txtCycle.text = "";
