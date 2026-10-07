@@ -938,7 +938,7 @@ namespace Parameters
             GlobalScript.isLoading = false;
             GlobalScript.isLoaded = true;
             // ロード完了後、実行時フレームレートに戻す。WebGLモード(実機 or EditorのWebGLテストトグルON)は
-            // WebGlSetting.targetFrameRate(既定30)、Quest(XR)は120、それ以外(Windows/通常Editor)は60。
+            // WebGlSetting.targetFrameRate(既定15。Pi5 等の非力な端末で描画と3D処理がCPU・GPUを使い切るため)、Quest(XR)は120、それ以外(Windows/通常Editor)は60。
 #if UNITY_WEBGL && !UNITY_EDITOR
             bool webglMode = true;
 #elif UNITY_EDITOR
@@ -948,7 +948,7 @@ namespace Parameters
 #endif
             if (webglMode)
             {
-                int runFps = (GlobalScript.webGlSetting != null) ? GlobalScript.webGlSetting.targetFrameRate : 30;
+                int runFps = (GlobalScript.webGlSetting != null) ? GlobalScript.webGlSetting.targetFrameRate : 15;
                 Application.targetFrameRate = runFps > 0 ? runFps : 120;
             }
             else

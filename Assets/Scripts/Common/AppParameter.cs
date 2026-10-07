@@ -1830,7 +1830,7 @@ namespace Parameters
     {
         /// <summary>実行時の目標フレームレート(fps)。WebGLは単一スレッドで描画も重いので抑制すると安定。
         /// 0以下=抑制しない(既定120)。例: 30 / 15。実機WebGLのみ適用。</summary>
-        public int targetFrameRate { get; set; } = 30;
+        public int targetFrameRate { get; set; } = 15;
         /// <summary>ロード中の目標フレームレート(fps)。低くすると重いシーンの毎フレーム描画が抑えられ、
         /// 単一スレッドのロード処理にCPUが回って**ロードが大幅に速くなる**（実測）。既定1。0以下=抑制しない。</summary>
         public int loadFrameRate { get; set; } = 1;

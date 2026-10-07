@@ -191,6 +191,8 @@
         if (finished) { return; }
         setBar(progress * SPLIT);
       }).then(function (unityInstance) {
+        // HMX から参照できるようにする（3Dが見えていない間、HMX が Unity 自身の一時停止機能で処理を止めるため）
+        window.unityInstance = unityInstance;
         // ここでは隠さない。以降のパラメータ読込は Unity 側 window.KmxLoading が制御し、
         // 完了で done() が呼ばれて初めて隠れる（HTML1枚で通す＝つなぎ目なし）。
         setBar(SPLIT, "Loading parameters…");
