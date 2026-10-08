@@ -58,6 +58,16 @@ namespace Parameters
         /// </summary>
         private GameObject workObj;
         private GameObject prePrefabObj;
+
+        /// <summary>
+        /// ロード中に描画を止めたカメラと、元の cullingMask（ロード完了で戻す）
+        /// </summary>
+        private readonly List<KeyValuePair<Camera, int>> loadCulledCameras = new();
+
+        /// <summary>
+        /// ロード中のフレームレート。描画はカメラ側で止めるので下げなくてよい（下げると yield 1回ごとに長く待つ）
+        /// </summary>
+        private const int LoadingFrameRate = 60;
         private GameObject mtRoom;
         private List<GameObject> hiddenObjs = new List<GameObject>();
         private List<ObjEntry> movableObjs = new List<ObjEntry>();
@@ -235,16 +245,16 @@ namespace Parameters
             CommonFunction.DebugLog($"***** Load Start *****", true);
             SetProgress(0, devMax, 0);
             SetProgressLabel("Loading Prefab Files");
-            // ロード中はフレームレートを下げる（WebGL/Windows 両方・F5も同様）：重いシーンの毎フレーム描画が
-            // 単一スレッドのロード処理とCPUを取り合うため、描画を抑えるとロードが大幅に速くなる。完了後に戻す。
+            // ロード中は3Dの描画を止める（WebGL/Windows 両方・F5も同様）：重いシーンの毎フレーム描画が
+            // 単一スレッドのロード処理とCPUを取り合うため。以前はフレームレートを1fpsに下げて抑えていたが、
+            // それだと yield や非同期の完了待ちのたびに約1秒待つことになり、待ちだけで十数秒かかっていた。
+            // そこでカメラの描画対象を UI だけにし（ローディング画面は ScreenSpaceOverlay なので影響しない）、
+            // フレームレートは下げない。完了後にカメラを戻す。
             {
-                int loadFps = (GlobalScript.webGlSetting != null) ? GlobalScript.webGlSetting.loadFrameRate : 1;
-                if (loadFps > 0)
-                {
-                    QualitySettings.vSyncCount = 0;   // vSync有効だと targetFrameRate が無視される
-                    Application.targetFrameRate = loadFps;
-                }
-                Debug.Log($"[FrameRate] ロード中 targetFrameRate={Application.targetFrameRate} (loadFrameRate設定={loadFps})");
+                BeginLoadCulling();
+                QualitySettings.vSyncCount = 0;   // vSync有効だと targetFrameRate が無視される
+                Application.targetFrameRate = LoadingFrameRate;
+                Debug.Log($"[FrameRate] ロード中 targetFrameRate={Application.targetFrameRate}（3Dの描画は止める：カメラ {loadCulledCameras.Count} 台）");
             }
 
             // データ削除
@@ -291,13 +301,15 @@ namespace Parameters
                 var task = LoadParameterFiles();
                 // 完了するまで待つ
                 yield return new WaitUntil(() => task.IsCompleted);
+                CommonFunction.DebugLog($"***** Parameter Loaded *****", true);
                 if (prefabSettings == null)
                 {
                     SetProgressLabel("Parameter Files Not Found");
+                    EndLoadCulling();
                     yield break;
                 }
 
-                CommonFunction.DebugLog($"***** Load Prefab Model *****");
+                CommonFunction.DebugLog($"***** Load Prefab Model *****", true);
                 yield return StartCoroutine(LoadPrefabModel());
 
                 // スイッチモデルロード
@@ -313,10 +325,10 @@ namespace Parameters
             }
             {
                 // 折り返し用データ
-                CommonFunction.DebugLog($"***** Set Debug Info *****");
+                CommonFunction.DebugLog($"***** Set Debug Info *****", true);
                 SetDebugComInfo();
 
-                CommonFunction.DebugLog($"***** Set Database *****");
+                CommonFunction.DebugLog($"***** Set Database *****", true);
                 SetDatabaseSetting();
 
                 yield return null; // 1フレーム待
@@ -380,11 +392,8 @@ namespace Parameters
 
                     // 親モデルに動作スクリプトを付与
                     CommonFunction.DebugLog($"***** Load Units *****", true);
-                    // Unit/Organize ループは実処理が軽く、フレーム待ち(yield)が主体（各～8回）。
-                    // 極低fps(loadFrameRate=1)のままだと 1yield≒1秒 になり極端に遅くなるため、この区間だけ
-                    // 描画の自然速度(上限30fps)に戻し yield を安価にする。重いInstantiateは既に完了しており低fpsの恩恵はない。
-                    Application.targetFrameRate = 30;
-                    Debug.Log($"[FrameRate] Unit整理中は yield多のため targetFrameRate=30 に一時変更");
+                    // Unit/Organize ループは実処理が軽く、フレーム待ち(yield)が主体。ロード中は描画を止めて
+                    // 60fps のままなので、ここでフレームレートを変える必要はない（以前は 1fps→30fps に一時変更していた）
                     // 同期機構＋バケットのユニットはチャック親子付けの対象から外す
                     // （爪は同期元の送り量ミラーで経路上を動かすため親子付け不要。
                     //   親子付けするとモデルが設計位置からスナップされ、経路・爪基準位置がずれる）
@@ -765,12 +774,7 @@ namespace Parameters
                             yield return null; // 1フレーム待
                         }
                     }
-                    // 以降は重い同期処理（再親子付け/多数Destroy/コライダー生成）に戻るため、再び低fpsへ復帰。
-                    {
-                        int loadFps = (GlobalScript.webGlSetting != null) ? GlobalScript.webGlSetting.loadFrameRate : 1;
-                        if (loadFps > 0) { Application.targetFrameRate = loadFps; }
-                        Debug.Log($"[FrameRate] Unit整理完了、低fpsへ復帰 targetFrameRate={Application.targetFrameRate}");
-                    }
+                    CommonFunction.DebugLog($"***** Units Organized *****", true);
                     foreach (var m in moveObjs)
                     {
                         var mechId = m.name.Split('_')[1]!;
@@ -970,8 +974,42 @@ namespace Parameters
                 // Quest(XR)はVR快適性のため120維持、Windows/通常Editorは60で十分。
                 Application.targetFrameRate = GlobalScript.isXRMode ? 120 : 60;
             }
+            EndLoadCulling();
             Debug.Log($"[FrameRate] 実行時 targetFrameRate={Application.targetFrameRate} (webglMode={webglMode})");
             CommonFunction.DebugLog($"***** Load Finished *****", true);
+        }
+
+        /// <summary>
+        /// ロード中、カメラの描画対象を UI だけにする（重い3Dシーンを毎フレーム描かない）。元の cullingMask は控えておく
+        /// </summary>
+        private void BeginLoadCulling()
+        {
+            var uiLayer = LayerMask.NameToLayer("UI");
+            var uiMask = uiLayer >= 0 ? (1 << uiLayer) : 0;
+            foreach (var cam in Camera.allCameras)
+            {
+                if ((cam == null) || loadCulledCameras.Exists(d => d.Key == cam))
+                {
+                    continue;
+                }
+                loadCulledCameras.Add(new KeyValuePair<Camera, int>(cam, cam.cullingMask));
+                cam.cullingMask = uiMask;
+            }
+        }
+
+        /// <summary>
+        /// ロード中に止めたカメラの描画を元に戻す
+        /// </summary>
+        private void EndLoadCulling()
+        {
+            foreach (var kv in loadCulledCameras)
+            {
+                if (kv.Key != null)
+                {
+                    kv.Key.cullingMask = kv.Value;
+                }
+            }
+            loadCulledCameras.Clear();
         }
 
         /// <summary>
