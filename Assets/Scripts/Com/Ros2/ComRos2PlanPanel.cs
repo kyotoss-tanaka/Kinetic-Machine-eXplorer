@@ -239,6 +239,13 @@ public class ComRos2PlanPanel : MonoBehaviour
     /// <summary>パネルが表示中か。</summary>
     public bool IsVisible => panelRootGo != null && panelRootGo.activeSelf;
 
+    #region 計測マーカー（負荷調査用。Update の区間ごとの内訳を Profiler に出す）
+    private static readonly Unity.Profiling.ProfilerMarker markerTcp = new("ComRos2PlanPanel.TcpMarker");
+    private static readonly Unity.Profiling.ProfilerMarker markerStatus = new("ComRos2PlanPanel.Status");
+    private static readonly Unity.Profiling.ProfilerMarker markerJoints = new("ComRos2PlanPanel.Joints");
+    private static readonly Unity.Profiling.ProfilerMarker markerPlan = new("ComRos2PlanPanel.Plan");
+    #endregion 計測マーカー
+
     /// <summary>表示/非表示をトグルする（InfoMenu の BtnRoboPath 用）。</summary>
     public void ToggleVisible() => SetVisible(!IsVisible);
 
@@ -254,145 +261,169 @@ public class ComRos2PlanPanel : MonoBehaviour
             InitGoalFromCurrent();
             goalInitialized = true;
         }
-        UpdateTcpMarker();   // JOG中は TCP(吸盤点)マーカーを実TCP姿勢に追従表示（OFFで消す）。
-        // ロボットの現在関節角を表示（旧ゴール行の位置）。
-        // ★ゴール表示中(goalSetMode)はモデルが goalDeg 姿勢のため ReadCurrentDeg が goalDeg を返す（多ロボは Kinematics 直読み）。
-        //   そこで「ゴール表示でない時だけ」値を更新して保持する＝復帰モードは現在角度／登録モードは始点(選択step開始姿勢)のまま。
-        if (curText != null && GlobalScript.isLoaded)
+        // JOG中は TCP(吸盤点)マーカーを実TCP姿勢に追従表示（OFFで消す）。
+        using (markerTcp.Auto())
         {
-            // 登録モードは 現在:＝開始姿勢 を固定表示（OnSelectStep でセット）。復帰は goalSetMode 中のみ固定。
-            bool regMode = registerModeToggle != null && registerModeToggle.isOn;
-            if ((!goalSetMode && !regMode) || curDisplayDeg == null)
+            UpdateTcpMarker();
+        }
+        // 以下は表示の更新だけ（計画・再生の処理は ComRos2PathPlanner が持つ）。パネルを閉じている時は何もしない
+        if (!IsVisible)
+        {
+            return;
+        }
+        using (markerStatus.Auto())
+        {
+            // ROS 状態（タイトルバー右）：ROS2 起動状態＋TCP接続 を1つに統合表示。
+            if (commText != null)
             {
-                curDisplayDeg = planner.ReadCurrentDeg();
-            }
-            var cur = curDisplayDeg;
-            var sb = new System.Text.StringBuilder("現在: ");
-            if (cur != null)
-            {
-                for (int i = 0; i < cur.Length; i++)
+                bool up = planner.IsLinkUp;
+                string lbl;
+                Color c;
+                if (launcher != null)
                 {
-                    if (i > 0) { sb.Append(','); }
-                    sb.Append(cur[i].ToString("F0"));
-                }
-            }
-            curText.text = sb.ToString();
-        }
-        // ROS 状態（タイトルバー右）：ROS2 起動状態＋TCP接続 を1つに統合表示。
-        if (commText != null)
-        {
-            bool up = planner.IsLinkUp;
-            string lbl;
-            Color c;
-            if (launcher != null)
-            {
-                switch (launcher.State)
-                {
-                    case ComRos2Launcher.LaunchState.RunningFull:
-                        lbl = up ? "ROS2 ●稼働・接続" : "ROS2 ●稼働・未接続";
-                        c = up ? new Color(0.3f, 1f, 0.4f) : new Color(1f, 0.85f, 0.2f);
-                        break;
-                    case ComRos2Launcher.LaunchState.Starting:
-                        lbl = "ROS2 ●起動中…"; c = new Color(1f, 0.85f, 0.2f); break;
-                    case ComRos2Launcher.LaunchState.Stopped:
-                        lbl = "ROS2 ●停止"; c = new Color(0.7f, 0.7f, 0.7f); break;
-                    default:
-                        lbl = "ROS2 ●不明"; c = new Color(0.6f, 0.6f, 0.6f); break;
-                }
-                // 毎フレーム書き込むため、ここで訳す（LangSweeper の1秒ごとの置換と日本語の上書きが交互になり点滅していた）
-                lbl = Lang.T(lbl);
-                if (launcher.Busy) { lbl += Lang.T("(処理中)"); }
-            }
-            else
-            {
-                lbl = Lang.T(up ? "ROS ●接続" : "ROS ●未接続");
-                c = up ? new Color(0.3f, 1f, 0.4f) : new Color(1f, 0.45f, 0.45f);
-            }
-            commText.text = lbl;
-            commText.color = c;
-        }
-        // ROS2 起動/停止/再起動ボタンの活性のみ更新（状態表示は上の commText に統合）。
-        if (launcher != null)
-        {
-            UpdateLaunchUi();
-        }
-        // ROS 未接続（TCP未確立）なら計画不可。毎フレーム IsLinkUp を反映して計画ボタンを活性/非活性。
-        if (planBtn != null)
-        {
-            planBtn.interactable = planner.IsLinkUp
-                && planner.State != ComRos2PathPlanner.PlanState.Planning;
-        }
-        // ゴースト再生シークバーを進捗に追従（手動スクラブ/一時停止中はその位置で固定）＋再生ボタン表示更新。
-        if (planner.State == ComRos2PathPlanner.PlanState.Preview && planner.GhostActive)
-        {
-            if (seekSlider != null) { seekSlider.SetValueWithoutNotify(planner.GhostPreviewT01); }
-            // 現在 / 所要時間(=動作時間)。種別ラベル(設定/最短)は付けない（ステータス行に出る）。
-            if (seekTimeLabel != null) { seekTimeLabel.text = $"{planner.GhostTimeSec:F1}/{planner.GhostDurationSec:F1}s"; }
-            bool gplaying = planner.GhostPlaying;
-            if (seekUseIconFont)
-            {
-                // MaterialIcons: 再生中=pause() / 一時停止中=play_arrow()
-                if (seekPlayLabel != null) { seekPlayLabel.text = gplaying ? ((char)IconPause).ToString() : ((char)IconPlay).ToString(); }
-            }
-            else
-            {
-                if (seekPlayLabel != null) { seekPlayLabel.enabled = !gplaying; }   // 一時停止中=▶
-                if (seekPauseIcon != null) { seekPauseIcon.SetActive(gplaying); }   // 再生中=||バー
-            }
-        }
-        // 計画中の表示。登録最適化の途中経過(opt行)受信中はそれを優先表示、
-        // それ以外は 予算>0 なら残り時間、0(ROS2既定で総量不明)なら経過時間。
-        if (planner.State == ComRos2PathPlanner.PlanState.Planning && statusText != null)
-        {
-            if (planner.OptActive)
-            {
-                // 探索/最適化の途中経過＋総経過時間（毎フレーム更新）。例: 探索中 最良3.20s (42回) 経過18s
-                statusText.text = $"{planner.OptProgress} 経過{planner.PlanElapsedSec:F0}s";
-            }
-            else
-            {
-                float el = planner.PlanElapsedSec;
-                string phase = planner.PlanPhaseText;
-                if (!string.IsNullOrEmpty(phase))
-                {
-                    // ROS のフェーズ通知（経路計画1/2・後処理）＋総経過。
-                    statusText.text = $"{phase}  経過{el:F0}s";
+                    switch (launcher.State)
+                    {
+                        case ComRos2Launcher.LaunchState.RunningFull:
+                            lbl = up ? "ROS2 ●稼働・接続" : "ROS2 ●稼働・未接続";
+                            c = up ? new Color(0.3f, 1f, 0.4f) : new Color(1f, 0.85f, 0.2f);
+                            break;
+                        case ComRos2Launcher.LaunchState.Starting:
+                            lbl = "ROS2 ●起動中…"; c = new Color(1f, 0.85f, 0.2f); break;
+                        case ComRos2Launcher.LaunchState.Stopped:
+                            lbl = "ROS2 ●停止"; c = new Color(0.7f, 0.7f, 0.7f); break;
+                        default:
+                            lbl = "ROS2 ●不明"; c = new Color(0.6f, 0.6f, 0.6f); break;
+                    }
+                    // 毎フレーム書き込むため、ここで訳す（LangSweeper の1秒ごとの置換と日本語の上書きが交互になり点滅していた）
+                    lbl = Lang.T(lbl);
+                    if (launcher.Busy) { lbl += Lang.T("(処理中)"); }
                 }
                 else
                 {
-                    statusText.text = displayBudgetSec > 0.0
-                        ? $"計画中…  残り {Mathf.Max(0f, (float)displayBudgetSec - el):F1}s"
-                        : $"計画中…  {el:F1}s 経過";
+                    lbl = Lang.T(up ? "ROS ●接続" : "ROS ●未接続");
+                    c = up ? new Color(0.3f, 1f, 0.4f) : new Color(1f, 0.45f, 0.45f);
                 }
+                commText.text = lbl;
+                commText.color = c;
             }
-            // 探索中は停止ボタンを表示（OptSearching は状態遷移なしで変わり得るため毎フレーム反映）。
-            // 停止押下後(ラッチ)はデータ返信まで無効化。探索が終われば(OptSearching=false)ラッチ解除。
-            if (!planner.OptSearching) { stopSearchLatched = false; }
-            if (stopSearchBtn != null)
+            // ROS2 起動/停止/再起動ボタンの活性のみ更新（状態表示は上の commText に統合）。
+            if (launcher != null)
             {
-                stopSearchBtn.gameObject.SetActive(planner.OptSearching);
-                stopSearchBtn.interactable = planner.OptSearching && !stopSearchLatched;
-            }
-            // 進捗バー：opt行受信中(OptActive)のみ表示し OptProgress01(探索=低め/STOMP=prog%)を反映。
-            if (progressBar != null)
-            {
-                progressBar.gameObject.SetActive(planner.OptActive);
-                if (planner.OptActive) { progressBar.SetValueWithoutNotify(planner.OptProgress01); }
-            }
-            // 探索が終わったらベスト10ツールチップは閉じる（バッファは次計画でリセット）。
-            if (bestTooltipGo != null && bestTooltipGo.activeSelf && !planner.OptActive)
-            {
-                bestTooltipGo.SetActive(false);
+                UpdateLaunchUi();
             }
         }
-
-        // 登録の保留中（登録押下→OK実行/NGキャンセルまで）は 登録/解除/再生 を無効化（多重実行・誤操作防止）。
-        if (stepButtons.Count > 0)
+        // ROS 未接続（TCP未確立）なら計画不可。毎フレーム IsLinkUp を反映して計画ボタンを活性/非活性。
+        bool linkUp = planner.IsLinkUp;
+        if (planBtn != null)
         {
-            bool lockSteps = planner != null && planner.RegisterPending;
-            for (int i = 0; i < stepButtons.Count; i++)
+            planBtn.interactable = linkUp && (planner.State != ComRos2PathPlanner.PlanState.Planning);
+        }
+        // ROS につながっていない時は計画も再生もできないので、現在角度・再生・計画中・ステップの表示は更新しない
+        // （ROS を使わないプロジェクトでも毎フレーム重い処理が走っていた。状態表示と起動ボタンは上で更新する）
+        if (!linkUp)
+        {
+            return;
+        }
+        using (markerJoints.Auto())
+        {
+            // ロボットの現在関節角を表示（旧ゴール行の位置）。
+            // ★ゴール表示中(goalSetMode)はモデルが goalDeg 姿勢のため ReadCurrentDeg が goalDeg を返す（多ロボは Kinematics 直読み）。
+            //   そこで「ゴール表示でない時だけ」値を更新して保持する＝復帰モードは現在角度／登録モードは始点(選択step開始姿勢)のまま。
+            if (curText != null && GlobalScript.isLoaded)
             {
-                if (stepButtons[i] != null) { stepButtons[i].interactable = !lockSteps; }
+                // 登録モードは 現在:＝開始姿勢 を固定表示（OnSelectStep でセット）。復帰は goalSetMode 中のみ固定。
+                bool regMode = registerModeToggle != null && registerModeToggle.isOn;
+                if ((!goalSetMode && !regMode) || curDisplayDeg == null)
+                {
+                    curDisplayDeg = planner.ReadCurrentDeg();
+                }
+                var cur = curDisplayDeg;
+                var sb = new System.Text.StringBuilder("現在: ");
+                if (cur != null)
+                {
+                    for (int i = 0; i < cur.Length; i++)
+                    {
+                        if (i > 0) { sb.Append(','); }
+                        sb.Append(cur[i].ToString("F0"));
+                    }
+                }
+                curText.text = sb.ToString();
+            }
+        }
+        using (markerPlan.Auto())
+        {
+            // ゴースト再生シークバーを進捗に追従（手動スクラブ/一時停止中はその位置で固定）＋再生ボタン表示更新。
+            if (planner.State == ComRos2PathPlanner.PlanState.Preview && planner.GhostActive)
+            {
+                if (seekSlider != null) { seekSlider.SetValueWithoutNotify(planner.GhostPreviewT01); }
+                // 現在 / 所要時間(=動作時間)。種別ラベル(設定/最短)は付けない（ステータス行に出る）。
+                if (seekTimeLabel != null) { seekTimeLabel.text = $"{planner.GhostTimeSec:F1}/{planner.GhostDurationSec:F1}s"; }
+                bool gplaying = planner.GhostPlaying;
+                if (seekUseIconFont)
+                {
+                    // MaterialIcons: 再生中=pause() / 一時停止中=play_arrow()
+                    if (seekPlayLabel != null) { seekPlayLabel.text = gplaying ? ((char)IconPause).ToString() : ((char)IconPlay).ToString(); }
+                }
+                else
+                {
+                    if (seekPlayLabel != null) { seekPlayLabel.enabled = !gplaying; }   // 一時停止中=▶
+                    if (seekPauseIcon != null) { seekPauseIcon.SetActive(gplaying); }   // 再生中=||バー
+                }
+            }
+            // 計画中の表示。登録最適化の途中経過(opt行)受信中はそれを優先表示、
+            // それ以外は 予算>0 なら残り時間、0(ROS2既定で総量不明)なら経過時間。
+            if (planner.State == ComRos2PathPlanner.PlanState.Planning && statusText != null)
+            {
+                if (planner.OptActive)
+                {
+                    // 探索/最適化の途中経過＋総経過時間（毎フレーム更新）。例: 探索中 最良3.20s (42回) 経過18s
+                    statusText.text = $"{planner.OptProgress} 経過{planner.PlanElapsedSec:F0}s";
+                }
+                else
+                {
+                    float el = planner.PlanElapsedSec;
+                    string phase = planner.PlanPhaseText;
+                    if (!string.IsNullOrEmpty(phase))
+                    {
+                        // ROS のフェーズ通知（経路計画1/2・後処理）＋総経過。
+                        statusText.text = $"{phase}  経過{el:F0}s";
+                    }
+                    else
+                    {
+                        statusText.text = displayBudgetSec > 0.0
+                            ? $"計画中…  残り {Mathf.Max(0f, (float)displayBudgetSec - el):F1}s"
+                            : $"計画中…  {el:F1}s 経過";
+                    }
+                }
+                // 探索中は停止ボタンを表示（OptSearching は状態遷移なしで変わり得るため毎フレーム反映）。
+                // 停止押下後(ラッチ)はデータ返信まで無効化。探索が終われば(OptSearching=false)ラッチ解除。
+                if (!planner.OptSearching) { stopSearchLatched = false; }
+                if (stopSearchBtn != null)
+                {
+                    stopSearchBtn.gameObject.SetActive(planner.OptSearching);
+                    stopSearchBtn.interactable = planner.OptSearching && !stopSearchLatched;
+                }
+                // 進捗バー：opt行受信中(OptActive)のみ表示し OptProgress01(探索=低め/STOMP=prog%)を反映。
+                if (progressBar != null)
+                {
+                    progressBar.gameObject.SetActive(planner.OptActive);
+                    if (planner.OptActive) { progressBar.SetValueWithoutNotify(planner.OptProgress01); }
+                }
+                // 探索が終わったらベスト10ツールチップは閉じる（バッファは次計画でリセット）。
+                if (bestTooltipGo != null && bestTooltipGo.activeSelf && !planner.OptActive)
+                {
+                    bestTooltipGo.SetActive(false);
+                }
+            }
+
+            // 登録の保留中（登録押下→OK実行/NGキャンセルまで）は 登録/解除/再生 を無効化（多重実行・誤操作防止）。
+            if (stepButtons.Count > 0)
+            {
+                bool lockSteps = planner != null && planner.RegisterPending;
+                for (int i = 0; i < stepButtons.Count; i++)
+                {
+                    if (stepButtons[i] != null) { stepButtons[i].interactable = !lockSteps; }
+                }
             }
         }
     }
