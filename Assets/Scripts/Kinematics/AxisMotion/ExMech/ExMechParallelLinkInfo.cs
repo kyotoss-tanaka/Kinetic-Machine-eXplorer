@@ -51,6 +51,14 @@ public class ExMechParallelLinkInfo : ExMechInfo
     private Quaternion initRot3;
 
     /// <summary>
+    /// 従来（2026-08-31 より前）の動かし方にするか。
+    /// リンク1がアーム1の回転中心の真上・真下（回転軸の方向のずれだけ）にある機構（例：R8120 横送りLアーム）は、
+    /// 「回転中心→リンク1」の向きが回転軸と同じになり、アーム1の向きを決められない（決めようとすると水平な軸まわりに倒れてねじれる）。
+    /// この形は、アーム1・アーム3を平行移動させ、アーム2・プレートを主軸と同じ角度で回す従来の動きが正しい
+    /// </summary>
+    private bool legacyMotion;
+
+    /// <summary>
     /// 制御対象オブジェクト
     /// </summary>
     public GameObject pntObj0;
@@ -139,6 +147,43 @@ public class ExMechParallelLinkInfo : ExMechInfo
             lastJ2 = new Vector2(Vector3.Dot(j0, linkU), Vector3.Dot(j0, linkV));
             initWorldRotA1 = axisInfos[1].root.rotation;
             linkSolverReady = (linkR > 1e-6f) && (initDir1.magnitude > 1e-6f);
+            // リンク1がアーム1の回転中心の真上・真下（面内のずれ 0.1mm 未満）なら従来の動かし方
+            var mechAxis = mainAxis.model.transform.TransformDirection(mainDir).normalized;
+            legacyMotion = Vector3.ProjectOnPlane(initDir1, mechAxis).magnitude < 0.0001f;
+        }
+        Debug.Log($"[ExMech] 並行リンク{(isDouble ? "（ダブル）" : "")}: {(legacyMotion ? "リンク1がアーム1の回転中心の真上・真下にあるため、従来の動かし方（アーム1・3は平行移動、アーム2・プレートは主軸と同じ角度）" : "四節リンクの機構解")}");
+    }
+
+    /// <summary>
+    /// 従来（2026-08-31 より前）の動かし方。8/31 より前のコードとまったく同じ計算にする。
+    /// アーム1・アーム3は位置だけ追従（平行移動）、アーム2・プレートは主軸のオイラー角の成分だけ
+    /// localEulerAngles の該当軸を回す（連結点が合わなければ逆向き）。回転軸の符号は見ない（従来どおり）。
+    /// ※クォータニオンの「回転軸×角度」に置き換えると、回転軸が部品の座標で下向き(0,-1,0)の時に回る向きが逆になり、
+    ///   動かすとリンクが外れた（値0では一致するので気づきにくい）
+    /// </summary>
+    private void RenewPosLegacy()
+    {
+        // 主軸に回転中心を指定した時は、回すのはピボット（root）なので、そちらの角度を読む（指定が無ければ root=モデル）
+        var ang = GetMaskAngle(mainAxis.root.localEulerAngles, mainDir);
+
+        // 姿勢保持のため位置だけ
+        axisInfos[0].root.position = pntObj0.transform.position;
+        axisInfos[1].root.localEulerAngles = GetNextAngle(offsets[1], ang, dirs[1]);
+        if (Vector3.Distance(pntObj2_0.transform.position, pntObj2_1.transform.position) > 0.001f)
+        {
+            // 1mm以上誤差があれば角度反転
+            axisInfos[1].root.localEulerAngles = GetNextAngle(offsets[1], -ang, dirs[1]);
+        }
+        if (isDouble)
+        {
+            axisInfos[3].root.position = pntObj3.transform.position;
+            axisInfos[4].root.localEulerAngles = GetNextAngle(offsets[4], ang, dirs[4]);
+            axisInfos[4].root.position = pntObj4.transform.position;
+            if (Vector3.Distance(pntObj5_3.transform.position, pntObj5_4.transform.position) > 0.001f)
+            {
+                // 1mm以上誤差があれば角度反転
+                axisInfos[4].root.localEulerAngles = GetNextAngle(offsets[4], -ang, dirs[4]);
+            }
         }
     }
 
@@ -184,6 +229,11 @@ public class ExMechParallelLinkInfo : ExMechInfo
         }
         // 回転方向の符号は主軸方向との内積で決める
         var ang = dAng * Mathf.Sign(Vector3.Dot(dAxis, mainDir));
+        if (legacyMotion)
+        {
+            RenewPosLegacy();
+            return;
+        }
 
         // アーム1の位置（主軸連結点に追従。回転中心=root）
         axisInfos[0].root.position = pntObj0.transform.position;
