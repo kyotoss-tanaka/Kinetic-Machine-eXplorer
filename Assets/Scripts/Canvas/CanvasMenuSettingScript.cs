@@ -128,7 +128,10 @@ public class CanvasMenuSettingScript : CanvasMenuBaseScript
     protected override void Update()
     {
         base.Update();
-        float dt = Time.deltaTime;
+        // 実時間で測る。Time.deltaTime は Maximum Allowed Timestep(0.06秒)で頭打ちになり、
+        // 1フレームが60msを超えると常に「17fps(60msec)」と表示されて実際の遅さが分からないため。
+        // （履歴の表示中は timeScale=0 で Time.deltaTime が0になり、表示が無限大になるのも防ぐ）
+        float dt = Time.unscaledDeltaTime;
         fpss.Add(1f / dt);
         times.Add(dt * 1000f);
         if (fpss.Count > 100)
