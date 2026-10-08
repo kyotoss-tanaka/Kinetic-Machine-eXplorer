@@ -2206,6 +2206,39 @@ namespace Parameters
                 useRos2 = false;   // Ros2Info.json が無ければ無効
             }
 #endif
+            // ROS2 は WSL 上で動かす（接続先がこの PC の時）。WSL に ROS2 用のディストロが無い PC では、ROS 連携を無効にする。
+            // （ROS の入っていない PC で ON のまま起動すると、パラメータ読み込み完了の時点で固まると報告があった）
+            if (useRos2)
+            {
+                ComRos2.Ros2Setting ros2Check = null;
+                try
+                {
+                    ros2Check = GlobalScript.LoadJson<ComRos2.Ros2Setting>("Ros2Info") as ComRos2.Ros2Setting;
+                }
+                catch
+                {
+                    ros2Check = null;
+                }
+                var rosIp = (ros2Check != null) && !string.IsNullOrEmpty(ros2Check.ip) ? ros2Check.ip.Trim() : "127.0.0.1";
+                var isLocal = (rosIp == "127.0.0.1") || (rosIp == "::1") || string.Equals(rosIp, "localhost", StringComparison.OrdinalIgnoreCase);
+                if (isLocal)
+                {
+                    var distro = ros2Check != null ? ros2Check.wslDistro : "";
+                    if (ComRos2Launcher.IsWslDistroInstalled(distro, out var wslDetail))
+                    {
+                        Debug.Log($"[ROS2] ROS 連携を有効にします（{wslDetail}）");
+                    }
+                    else
+                    {
+                        useRos2 = false;
+                        Debug.LogWarning($"[ROS2] この PC には ROS2（WSL）が無いため、ROS 連携を無効にします（{wslDetail}）");
+                    }
+                }
+                else
+                {
+                    Debug.Log($"[ROS2] 接続先が別の PC（{rosIp}）のため、WSL の確認はしません");
+                }
+            }
             // 実機とROSで関節値の規約が異なる場合の場合分け用に公開（例: CRX-30iA arm3）。
             GlobalScript.useRos2 = useRos2;
             if (useRos2)

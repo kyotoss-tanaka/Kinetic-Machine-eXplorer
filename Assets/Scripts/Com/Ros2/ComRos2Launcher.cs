@@ -268,4 +268,78 @@ public sealed class ComRos2Launcher : MonoBehaviour
             return "";
         }
     }
+
+    /// <summary>
+    /// この PC の WSL に ROS2 用のディストロが登録されているか（ROS 連携を有効にしてよいかの判定）。
+    /// wsl.exe は実行しない（WSL 未導入の PC では、Windows 同梱の wsl.exe がインストールの入力待ちになることがあるため）。
+    /// 代わりに reg.exe で WSL の登録（HKCU\Software\Microsoft\Windows\CurrentVersion\Lxss の DistributionName）を読む。
+    /// 3秒で打ち切るので、ここで止まることはない。
+    /// </summary>
+    /// <param name="distro">必要なディストロ名（空なら、どれか1つ登録されていればよい）</param>
+    /// <param name="detail">判定の理由（ログ用）</param>
+    public static bool IsWslDistroInstalled(string distro, out string detail)
+    {
+        if (Application.platform != RuntimePlatform.WindowsPlayer && Application.platform != RuntimePlatform.WindowsEditor)
+        {
+            detail = "Windows 以外のため WSL を使えない";
+            return false;
+        }
+        try
+        {
+            var psi = new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = "reg.exe",
+                Arguments = "query \"HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Lxss\" /s /v DistributionName",
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+            };
+            using var p = System.Diagnostics.Process.Start(psi);
+            if (p == null)
+            {
+                detail = "reg.exe を起動できない";
+                return false;
+            }
+            var outTask = p.StandardOutput.ReadToEndAsync();
+            var errTask = p.StandardError.ReadToEndAsync();
+            if (!p.WaitForExit(3000))
+            {
+                try { p.Kill(); } catch { /* ignore */ }
+                detail = "WSL の登録を3秒以内に読めない";
+                return false;
+            }
+            var names = new System.Collections.Generic.List<string>();
+            foreach (var line in outTask.Result.Split('\n'))
+            {
+                // 例： "    DistributionName    REG_SZ    Ubuntu-22.04"
+                var i = line.IndexOf("REG_SZ", StringComparison.Ordinal);
+                if (line.Contains("DistributionName") && (i >= 0))
+                {
+                    var name = line.Substring(i + "REG_SZ".Length).Trim();
+                    if (name.Length > 0)
+                    {
+                        names.Add(name);
+                    }
+                }
+            }
+            if (names.Count == 0)
+            {
+                detail = "WSL にディストロが登録されていない（WSL 未導入）";
+                return false;
+            }
+            if (!string.IsNullOrEmpty(distro) && !names.Exists(n => string.Equals(n, distro, StringComparison.OrdinalIgnoreCase)))
+            {
+                detail = $"WSL に {distro} が無い（登録：{string.Join(", ", names)}）";
+                return false;
+            }
+            detail = $"WSL のディストロ：{string.Join(", ", names)}";
+            return true;
+        }
+        catch (Exception e)
+        {
+            detail = "WSL の登録を読めない：" + e.Message;
+            return false;
+        }
+    }
 }
