@@ -365,8 +365,23 @@ public class CanvasMenuBaseScript : KssBaseScript, IBeginDragHandler, IDragHandl
                 continue;
             }
             tmp.margin = m;
-            // 余白を付けると1行に収まらなくなる文字だけ、収まるように少し小さくする（最大70%まで）
-            var need = tmp.GetPreferredValues(tmp.text).x + m.x + m.z;
+            // 余白を付けると1行に収まらなくなる文字だけ、収まるように少し小さくする（最大70%まで）。
+            // 文字幅は、表示中でフォントとマテリアルが揃っている文字だけ測る。実行ファイルでは、まだ表示していない文字は
+            // マテリアルが無く、GetPreferredValues が例外になる（Awake が途中で止まり、ロードが最後まで進まなかった）
+            if (!tmp.isActiveAndEnabled || (tmp.font == null) || (tmp.font.material == null) || (tmp.fontSharedMaterial == null))
+            {
+                continue;
+            }
+            float need;
+            try
+            {
+                need = tmp.GetPreferredValues(tmp.text).x + m.x + m.z;
+            }
+            catch (System.Exception ex)
+            {
+                Debug.LogWarning($"[Menu] 文字幅を測れないため、自動縮小を付けません（{tmp.name}）：{ex.Message}");
+                continue;
+            }
             if ((need > tmp.rectTransform.rect.width) && !tmp.enableAutoSizing)
             {
                 tmp.fontSizeMax = tmp.fontSize;

@@ -928,9 +928,23 @@ namespace Parameters
                 yield return null; // 1フレーム待
             }
 
-            // イベント登録
-            menuInfoScript.SetEvents(unitSettings);
-            prefabInfoScript.SetEvents();
+            // イベント登録（メニューで例外が出ても、ロードは最後まで進める。止まるとローディング画面のままになる）
+            try
+            {
+                menuInfoScript.SetEvents(unitSettings);
+            }
+            catch (Exception ex)
+            {
+                Debug.LogException(ex);
+            }
+            try
+            {
+                prefabInfoScript.SetEvents();
+            }
+            catch (Exception ex)
+            {
+                Debug.LogException(ex);
+            }
 
             // 静的ラベルの言語置換（英語設定時のみ動作）
             Lang.TranslateAllTexts();
@@ -1188,8 +1202,15 @@ namespace Parameters
                     }
                 }
             }
-            // メニュー設定
-            menuInfoScript.SetEvents(unitSettings);
+            // メニュー設定（メニューで例外が出ても、ロードは最後まで進める）
+            try
+            {
+                menuInfoScript.SetEvents(unitSettings);
+            }
+            catch (Exception ex)
+            {
+                Debug.LogException(ex);
+            }
 
             Resources.UnloadUnusedAssets();
             CommonFunction.DebugLog($"***** Load Finished *****", true);
