@@ -16,6 +16,9 @@
 !/Assets/StreamingAssets/Datas/
 /Assets/StreamingAssets/Datas/*
 !/Assets/StreamingAssets/Datas/Lang/
+# ロボットの定義（KMX の開発者が派生ロボットを登録する。KMX に同梱するアプリ資産）
+!/Assets/StreamingAssets/Datas/Robots/
+!/Assets/StreamingAssets/Datas/Robots.meta
 /Assets/AssetStoreTools*
 /ServerData/
 *.log

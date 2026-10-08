@@ -44,6 +44,11 @@ public class MPX_R3S : MPX_RX
     /// 地面設置
     /// </summary>
     private bool isGround = false;
+
+    /// <summary>
+    /// アームが揃って組み立てられたか（揃わない時は動かさない）
+    /// </summary>
+    private bool isAssembled = false;
     #endregion 変数
 
     /// <summary>
@@ -52,9 +57,33 @@ public class MPX_R3S : MPX_RX
     /// <param name="x"></param>
     /// <param name="y"></param>
     /// <param name="z"></param>
+    protected override bool TryModelPoseTarget(out Vector3 raw)
+    {
+        // SetTarget の角度の当て方を逆にたどる（arm1=a1、arm2_1=a0-180、plate=±(-a2) または ±(90-a2)）
+        raw = Vector3.zero;
+        if ((arm1 == null) || (arm2_1 == null))
+        {
+            return false;
+        }
+        var a1 = Mathf.DeltaAngle(0f, ang1.z);
+        var a0 = Mathf.DeltaAngle(0f, ang2_1.z + 180f);
+        var p = isPlateRvs ? -1f : 1f;
+        var a2 = -a1;
+        if (plate != null)
+        {
+            a2 = isFin ? -p * Mathf.DeltaAngle(0f, angP.z) : 90f - p * Mathf.DeltaAngle(0f, angP.z);
+        }
+        raw = ForwardMPX(a0, a1, a2);
+        return true;
+    }
+
     public override void SetTarget(float x, float y, float z)
     {
         base.SetTarget(x, y, z);
+        if (!isAssembled)
+        {
+            return;
+        }
         if (isGround)
         {
             for (var i = 0; i < angle.Count; i++)
@@ -99,76 +128,46 @@ public class MPX_R3S : MPX_RX
         {
             axisType = 3;
         }
-        isFin = children.Find(d => d.name.Contains("W0282640-")) != null;
         isGround = Mathf.Abs(unitSetting.unitObject.transform.localEulerAngles.z) > 90;
 
         r1 = 260;
         r2 = 260;
 
-        baseObj.name += isFin ? "D" : "T";
-        var arm1Name = "W0282303-";
-        var arm2_1Name = "W0143305-";
-        var arm2_2Name = "W0282552-";
-        var finName1 = "W0282640-";
-        var finName2 = "W0282589-";
-        var arm3Name = isFin ? "W0282428-" : "";
-        var arm45Name = "W0282604-";
-        var plateName = isFin ? "W0282631-" : "";
-
-        // アーム1 W0250623-
-        var arm1Tmp = children.Find(d => d.name.Contains(arm1Name));
-        if (arm1Tmp != null)
-        {
-            arm1 = arm1Tmp.parent.gameObject;
-        }
-
-        // アーム2-1 W0250562-
-        var arm2_1Tmp = children.Find(d => d.name.Contains(arm2_1Name));
-        if (arm2_1Tmp != null)
-        {
-            arm2_1 = arm2_1Tmp.parent.gameObject;
-        }
-
-        // アーム2-2 W0250599-
-        var arm2_2Tmp = children.Find(d => d.name.Contains(arm2_2Name));
-        if (arm2_2Tmp != null)
-        {
-            arm2_2 = arm2_2Tmp.parent.gameObject;
-        }
-
-        // 自己保持用フィン W0459419-, W0282640-
-        var armFinTmp1 = children.Find(d => d.name.Contains(finName1));
-        if (armFinTmp1 != null)
-        {
-            fin_1 = armFinTmp1.parent.gameObject;
-        }
-        var armFinTmp2 = children.Find(d => d.name.Contains(finName2));
-        if (armFinTmp2 != null)
-        {
-            fin_2 = armFinTmp2.parent.gameObject;
-        }
+        // 各アームはロボットの定義（Datas/Robots/RobotModels.json）の名前で探す。定義に無いアームはここに書いた既定の名前で探す
+        var finder = RobotDefinitions.Finder(unitSetting, Parameters.RobotType.MPX_R3S, children, HeadObject);
+        arm1 = finder.Find("アーム1", "parent:W0282303-");
+        arm2_1 = finder.Find("アーム2-1", "parent:W0143305-");
+        arm2_2 = finder.Find("アーム2-2", "parent:W0282552-");
+        fin_1 = finder.Find("フィン1", "parent:W0282640-");   // 自己保持用フィン
+        fin_2 = finder.Find("フィン2", "parent:W0282589-");
+        isFin = fin_1 != null;
         if (isFin)
         {
-            // θ固定
-            // アーム4 W0263919-
-            var arm45Tmp = children.FindAll(d => d.name.Contains(arm45Name));
-            if (arm45Tmp.Count == 4)
+            // θ固定（同じ部品が4つ。先頭から アーム4-1・アーム4-2・アーム5-1・アーム5-2）
+            var arm45 = finder.FindAll("アーム4・5", "parent:W0282604-");
+            if (arm45.Count == 4)
             {
-                arm4_1 = arm45Tmp[0].parent.gameObject;
-                arm4_2 = arm45Tmp[1].parent.gameObject;
-                arm5_1 = arm45Tmp[2].parent.gameObject;
-                arm5_2 = arm45Tmp[3].parent.gameObject;
+                arm4_1 = arm45[0];
+                arm4_2 = arm45[1];
+                arm5_1 = arm45[2];
+                arm5_2 = arm45[3];
             }
         }
-        // アーム3 W0250614-
-        var arm3Tmp = children.Find(d => d.name.Contains(arm3Name));
-        if (arm3Tmp != null)
-        {
-            arm3 = arm3Tmp.parent.gameObject;
-        }
+        arm3 = finder.Find("アーム3", "parent:W0282428-");
+        var plateTmp = finder.Find("プレート", "parent:parent:W0282631-");
+        finder.Log();
+        baseObj.name += isFin ? "D" : "T";
 
-        // プレート W0250632- W0668220- W0655776-
-        var plateTmp = children.Find(d => d.name.Contains(plateName));
+        // 見つからないアームがあれば組み立てない（途中で null に触って例外になるため。フィン無しは以前から組み立てられなかった）
+        if ((arm1 == null) || (arm2_1 == null) || (arm2_2 == null) || (arm3 == null) ||
+            (isFin && ((fin_2 == null) || (arm4_1 == null) || (arm4_2 == null) || (arm5_1 == null) || (arm5_2 == null))))
+        {
+            Debug.LogWarning($"[Robot] {unitSetting.name}: MPX-R3S のアームが揃わないため、組み立てずに動かしません");
+            return;
+        }
+        isAssembled = true;
+
+        // プレート W0282631- の親の親
         if (plateTmp == null)
         {
             if (HeadObject != null)
@@ -180,7 +179,7 @@ public class MPX_R3S : MPX_RX
         }
         else
         {
-            plate = plateTmp.parent.parent.gameObject;
+            plate = plateTmp;
             plate.transform.parent = arm3.transform;
             angP = plate.transform.localEulerAngles;
             isPlateRvs = Mathf.Abs(plate.transform.localEulerAngles.y) > 90;

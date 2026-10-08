@@ -43,6 +43,57 @@ public class Kinematics6D : Kinematics3D, IRos2PlanTarget
         {
             ModelRestruct();
         }
+        // 初期の目標（関節角）をモデルの初期姿勢にし、Inspector の目標にも入れておく（手動に切り替えた時にここから動き始める）
+        InitModelPoseJoints();
+        target = initialTargetRaw;
+        rotate = initialRotateRaw;
+    }
+
+    /// <summary>
+    /// 初期の回転側の関節角（J4～J6。モデルの初期姿勢）
+    /// </summary>
+    protected Vector3 initialRotateRaw = Vector3.zero;
+
+    /// <summary>
+    /// 型がモデルの初期姿勢から関節角（SetTarget に渡す形）を求める。求められない型は false
+    /// </summary>
+    protected virtual bool TryModelPoseJoints(out Vector3 joints, out Vector3 rotates)
+    {
+        joints = Vector3.zero;
+        rotates = Vector3.zero;
+        return false;
+    }
+
+    /// <summary>
+    /// 1軸だけで回っている部品の角度（度）。axis: 0=x, 1=y, 2=z
+    /// </summary>
+    protected static float AxisAngle(Transform t, int axis)
+    {
+        var q = t.localRotation;
+        var c = (axis == 0) ? q.x : ((axis == 1) ? q.y : q.z);
+        return Mathf.DeltaAngle(0f, 2f * Mathf.Atan2(c, q.w) * Mathf.Rad2Deg);
+    }
+
+    /// <summary>
+    /// 初期の関節角をモデルの初期姿勢にする（求めた値で一度 SetTarget を呼び、全部品が一致する時だけ使う）
+    /// </summary>
+    protected void InitModelPoseJoints()
+    {
+        if (hasInitialTarget || !TryModelPoseJoints(out var j, out var r))
+        {
+            return;
+        }
+        if (VerifyModelPose(() => SetTarget(j.x, j.y, j.z, r.x, r.y, r.z), out var error))
+        {
+            initialTargetRaw = j;
+            initialRotateRaw = r;
+            hasInitialTarget = true;
+            Debug.Log($"[Robot] {unitSetting.name}: 初期の関節角＝モデルの初期姿勢 ({j.x:0.0}, {j.y:0.0}, {j.z:0.0}, {r.x:0.0}, {r.y:0.0}, {r.z:0.0})");
+        }
+        else
+        {
+            Debug.LogWarning($"[Robot] {unitSetting.name}: モデルの初期姿勢を関節角にできませんでした（{error}）。初期値は 0 のままにします");
+        }
     }
 
     protected override void MyFixedUpdate()
@@ -55,18 +106,17 @@ public class Kinematics6D : Kinematics3D, IRos2PlanTarget
         {
             if (robo.tags.Count >= 6)
             {
-                var x = GetTagValueF(robo.tags[0], ref X);
-                var y = GetTagValueF(robo.tags[1], ref Y);
-                var z = GetTagValueF(robo.tags[2], ref Z);
-                var rx = GetTagValueF(robo.tags[3], ref RX);
-                var ry = GetTagValueF(robo.tags[4], ref RY);
-                var rz = GetTagValueF(robo.tags[5], ref RZ);
-                target.x = CheckRangeF(x / (robo.rates[0] == 0 ? 1000f : robo.rates[0]), txMin, txMax);
-                target.y = CheckRangeF(y / (robo.rates[1] == 0 ? 1000f : robo.rates[1]), tyMin, tyMax);
-                target.z = CheckRangeF(z / (robo.rates[2] == 0 ? 1000f : robo.rates[2]), tzMin, tzMax);
-                rotate.x = CheckRangeF(rx / (robo.rates[3] == 0 ? 1000f : robo.rates[3]), trxMin, trxMax);
-                rotate.y = CheckRangeF(ry / (robo.rates[4] == 0 ? 1000f : robo.rates[4]), tryMin, tryMax);
-                rotate.z = CheckRangeF(rz / (robo.rates[5] == 0 ? 1000f : robo.rates[5]), trzMin, trzMax);
+                // タグが空の軸は 0 ではなく初期の関節角（モデルの初期姿勢）を使う
+                float Axis(int i, ref TagInfo tag, float initial)
+                {
+                    return string.IsNullOrEmpty(robo.tags[i]) ? initial : GetTagValueF(robo.tags[i], ref tag) / (robo.rates[i] == 0 ? 1000f : robo.rates[i]);
+                }
+                target.x = CheckRangeF(Axis(0, ref X, initialTargetRaw.x), txMin, txMax);
+                target.y = CheckRangeF(Axis(1, ref Y, initialTargetRaw.y), tyMin, tyMax);
+                target.z = CheckRangeF(Axis(2, ref Z, initialTargetRaw.z), tzMin, tzMax);
+                rotate.x = CheckRangeF(Axis(3, ref RX, initialRotateRaw.x), trxMin, trxMax);
+                rotate.y = CheckRangeF(Axis(4, ref RY, initialRotateRaw.y), tryMin, tryMax);
+                rotate.z = CheckRangeF(Axis(5, ref RZ, initialRotateRaw.z), trzMin, trzMax);
                 setTarget(target, rotate);
             }
         }

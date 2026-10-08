@@ -30,6 +30,27 @@ public class Kinematics3D : KinematicsBase
     protected float offsetX;
     protected float offsetY;
     protected float offsetZ;
+
+    /// <summary>
+    /// 初期の目標（ツールオフセットを足す前）。型がモデルの初期姿勢の先端位置を求めて入れる（求めない型は 0）
+    /// </summary>
+    protected Vector3 initialTargetRaw = Vector3.zero;
+
+    /// <summary>
+    /// 初期の目標を型が求めたか（求めない型は従来どおり 0 を使う）
+    /// </summary>
+    protected bool hasInitialTarget = false;
+
+    /// <summary>
+    /// 初期の目標（ツールオフセット込み。タグが空の軸と、手動に切り替えた時の始めの値に使う）
+    /// </summary>
+    protected Vector3 InitialTarget
+    {
+        get
+        {
+            return hasInitialTarget ? initialTargetRaw + new Vector3(offsetX, offsetY, offsetZ) : Vector3.zero;
+        }
+    }
     #endregion プロパティ
 
     #region 変数
@@ -51,6 +72,106 @@ public class Kinematics3D : KinematicsBase
         {
             ModelRestruct();
         }
+        // 初期の目標をモデルの初期姿勢にし、Inspector の目標にも入れておく（手動に切り替えた時にここから動き始める）
+        InitModelPoseTarget();
+        target = InitialTarget;
+    }
+
+    /// <summary>
+    /// 型がモデルの初期姿勢から目標（SetTarget に渡す形＝ツールオフセットを引いた値）を求める。求められない型は false
+    /// </summary>
+    protected virtual bool TryModelPoseTarget(out Vector3 raw)
+    {
+        raw = Vector3.zero;
+        return false;
+    }
+
+    /// <summary>
+    /// 初期の目標をモデルの初期姿勢にする。求めた目標で一度 SetTarget を呼び、
+    /// ロボットの全部品の向き・位置がモデルと一致することを確かめてから使う（一致しなければ部品を元に戻し、従来どおり 0）
+    /// </summary>
+    protected void InitModelPoseTarget()
+    {
+        if (hasInitialTarget || !TryModelPoseTarget(out var raw))
+        {
+            return;
+        }
+        if (VerifyModelPose(() => SetTarget(raw.x, raw.y, raw.z), out var error))
+        {
+            initialTargetRaw = raw;
+            hasInitialTarget = true;
+            Debug.Log($"[Robot] {unitSetting.name}: 初期の目標＝モデルの初期姿勢 ({raw.x:0.0}, {raw.y:0.0}, {raw.z:0.0})（オフセット前）");
+        }
+        else
+        {
+            Debug.LogWarning($"[Robot] {unitSetting.name}: モデルの初期姿勢を目標にできませんでした（{error}）。初期の目標は 0 のままにします");
+        }
+    }
+
+    /// <summary>
+    /// apply を実行して、ロボットの全部品の向き・位置がモデルの初期姿勢と一致するかを確かめる。
+    /// 一致しなければ部品を元に戻す
+    /// </summary>
+    protected bool VerifyModelPose(System.Action apply, out string error)
+    {
+        error = "";
+        var root = (unitSetting != null) ? unitSetting.moveObject : null;
+        if (root == null)
+        {
+            error = "モデルが無い";
+            return false;
+        }
+        var parts = root.GetComponentsInChildren<Transform>(true);
+        var rots = new Quaternion[parts.Length];
+        var poss = new Vector3[parts.Length];
+        for (var i = 0; i < parts.Length; i++)
+        {
+            rots[i] = parts[i].localRotation;
+            poss[i] = parts[i].localPosition;
+        }
+        try
+        {
+            apply();
+        }
+        catch (System.Exception ex)
+        {
+            error = ex.Message;
+        }
+        var maxAngle = 0f;
+        var maxMove = 0f;
+        var worst = "";
+        for (var i = 0; i < parts.Length; i++)
+        {
+            if (parts[i] == null)
+            {
+                continue;
+            }
+            var a = Quaternion.Angle(rots[i], parts[i].localRotation);
+            var m = Vector3.Distance(poss[i], parts[i].localPosition) * 1000f;
+            if ((a > maxAngle) || (m > maxMove))
+            {
+                worst = parts[i].name;
+            }
+            maxAngle = Mathf.Max(maxAngle, float.IsNaN(a) ? 999f : a);
+            maxMove = Mathf.Max(maxMove, float.IsNaN(m) ? 999f : m);
+        }
+        var ok = (error == "") && (maxAngle < 0.05f) && (maxMove < 0.05f);
+        if (!ok)
+        {
+            for (var i = 0; i < parts.Length; i++)
+            {
+                if (parts[i] != null)
+                {
+                    parts[i].localRotation = rots[i];
+                    parts[i].localPosition = poss[i];
+                }
+            }
+            if (error == "")
+            {
+                error = $"部品のずれ 最大 {maxAngle:0.000}° / {maxMove:0.000}mm（{worst}）";
+            }
+        }
+        return ok;
     }
 
     protected override void MyFixedUpdate()
@@ -81,13 +202,16 @@ public class Kinematics3D : KinematicsBase
                 // タグからデータ取得
                 if (robo.tags.Count >= 3)
                 {
-                    var x = GetTagValueF(robo.tags[0], ref X);
-                    var y = GetTagValueF(robo.tags[1], ref Y);
-                    var z = GetTagValueF(robo.tags[2], ref Z);
-                    // mm単位系に変換
-                    target.x = CheckRangeF(x / (robo.rates[0] == 0 ? 1000f : robo.rates[0] / 1000f), txMin, txMax);
-                    target.y = CheckRangeF(y / (robo.rates[1] == 0 ? 1000f : robo.rates[1] / 1000f), tyMin, tyMax);
-                    target.z = CheckRangeF(z / (robo.rates[2] == 0 ? 1000f : robo.rates[2] / 1000f), tzMin, tzMax);
+                    // タグが空の軸は 0 ではなく初期の目標（モデルの初期姿勢）を使う
+                    // （以前は 0 になり、範囲を持たない型ではアームを根元に折りたたんだ姿勢になっていた）
+                    var initial = InitialTarget;
+                    var x = string.IsNullOrEmpty(robo.tags[0]) ? initial.x : GetTagValueF(robo.tags[0], ref X) / (robo.rates[0] == 0 ? 1000f : robo.rates[0] / 1000f);
+                    var y = string.IsNullOrEmpty(robo.tags[1]) ? initial.y : GetTagValueF(robo.tags[1], ref Y) / (robo.rates[1] == 0 ? 1000f : robo.rates[1] / 1000f);
+                    var z = string.IsNullOrEmpty(robo.tags[2]) ? initial.z : GetTagValueF(robo.tags[2], ref Z) / (robo.rates[2] == 0 ? 1000f : robo.rates[2] / 1000f);
+                    // mm単位系に変換済み
+                    target.x = CheckRangeF(x, txMin, txMax);
+                    target.y = CheckRangeF(y, tyMin, tyMax);
+                    target.z = CheckRangeF(z, tzMin, tzMax);
                     setTarget(target);
                 }
             }

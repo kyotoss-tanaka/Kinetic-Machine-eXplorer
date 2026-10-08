@@ -55,6 +55,24 @@ public class M_20iD25: Kinematics6D
     /// <param name="x"></param>
     /// <param name="y"></param>
     /// <param name="z"></param>
+    protected override bool TryModelPoseJoints(out Vector3 joints, out Vector3 rotates)
+    {
+        // SetTarget の当て方を逆にたどる（arm1.z=J1、arm2.y=-J2、arm3.y=J3 または J2+J3、arm4.x=J4、arm5.y=J5、arm6.z=ang6.z+J6）
+        joints = Vector3.zero;
+        rotates = Vector3.zero;
+        if ((arm1 == null) || (arm2 == null) || (arm3 == null) || (arm4 == null) || (arm5 == null) || (arm6 == null))
+        {
+            return false;
+        }
+        var j1 = Mathf.DeltaAngle(0f, arm1.localEulerAngles.z);
+        var j2 = -AxisAngle(arm2, 1);
+        var a3 = AxisAngle(arm3, 1);
+        var j3 = GlobalScript.useRos2 ? a3 : Mathf.DeltaAngle(0f, a3 - j2);
+        joints = new Vector3(j1, j2, j3);
+        rotates = new Vector3(AxisAngle(arm4, 0), AxisAngle(arm5, 1), Mathf.DeltaAngle(0f, arm6.localEulerAngles.z - ang6.z));
+        return true;
+    }
+
     public override void SetTarget(float x, float y, float z, float rx, float ry, float rz)
     {
         arm1.localEulerAngles = new Vector3(ang1.x, 0, x);
@@ -259,20 +277,23 @@ public class M_20iD25: Kinematics6D
 
         var children = unitSetting.moveObject.GetComponentsInChildren<Transform>().ToList();
 
+        // 各アームはロボットの定義（Datas/Robots/RobotModels.json）の名前で探す。定義に無いアームはここに書いた既定の名前で探す
+        var finder = RobotDefinitions.Finder(unitSetting, Parameters.RobotType.M_20iD25, children, HeadObject);
         // 原点
-        org = children.Find(d => d.name.Contains("J1^01N1"));
+        org = finder.Find("原点", "J1^01N1")?.transform;
         // アーム1 Y軸
-        arm1 = children.Find(d => d.name.Contains("J2^01N1"));
+        arm1 = finder.Find("アーム1", "J2^01N1")?.transform;
         // アーム2 Y軸
-        arm2 = children.Find(d => d.name.Contains("J3^01N1"));
+        arm2 = finder.Find("アーム2", "J3^01N1")?.transform;
         // アーム3 Y軸
-        arm3 = children.Find(d => d.name.Contains("J4^01N1"));
+        arm3 = finder.Find("アーム3", "J4^01N1")?.transform;
         // アーム4 X軸
-        arm4 = children.Find(d => d.name.Contains("J3_ARM^01N1"));
+        arm4 = finder.Find("アーム4", "J3_ARM^01N1")?.transform;
         // アーム5 Y軸
-        arm5 = children.Find(d => d.name.Contains("J5_part4^01N1"));
+        arm5 = finder.Find("アーム5", "J5_part4^01N1")?.transform;
         // アーム6 X軸
-        arm6 = children.Find(d => d.name.Contains("J6FLANGE^01N1"));
+        arm6 = finder.Find("アーム6", "J6FLANGE^01N1")?.transform;
+        finder.Log();
 
         // 親子関係セット
         org.parent = crx.transform;

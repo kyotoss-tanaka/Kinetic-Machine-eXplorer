@@ -129,6 +129,103 @@ public class ParallelLink : UseHeadBase3DScript
     }
 
     /// <summary>
+    /// 3本のアームのモータ角 th1（逆解の [i][0]、度）がモデルの値になる目標を、逆解を数値で解いて求める（ニュートン法）。
+    /// flipY は逆解に -y を渡す型（変則パラレル・YF03N4）
+    /// </summary>
+    protected bool SolveModelPose(float[] th1, bool flipY, out Vector3 raw)
+    {
+        raw = Vector3.zero;
+        RenewParameter();
+        var p = new Vector3(0f, 0f, (tzMin < tzMax) ? (tzMin + tzMax) / 2f : 800f);
+        float[] Res(Vector3 q)
+        {
+            var a = kinematics_R(q.x, q.y, q.z);
+            var r = new float[AXIS_MAX];
+            for (var i = 0; i < AXIS_MAX; i++)
+            {
+                r[i] = Mathf.DeltaAngle(th1[i], a[i][0]);
+            }
+            return r;
+        }
+        float Norm(float[] r)
+        {
+            var m = 0f;
+            foreach (var v in r)
+            {
+                m = float.IsNaN(v) ? float.MaxValue : Mathf.Max(m, Mathf.Abs(v));
+            }
+            return m;
+        }
+        var res = Res(p);
+        for (var iter = 0; iter < 100; iter++)
+        {
+            if (Norm(res) < 1e-3f)
+            {
+                raw = new Vector3(p.x, flipY ? -p.y : p.y, p.z);
+                return true;
+            }
+            // ヤコビアン（差分）
+            const float h = 0.5f;
+            var jac = new float[3, 3];
+            for (var k = 0; k < 3; k++)
+            {
+                var q = p;
+                q[k] += h;
+                var r2 = Res(q);
+                for (var i = 0; i < 3; i++)
+                {
+                    jac[i, k] = (r2[i] - res[i]) / h;
+                }
+            }
+            // jac * d = -res を解く（クラメルの公式）
+            var det = jac[0, 0] * (jac[1, 1] * jac[2, 2] - jac[1, 2] * jac[2, 1])
+                    - jac[0, 1] * (jac[1, 0] * jac[2, 2] - jac[1, 2] * jac[2, 0])
+                    + jac[0, 2] * (jac[1, 0] * jac[2, 1] - jac[1, 1] * jac[2, 0]);
+            if (Mathf.Abs(det) < 1e-12f || float.IsNaN(det))
+            {
+                return false;
+            }
+            var d = new Vector3();
+            for (var k = 0; k < 3; k++)
+            {
+                var m = new float[3, 3];
+                for (var i = 0; i < 3; i++)
+                {
+                    for (var j = 0; j < 3; j++)
+                    {
+                        m[i, j] = (j == k) ? -res[i] : jac[i, j];
+                    }
+                }
+                var dk = m[0, 0] * (m[1, 1] * m[2, 2] - m[1, 2] * m[2, 1])
+                       - m[0, 1] * (m[1, 0] * m[2, 2] - m[1, 2] * m[2, 0])
+                       + m[0, 2] * (m[1, 0] * m[2, 1] - m[1, 1] * m[2, 0]);
+                d[k] = dk / det;
+            }
+            // 残差が減るまで歩幅を縮める
+            var step = 1f;
+            var moved = false;
+            for (var t = 0; t < 12; t++)
+            {
+                var q = p + d * step;
+                var r2 = Res(q);
+                if (Norm(r2) < Norm(res))
+                {
+                    p = q;
+                    res = r2;
+                    moved = true;
+                    break;
+                }
+                step *= 0.5f;
+            }
+            if (!moved)
+            {
+                return false;
+            }
+        }
+        return false;
+    }
+
+    /// <summary>
     /// 逆解を解く
     /// </summary>
     /// <param name="x"></param>

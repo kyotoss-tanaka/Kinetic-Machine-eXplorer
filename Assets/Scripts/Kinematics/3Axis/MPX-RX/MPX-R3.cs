@@ -38,6 +38,11 @@ public class MPX_R3 : MPX_RX
     /// 地面設置
     /// </summary>
     private bool isGround = false;
+
+    /// <summary>
+    /// アームが揃って組み立てられたか（揃わない時は動かさない）
+    /// </summary>
+    private bool isAssembled = false;
     #endregion 変数
 
     /// <summary>
@@ -46,9 +51,34 @@ public class MPX_R3 : MPX_RX
     /// <param name="x"></param>
     /// <param name="y"></param>
     /// <param name="z"></param>
+    protected override bool TryModelPoseTarget(out Vector3 raw)
+    {
+        // SetTarget の角度の当て方を逆にたどる（arm1=±a1、arm2_1=±(a0-180)、plate=±(-a2) または ±(90-a2)）
+        raw = Vector3.zero;
+        if ((arm1 == null) || (arm2_1 == null))
+        {
+            return false;
+        }
+        var g = isGround ? -1f : 1f;
+        var a1 = g * Mathf.DeltaAngle(0f, ang1.z);
+        var a0 = Mathf.DeltaAngle(0f, g * Mathf.DeltaAngle(0f, ang2_1.z) + 180f);
+        var p = isPlateRvs ? -1f : 1f;
+        var a2 = -a1;   // プレートが無い時は回転0
+        if (plate != null)
+        {
+            a2 = isFin ? -p * Mathf.DeltaAngle(0f, angP.z) : 90f - p * Mathf.DeltaAngle(0f, angP.z);
+        }
+        raw = ForwardMPX(a0, a1, a2);
+        return true;
+    }
+
     public override void SetTarget(float x, float y, float z)
     {
         base.SetTarget(x, y, z);
+        if (!isAssembled)
+        {
+            return;
+        }
         arm1.transform.localEulerAngles = new Vector3(ang1.x, ang1.y, isGround ? -angle[1] : angle[1]);
         arm2_1.transform.localEulerAngles = new Vector3(ang2_1.x, ang2_1.y, isGround ? -(angle[0] - 180) : (angle[0] - 180));
         arm2_2.transform.localEulerAngles = new Vector3(ang2_2.x, ang2_2.y, isGround ? (angle[1] + angle[0]) : -(angle[1] + angle[0]));
@@ -82,75 +112,38 @@ public class MPX_R3 : MPX_RX
 
         var children = unitSetting.moveObject.GetComponentsInChildren<Transform>().ToList();
 
-        if (children.Find(d => d.name.Contains("W0250623-")) != null)
-        {
-            axisType = 3;
-        }
-        isFin = children.Find(d => d.name.Contains("W0459419-") || d.name.Contains("W0282640-")) != null;
-
-        baseObj.name += isFin ? "D" : "T";
-        var arm1Name = "W0250623-";
-        var arm2_1Name = "W0250562-";
-        var arm2_2Name = "W0250599-";
-        var finName = "W0459419-";
-        var arm3Name = isFin ? "W0262345-" : "W0250614-";
-        var arm4Name = "W0263919-";
-        var arm5Name = "W0263937-";
-        var plateName = isFin ? "W0370723-" : "W0250632-";
-
-        // アーム1 W0250623-
-        var arm1Tmp = children.Find(d => d.name.Contains(arm1Name));
-        if (arm1Tmp != null)
-        {
-            arm1 = arm1Tmp.parent.gameObject;
-        }
-
-        // アーム2-1 W0250562-
-        var arm2_1Tmp = children.Find(d => d.name.Contains(arm2_1Name));
-        if (arm2_1Tmp != null)
-        {
-            arm2_1 = arm2_1Tmp.parent.gameObject;
-        }
-
-        // アーム2-2 W0250599-
-        var arm2_2Tmp = children.Find(d => d.name.Contains(arm2_2Name));
-        if (arm2_2Tmp != null)
-        {
-            arm2_2 = arm2_2Tmp.parent.gameObject;
-        }
-
-        // 自己保持用フィン W0459419-, W0282640-
-        var armFinTmp = children.Find(d => d.name.Contains(finName));
-        if (armFinTmp != null)
-        {
-            fin = armFinTmp.parent.gameObject;
-        }
+        // 各アームはロボットの定義（Datas/Robots/RobotModels.json）の名前で探す。定義に無いアームはここに書いた既定の名前で探す。
+        // フィン付き（θ固定）は、アーム3・プレートの図番がフィン無しと違う（どちらか一方しかモデルに無い）
+        var finder = RobotDefinitions.Finder(unitSetting, Parameters.RobotType.MPX_R3, children, HeadObject);
+        arm1 = finder.Find("アーム1", "parent:W0250623-");
+        arm2_1 = finder.Find("アーム2-1", "parent:W0250562-");
+        arm2_2 = finder.Find("アーム2-2", "parent:W0250599-");
+        fin = finder.Find("フィン", "parent:W0459419-");   // 自己保持用フィン
+        isFin = fin != null;
         if (isFin)
         {
             // θ固定
-            // アーム4 W0263919-
-            var arm4Tmp = children.Find(d => d.name.Contains(arm4Name));
-            if (arm4Tmp != null)
-            {
-                arm4 = arm4Tmp.parent.gameObject;
-            }
-
-            // アーム5 W0263937-
-            var arm5Tmp = children.Find(d => d.name.Contains(arm5Name));
-            if (arm5Tmp != null)
-            {
-                arm5 = arm5Tmp.parent.gameObject;
-            }
+            arm4 = finder.Find("アーム4", "parent:W0263919-");
+            arm5 = finder.Find("アーム5", "parent:W0263937-");
         }
-        // アーム3 W0250614-
-        var arm3Tmp = children.Find(d => d.name.Contains(arm3Name));
-        if (arm3Tmp != null)
+        arm3 = finder.Find("アーム3", "parent:W0262345-", "parent:W0250614-");
+        var plateTmp = finder.Find("プレート", "parent:W0370723-", "parent:W0250632-");
+        finder.Log();
+        if (arm1 != null)
         {
-            arm3 = arm3Tmp.parent.gameObject;
+            axisType = 3;
         }
+        baseObj.name += isFin ? "D" : "T";
 
-        // プレート W0250632- W0668220- W0655776-
-        var plateTmp = children.Find(d => d.name.Contains(plateName));
+        // 見つからないアームがあれば組み立てない（途中で null に触って例外になるため）
+        if ((arm1 == null) || (arm2_1 == null) || (arm2_2 == null) || (arm3 == null) || (isFin && ((arm4 == null) || (arm5 == null))))
+        {
+            Debug.LogWarning($"[Robot] {unitSetting.name}: MPX-R3 のアームが揃わないため、組み立てずに動かしません");
+            return;
+        }
+        isAssembled = true;
+
+        // プレート W0250632- W0370723-
         if (plateTmp == null)
         {
             if (HeadObject != null)
@@ -159,10 +152,15 @@ public class MPX_R3 : MPX_RX
                 plate.transform.parent = arm3.transform;
                 angP = plate.transform.localEulerAngles;
             }
+            else
+            {
+                // プレートの部品が無いモデルは、ロボット設定でヘッドを指定するとヘッドをプレートとして回す
+                Debug.LogWarning($"[Robot] {unitSetting.name}: プレートが無く、ヘッドも指定されていないため、Z（ヘッドの回転）は動きません");
+            }
         }
         else
         {
-            plate = plateTmp.parent.gameObject;
+            plate = plateTmp;
             plate.transform.parent = arm3.transform;
             angP = plate.transform.localEulerAngles;
             isPlateRvs = Mathf.Abs(plate.transform.localEulerAngles.y) > 90;

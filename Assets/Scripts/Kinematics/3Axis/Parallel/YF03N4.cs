@@ -21,6 +21,22 @@ public class YF03N4 : ParallelLink
         SPRING_OFFSET_Y = 0.055f;
     }
 
+    protected override bool TryModelPoseTarget(out Vector3 raw)
+    {
+        // 逆解に -y を渡し、arm1[i].z = -angle[i][0]
+        raw = Vector3.zero;
+        if (arm1.Count < AXIS_MAX)
+        {
+            return false;
+        }
+        var th1 = new float[AXIS_MAX];
+        for (var i = 0; i < AXIS_MAX; i++)
+        {
+            th1[i] = -Mathf.DeltaAngle(0f, arm1[i].localEulerAngles.z);
+        }
+        return SolveModelPose(th1, true, out raw);
+    }
+
     public override void SetTarget(float x, float y, float z)
     {
         angle = kinematics_R(x, -y, z);

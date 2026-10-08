@@ -124,6 +124,32 @@ public class MPX_RX : UseHeadBase3DScript
     }
 
     /// <summary>
+    /// 順運動学（kinematics_R の逆）。a0～a2 は kinematics_R の戻り値（逆勝手の符号込み）。
+    /// 戻り値は SetTarget に渡す形。r1 = r2 の型で逆解と一致することを数値で確かめてある
+    /// </summary>
+    protected Vector3 ForwardMPX(float a0, float a1, float a2)
+    {
+        var s = isRvs ? -1f : 1f;
+        var j1 = s * a0 * Mathf.Deg2Rad;
+        var j2 = s * a1 * Mathf.Deg2Rad;
+        var zDeg = s * a2 + s * a1;   // 逆解は j3 = z - j2
+        var px = r1 * Mathf.Cos(Mathf.PI - j1) + r2 * Mathf.Cos(j2);
+        var pz = r1 * Mathf.Sin(Mathf.PI - j1) + r2 * Mathf.Sin(j2);
+        var zr = zDeg * Mathf.Deg2Rad;
+        var x = px + tz * Mathf.Cos(zr) + tx * Mathf.Sin(zr);
+        var y = pz + tz * Mathf.Sin(zr) - tx * Mathf.Cos(zr);
+        if (axisType == 2)
+        {
+            zDeg = 0f;
+        }
+        else if ((axisType == 3) && (robo != null) && robo.isTm)
+        {
+            zDeg *= 1000f;   // SetTarget で 1/1000 にされるため
+        }
+        return new Vector3(x, y, Mathf.DeltaAngle(0f, zDeg));
+    }
+
+    /// <summary>
     /// モデル再構築
     /// </summary>
     /// <param name="instance"></param>

@@ -25,6 +25,22 @@ public class MPS2_3AS : ParallelLink
         SPRING_OFFSET_Y = 0.05f;
     }
 
+    protected override bool TryModelPoseTarget(out Vector3 raw)
+    {
+        // SetTarget は逆解の順番を逆にして当てる（angle = {tmp[2], tmp[1], tmp[0]}、arm1[i].z = angle[i][0]）
+        raw = Vector3.zero;
+        if (arm1.Count < AXIS_MAX)
+        {
+            return false;
+        }
+        var th1 = new float[AXIS_MAX];
+        for (var k = 0; k < AXIS_MAX; k++)
+        {
+            th1[k] = Mathf.DeltaAngle(0f, arm1[AXIS_MAX - 1 - k].localEulerAngles.z);
+        }
+        return SolveModelPose(th1, false, out raw);
+    }
+
     public override void SetTarget(float x, float y, float z)
     {
         y = -y;

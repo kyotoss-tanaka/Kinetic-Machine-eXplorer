@@ -30,13 +30,16 @@ public class RS007L : Kinematics6D
         base.ModelRestructProcess();
 
         var children = unitSetting.moveObject.GetComponentsInChildren<Transform>().ToList();
-        baseObject = children.FirstOrDefault(d => d.name.Contains("ベース"))?.gameObject;
-        j1 = children.FirstOrDefault(d => d.name.Contains("_J1"));
-        j2 = children.FirstOrDefault(d => d.name.Contains("_J2"));
-        j3 = children.FirstOrDefault(d => d.name.Contains("_J3"));
-        j4 = children.FirstOrDefault(d => d.name.Contains("_J4"));
-        j5 = children.FirstOrDefault(d => d.name.Contains("_J5"));
-        j6 = children.FirstOrDefault(d => d.name.Contains("_J6"));
+        // 各アームはロボットの定義（Datas/Robots/RobotModels.json）の名前で探す。定義に無いアームはここに書いた既定の名前で探す
+        var finder = RobotDefinitions.Finder(unitSetting, Parameters.RobotType.RS007L, children, HeadObject);
+        baseObject = finder.Find("ベース", "ベース");
+        j1 = finder.Find("J1", "_J1")?.transform;
+        j2 = finder.Find("J2", "_J2")?.transform;
+        j3 = finder.Find("J3", "_J3")?.transform;
+        j4 = finder.Find("J4", "_J4")?.transform;
+        j5 = finder.Find("J5", "_J5")?.transform;
+        j6 = finder.Find("J6", "_J6")?.transform;
+        finder.Log();
 
         // 親子関係（先端→根の順に親をたどれるよう）。
         if (j6 != null) { j6.parent = j5; }
@@ -55,6 +58,20 @@ public class RS007L : Kinematics6D
     /// <summary>
     /// 目標姿勢セット。引数は J1..J6(度)。J1=Y軸、J2..J6=X軸（Robo6Axis と同じ規約）。
     /// </summary>
+    protected override bool TryModelPoseJoints(out Vector3 joints, out Vector3 rotates)
+    {
+        // SetTarget の当て方を逆にたどる（J1=j1.y、J2～J6=各 x）
+        joints = Vector3.zero;
+        rotates = Vector3.zero;
+        if (!j1 || !j2 || !j3 || !j4 || !j5 || !j6)
+        {
+            return false;
+        }
+        joints = new Vector3(AxisAngle(j1, 1), AxisAngle(j2, 0), AxisAngle(j3, 0));
+        rotates = new Vector3(AxisAngle(j4, 0), AxisAngle(j5, 0), AxisAngle(j6, 0));
+        return true;
+    }
+
     public override void SetTarget(float x, float y, float z, float rx, float ry, float rz)
     {
         if (j1) { j1.localEulerAngles = new Vector3(0f, x, 0f); }    // J1

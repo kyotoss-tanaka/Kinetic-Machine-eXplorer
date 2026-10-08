@@ -1580,6 +1580,8 @@ namespace Parameters
                 }
             }
             catch { }
+            // ロボットの定義（KMX に同梱。派生ロボットをコードを直さずに登録するためのもの）
+            await RobotDefinitions.LoadAsync();
             // プラットフォームで enabled を上書き。WebGL以外は HmxLink.json の enabled を無視（＝無効）。
 #if UNITY_WEBGL && !UNITY_EDITOR
             if (GlobalScript.hmxLink != null) { GlobalScript.hmxLink.enabled = true; }   // 実WebGL=有効
@@ -1697,6 +1699,12 @@ namespace Parameters
         /// <returns></returns>
         private RobotType GetRobotType(UnitSetting unitSetting)
         {
+            // ロボットの定義（Datas/Robots/RobotModels.json）で判別できればそれを使う
+            var def = RobotDefinitions.Resolve(unitSetting);
+            if ((def != null) && (def.RobotType != RobotType.UNDEFINED))
+            {
+                return def.RobotType;
+            }
             var children = unitSetting.moveObject.GetComponentsInChildren<Transform>().ToList();
             // パラレルタイプ取得
             return children.Find(d => d.name.Contains("YF03N4_")) != null ? RobotType.YF03N4 :

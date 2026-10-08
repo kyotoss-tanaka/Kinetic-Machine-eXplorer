@@ -6,6 +6,22 @@ public class MPS2_4AS : ParallelLink
 {
 //    private float BASE_OFFSET = 0.228f;
 
+    protected override bool TryModelPoseTarget(out Vector3 raw)
+    {
+        // arm1[i].z = angle[i][0]
+        raw = Vector3.zero;
+        if ((arm1 == null) || (arm1.Count < AXIS_MAX))
+        {
+            return false;
+        }
+        var th1 = new float[AXIS_MAX];
+        for (var i = 0; i < AXIS_MAX; i++)
+        {
+            th1[i] = Mathf.DeltaAngle(0f, arm1[i].transform.localEulerAngles.z);
+        }
+        return SolveModelPose(th1, false, out raw);
+    }
+
     public override void SetTarget(float x, float y, float z)
     {
         /*
