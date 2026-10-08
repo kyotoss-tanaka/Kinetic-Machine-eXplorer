@@ -62,6 +62,45 @@ public class KssBaseScript : BaseBehaviour
     protected bool isManual;
 
     /// <summary>
+    /// マニュアルで動かせる軸（画面のマニュアル操作用。Inspector で manual にして値を変えるのと同じ）
+    /// </summary>
+    public class ManualAxis
+    {
+        /// <summary>表示名（X / J1 / 値 など）</summary>
+        public string name;
+        /// <summary>単位（mm / ° / ms。無ければ空）</summary>
+        public string unit = "";
+        /// <summary>今の値</summary>
+        public Func<float> get;
+        /// <summary>値を入れる（マニュアルの時に画面から呼ぶ）</summary>
+        public Action<float> set;
+        /// <summary>ラベルをドラッグした時の、1ピクセルあたりの変化量</summary>
+        public float dragStep = 1f;
+        /// <summary>範囲（無ければ無制限）</summary>
+        public float min = float.NegativeInfinity;
+        public float max = float.PositiveInfinity;
+        /// <summary>整数の値か</summary>
+        public bool integer;
+    }
+
+    /// <summary>
+    /// マニュアルの ON/OFF（Inspector の isManual と同じ）
+    /// </summary>
+    public bool ManualMode
+    {
+        get { return isManual; }
+        set { isManual = value; }
+    }
+
+    /// <summary>
+    /// マニュアルで動かせる軸の一覧。マニュアルに対応していないユニットは null
+    /// </summary>
+    public virtual List<ManualAxis> GetManualAxes()
+    {
+        return null;
+    }
+
+    /// <summary>
     /// キャンバス表示
     /// </summary>
     protected virtual bool isCanvas { get { return false; } }

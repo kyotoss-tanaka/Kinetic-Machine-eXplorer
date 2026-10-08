@@ -41,6 +41,17 @@ public class MotionChangeOver : AxisMotionBase
     /// <summary>
     /// 更新処理
     /// </summary>
+    /// <summary>
+    /// マニュアルで動かせる軸（段取り替えの値。ドラッグは 10ピクセルで1つ）
+    /// </summary>
+    public override List<ManualAxis> GetManualAxes()
+    {
+        return new List<ManualAxis>
+        {
+            new ManualAxis { name = "値", get = () => value, set = v => value = Mathf.RoundToInt(v), dragStep = 0.1f, integer = true },
+        };
+    }
+
     protected override void MyFixedUpdate()
     {
         if (!isManual)

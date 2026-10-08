@@ -63,6 +63,18 @@ public class MotionExternal : AxisMotionBase
     /// <summary>
     /// 更新処理
     /// </summary>
+    /// <summary>
+    /// マニュアルで動かせる軸（タグの値そのもの。ドラッグは 1ピクセルで約1mm）
+    /// </summary>
+    public override List<ManualAxis> GetManualAxes()
+    {
+        var step = Mathf.Max(1f, (rate == 0 ? 1000f : rate) / 1000f);
+        return new List<ManualAxis>
+        {
+            new ManualAxis { name = "値", get = () => value, set = v => value = Mathf.RoundToInt(v), dragStep = step, integer = true },
+        };
+    }
+
     protected override void MyFixedUpdate()
     {
         if (!GlobalScript.isLoaded)

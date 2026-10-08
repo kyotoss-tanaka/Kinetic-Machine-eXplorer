@@ -342,6 +342,14 @@ public class ArmRobot : UseHeadBase3DScript
     }
 
     /// <summary>
+    /// ヘッドを回す軸は無い（ヘッドの向きは平行リンクで決まる）ので、マニュアルは X・Y だけ
+    /// </summary>
+    protected override bool HasManualZ
+    {
+        get { return false; }
+    }
+
+    /// <summary>
     /// ロボットの定義で使う型（アームの名前をどの型の定義から読むか）
     /// </summary>
     protected virtual Parameters.RobotType DefinitionType

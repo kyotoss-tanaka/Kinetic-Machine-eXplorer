@@ -174,6 +174,31 @@ public class Kinematics3D : KinematicsBase
         return ok;
     }
 
+    /// <summary>
+    /// マニュアルで Z（ヘッドの回転）を動かせるか（ヘッドを回す軸が無い型は false）
+    /// </summary>
+    protected virtual bool HasManualZ
+    {
+        get { return true; }
+    }
+
+    /// <summary>
+    /// マニュアルで動かせる軸（目標の X・Y（mm）と Z（°））
+    /// </summary>
+    public override List<ManualAxis> GetManualAxes()
+    {
+        var axes = new List<ManualAxis>
+        {
+            new ManualAxis { name = "X", unit = "mm", get = () => target.x, set = v => target.x = v, dragStep = 1f },
+            new ManualAxis { name = "Y", unit = "mm", get = () => target.y, set = v => target.y = v, dragStep = 1f },
+        };
+        if (HasManualZ)
+        {
+            axes.Add(new ManualAxis { name = "Z", unit = "°", get = () => target.z, set = v => target.z = v, dragStep = 0.5f });
+        }
+        return axes;
+    }
+
     protected override void MyFixedUpdate()
     {
         if (isManual)

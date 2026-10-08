@@ -99,6 +99,18 @@ public class MotionActionTable : AxisMotionBase
     /// <summary>
     /// 更新処理
     /// </summary>
+    /// <summary>
+    /// マニュアルで動かせる軸（サイクル内の時刻。ドラッグは 300ピクセルで1サイクル）
+    /// </summary>
+    public override List<ManualAxis> GetManualAxes()
+    {
+        var length = unitSetting.actionSetting.cycle == 0 ? 1000 : unitSetting.actionSetting.cycle;
+        return new List<ManualAxis>
+        {
+            new ManualAxis { name = "時刻", unit = "ms", get = () => cycle, set = v => cycle = Mathf.RoundToInt(v), dragStep = Mathf.Max(1f, length / 300f), min = 0, max = length - 1, integer = true },
+        };
+    }
+
     protected override void MyFixedUpdate()
     {
         time = GlobalScript.GetTagData(cycleTag);

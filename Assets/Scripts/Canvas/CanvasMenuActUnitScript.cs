@@ -54,6 +54,11 @@ public class CanvasMenuActUnitScript : CanvasMenuBaseScript
     private CanvasMenuInfoScript menuInfoScript = null;
 
     /// <summary>
+    /// マニュアル操作の画面（ユニットを選ぶと右に出る）
+    /// </summary>
+    private UnitManualPanel manualPanel;
+
+    /// <summary>
     /// ドロップダウン
     /// </summary>
     private TMP_Dropdown dropDown;
@@ -262,6 +267,12 @@ public class CanvasMenuActUnitScript : CanvasMenuBaseScript
 
         menuInfoScript = FindObjectsByType<CanvasMenuInfoScript>(FindObjectsSortMode.None).ToList()[0];
 
+        // マニュアル操作の画面（ActUnitInfo と同じ親に置き、右に並べる）
+        if (transform.parent is RectTransform manualParent)
+        {
+            manualPanel = UnitManualPanel.Create(manualParent, (RectTransform)transform);
+        }
+
         // リニアメニュー
         var linearUnit = GlobalScript.LoadPrefabObject("Prefabs/Canvas", "LinearInfo");
         if (linearUnit.Count > 0)
@@ -314,6 +325,10 @@ public class CanvasMenuActUnitScript : CanvasMenuBaseScript
         if (uiLinearInfo != null)
         {
             uiLinearInfo.SetActive(false);
+        }
+        if (manualPanel != null)
+        {
+            manualPanel.Hide();
         }
     }
 
@@ -1111,6 +1126,18 @@ public class CanvasMenuActUnitScript : CanvasMenuBaseScript
         else
         {
             uiLinearInfo.SetActive(false);
+        }
+        // マニュアル操作の画面（ロボット・軸ユニット。段ボールや未選択では閉じる）
+        if (manualPanel != null)
+        {
+            if ((unitSetting != null) && !CardboardScript.HasUnit(unitSetting))
+            {
+                manualPanel.Show(unitSetting);
+            }
+            else
+            {
+                manualPanel.Hide();
+            }
         }
         // 目標位置名が見えるよう、一番長い名前に合わせて列の幅を変える
         AdjustTargetColumn();

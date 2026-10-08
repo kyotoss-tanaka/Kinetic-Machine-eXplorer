@@ -233,6 +233,22 @@ public class Kinematics6D : Kinematics3D, IRos2PlanTarget
         outWorld.Clear();
     }
 
+    /// <summary>
+    /// マニュアルで動かせる軸（J1～J6 の関節角（°））
+    /// </summary>
+    public override List<ManualAxis> GetManualAxes()
+    {
+        return new List<ManualAxis>
+        {
+            new ManualAxis { name = "J1", unit = "°", get = () => target.x, set = v => target.x = v, dragStep = 0.5f },
+            new ManualAxis { name = "J2", unit = "°", get = () => target.y, set = v => target.y = v, dragStep = 0.5f },
+            new ManualAxis { name = "J3", unit = "°", get = () => target.z, set = v => target.z = v, dragStep = 0.5f },
+            new ManualAxis { name = "J4", unit = "°", get = () => rotate.x, set = v => rotate.x = v, dragStep = 0.5f },
+            new ManualAxis { name = "J5", unit = "°", get = () => rotate.y, set = v => rotate.y = v, dragStep = 0.5f },
+            new ManualAxis { name = "J6", unit = "°", get = () => rotate.z, set = v => rotate.z = v, dragStep = 0.5f },
+        };
+    }
+
     /// <summary>手動モードか（true=上位指令を無視して target/rotate で表示）。</summary>
     public bool IsManual => isManual;
 

@@ -237,15 +237,37 @@ public class InputManager : BaseBehaviour
     }
 
     /// <summary>
+    /// 入力欄（TMP_InputField / InputField）にフォーカスがあるか
+    /// </summary>
+    private static bool IsTyping()
+    {
+        var es = UnityEngine.EventSystems.EventSystem.current;
+        var go = es != null ? es.currentSelectedGameObject : null;
+        if (go == null)
+        {
+            return false;
+        }
+        var tmp = go.GetComponent<TMPro.TMP_InputField>();
+        if ((tmp != null) && tmp.isFocused)
+        {
+            return true;
+        }
+        var legacy = go.GetComponent<UnityEngine.UI.InputField>();
+        return (legacy != null) && legacy.isFocused;
+    }
+
+    /// <summary>
     /// キーアップデート
     /// </summary>
     private void KeyUpdate()
     {
+        // 入力欄に文字を打っている間はショートカット（R・F・M 等）を動かさない（離した通知だけは送る）
+        var typing = IsTyping();
         foreach (var kvp in keyActions)
         {
             var key = kvp.Key;
             var action = kvp.Value;
-            if (Keyboard.current[key].wasPressedThisFrame)
+            if (Keyboard.current[key].wasPressedThisFrame && !typing)
             {
                 action?.Invoke(key, true, Keyboard.current.ctrlKey.isPressed, Keyboard.current.shiftKey.isPressed);
                 keyValues[key] = true;
