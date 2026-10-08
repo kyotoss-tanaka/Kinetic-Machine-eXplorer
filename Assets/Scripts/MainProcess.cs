@@ -246,8 +246,9 @@ public class MainProcess : KssBaseScript
             }
             raycastHits.Clear();
             raycastHits.AddRange(hits);
-            // 回転中心セット
-            if (cameraController != null)
+            // 回転中心セット（Ctrl+クリックの時だけ。普通のクリックで視点の中心が変わらないように。
+            // タッチ操作は Ctrl を押せないので、従来どおりクリックで変える）
+            if ((cameraController != null) && (isControl || GlobalScript.touchSelectOverride))
             {
                 cameraController.SetTargetPosition(rotateCenter);
             }
