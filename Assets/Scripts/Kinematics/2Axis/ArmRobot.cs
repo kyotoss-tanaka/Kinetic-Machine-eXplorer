@@ -202,6 +202,12 @@ public class ArmRobot : UseHeadBase3DScript
             plate = plateTmp;
             if ((HeadObject != null) && (HeadObject != plate))
             {
+                // プレートがヘッドの中にある時は、先にプレートをヘッドから出す（ヘッドを自分の子の下に付けられないため）。
+                // ヘッドはプレートに付けて、プレートと一緒に動かす
+                if (plate.transform.IsChildOf(HeadObject.transform))
+                {
+                    plate.transform.SetParent(HeadObject.transform.parent, true);
+                }
                 HeadObject.transform.parent = plate.transform;
                 head_offset = HeadObject.transform.localEulerAngles.z;
             }

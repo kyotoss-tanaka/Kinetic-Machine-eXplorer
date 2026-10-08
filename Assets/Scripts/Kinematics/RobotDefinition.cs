@@ -160,30 +160,37 @@ public static class RobotDefinitions
 
     /// <summary>
     /// アームの部品を探す道具を作る（型の定義のアームの名前で探し、定義に無いアームはコードの既定の名前で探す）。
-    /// ロボットの中に入れた別のユニット（登録したヘッド・子ユニット）の中は探さない。
-    /// （ヘッドのユニット名「N1_ヘッド」が、プレートを探す名前「ヘッド」に当たり、ヘッドのユニットをプレートとして回していた。
-    ///   アーム長もそこから測るので、ヘッドを付けると位置が変わっていた）
+    /// まずロボット本体（登録したヘッド・子ユニットの中を除く）から探し、無ければヘッドの中、次に子ユニットの中を探す。
+    /// プレートはヘッドに含まれることがある。
+    /// （ヘッドのユニット名「N1_ヘッド」が、プレートを探す名前「ヘッド」に当たり、ヘッドのユニットをプレートとして回していたため、
+    ///   本体を先に探す。ユニットの入れ物そのもの（名前がユニット名）は探さない）
     /// </summary>
     /// <param name="head">登録したヘッド（無ければ null）</param>
     public static RobotArmFinder Finder(UnitSetting unitSetting, RobotType type, List<Transform> children, GameObject head = null)
     {
-        var excludes = new List<Transform>();
+        var units = new List<Transform>();
         if (head != null)
         {
-            excludes.Add(head.transform);
+            units.Add(head.transform);
         }
         if ((unitSetting != null) && (unitSetting.children != null))
         {
             foreach (var child in unitSetting.children)
             {
-                if (child.isUnit && (child.childObject != null))
+                if (child.isUnit && (child.childObject != null) && !units.Contains(child.childObject.transform))
                 {
-                    excludes.Add(child.childObject.transform);
+                    units.Add(child.childObject.transform);
                 }
             }
         }
-        var list = (excludes.Count == 0) ? children : children.FindAll(t => !excludes.Exists(e => (t == e) || t.IsChildOf(e)));
-        return new RobotArmFinder(unitSetting, type, Get(type), list);
+        var main = (units.Count == 0) ? children : children.FindAll(t => !units.Exists(e => (t == e) || t.IsChildOf(e)));
+        // 予備：ヘッドの中 → 子ユニットの中の順（入れ物そのものは除く）
+        var spare = new List<Transform>();
+        foreach (var u in units)
+        {
+            spare.AddRange(children.FindAll(t => (t != u) && t.IsChildOf(u) && !spare.Contains(t)));
+        }
+        return new RobotArmFinder(unitSetting, type, Get(type), main, spare);
     }
 }
 
@@ -201,16 +208,22 @@ public class RobotArmFinder
     private readonly List<Transform> children;
 
     /// <summary>
+    /// 本体で見つからない時に探す物（登録したヘッドの中・子ユニットの中）
+    /// </summary>
+    private readonly List<Transform> spare;
+
+    /// <summary>
     /// 探した結果（ログ用。見つからなければ found は null）
     /// </summary>
     private readonly List<(string role, string found, bool fromDefinition)> results = new();
 
-    public RobotArmFinder(UnitSetting unitSetting, RobotType type, RobotDefinition definition, List<Transform> children)
+    public RobotArmFinder(UnitSetting unitSetting, RobotType type, RobotDefinition definition, List<Transform> children, List<Transform> spare = null)
     {
         this.unitSetting = unitSetting;
         this.type = type;
         this.definition = definition;
         this.children = children;
+        this.spare = spare ?? new List<Transform>();
     }
 
     /// <summary>
@@ -219,21 +232,36 @@ public class RobotArmFinder
     public GameObject Find(string role, params string[] defaults)
     {
         var fromDefinition = (definition != null) && definition.HasArm(role);
-        GameObject found = null;
-        foreach (var pattern in fromDefinition ? definition.arms[role] : defaults.ToList())
+        var patterns = fromDefinition ? definition.arms[role] : defaults.ToList();
+        var found = FindIn(children, patterns);
+        var inUnit = false;
+        if ((found == null) && (spare.Count > 0))
+        {
+            found = FindIn(spare, patterns);
+            inUnit = found != null;
+        }
+        results.Add((role, found != null ? found.name + (inUnit ? "(ヘッド/子ユニット内)" : "") : null, fromDefinition));
+        return found;
+    }
+
+    /// <summary>
+    /// 名前の一覧を先頭から順に試し、最初に見つかった物
+    /// </summary>
+    private static GameObject FindIn(List<Transform> list, List<string> patterns)
+    {
+        foreach (var pattern in patterns)
         {
             if (!TryParse(pattern, out var key, out var up))
             {
                 continue;
             }
-            found = Up(children.Find(d => d.name.Contains(key)), up);
+            var found = Up(list.Find(d => d.name.Contains(key)), up);
             if (found != null)
             {
-                break;
+                return found;
             }
         }
-        results.Add((role, found != null ? found.name : null, fromDefinition));
-        return found;
+        return null;
     }
 
     /// <summary>
@@ -249,7 +277,7 @@ public class RobotArmFinder
             {
                 continue;
             }
-            foreach (var hit in children.FindAll(d => d.name.Contains(key)))
+            foreach (var hit in children.FindAll(d => d.name.Contains(key)).Concat(spare.FindAll(d => d.name.Contains(key))))
             {
                 var obj = Up(hit, up);
                 if ((obj != null) && !list.Contains(obj))
