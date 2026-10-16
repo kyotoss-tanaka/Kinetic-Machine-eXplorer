@@ -102,6 +102,7 @@ public class ComRos2 : MonoBehaviour, ITagCom
         public string flangeNameContains;    // 6軸フランジ名（ヘッド attach）
         public string attachLinkName;        // URDF attach リンク名（例 "flange" / "tool0"）
         public Vector3 baseCalibrationEuler; // 機種別の Unity基準→URDF base_link 補正
+        public float originHeightM;          // DCS/World 原点（J1軸上・J2軸の高さ）の URDF base_link からの高さ(m)。0=機種既定
     }
     #endregion 設定
 

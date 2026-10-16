@@ -177,6 +177,7 @@ public class ComRos2Obstacles : MonoBehaviour
             if (!string.IsNullOrEmpty(cfg.flangeNameContains)) { flangeNameContains = cfg.flangeNameContains; }
             if (!string.IsNullOrEmpty(cfg.attachLinkName)) { attachLinkName = cfg.attachLinkName; }
             baseCalibrationEuler = cfg.baseCalibrationEuler;   // 機種別の base 補正
+            originHeightOverride = cfg.originHeightM;          // 0 なら機種既定（OriginHeightByModel）
         }
         var head = r.Target.GetHeadObject();
         headRoot = head != null ? head.transform : null;
@@ -431,9 +432,92 @@ public class ComRos2Obstacles : MonoBehaviour
             }
         }
 
+        // 基部原点の補正：Unity の基部(crx ルート)は CAD 原点＝FANUC World 原点（J1軸上・J2軸の高さ）にあり、
+        //   URDF base_link（台座の下面）と高さが違う（CRX-30iA で 0.37m）。補正しないと全障害物がその分
+        //   低く planning scene に載り、Unity では当たらない目標姿勢が GOAL 干渉で計画不能になる。
+        Vector3 blCorr = BaseLinkCorrection(baseT);
+        if (blCorr != Vector3.zero)
+        {
+            foreach (var ob in list)
+            {
+                ob.position += blCorr;
+            }
+            ClearRobotStand(list);
+        }
+
         transport.PublishObstacles(topic, frameId, list);
-        Debug.Log($"[ComRos2Obstacles] {list.Count} obstacles 送信 (frame='{frameId}', radius={radius}, 除外={skipped} 巨大/基部包含, 明示追加={extra}, 地面={(sendGroundPlane ? 1 : 0)})");
+        Debug.Log($"[ComRos2Obstacles] {list.Count} obstacles 送信 (frame='{frameId}', radius={radius}, 除外={skipped} 巨大/基部包含, 明示追加={extra}, 地面={(sendGroundPlane ? 1 : 0)}, base_link補正={blCorr.ToString("F3")})");
         return true;
+    }
+
+    /// <summary>
+    /// 機種ごとの「World 原点（J1軸上・J2軸の高さ）」の URDF base_link（台座の下面）からの高さ(m)。
+    /// 値は fanuc_description の J1 joint origin z。未登録の機種は補正しない（従来どおり 基部=base_link）。
+    /// </summary>
+    private static readonly Dictionary<string, float> OriginHeightByModel = new()
+    {
+        { "crx30ia", 0.37f },
+    };
+
+    /// <summary>Ros2Info.json robots[].originHeightM（&gt;0 なら機種既定より優先）。</summary>
+    private float originHeightOverride;
+
+    /// <summary>
+    /// 障害物位置（基部相対・Unity 軸・m）を base_link 相対にするための加算量。
+    /// base_link = World 原点の真下 h。障害物フレームの Unity y が ROS z。
+    /// </summary>
+    private Vector3 BaseLinkCorrection(Transform baseT)
+    {
+        var target = baseT.GetComponentInParent<IRos2PlanTarget>();
+        if (target == null)
+        {
+            return Vector3.zero;
+        }
+        float h = originHeightOverride > 0f ? originHeightOverride
+            : (OriginHeightByModel.TryGetValue(target.ModelKey, out var v) ? v : 0f);
+        if (h <= 0f)
+        {
+            return Vector3.zero;
+        }
+        Quaternion invRef = Quaternion.Inverse(baseT.rotation);
+        Quaternion cal = Quaternion.Euler(baseCalibrationEuler);
+        Vector3 origin = (cal * (invRef * (target.GetRobotOriginWorldPosition() - baseT.position))) * unitScale;
+        return new Vector3(-origin.x, h - origin.y, -origin.z);
+    }
+
+    /// <summary>ロボットの真下で、上面がこの範囲(m)で台座の下面(base_link z=0)に近い箱を架台とみなす。</summary>
+    private const float StandSearchBand = 0.05f;
+    /// <summary>架台の上面を台座の下面からこれだけ下げる(m)。</summary>
+    private const float StandClearance = 0.01f;
+
+    /// <summary>
+    /// base_link 補正後、ロボットが載る架台の上面が台座の下面に接していると、接触だけで
+    /// START_STATE_IN_COLLISION になる。真下の箱の上面を少し下げて送る（ロボットは架台に固定）。
+    /// </summary>
+    private void ClearRobotStand(List<Ros2Obstacle> list)
+    {
+        foreach (var ob in list)
+        {
+            if (ob.type != 1 || ob.dimensions == null || ob.dimensions.Length < 3)
+            {
+                continue;
+            }
+            // 障害物フレーム(Unity 軸)：x↔ROS -y(dims[1]) / y↔ROS z(dims[2]) / z↔ROS x(dims[0])
+            float hx = ob.dimensions[1] * 0.5f;
+            float hy = ob.dimensions[2] * 0.5f;
+            float hz = ob.dimensions[0] * 0.5f;
+            bool under = Mathf.Abs(ob.position.x) <= hx && Mathf.Abs(ob.position.z) <= hz;
+            float top = ob.position.y + hy;
+            float bottom = ob.position.y - hy;
+            float newTop = -StandClearance;
+            if (!under || Mathf.Abs(top) > StandSearchBand || newTop <= bottom)
+            {
+                continue;
+            }
+            ob.dimensions[2] = newTop - bottom;
+            ob.position.y = (newTop + bottom) * 0.5f;
+            Debug.Log($"[ComRos2Obstacles] 架台とみなして上面を下げる: '{ob.id}' 上面 {top:F3}→{newTop:F3} m");
+        }
     }
 
     /// <summary>ヘッド全箱の中心がこの距離(m)以内でフランジ原点に潰れていたら「pose未確定＝縮退」とみなす。</summary>
