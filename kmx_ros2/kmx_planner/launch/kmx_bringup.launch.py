@@ -68,12 +68,17 @@ def generate_launch_description():
     ]
 
     # ① Unity 橋渡し（TCP endpoint）
+    #   respawn: ros_tcp_endpoint v0.7.0 は Unity 再接続時の登録し直し（通信スレッドでノード破棄）と
+    #   executor.spin() が競合すると、まれに exit 1 で落ちる。落ちても数秒で自動復帰させる
+    #   （他ノードは生きたままなので、これが無いと Unity は受け口の無い状態で再接続を続ける）。
     endpoint = Node(
         package='ros_tcp_endpoint',
         executable='default_server_endpoint',
         name='UnityEndpoint',
         parameters=[{'ROS_IP': ros_ip, 'ROS_TCP_PORT': 10000}],
         output='screen',
+        respawn=True,
+        respawn_delay=2.0,
     )
 
     # ② MoveIt move_group（use_moveit:=true のときだけ。RVizも付随して開く）

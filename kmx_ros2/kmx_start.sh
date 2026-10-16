@@ -7,7 +7,8 @@
 #     - 未起動                                         → 起動
 #     - 起動中＋同一(model,use_mock,robot_ip,dcs_host) → 何もしない（★同一条件は再起動しない）
 #     - 起動中＋いずれか変化                           → stop → 新条件で再起動（機種/接続 切替＝方式A）
-#   ログ: ~/ros2_ws/kmx_bringup.log  PID: ~/ros2_ws/.kmx_bringup.pid
+#     - 起動中でも Unity 受け口(ros_tcp_endpoint)が居ない → stop → 再起動
+#   ログ: ~/ros2_ws/kmx_bringup.log（前回分は kmx_bringup.<日時>.log・直近10本）  PID: ~/ros2_ws/.kmx_bringup.pid
 #   稼働中の条件（Unity 参照用）: .kmx_robot_model / .kmx_use_mock / .kmx_robot_ip / .kmx_dcs_host
 WS="/home/kyotoss/ros2_ws"
 PIDFILE="$WS/.kmx_bringup.pid"
@@ -23,6 +24,11 @@ USE_MOCK="${4:-true}"           # 第4引数: true=模擬HW / false=実機接続
 ROBOT_IP="${5:-}"              # 第5引数: use_mock=false 時の Stream Motion 接続先IP（CSV運用では未使用）
 DCS_HOST="${6:-auto}"          # 第6引数: ★DCS Karel ソケット接続先。auto=WSLゲートウェイ(ROBOGUIDE同一PC)/実機=コントローラIP
 export KMX_RVIZ="$RVIZ"
+# WSLg の GPU 描画（Mesa d3d12）では RViz の 3D ビューが真っ黒になるため、RViz を出す時は CPU 描画にする。
+#   GPU で描きたい環境では KMX_RVIZ_GPU=1 を付けて呼ぶ。
+if [ "$RVIZ" = "1" ] && [ "${KMX_RVIZ_GPU:-0}" != "1" ]; then
+  export LIBGL_ALWAYS_SOFTWARE=1
+fi
 
 # robot_model の妥当性チェック（空・不正・旧引数の boolean 等は crx30ia にフォールバック）。
 #   新機種を足したらこの一覧にも追加（fanuc_moveit.launch.py の choices と一致させる）。
@@ -63,9 +69,19 @@ if pgrep -f "ros2 launch kmx_planner kmx_bringup" >/dev/null 2>&1; then
   CUR_MOCK="$(cat "$MOCKFILE" 2>/dev/null)";  [ -z "$CUR_MOCK" ]  && CUR_MOCK="true"
   CUR_IP="$(cat "$IPFILE" 2>/dev/null)";      [ -z "$CUR_IP" ]    && CUR_IP="127.0.0.1"
   CUR_DCS="$(cat "$DCSHOSTFILE" 2>/dev/null)"; [ -z "$CUR_DCS" ]  && CUR_DCS="auto"
-  if [ "$CUR_MODEL" = "$ROBOT_MODEL" ] && [ "$CUR_MOCK" = "$USE_MOCK" ] && [ "$CUR_IP" = "$ROBOT_IP" ] && [ "$CUR_DCS" = "$DCS_HOST" ]; then
+  # Unity 受け口(endpoint)だけ落ちて launch が残っていると、同一条件でも Unity は繋がらない。
+  #   respawn の待ち時間(2s)を越えて居ない場合は同一条件でも再起動する。
+  EP_ALIVE=0
+  for i in 1 2 3 4 5 6; do
+    pgrep -f "ros_tcp_endpoint/default_server_endpoint" >/dev/null 2>&1 && { EP_ALIVE=1; break; }
+    sleep 0.5
+  done
+  if [ "$CUR_MODEL" = "$ROBOT_MODEL" ] && [ "$CUR_MOCK" = "$USE_MOCK" ] && [ "$CUR_IP" = "$ROBOT_IP" ] && [ "$CUR_DCS" = "$DCS_HOST" ] && [ $EP_ALIVE -eq 1 ]; then
     echo "[kmx] already running（同一条件 model=$ROBOT_MODEL use_mock=$USE_MOCK robot_ip=$ROBOT_IP dcs_host=$DCS_HOST・再起動しません）"
     exit 0
+  fi
+  if [ $EP_ALIVE -eq 0 ]; then
+    echo "[kmx] Unity 受け口(ros_tcp_endpoint)が居ない → stop → 再起動"
   fi
   echo "[kmx] 切替 ($CUR_MODEL,$CUR_MOCK,$CUR_IP,$CUR_DCS) → ($ROBOT_MODEL,$USE_MOCK,$ROBOT_IP,$DCS_HOST)（stop → 再起動）"
   "$WS/kmx_stop.sh"
@@ -88,6 +104,12 @@ echo "$ROBOT_MODEL" > "$MODELFILE"
 echo "$USE_MOCK"    > "$MOCKFILE"
 echo "$ROBOT_IP"    > "$IPFILE"
 echo "$DCS_HOST"    > "$DCSHOSTFILE"
+
+# 前回のログを日時付きで残す（直近10本）。落ちたノードのエラー出力を後から追えるように。
+if [ -s "$LOG" ]; then
+  mv -f "$LOG" "$WS/kmx_bringup.$(date +%Y%m%d-%H%M%S).log"
+  ls -1t "$WS"/kmx_bringup.*.log 2>/dev/null | tail -n +11 | xargs -r rm -f
+fi
 
 # 端末から切り離した新セッションで起動（wsl.exe が抜けても生存）。PID=セッションリーダ。
 setsid bash -c "exec ros2 launch kmx_planner kmx_bringup.launch.py use_moveit:=$USE_MOVEIT robot_model:=$ROBOT_MODEL use_mock:=$USE_MOCK robot_ip:=$ROBOT_IP dcs_host:=$DCS_HOST" \
