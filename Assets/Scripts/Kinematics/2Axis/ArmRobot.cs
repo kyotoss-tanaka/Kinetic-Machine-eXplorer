@@ -105,25 +105,118 @@ public class ArmRobot : UseHeadBase3DScript
             return;
         }
         angle = kinematics_R(y, x);
-        arm1_1.transform.localEulerAngles = new Vector3(ang1_1.x, ang1_1.y, angle[0]);
-        arm1_2.transform.localEulerAngles = new Vector3(ang1_2.x, ang1_2.y, angle[0] - 180 - (angle[0] - angle[1]));
-        arm1_3.transform.localEulerAngles = new Vector3(ang1_3.x, ang1_3.y, angle[0]);
-        arm1Lever.transform.localEulerAngles = new Vector3(ang1Lever.x, ang1Lever.y, 180 + (angle[0] - angle[1]));
-        // フィン（三角プレート）と第二姿勢保持リンクは、モデルの初期の姿勢からの変化分で回す。
-        // フィンは初期の向きを保ち、第二姿勢保持リンクは第二アームと平行を保つ。
-        // （以前は「フィンの向き＝0°」と決め打ちしていたため、フィンの基準が -90° の天吊り(R8790 N1)で
-        //   フィンが90°ずれ、つながるアームが外れていた。フィンが0°のモデルでは以前と同じ値になる）
-        var arm1Delta = angle[0] - ang1_1.z;
-        armTri.transform.localEulerAngles = new Vector3(angTri.x, angTri.y, angTri.z - arm1Delta);
-        arm2_1.transform.localEulerAngles = new Vector3(ang2_1.x, ang2_1.y, -angle[1]);
-        arm2_2.transform.localEulerAngles = new Vector3(ang2_2.x, ang2_2.y, ang2_2.z + arm1Delta + (-angle[1] - ang2_1.z));
-        // ヘッド（プレート）の姿勢は、第二アームと第二姿勢保持リンクの平行リンクで保たれる（ヘッドを回す軸は無い）。
-        // そのため、フィンと同じくモデルの初期の向きから、第二アームが回った分だけ打ち消して向きを保つ。
-        // （以前は Z の値で角度を決めていたため、Z がモデルの姿勢と合わないと（D1 は Z=-90 の時だけ合う）
-        //   ヘッドが回り、上下に並ぶはずの接合部が水平に並んでいた）
-        var arm2Delta = arm1Delta + (-angle[1] - ang2_1.z);
-        plate.transform.localEulerAngles = new Vector3(angP.x, angP.y, angP.z - arm2Delta);
+        ApplyAngles(angle[0], angle[1], partSigns);
         LogLinkGaps(new Vector3(x, y, z));
+    }
+
+    // ---- 部品の回し方 ----
+    // 各部品は「モデルの初期の姿勢からの変化分」だけ、全部品共通の1本の軸（第一アームの回転軸）のまわりに回す。
+    // 以前は部品ごとに自分の Z 軸で localEulerAngles.z を決め打ちしていたため、CAD で Z 軸が裏返しの部品
+    // （R9240 C1/C5 の二軸リンク・姿勢保持リンクは Y=180°）だけ逆に回り、つながる点が外れていた。
+    // 向き(partSigns)は組み立て時に仮想で動かして、つながる点が離れない組み合わせを選ぶ（DecidePartSigns）。
+    private static readonly string[] PartNames = { "第一アーム", "二軸リンク", "第一姿勢保持リンク", "二軸レバー", "フィン", "第二アーム", "第二姿勢保持リンク", "ヘッド" };
+    private const int ArmPartCount = 8;
+    private Transform[] parts;
+    private readonly Quaternion[] partInitRot = new Quaternion[ArmPartCount];
+    private readonly Vector3[] partAxis = new Vector3[ArmPartCount];   // 共通の軸を各部品の親の座標で表したもの
+    private readonly float[] partSigns = { 1, 1, 1, 1, 1, 1, 1, 1 };
+    private readonly float[] partDeltas = new float[ArmPartCount];
+    private float angle0Init;
+    private float angle1Init;
+
+    /// <summary>
+    /// 逆解の角度の変化分 → 各部品の回転の変化分（従来の式から変化分だけを取り出したもの。並びは PartNames）
+    /// </summary>
+    private static void PartDeltas(float d0, float d1, float[] o)
+    {
+        o[0] = d0;              // 第一アーム
+        o[1] = d1;              // 二軸リンク（従来: angle1 - 180）
+        o[2] = d0;              // 第一姿勢保持リンク
+        o[3] = d0 - d1;         // 二軸レバー（従来: 180 + angle0 - angle1）
+        o[4] = -d0;             // フィン：初期の向きを保つ
+        o[5] = -d1;             // 第二アーム
+        o[6] = d0 - d1;         // 第二姿勢保持リンク：第二アームと平行を保つ
+        o[7] = -(d0 - d1);      // ヘッド：平行リンクで初期の向きを保つ（ヘッドを回す軸は無い）
+    }
+
+    /// <summary>
+    /// 逆解の角度(angle0, angle1)の姿勢にする。signs は部品ごとの回す向き
+    /// </summary>
+    private void ApplyAngles(float a0, float a1, float[] signs)
+    {
+        PartDeltas(Mathf.DeltaAngle(angle0Init, a0), Mathf.DeltaAngle(angle1Init, a1), partDeltas);
+        for (int i = 0; i < ArmPartCount; i++)
+        {
+            parts[i].localRotation = Quaternion.AngleAxis(signs[i] * partDeltas[i], partAxis[i]) * partInitRot[i];
+        }
+    }
+
+    /// <summary>
+    /// 組み立て時に、試しの姿勢へ仮想で動かして、つながる点（linkChecks）が離れない向きの組み合わせを選ぶ。
+    /// 第一アームと第二アーム（逆解の角度そのもの）は +1 に固定し、残り6部品の ±1（64通り）を試す。
+    /// 同点なら逆にする部品が少ない方。最後に初期の姿勢へ戻す
+    /// </summary>
+    private void DecidePartSigns()
+    {
+        var poses = new[]
+        {
+            new Vector2(angle0Init + 10f, angle1Init),
+            new Vector2(angle0Init, angle1Init + 10f),
+            new Vector2(angle0Init - 10f, angle1Init - 10f),
+        };
+        var trial = new float[ArmPartCount];
+        float Score(float[] s, out float maxGap)
+        {
+            float sum = 0f;
+            maxGap = 0f;
+            foreach (var p in poses)
+            {
+                ApplyAngles(p.x, p.y, s);
+                foreach (var c in linkChecks)
+                {
+                    var gap = Vector3.Distance(c.a.TransformPoint(c.aLocal), c.b.TransformPoint(c.bLocal)) * 1000f;
+                    sum += gap;
+                    maxGap = Mathf.Max(maxGap, gap);
+                }
+            }
+            return sum;
+        }
+        int[] free = { 1, 2, 3, 4, 6, 7 };
+        Score(partSigns, out var defaultMax);
+        float best = float.MaxValue, bestMax = 0f;
+        int bestFlips = int.MaxValue;
+        var bestSigns = (float[])partSigns.Clone();
+        for (int mask = 0; mask < (1 << free.Length); mask++)
+        {
+            int flips = 0;
+            for (int i = 0; i < ArmPartCount; i++) { trial[i] = 1f; }
+            for (int k = 0; k < free.Length; k++)
+            {
+                if ((mask & (1 << k)) != 0) { trial[free[k]] = -1f; flips++; }
+            }
+            var score = Score(trial, out var max);
+            if ((score < best - 0.01f) || ((Mathf.Abs(score - best) <= 0.01f) && (flips < bestFlips)))
+            {
+                best = score;
+                bestMax = max;
+                bestFlips = flips;
+                trial.CopyTo(bestSigns, 0);
+            }
+        }
+        bestSigns.CopyTo(partSigns, 0);
+        ApplyAngles(angle0Init, angle1Init, partSigns);   // 初期の姿勢に戻す
+
+        var reversed = Enumerable.Range(0, ArmPartCount).Where(i => partSigns[i] < 0).Select(i => PartNames[i]).ToList();
+        var text = $"[ArmRobot] {unitSetting.name}: 回す向きを仮想で確認：逆向き={(reversed.Count == 0 ? "なし" : string.Join("・", reversed))} " +
+            $"つながる点のずれ 最大 {bestMax:0.0}mm（すべて正向きなら最大 {defaultMax:0.0}mm）";
+        if (bestMax > 2f)
+        {
+            Debug.LogWarning(text + " ※どの向きでもずれが残ります（部品の割り当てか回転の中心を確認してください）");
+        }
+        else
+        {
+            Debug.Log(text);
+        }
     }
 
     /// <summary>
@@ -278,6 +371,23 @@ public class ArmRobot : UseHeadBase3DScript
         AddCheck("第一姿勢保持リンク→フィン", arm1_3.transform, armTri.transform, arm1_3.transform.position + elbowVec);
         AddCheck("二軸リンク→第二アーム", arm1_2.transform, arm2_1.transform, arm1_2.transform.position + elbowVec);
         AddCheck("第二姿勢保持リンク→ヘッド", arm2_2.transform, plate.transform, arm2_2.transform.position + (plate.transform.position - arm2_1.transform.position));
+
+        if (isAssembled)
+        {
+            // 回し方の準備：共通の軸＝第一アームの回転軸（第一アーム自身の Z 軸は回しても変わらない）
+            parts = new[] { arm1_1.transform, arm1_2.transform, arm1_3.transform, arm1Lever.transform, armTri.transform, arm2_1.transform, arm2_2.transform, plate.transform };
+            var axisWorld = arm1_1.transform.TransformDirection(Vector3.forward);
+            for (int i = 0; i < ArmPartCount; i++)
+            {
+                partInitRot[i] = parts[i].localRotation;
+                partAxis[i] = Quaternion.Inverse(parts[i].parent.rotation) * axisWorld;
+                partSigns[i] = 1f;
+            }
+            // 初期の姿勢の逆解の角度（InitialPoseTarget と同じ読み方）
+            angle0Init = Mathf.DeltaAngle(0f, ang1_1.z);
+            angle1Init = Mathf.DeltaAngle(0f, -ang2_1.z);
+            DecidePartSigns();
+        }
     }
 
     /// <summary>

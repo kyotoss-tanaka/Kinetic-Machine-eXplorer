@@ -33,6 +33,12 @@ public class MPX_RX : UseHeadBase3DScript
     /// </summary>
     protected bool isRvs = false;
 
+    /// <summary>
+    /// 逆解の肘の向き（2つある解のどちらを使うか）。既定は -1（従来どおり）。
+    /// モデルの初期姿勢が反対側の解なら、組み立て時に +1 にする（MPX_R6.DecideElbow）
+    /// </summary>
+    protected float elbowSign = -1f;
+
     #endregion 変数
     /// <summary>
     /// 開始処理
@@ -102,7 +108,7 @@ public class MPX_RX : UseHeadBase3DScript
         var ddRa = Mathf.Sqrt(ddPx * ddPx + ddPz * ddPz);
         var ddTa = Mathf.Atan2(-ddPz, -ddPx);
         var ddu = (r2 * r2 - ddRa * ddRa - r1 * r1) / (2 * ddRa * r1);
-        var ddv = -Mathf.Sqrt(1 - ddu * ddu);
+        var ddv = elbowSign * Mathf.Sqrt(1 - ddu * ddu);
         ddWkX = -(Mathf.Atan2(ddv, ddu) + ddTa) - Mathf.PI;
         ddWkY = Mathf.PI + Mathf.Atan2(ddRa * Mathf.Sin(ddTa) + r1 * Mathf.Sin(Mathf.PI - ddWkX), ddRa * Mathf.Cos(ddTa) + r2 * Mathf.Cos(Mathf.PI - ddWkX));
         if (ddWkY > Mathf.PI)
@@ -138,6 +144,8 @@ public class MPX_RX : UseHeadBase3DScript
         var zr = zDeg * Mathf.Deg2Rad;
         var x = px + tz * Mathf.Cos(zr) + tx * Mathf.Sin(zr);
         var y = pz + tz * Mathf.Sin(zr) - tx * Mathf.Cos(zr);
+        // -180～180 に丸めてから 1/1000 度にする（先に 1000 倍すると 90°→90000 が 360 の倍数で 0 に化ける）
+        zDeg = Mathf.DeltaAngle(0f, zDeg);
         if (axisType == 2)
         {
             zDeg = 0f;
@@ -146,7 +154,7 @@ public class MPX_RX : UseHeadBase3DScript
         {
             zDeg *= 1000f;   // SetTarget で 1/1000 にされるため
         }
-        return new Vector3(x, y, Mathf.DeltaAngle(0f, zDeg));
+        return new Vector3(x, y, zDeg);
     }
 
     /// <summary>
