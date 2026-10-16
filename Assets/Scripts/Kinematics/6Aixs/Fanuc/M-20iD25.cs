@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System.Collections;
+using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
 using Unity.VisualScripting;
@@ -147,9 +148,14 @@ public class M_20iD25: Kinematics6D
         {
             return null;
         }
-        ghost = Instantiate(crx, crx.transform.parent);
+        // 無効にした入れ物の下に複製する。有効なまま複製すると、複製に残ったスクリプト（ヘッドや子ユニット）の
+        // Awake/OnEnable が走り、複製の外を指す参照＝本体の部品を動かしてしまう。Destroy は遅延なので、
+        // スクリプトが消えきる次のフレームまで有効にしない（ActivateGhostNextFrame）。
+        ghostHolder = new GameObject("M-20iD25_GhostHolder");
+        ghostHolder.SetActive(false);
+        ghostHolder.transform.SetParent(crx.transform.parent, false);   // 本体と同じ親・同じ原点（1フレーム目から正しい位置）
+        ghost = Instantiate(crx, ghostHolder.transform);
         ghost.name = "M-20iD25_Ghost";
-        ghost.SetActive(false);   // 複製の Start を走らせない（Kinematics 等が動かないよう）
         // コライダー/スクリプトを除去（複製は表示専用）。
         foreach (var col in ghost.GetComponentsInChildren<Collider>(true))
         {
@@ -181,8 +187,29 @@ public class M_20iD25: Kinematics6D
         g5 = ch.Find(d => d.name.Contains("J5_part4^01N1")); // arm5
         g6 = ch.Find(d => d.name.Contains("J6FLANGE^01N1")); // arm6
         ghostAng1x = g1 != null ? g1.localEulerAngles.x : 0f;
-        ghost.SetActive(true);
+        StartCoroutine(ActivateGhostNextFrame(ghost));
         return ghost;
+    }
+
+    private GameObject ghostHolder;
+
+    /// <summary>複製のスクリプトが Destroy されきった次のフレームで、本体と同じ場所へ移して表示する。</summary>
+    private IEnumerator ActivateGhostNextFrame(GameObject g)
+    {
+        yield return null;
+        if (g == null || g != ghost || crx == null)
+        {
+            yield break;
+        }
+        g.transform.SetParent(crx.transform.parent, false);
+        g.transform.localPosition = crx.transform.localPosition;
+        g.transform.localRotation = crx.transform.localRotation;
+        g.transform.localScale = crx.transform.localScale;
+        if (ghostHolder != null)
+        {
+            Destroy(ghostHolder);
+            ghostHolder = null;
+        }
     }
 
     public override void PoseGhostDeg(double[] j16)
@@ -200,6 +227,11 @@ public class M_20iD25: Kinematics6D
         {
             Destroy(ghost);
             ghost = null;
+        }
+        if (ghostHolder != null)
+        {
+            Destroy(ghostHolder);
+            ghostHolder = null;
         }
         g1 = g2 = g3 = g4 = g5 = g6 = null;
     }

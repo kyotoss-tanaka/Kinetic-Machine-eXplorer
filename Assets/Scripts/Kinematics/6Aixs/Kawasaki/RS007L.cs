@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
@@ -177,9 +178,13 @@ public class RS007L : Kinematics6D
         {
             return null;
         }
-        ghost = Instantiate(baseObject, baseObject.transform.parent);
+        // 無効にした入れ物の下に複製する（CRX-30iA と同じ理由：複製に残ったスクリプトの Awake/OnEnable が
+        // 本体の部品を動かさないよう、スクリプトが消えきる次のフレームまで有効にしない）。
+        ghostHolder = new GameObject("RS007L_GhostHolder");
+        ghostHolder.SetActive(false);
+        ghostHolder.transform.SetParent(baseObject.transform.parent, false);
+        ghost = Instantiate(baseObject, ghostHolder.transform);
         ghost.name = "RS007L_Ghost";
-        ghost.SetActive(false);
         foreach (var col in ghost.GetComponentsInChildren<Collider>(true)) { Destroy(col); }
         foreach (var mb in ghost.GetComponentsInChildren<MonoBehaviour>(true)) { Destroy(mb); }
         var mat = MakeGhostMaterial();
@@ -199,8 +204,29 @@ public class RS007L : Kinematics6D
         g4 = ch.Find(d => d.name.Contains("_J4"));
         g5 = ch.Find(d => d.name.Contains("_J5"));
         g6 = ch.Find(d => d.name.Contains("_J6"));
-        ghost.SetActive(true);
+        StartCoroutine(ActivateGhostNextFrame(ghost));
         return ghost;
+    }
+
+    private GameObject ghostHolder;
+
+    /// <summary>複製のスクリプトが Destroy されきった次のフレームで、本体と同じ場所へ移して表示する。</summary>
+    private IEnumerator ActivateGhostNextFrame(GameObject g)
+    {
+        yield return null;
+        if (g == null || g != ghost || baseObject == null)
+        {
+            yield break;
+        }
+        g.transform.SetParent(baseObject.transform.parent, false);
+        g.transform.localPosition = baseObject.transform.localPosition;
+        g.transform.localRotation = baseObject.transform.localRotation;
+        g.transform.localScale = baseObject.transform.localScale;
+        if (ghostHolder != null)
+        {
+            Destroy(ghostHolder);
+            ghostHolder = null;
+        }
     }
 
     public override void PoseGhostDeg(double[] j16)
@@ -218,6 +244,11 @@ public class RS007L : Kinematics6D
         {
             Destroy(ghost);
             ghost = null;
+        }
+        if (ghostHolder != null)
+        {
+            Destroy(ghostHolder);
+            ghostHolder = null;
         }
         g1 = g2 = g3 = g4 = g5 = g6 = null;
     }
