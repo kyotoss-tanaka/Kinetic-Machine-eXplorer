@@ -449,13 +449,24 @@ public class MotionInternal : AxisMotionBase
                     action.aclVal = action.acl * 9800;
                     action.dclVal = action.dcl * 9800;
                 }
-                // 解の公式における判別式の計算を行う
-                float a = -(1 / action.aclVal + 1 / action.dclVal);
+                // 解の公式における判別式の計算を行う。
+                // 加速度・減速度が 0 は「加減速なし」（瞬時に速度が出る）なので、その側の項（1/加速度）は 0 にする。
+                // （以前は 1/0=∞ で解なしになり、時間設定（加速・減速を半分ずつ）に切り替わって、一定速度で動かなかった）
+                var invAcl = action.aclVal > 0 ? 1 / action.aclVal : 0f;
+                var invDcl = action.dclVal > 0 ? 1 / action.dclVal : 0f;
+                float a = -(invAcl + invDcl);
                 float b = 2 * action.time;
                 float c = -2 * Math.Abs(action.stroke);
                 float discriminant = CommonFunction.Discriminant(a, b, c);
 
-                if (discriminant > 0)
+                if (!isRotate && (invAcl == 0f) && (invDcl == 0f))
+                {
+                    // 加減速なし：全体を一定速度（ストローク÷時間）で動かす
+                    action.velocity = action.time > 0 ? Math.Abs(action.stroke) / action.time : 0f;
+                    action.aclTime = 0f;
+                    action.dclTime = 0f;
+                }
+                else if (discriminant > 0)
                 {
                     // 実数解
                     action.velocity = CommonFunction.QuadraticFormula_Real(discriminant, a, b, c);
@@ -475,6 +486,12 @@ public class MotionInternal : AxisMotionBase
                     // 加減速度を計算して動作設定に格納する
                     action.aclVal = action.velocity / action.aclTime * Thousand;
                     action.dclVal = action.velocity / action.dclTime * Thousand;
+                    if (!isRotate)
+                    {
+                        UnityEngine.Debug.LogWarning($"[動作] {unitSetting.name}「{action.startName}→{action.endName}」: 加速度 {action.acl}G / 減速度 {action.dcl}G では " +
+                            $"{Math.Abs(action.stroke)}mm を {action.time * Thousand:0}ms で動けないため、加速 {action.aclTime:0}ms・減速 {action.dclTime:0}ms" +
+                            $"（約 {action.aclVal / 9800f:0.00}G）で動かします");
+                    }
                 }
             }
         }
@@ -753,6 +770,11 @@ public class MotionInternal : AxisMotionBase
                     startPos = innerPosition;
                 }
                 st = Vector3.Distance(targetPos, startPos) * Thousand;
+                if (isBacket)
+                {
+                    // バケットは周回するので、目標位置の差ではなく各動作のストローク（進む量）で動かす
+                    st = Math.Abs(action.stroke);
+                }
                 if (isRotate)
                 {
                     // 回転系は360°で正規化
@@ -765,6 +787,13 @@ public class MotionInternal : AxisMotionBase
                 startPos = targetPos;
                 targetPos = action.targetPos;
                 st = Vector3.Distance(targetPos, startPos) * Thousand;
+                if (isBacket)
+                {
+                    // バケットは周回するので各動作のストロークで動かす。
+                    // （目標位置の差で測ると、同じ目標が続く連続動作（例：毎回 30mm 進む）が 0 になり、
+                    //   下の「動作なし」で波形の作成ごと止まって全く動かなかった）
+                    st = Math.Abs(action.stroke);
+                }
             }
             if (st <= 0.001)
             {
@@ -772,7 +801,17 @@ public class MotionInternal : AxisMotionBase
                 return false;
             }
             var direction = (action.targetPos - startPos).normalized;
-            if (direction.x + direction.y + direction.z < 0)
+            if (isBacket)
+            {
+                // バケットの向きは、従来の最初の動作と同じく「目標位置（向き込み）− 0」の符号で決める
+                // （バケットの内部位置は常に 0。連続動作の2つ目以降も同じ決め方にそろえる）
+                var bd = action.targetPos.normalized;
+                if (bd.x + bd.y + bd.z < 0)
+                {
+                    st = -st;
+                }
+            }
+            else if (direction.x + direction.y + direction.z < 0)
             {
                 // 逆転
                 st = -st;
