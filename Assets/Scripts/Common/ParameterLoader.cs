@@ -2130,6 +2130,8 @@ namespace Parameters
                 SetProgressLabel("Prefab Files Not Found");
                 yield break;
             }
+            // 機番ごとの初期位置・回転（プレハブ初期オフセット）
+            BuildMechPoses();
             foreach (var prefab in prefabs)
             {
                 if (prefab.name[0] != '_')
@@ -2140,13 +2142,13 @@ namespace Parameters
                         prefabData = Instantiate(prefab);
                         prefabData.SetActive(true);
                         prefabData.name = prefab.name;
-                        prefabData.transform.position = new();
+                        PlacePrefab(prefabData);
                         prefabData.transform.parent = prefabObj.transform;
                     }
                     else
                     {
                         prefabData.name = prefab.name;
-                        prefabData.transform.position = new();
+                        PlacePrefab(prefabData);
                         prefabData.transform.parent = prefabObj.transform;
                     }
                 }
@@ -2159,6 +2161,66 @@ namespace Parameters
             {
                 RecordDesignPaths(root, root.name);
             }
+        }
+
+        /// <summary>
+        /// 機番の座標系（回転のある機番だけ）の入れ物
+        /// </summary>
+        private static GameObject mechFrameRoot;
+
+        /// <summary>
+        /// 機番ごとの初期位置・回転を PrefabInfo から作る（機番内の全プレハブ共通。最初に見つかった値を使う）
+        /// </summary>
+        private void BuildMechPoses()
+        {
+            GlobalScript.mechPoses.Clear();
+            GlobalScript.mechFrames.Clear();
+            if (mechFrameRoot != null)
+            {
+                Destroy(mechFrameRoot);
+                mechFrameRoot = null;
+            }
+            foreach (var ps in prefabSettings)
+            {
+                if ((ps.mechId == null) || GlobalScript.mechPoses.ContainsKey(ps.mechId))
+                {
+                    continue;
+                }
+                var pos = ((ps.pos != null) && (ps.pos.Count >= 3)) ? new Vector3(ps.pos[0], ps.pos[1], ps.pos[2]) : Vector3.zero;
+                var rotEuler = ((ps.rot != null) && (ps.rot.Count >= 3)) ? new Vector3(ps.rot[0], ps.rot[1], ps.rot[2]) : Vector3.zero;
+                if ((pos == Vector3.zero) && (rotEuler == Vector3.zero))
+                {
+                    // オフセットなし（従来どおり原点）
+                    continue;
+                }
+                var rot = Quaternion.Euler(rotEuler);
+                GlobalScript.mechPoses[ps.mechId] = new Pose(pos, rot);
+                if (rotEuler != Vector3.zero)
+                {
+                    if (mechFrameRoot == null)
+                    {
+                        mechFrameRoot = new GameObject("MechFrames");
+                    }
+                    var frame = new GameObject("#Frame_" + ps.mechId);
+                    frame.transform.SetParent(mechFrameRoot.transform, false);
+                    frame.transform.SetPositionAndRotation(pos, rot);
+                    GlobalScript.mechFrames[ps.mechId] = frame.transform;
+                }
+                Debug.Log($"[プレハブ] 機番 {ps.mechId}: 初期オフセット 位置 ({pos.x * 1000f:0.#}, {pos.y * 1000f:0.#}, {pos.z * 1000f:0.#})mm" +
+                          $" 回転 ({rotEuler.x:0.#}, {rotEuler.y:0.#}, {rotEuler.z:0.#})°");
+            }
+        }
+
+        /// <summary>
+        /// プレハブを機番の初期位置・回転に置く（オフセットなしは従来どおり原点。プレハブ自身の回転は残す）
+        /// </summary>
+        private void PlacePrefab(GameObject prefabData)
+        {
+            // PrefabInfo の名前はファイル名（拡張子付き）。Addressables の照合と同じく部分一致も許す
+            var ps = prefabSettings.Find(d => Path.GetFileNameWithoutExtension(d.name) == prefabData.name)
+                  ?? prefabSettings.Find(d => d.name.Contains(prefabData.name));
+            var pose = GlobalScript.GetMechPose(ps?.mechId);
+            prefabData.transform.SetPositionAndRotation(pose.position, pose.rotation * prefabData.transform.rotation);
         }
 
         /// <summary>
@@ -2871,8 +2933,11 @@ namespace Parameters
                             var obj = Instantiate(switchPrefabs[0]);
                             obj.name = unit.parent;
                             obj.transform.parent = deviceObj.transform;
-                            obj.transform.localPosition = new Vector3(sw.pos[0], sw.pos[1], sw.pos[2]);
-                            obj.transform.localEulerAngles = new Vector3(sw.rot[0], sw.rot[1], sw.rot[2]);
+                            // 機番の初期位置・回転を掛ける（DeviceObjects は原点にあり、位置は実質ワールド座標のため。
+                            // 親ユニットの下へ移す時は親側のオフセットで打ち消され、親からの相対位置は従来と同じになる）
+                            var swPose = GlobalScript.GetMechPose(sw.mechId);
+                            obj.transform.localPosition = swPose.position + swPose.rotation * new Vector3(sw.pos[0], sw.pos[1], sw.pos[2]);
+                            obj.transform.localRotation = swPose.rotation * Quaternion.Euler(sw.rot[0], sw.rot[1], sw.rot[2]);
                             switchModel.Add(obj);
                             // 動作オブジェクトセット
                             unit.moveObject = obj;
@@ -2903,8 +2968,10 @@ namespace Parameters
                             var obj = Instantiate(towerPrefabs[st.type]);
                             obj.name = unit.parent;
                             obj.transform.parent = deviceObj.transform;
-                            obj.transform.localPosition = new Vector3(st.pos[0], st.pos[1], st.pos[2]);
-                            obj.transform.localEulerAngles = new Vector3(st.rot[0], st.rot[1], st.rot[2]);
+                            // 機番の初期位置・回転を掛ける（スイッチと同じ）
+                            var stPose = GlobalScript.GetMechPose(st.mechId);
+                            obj.transform.localPosition = stPose.position + stPose.rotation * new Vector3(st.pos[0], st.pos[1], st.pos[2]);
+                            obj.transform.localRotation = stPose.rotation * Quaternion.Euler(st.rot[0], st.rot[1], st.rot[2]);
                             towerModel.Add(obj);
                             // 動作オブジェクトセット
                             unit.moveObject = obj;

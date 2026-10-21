@@ -1646,6 +1646,14 @@ namespace Parameters
         /// ユニット名
         /// </summary>
         public string name { get; set; }
+        /// <summary>
+        /// 初期位置(m)。機番内の全プレハブ共通（KMXTool のプレハブ初期オフセット）。古い出力には無い（null）
+        /// </summary>
+        public List<float> pos { get; set; }
+        /// <summary>
+        /// 初期回転(度)。機番内の全プレハブ共通。古い出力には無い（null）
+        /// </summary>
+        public List<float> rot { get; set; }
     }
 
     [Serializable]

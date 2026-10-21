@@ -268,6 +268,34 @@ public static class GlobalScript
     public static Dictionary<GameObject, string> designPaths = new Dictionary<GameObject, string>();
 
     /// <summary>
+    /// 機番ごとの初期位置・回転（KMXTool のプレハブ初期オフセット。機番内の全プレハブ共通）。
+    /// 複数の機番を並べる時に、プレハブをずらして置くために使う。未登録の機番は原点・回転なし
+    /// </summary>
+    public static Dictionary<string, Pose> mechPoses = new Dictionary<string, Pose>();
+
+    /// <summary>
+    /// 回転のある機番の座標系（初期位置・回転を持つ空の Transform。拡大率は 1）。
+    /// ワールドの軸に沿って計算している処理（バケット経路のループ面など）を機番の軸で計算するのに使う
+    /// </summary>
+    public static Dictionary<string, Transform> mechFrames = new Dictionary<string, Transform>();
+
+    /// <summary>
+    /// 機番の初期位置・回転（未登録なら原点・回転なし）
+    /// </summary>
+    public static Pose GetMechPose(string mechId)
+    {
+        return ((mechId != null) && mechPoses.TryGetValue(mechId, out var pose)) ? pose : Pose.identity;
+    }
+
+    /// <summary>
+    /// 回転のある機番の座標系。回転が無ければ null（従来どおりワールドの軸で計算する）
+    /// </summary>
+    public static Transform GetMechFrame(string mechId)
+    {
+        return ((mechId != null) && mechFrames.TryGetValue(mechId, out var frame) && (frame != null)) ? frame : null;
+    }
+
+    /// <summary>
     /// 機構登録情報
     /// </summary>
     public static Dictionary<string, List<GameObject>> regObjects = new Dictionary<string, List<GameObject>>();

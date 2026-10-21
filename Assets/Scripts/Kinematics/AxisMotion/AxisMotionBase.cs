@@ -1022,7 +1022,8 @@ public class AxisMotionBase : KinematicsBase
         if ((elements != null) && (elements.Count >= 2))
         {
             // スプロケット/経由点から経路を自動生成（ベルトモデル不要）
-            CreatePathPointsFromElements(elements, unitSetting.backetSetting.pathReverse);
+            // 機番に回転があればその座標系でループ面を決める（ワールドの軸だと斜めに置いた機番で面を取り違える）
+            CreatePathPointsFromElements(elements, unitSetting.backetSetting.pathReverse, GlobalScript.GetMechFrame(unitSetting.mechId));
             return;
         }
         if (unitSetting.backetSetting.gameObject != null)
@@ -1323,8 +1324,9 @@ public class AxisMotionBase : KinematicsBase
             }
             else
             {
-                // 手入力座標（KMX座標系X,Y,Z→Unity X,Z,Y。動作部モデル位置からのワールド軸オフセット）
-                rep = ToFrame(moveObject.transform.position + new Vector3(element.pos[0], element.pos[2], element.pos[1]));
+                // 手入力座標（KMX座標系X,Y,Z→Unity X,Z,Y。動作部モデル位置からのオフセット）。
+                // 軸は機番の軸（機番の初期回転で回す。回転なしは従来どおりワールド軸）
+                rep = ToFrame(moveObject.transform.position + GlobalScript.GetMechPose(unitSetting.mechId).rotation * new Vector3(element.pos[0], element.pos[2], element.pos[1]));
             }
             vertsList.Add(verts);
             repPoints.Add(rep);
