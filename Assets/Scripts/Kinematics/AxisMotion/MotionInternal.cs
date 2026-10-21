@@ -315,6 +315,40 @@ public class MotionInternal : AxisMotionBase
     private Vector3 innerPosition = Vector3.zero;
 
     /// <summary>
+    /// 回り続ける軸（全部の動作が連続＝動作がサイクル一杯つながっているバケット）。
+    /// 全部が連続だと内部タイムチャートは開始タグを一度も ON にしない（連続の動作は前の動作の続きとして飛ばす）。
+    /// また先頭だけ開始にしても、動作の長さがサイクルと同じため次の開始が前の受け渡し中に来て1サイクルおきに取りこぼす。
+    /// そこで開始タグを待たず、PLC と同じく各動作を trg の時刻に始めるものとして、サイクル時刻から位置を決める
+    /// </summary>
+    private bool isLoopAxis;
+
+    /// <summary>
+    /// 回り続ける軸の動作ごとの波形（開始位置 0 から、その動作のストロークまで）
+    /// </summary>
+    private List<ActionCurveInfo> loopCurves = new List<ActionCurveInfo>();
+
+    /// <summary>
+    /// 回り続ける軸のサイクル(ms)
+    /// </summary>
+    private long loopCycle;
+
+    /// <summary>
+    /// 回り続ける軸の1サイクルの進み(mm)
+    /// </summary>
+    private double loopStrokeSum;
+
+    /// <summary>
+    /// サイクルタグが無い時の時刻
+    /// </summary>
+    private Stopwatch loopSw = new Stopwatch();
+
+    /// <summary>
+    /// 回り続ける軸の前回の進み(mm・周長で割る前)と時刻（速度表示用）
+    /// </summary>
+    private double loopPrvTravel;
+    private long loopPrvTime;
+
+    /// <summary>
     /// 現在位置(外部タイムチャート参照時)
     /// </summary>
     public float nowValue
@@ -496,12 +530,153 @@ public class MotionInternal : AxisMotionBase
             }
         }
 
+        // 回り続ける軸の判定と波形作成
+        SetupLoopAxis();
+
         if (!GlobalScript.isSystemRecorder)
         {
             // 起動時OFF
             foreach (var campos in camPosInfos)
             {
                 SetTagValue(campos.end, ref campos._EndOutput, 0);
+            }
+        }
+    }
+
+    /// <summary>
+    /// 回り続ける軸（全部の動作が連続のバケット）の判定と、動作ごとの波形作成
+    /// </summary>
+    private void SetupLoopAxis()
+    {
+        var actions = unitSetting.actionSetting.actions;
+        isLoopAxis = isBacket && !exModeChange && (actions.Count > 0);
+        foreach (var action in actions)
+        {
+            if (!action.isContinue)
+            {
+                isLoopAxis = false;
+                break;
+            }
+        }
+        loopCurves.Clear();
+        if (!isLoopAxis)
+        {
+            return;
+        }
+        loopCycle = unitSetting.actionSetting.cycle;
+        if (loopCycle <= 0)
+        {
+            // サイクル未設定なら最後の動作の終わりまで
+            foreach (var action in actions)
+            {
+                loopCycle = Math.Max(loopCycle, action.trg + (long)Math.Round(action.time * Thousand));
+            }
+        }
+        loopStrokeSum = 0;
+        var outside = 0;
+        for (var i = 0; i < actions.Count; i++)
+        {
+            var action = actions[i];
+            // 向きは外部動作と同じく dir を掛けない（バケットは基本が正転。ストロークの符号だけ見る）
+            var st = action.stroke < 0 ? -Math.Abs(action.stroke) : Math.Abs(action.stroke);
+            var curve = new ActionCurveInfo();
+            curve.CreateCurve(action, Vector3.zero, st, actionIos[i]);
+            loopCurves.Add(curve);
+            if (action.trg < loopCycle)
+            {
+                loopStrokeSum += st;
+            }
+            else
+            {
+                outside++;
+            }
+        }
+        loopSw.Restart();
+        loopPrvTravel = 0;
+        loopPrvTime = 0;
+        UnityEngine.Debug.Log($"[動作] {unitSetting.name}: 全部の動作が連続のため、サイクル時刻に合わせて回し続けます" +
+            $"（サイクル {loopCycle}ms・動作 {actions.Count - outside}個・1サイクル {loopStrokeSum:0.#}mm" +
+            (outside > 0 ? $"・trg がサイクル以上の {outside}個は使いません" : "") + "）");
+    }
+
+    /// <summary>
+    /// 回り続ける軸の更新。サイクル時刻から、このサイクルで trg を過ぎた動作の進みを足して位置を決める
+    /// （開始タグは待たない。ComInner と同じ時刻を使うので他の動作と同期する。時刻が戻れば位置も戻る）
+    /// </summary>
+    private void LoopAxisUpdate()
+    {
+        long time = GlobalScript.isSystemRecorder ? GlobalScript.sysRecMilliseconds : (cycleTag == null ? loopSw.ElapsedMilliseconds : GlobalScript.GetTagData(cycleTag));
+        if (time < 0)
+        {
+            time = 0;
+        }
+        var cycleNo = time / loopCycle;
+        var inCycle = time - cycleNo * loopCycle;
+        var actions = unitSetting.actionSetting.actions;
+        double travel = 0;
+        var moving = false;
+        for (var i = 0; i < actions.Count; i++)
+        {
+            var action = actions[i];
+            if (action.trg >= loopCycle)
+            {
+                continue;
+            }
+            var t = inCycle - action.trg;
+            if (t < 0)
+            {
+                continue;
+            }
+            var curve = loopCurves[i];
+            float pos = 0;
+            if (!curve.getPosition(t, ref pos))
+            {
+                moving = true;
+            }
+            travel += pos;
+            // 通信遅れ時間込みで終了IOをON（動作の終わりの delay 前から）
+            var count = curve.actCurve.Count;
+            if ((t >= count - delayTime) && (t < count))
+            {
+                var campos = camPosInfos.Find(d => d.end == actionIos[i].end);
+                if (campos != null)
+                {
+                    campos.AdvanceAngle = true;
+                }
+            }
+        }
+        // 周長で割った余りで渡す（長時間運転でも精度が落ちないよう double で計算）
+        var total = cycleNo * loopStrokeSum + travel;
+        var loopMm = BacketLoopMm;
+        var posMm = total;
+        if (loopMm > 0.001f)
+        {
+            posMm %= loopMm;
+            if (posMm < 0)
+            {
+                posMm += loopMm;
+            }
+        }
+        SetBacketPosition((float)posMm);
+
+        // 表示用
+        isMoving = moving;
+        nowTime = inCycle;
+        nowPos = (float)posMm;
+        if (time != loopPrvTime)
+        {
+            nowSpd = (float)((total - loopPrvTravel) / (time - loopPrvTime) * 1000);
+        }
+        loopPrvTravel = total;
+        loopPrvTime = time;
+
+        // 出力処理（終了IOは動作の終わりだけ ON）
+        if (!GlobalScript.isSystemRecorder)
+        {
+            foreach (var campos in camPosInfos)
+            {
+                SetTagValue(campos.end, ref campos._EndOutput, campos.AdvanceAngle ? 1 : 0);
+                campos.AdvanceAngle = false;
             }
         }
     }
@@ -524,6 +699,12 @@ public class MotionInternal : AxisMotionBase
         if ((actionIos.Count == 0) || (actionCurve.actCurve == null))// || (actionCurve.actionIo == null))
         {
             RenewMoveDir();
+        }
+        if (isLoopAxis)
+        {
+            // 回り続ける軸は開始タグを待たずにサイクル時刻で動かす
+            LoopAxisUpdate();
+            return;
         }
         if (!isMoving)
         {
@@ -803,10 +984,10 @@ public class MotionInternal : AxisMotionBase
             var direction = (action.targetPos - startPos).normalized;
             if (isBacket)
             {
-                // バケットの向きは、従来の最初の動作と同じく「目標位置（向き込み）− 0」の符号で決める
-                // （バケットの内部位置は常に 0。連続動作の2つ目以降も同じ決め方にそろえる）
-                var bd = action.targetPos.normalized;
-                if (bd.x + bd.y + bd.z < 0)
+                // バケットの向きは外部動作と同じく dir を掛けない（基本が正転。ストロークの符号だけ見る）。
+                // 目標位置は dir 込みなので、dir=-1 だと値が減り続け、MoveBacket が毎フレーム「折り返し」と
+                // 判定して位置を積み上げてしまう（逆向きの判定が一度も成立しない）
+                if (action.stroke < 0)
                 {
                     st = -st;
                 }
