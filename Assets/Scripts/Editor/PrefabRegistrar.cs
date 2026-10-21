@@ -56,6 +56,60 @@ public class AddressablePrefabRegistrar
         return !isProcessing; // 処理中なら無効化
     }
 
+    /// <summary>
+    /// 複数フォルダのプレハブを一つのカタログに登録する（二つのプロジェクトを統合した時など）。
+    /// 別々に作った二つのカタログは同じ名前の bundle（monoscripts）を含むため同時に読めない。まとめて作れば一つで済む。
+    /// 製番（出力フォルダ名・ProdNo.txt）は選んだフォルダ名を「_」でつないだ物（例：G822_G823）
+    /// </summary>
+    [MenuItem("Kyotoss/Register Prefab to Addressables (Multiple Folders)", false, 16)]
+    public static void RegisterPrefabsOfFoldersToAddressables()
+    {
+        isProcessing = true;
+        var folders = new List<string>();
+        var start = Path.GetFullPath(Path.Combine(Application.dataPath, "3DModels"));
+        while (true)
+        {
+            string path = EditorUtility.OpenFolderPanel($"Addressablesに登録するフォルダを選択（{folders.Count + 1}個目）", start, "");
+            if (path == "")
+            {
+                break;
+            }
+            path = Path.GetFullPath(path);
+            if (!folders.Contains(path))
+            {
+                folders.Add(path);
+            }
+            start = Path.GetDirectoryName(path);
+            var list = string.Join("\n", folders.Select(d => "・" + Path.GetFileName(d)));
+            var answer = EditorUtility.DisplayDialogComplex("Register Prefab to Addressables (Multiple Folders)",
+                $"選択したフォルダ：\n{list}\n\n続けてフォルダを追加しますか？", "追加する", "やめる", "登録する");
+            if (answer == 1)
+            {
+                // やめる
+                folders.Clear();
+                break;
+            }
+            if (answer == 2)
+            {
+                // 登録する
+                break;
+            }
+        }
+        if (folders.Count > 0)
+        {
+            isVR = false;
+            RegisterProcess(folders, string.Join("_", folders.Select(d => Path.GetFileName(d))));
+        }
+        isProcessing = false;
+    }
+
+    // validate関数（trueなら有効、falseなら無効）
+    [MenuItem("Kyotoss/Register Prefab to Addressables (Multiple Folders)", true)]
+    private static bool ValidateRegisterPrefabsOfFoldersToAddressables()
+    {
+        return !isProcessing; // 処理中なら無効化
+    }
+
 #if false
     [MenuItem("Kyotoss/Register Prefab to Addressables(VR)", false, 12)]
     public static void RegisterPrefabToAddressablesVR()
@@ -98,19 +152,36 @@ public class AddressablePrefabRegistrar
     /// <param name="folder"></param>
     private static void RegisterProcess(string folder)
     {
+        folder = Path.GetFullPath(folder);
+        // 製番はフォルダ名
+        RegisterProcess(new List<string> { folder }, Path.GetFileName(folder));
+    }
+
+    /// <summary>
+    /// 登録処理（複数フォルダのプレハブを一つのカタログにする）
+    /// </summary>
+    /// <param name="folders">プレハブのフォルダ</param>
+    /// <param name="prodNo">製番（出力フォルダ名・ProdNo.txt）</param>
+    private static void RegisterProcess(List<string> folders, string prodNo)
+    {
         try
         {
-            folder = Path.GetFullPath(folder);
-            if (Directory.Exists(folder))
+            folders = folders.Select(d => Path.GetFullPath(d)).ToList();
+            if (folders.All(d => Directory.Exists(d)))
             {
                 // Addressables 設定を取得
                 AddressableAssetSettings settings = AddressableAssetSettingsDefaultObject.Settings;
 
-                // 製番取得
-                var prodNo = Path.GetFileName(Path.GetFullPath(folder));
-
                 // プレハブファイル取得
-                var files = Directory.GetFiles(isVR ? Path.Combine(folder, "VR") : folder).ToList().FindAll(d => Path.GetExtension(d) == ".prefab");
+                var files = folders.SelectMany(folder => Directory.GetFiles(isVR ? Path.Combine(folder, "VR") : folder).ToList().FindAll(d => Path.GetExtension(d) == ".prefab")).ToList();
+                // アドレスはファイル名なので、同じ名前のプレハブが別のフォルダにあると取り違える
+                var dupNames = files.GroupBy(d => Path.GetFileName(d), StringComparer.OrdinalIgnoreCase).Where(g => g.Count() > 1).Select(g => g.Key).ToList();
+                if (dupNames.Count > 0)
+                {
+                    EditorUtility.DisplayDialog("エラー", "同じ名前のプレハブが複数のフォルダにあります：\n" + string.Join("\n", dupNames), "OK");
+                    isProcessing = false;
+                    return;
+                }
                 if (files.Count > 0)
                 {
                     // 設定作成
