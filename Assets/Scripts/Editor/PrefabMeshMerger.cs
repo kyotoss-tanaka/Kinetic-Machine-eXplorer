@@ -441,7 +441,8 @@ public class PrefabMeshMerger
         }
         foreach (var m in hiddenSettings)
         {
-            if (m.isEnable)
+            // カバーは線画の図を作るとき用（統合したメッシュからは消さない）
+            if (m.isEnable && !m.isCover)
             {
                 if (m.mode == 0)
                 {

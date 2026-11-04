@@ -2492,7 +2492,8 @@ namespace Parameters
             }
             foreach (var m in hiddenSettings)
             {
-                if (!m.isEnable)
+                // カバーは線画の図を作るとき用（実行時は表示したまま）
+                if (!m.isEnable || m.isCover)
                 {
                     continue;
                 }

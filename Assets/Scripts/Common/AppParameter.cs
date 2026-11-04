@@ -625,6 +625,10 @@ namespace Parameters
         /// </summary>
         public int disable { get; set; }
         /// <summary>
+        /// 種類（0=非表示、1=カバー：線画の図を作るときだけ隠す。実行時は表示）。古い出力には無い（0）
+        /// </summary>
+        public int kind { get; set; }
+        /// <summary>
         /// 有効
         /// </summary>
         public bool isEnable
@@ -632,6 +636,16 @@ namespace Parameters
             get
             {
                 return disable == 0;
+            }
+        }
+        /// <summary>
+        /// カバー（線画の図を作るときだけ隠す。実行時は表示）
+        /// </summary>
+        public bool isCover
+        {
+            get
+            {
+                return kind == 1;
             }
         }
 
