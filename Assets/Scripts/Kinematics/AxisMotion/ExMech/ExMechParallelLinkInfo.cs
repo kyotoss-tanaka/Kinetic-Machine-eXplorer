@@ -69,12 +69,44 @@ public class ExMechParallelLinkInfo : ExMechInfo
     public GameObject pntObj5_3;
     public GameObject pntObj5_4;
 
+    /// <summary>必須モデル未割付の警告は一度だけ出す</summary>
+    private bool _warnedMissing;
+
+    /// <summary>軸 i に有効なモデルが割り付いているか（範囲外・null も安全に false）</summary>
+    private bool HasModel(int i) => (i >= 0) && (i < axisInfos.Count) && (axisInfos[i] != null) && (axisInfos[i].model != null);
+
+    /// <summary>
+    /// この機構に必要なモデルが揃っているか。
+    /// 単：アーム1(0)・アーム2/プレート(1)・リンク1(2)／ダブル：＋アーム3(3)・プレート(4)・リンク2(5)。
+    /// Initialize/RenewPos はこれらの root を参照するため、欠けていると NRE になる（設定不備）。
+    /// </summary>
+    private bool RequiredModelsReady =>
+        (mainAxis != null) && (mainAxis.model != null) &&
+        HasModel(0) && HasModel(1) && HasModel(2) &&
+        (!isDouble || (HasModel(3) && HasModel(4) && HasModel(5)));
+
+    private void WarnMissingModelsOnce()
+    {
+        if (_warnedMissing) { return; }
+        _warnedMissing = true;
+        Debug.LogWarning("[ExMech] 並行リンク: 必須モデル（アーム1/アーム2/リンク1" +
+            (isDouble ? "／アーム3/プレート/リンク2" : "") +
+            "）が割り付けられていないため動作をスキップします。KMXTool の拡張機能（並行リンク）のモデル設定を確認してください。");
+    }
+
     /// <summary>
     /// 初期化
     /// </summary>
     public override void Initialize()
     {
         base.Initialize();
+
+        // 必須モデルが欠けている設定では root 参照で NRE になるため初期化を中断（RenewPos もスキップ）
+        if (!RequiredModelsReady)
+        {
+            WarnMissingModelsOnce();
+            return;
+        }
 
         // 制御対象オブジェクトを作成
         // ※位置はroot（回転中心指定があればピボット）で取る。RenewPosがrootをこの点へ動かすため、
@@ -218,6 +250,12 @@ public class ExMechParallelLinkInfo : ExMechInfo
     /// </summary>
     public override void RenewPos()
     {
+        // 必須モデルが欠けている設定では axisInfos[i].root 参照で NRE になるためスキップ（設定不備）
+        if (!RequiredModelsReady)
+        {
+            WarnMissingModelsOnce();
+            return;
+        }
         base.RenewPos();
 
         // 主軸の初期姿勢からの実回転角（オイラー角の1成分だと回転軸が親ローカル軸とズレた機械で角度が一致しない）
