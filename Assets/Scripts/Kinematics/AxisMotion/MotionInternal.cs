@@ -493,9 +493,13 @@ public class MotionInternal : AxisMotionBase
                 float c = -2 * Math.Abs(action.stroke);
                 float discriminant = CommonFunction.Discriminant(a, b, c);
 
-                if (!isRotate && (invAcl == 0f) && (invDcl == 0f))
+                if ((invAcl == 0f) && (invDcl == 0f))
                 {
-                    // 加減速なし：全体を一定速度（ストローク÷時間）で動かす
+                    // 加減速なし：全体を一定速度（ストローク÷時間）で動かす。
+                    // ★回転は上で加速度を無効化(aclVal=dclVal=0)しているため必ずここを通る。
+                    //   以前は !isRotate で除外しており、その場合 a=0 の二次方程式で velocity=NaN となって
+                    //   aclTime/dclTime=NaN → CreateCurve が全区間ストローク値（終端else）になり、
+                    //   回転軸（および回転が主軸の拡張機構）が開始→終了へ一気に飛んで途中波形が出なかった。
                     action.velocity = action.time > 0 ? Math.Abs(action.stroke) / action.time : 0f;
                     action.aclTime = 0f;
                     action.dclTime = 0f;
