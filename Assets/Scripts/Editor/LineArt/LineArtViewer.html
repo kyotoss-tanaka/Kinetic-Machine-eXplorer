@@ -1,0 +1,727 @@
+<title>線画ナビ</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+JP:wght@400;500;700&display=swap">
+<style>
+/* 図面台の上に用紙（線画）。スマホは図の下に一覧、広い画面は右に一覧。選んだ物は赤ペンで示す */
+:root {
+  --desk: #e9ecef;
+  --paper: #ffffff;
+  --ink: #1d2126;
+  --muted: #5d6670;
+  --rule: #c9cfd6;
+  --mark: #d11f1f;
+  --mark-soft: #fbe9e9;
+  --accent: #23508f;
+  --panel: #f7f8f9;
+  --font-body: "IBM Plex Sans JP", "Hiragino Sans", "Yu Gothic UI", "Meiryo", sans-serif;
+  --font-code: "IBM Plex Mono", "Consolas", "MS Gothic", monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --desk: #16191d; --paper: #ffffff; --ink: #e6e9ec; --muted: #9aa3ad; --rule: #333a42;
+    --mark: #ff5a52; --mark-soft: #3a1d1d; --accent: #8fb4ec; --panel: #1e2227; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --desk: #16191d; --paper: #ffffff; --ink: #e6e9ec; --muted: #9aa3ad; --rule: #333a42;
+  --mark: #ff5a52; --mark-soft: #3a1d1d; --accent: #8fb4ec; --panel: #1e2227; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+/* hidden 属性を下の display 指定より優先する（file:// で開いたときも「読み込み中」を消すため） */
+[hidden] { display: none !important; }
+body {
+  background: var(--desk); color: var(--ink); font-family: var(--font-body); font-size: 15px; line-height: 1.6; margin: 0;
+  padding-left: max(12px, env(safe-area-inset-left, 0px)); padding-right: max(12px, env(safe-area-inset-right, 0px));
+  padding-block: 12px 32px;
+}
+@media (min-width: 600px) {
+  body { padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 16px 32px; }
+}
+button { font: inherit; }
+button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+header.bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; margin-bottom: 10px; }
+.crumbs { display: flex; flex-wrap: wrap; align-items: center; gap: 2px; font-size: 15px; min-width: 0; flex: 1 1 280px; }
+.crumbs button { color: var(--accent); background: none; border: 0; padding: 4px 6px; cursor: pointer; border-radius: 3px; }
+.crumbs button:hover { text-decoration: underline; }
+.crumbs .here { font-weight: 700; padding: 4px 6px; overflow-wrap: anywhere; }
+.crumbs .sep { color: var(--muted); }
+.viewbar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.views { display: inline-flex; flex-wrap: wrap; border: 1px solid var(--rule); border-radius: 4px; overflow: hidden; }
+.turn {
+  width: 34px; height: 32px; border: 1px solid var(--rule); border-radius: 4px; background: var(--panel); color: var(--ink);
+  cursor: pointer; font-size: 16px; line-height: 1;
+}
+.views button { font-size: 13px; padding: 6px 10px; border: 0; background: var(--panel); color: var(--ink); cursor: pointer; font-variant-numeric: tabular-nums; min-width: 44px; }
+.views button[aria-pressed="true"] { background: var(--ink); color: var(--desk); }
+
+.layout { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 16px; align-items: start; }
+@media (max-width: 900px) { .layout { grid-template-columns: minmax(0, 1fr); gap: 12px; } }
+
+.sheet { background: var(--paper); border: 1px solid var(--rule); min-width: 0; position: relative; }
+.zoombar { display: flex; gap: 6px; position: absolute; right: 8px; top: 8px; z-index: 2; }
+.zoombar button {
+  width: 36px; height: 36px; border-radius: 4px; border: 1px solid #c9cfd6; background: rgba(255,255,255,0.92);
+  color: #1d2126; font-size: 18px; cursor: pointer; line-height: 1;
+}
+.scroller { overflow: auto; max-height: 75vh; -webkit-overflow-scrolling: touch; }
+@media (max-width: 900px) { .scroller { max-height: 62vh; } }
+canvas#drawing { display: block; width: 100%; height: auto; margin: 0 auto; cursor: default; touch-action: pan-x pan-y pinch-zoom; }
+canvas#drawing.can-open { cursor: pointer; }
+canvas#drawing.dragging { cursor: grabbing; }
+.mousehelp {
+  font-size: 12px; color: #5d6670; padding: 4px 8px; border-top: 1px solid #c9cfd6; background: #ffffff;
+  display: flex; flex-wrap: wrap; gap: 4px 14px;
+}
+.mousehelp b { font-weight: 500; color: #1d2126; }
+@media (hover: none) { .mousehelp { display: none; } }
+.loading { position: absolute; inset: 0; display: grid; place-items: center; color: #5d6670; font-size: 14px; background: rgba(255,255,255,0.6); }
+.tip {
+  position: fixed; pointer-events: none; background: #1d2126; color: #fff; font-size: 12px; line-height: 1.4;
+  padding: 4px 8px; border-radius: 3px; white-space: nowrap; z-index: 5; max-width: 70vw; overflow: hidden; text-overflow: ellipsis;
+}
+.tip b { color: #ffb3ae; font-weight: 500; }
+
+.titleblock {
+  display: grid; grid-template-columns: auto 1fr auto 1fr; border-top: 1px solid #1d2126;
+  font-size: 12px; color: #1d2126; line-height: 1.4;
+}
+.titleblock > div { padding: 4px 8px; border-right: 1px solid #1d2126; border-bottom: 1px solid #1d2126; min-width: 0; overflow-wrap: anywhere; }
+.titleblock > div:nth-child(4n) { border-right: 0; }
+.titleblock > div:nth-last-child(-n+4) { border-bottom: 0; }
+.titleblock .k { color: #5d6670; letter-spacing: 0.04em; }
+.titleblock .v { font-family: var(--font-code); }
+
+aside { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.box { background: var(--panel); border: 1px solid var(--rule); border-radius: 4px; padding: 12px; min-width: 0; }
+.box h2 { font-size: 12px; font-weight: 500; letter-spacing: 0.08em; color: var(--muted); margin: 0 0 8px; }
+.hint { color: var(--muted); font-size: 13px; margin: 0; }
+/* 一覧の上の「上の階層へ戻る」：選ぶのと同じ右側で戻れるように */
+.back {
+  display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; padding: 10px 12px;
+  border: 1px solid var(--rule); border-radius: 4px; background: var(--panel); color: var(--accent); cursor: pointer;
+}
+.back:hover { border-color: var(--accent); }
+.back .arrow { font-size: 16px; line-height: 1; }
+
+.card { border-color: var(--mark); }
+.card .title { font-size: 18px; font-weight: 700; color: var(--mark); margin: 0 0 6px; overflow-wrap: anywhere; }
+.card .actions { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+.card .actions button {
+  padding: 8px 16px; border-radius: 4px; border: 1px solid var(--ink); background: var(--ink); color: var(--desk); cursor: pointer;
+}
+.card .actions button.secondary { background: transparent; color: var(--ink); }
+dl.facts { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; margin: 0; font-size: 14px; }
+dl.facts dt { color: var(--muted); }
+dl.facts dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.code { font-family: var(--font-code); }
+
+.filter { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
+.filter input[type="search"] {
+  flex: 1; min-width: 0; font: inherit; font-size: 14px; padding: 6px 10px; border: 1px solid var(--rule); border-radius: 4px;
+  background: var(--paper); color: #1d2126;
+}
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.chips button {
+  font-size: 12px; padding: 3px 10px; border-radius: 999px; border: 1px solid var(--rule); background: transparent; color: var(--ink); cursor: pointer;
+}
+.chips button[aria-pressed="true"] { background: var(--ink); color: var(--desk); border-color: var(--ink); }
+.chips button.all { font-weight: 500; }
+.chips .n { color: inherit; opacity: 0.7; font-variant-numeric: tabular-nums; margin-left: 4px; }
+
+.list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; max-height: 60vh; overflow-y: auto; }
+@media (max-width: 900px) { .list { max-height: none; } }
+.list li { margin: 0; }
+.list .head { font-size: 12px; color: var(--muted); letter-spacing: 0.06em; padding: 8px 8px 2px; }
+.list button {
+  width: 100%; text-align: left; color: var(--ink); background: none; border: 0; border-radius: 3px;
+  padding: 8px; cursor: pointer; display: flex; align-items: baseline; gap: 8px; min-width: 0;
+}
+.list button:hover, .list button.hot { background: var(--mark-soft); }
+.list button.hot .nm { color: var(--mark); }
+.list .nm { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.list .letter { font-family: var(--font-code); font-weight: 500; width: 1.6em; flex: none; }
+.list .meta { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.list .unseen { font-size: 11px; color: var(--muted); border: 1px solid var(--rule); border-radius: 2px; padding: 0 4px; white-space: nowrap; }
+.list .indent1 { padding-left: 24px; }
+.list .indent2 { padding-left: 40px; }
+.list .indent3 { padding-left: 56px; }
+.error { color: var(--mark); }
+</style>
+
+<header class="bar">
+  <nav class="crumbs" id="crumbs" aria-label="現在の位置"></nav>
+  <div class="viewbar">
+    <button type="button" class="turn" id="turn-left" aria-label="前の方向へ回す">⟲</button>
+    <div class="views" id="views" role="group" aria-label="見る方向"></div>
+    <button type="button" class="turn" id="turn-right" aria-label="次の方向へ回す">⟳</button>
+  </div>
+</header>
+
+<div class="layout">
+  <section class="sheet" aria-label="線画">
+    <div class="zoombar">
+      <button type="button" id="zoom-out" aria-label="縮小">−</button>
+      <button type="button" id="zoom-in" aria-label="拡大">＋</button>
+    </div>
+    <div class="scroller" id="scroller">
+      <canvas id="drawing" width="10" height="10" aria-label="線画"></canvas>
+    </div>
+    <div class="loading" id="loading">読み込み中…</div>
+    <div class="mousehelp" aria-label="マウスの操作">
+      <span><b>ホイール</b> 拡大・縮小</span><span><b>左ドラッグ</b> 移動</span><span><b>右ドラッグ</b> 向きを回す</span><span><b>クリック</b> 選ぶ</span>
+    </div>
+    <div class="titleblock" id="titleblock"></div>
+  </section>
+  <aside id="side">
+    <div class="box"><p class="hint">読み込み中…</p></div>
+  </aside>
+</div>
+<div class="tip" id="tip" hidden></div>
+
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+  // 見る方向は角度で示す（真上から見て Z+ 側を 0°、45°ずつ）
+  const azName = (az) => `${az}°`;
+  // 一覧で最初は畳んでおく種類（数が多く、配管・配置の確認では使わない）
+  const FOLDED = new Set(["締結", "その他"]);
+
+  let M = null;
+  const state = { az: null, level: "overview", g: -1, u: -1, sel: -1, hover: -1, zoom: 1, query: "", types: null };
+  const cache = new Map();   // 図ごとの { img, base(ImageData), labels(Uint16Array), w, h, counts }
+  let current = null;
+
+  // ---------- データ ----------
+  function viewOf() {
+    const v = M.views[state.az];
+    if (state.level === "overview") return v.overview;
+    if (state.level === "group") return v.groups[state.g];
+    return v.units[state.u];
+  }
+  // 今の図で押せる項目（index は図の中の番号。label = index+1）
+  function itemsOfView() {
+    if (state.level === "overview") return M.groups.map((g, i) => ({ index: i, name: `${g.letter} グループ`, sub: g.name }));
+    if (state.level === "group") return M.groups[state.g].units.map((u, k) => ({ index: k, unit: u, name: M.units[u].name }));
+    return M.units[state.u].comps.map((c, k) => ({ index: k, comp: c, name: M.comps[c].partNo, sub: M.comps[c].type }));
+  }
+  function itemType(k) {
+    return state.level === "unit" ? M.comps[M.units[state.u].comps[k]].type : null;
+  }
+  // 押せる項目か（畳んだ種類は図でも選ばない）
+  function selectable(k) {
+    if (k < 0) return false;
+    const t = itemType(k);
+    return t === null || state.types.has(t);
+  }
+
+  // データは .js（LineArtLoaded(名前, データ) を呼ぶ）で読む。index.html をダブルクリック（file://）で開いても読めるように
+  const pending = new Map();
+  window.LineArtLoaded = (id, data) => { const p = pending.get(id); if (p) { pending.delete(id); p(data); } };
+  function loadData(src) {
+    return new Promise((ok, ng) => {
+      pending.set(src, ok);
+      const s = document.createElement("script");
+      s.src = src;
+      s.onerror = () => { pending.delete(src); s.remove(); ng(new Error(src)); };
+      s.onload = () => { s.remove(); if (pending.has(src)) { pending.delete(src); ng(new Error(src)); } };
+      document.head.append(s);
+    });
+  }
+
+  async function loadView(v) {
+    if (cache.has(v)) return cache.get(v);
+    const data = await loadData(v.data);
+    // 線画は data URI なので file:// でも画素を読める
+    const img = await new Promise((ok, ng) => { const i = new Image(); i.onload = () => ok(i); i.onerror = () => ng(new Error(v.data)); i.src = data.image; });
+    // 画素ごとの項目：ushort の [値, 個数] の並びを base64 にした文字列
+    const bin = atob(data.labels), bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    const buf = bytes.buffer;
+    const w = v.width, h = v.height;
+    const off = document.createElement("canvas"); off.width = w; off.height = h;
+    const ctx = off.getContext("2d", { willReadFrequently: true });
+    ctx.drawImage(img, 0, 0);
+    const base = ctx.getImageData(0, 0, w, h);
+    const labels = new Uint16Array(w * h);
+    const runs = new DataView(buf);
+    for (let p = 0, o = 0; p + 3 < runs.byteLength; p += 4) {
+      const val = runs.getUint16(p, true), n = runs.getUint16(p + 2, true);
+      labels.fill(val, o, o + n); o += n;
+    }
+    const counts = new Map();
+    for (let i = 0; i < labels.length; i++) { const l = labels[i]; if (l) counts.set(l - 1, (counts.get(l - 1) || 0) + 1); }
+    const entry = { base, labels, w, h, counts };
+    // 大きくなりすぎないよう古い物から捨てる
+    cache.set(v, entry);
+    if (cache.size > 6) cache.delete(cache.keys().next().value);
+    return entry;
+  }
+
+  // ---------- 描画 ----------
+  function paint() {
+    if (!current) return;
+    const cv = $("drawing"), ctx = cv.getContext("2d");
+    const { base, labels, w, h } = current;
+    if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
+    const k = state.sel >= 0 ? state.sel : state.hover;
+    if (k < 0) { ctx.putImageData(base, 0, 0); return; }
+    const out = ctx.createImageData(w, h);
+    const s = base.data, d = out.data, target = k + 1;
+    for (let i = 0, p = 0; i < labels.length; i++, p += 4) {
+      const v = s[p];
+      if (labels[i] === target) {
+        // 線は赤、面は薄い赤
+        const t = 1 - v / 255;
+        d[p] = 251 + (209 - 251) * t; d[p + 1] = 226 + (31 - 226) * t; d[p + 2] = 226 + (31 - 226) * t;
+      } else {
+        // 他の線は薄くして、選んだ物を目立たせる
+        const g = 255 - (255 - v) * 0.4;
+        d[p] = g; d[p + 1] = g; d[p + 2] = g;
+      }
+      d[p + 3] = 255;
+    }
+    // 選んだ部品の透かし：隠れている所も赤い線で重ね、範囲は薄く赤みを付ける（他の部品は上で薄くしてある）
+    const xr = state.sel === k && current.xray ? current.xray.get(k) : null;
+    if (xr) {
+      for (let yy = 0; yy < xr.h; yy++) {
+        for (let xx = 0; xx < xr.w; xx++) {
+          const v = xr.vals[yy * xr.w + xx];
+          if (!v) continue;
+          const i = (xr.y + yy) * w + xr.x + xx, p = i * 4;
+          if (v === 2) { d[p] = 209; d[p + 1] = 31; d[p + 2] = 31; }
+          else if (labels[i] !== target) { d[p + 1] = d[p + 1] * 0.86; d[p + 2] = d[p + 2] * 0.86; }
+        }
+      }
+    }
+    ctx.putImageData(out, 0, 0);
+  }
+
+  // ユニット図の透かし（部品ごと）を読む。選んだときだけ読むので、図を開くだけなら重くならない
+  async function ensureXray() {
+    const v = viewOf(), entry = current;
+    if (!v.xray || !entry || entry.xray) return;
+    try {
+      const data = await loadData(v.xray);
+      const map = new Map();
+      data.items.forEach((it) => {
+        const bin = atob(it.d), runs = new DataView(new Uint8Array([...bin].map((c) => c.charCodeAt(0))).buffer);
+        const vals = new Uint8Array(it.w * it.h);
+        for (let p = 0, o = 0; p + 3 < runs.byteLength; p += 4) {
+          const val = runs.getUint16(p, true), n = runs.getUint16(p + 2, true);
+          vals.fill(val, o, o + n); o += n;
+        }
+        map.set(it.k, { x: it.x, y: it.y, w: it.w, h: it.h, vals });
+      });
+      entry.xray = map;
+      if (current === entry) paint();
+    } catch (e) {
+      entry.xray = new Map();   // 透かしが無い古い書き出し等。選択の表示はそのまま
+    }
+  }
+
+  function applyZoom() {
+    $("drawing").style.width = `${state.zoom * 100}%`;
+  }
+
+  // 指先でも当たるよう、少し周りも探す
+  function hitTest(ev) {
+    if (!current) return -1;
+    const cv = $("drawing"), r = cv.getBoundingClientRect();
+    const x = Math.floor((ev.clientX - r.left) / r.width * current.w);
+    const y = Math.floor((ev.clientY - r.top) / r.height * current.h);
+    const radius = Math.max(2, Math.round((ev.pointerType === "touch" ? 14 : 4) * current.w / r.width));
+    let best = -1, bestD = Infinity;
+    for (let dy = -radius; dy <= radius; dy += 1) {
+      const yy = y + dy; if (yy < 0 || yy >= current.h) continue;
+      for (let dx = -radius; dx <= radius; dx += 1) {
+        const xx = x + dx; if (xx < 0 || xx >= current.w) continue;
+        const l = current.labels[yy * current.w + xx] - 1;
+        if (!selectable(l)) continue;
+        const dd = dx * dx + dy * dy;
+        if (dd < bestD) { bestD = dd; best = l; if (dd === 0) return best; }
+      }
+    }
+    return best;
+  }
+
+  // ---------- 画面 ----------
+  async function show() {
+    state.hover = -1;
+    const v = viewOf();
+    $("loading").hidden = false;
+    try {
+      current = await loadView(v);
+    } catch (e) {
+      $("loading").textContent = `図を読めませんでした（${e.message}）`;
+      return;
+    }
+    $("loading").hidden = true;
+    paint();
+    if (state.sel >= 0 && state.level === "unit") ensureXray();
+    renderCrumbs(); renderViews(); renderTitle(); renderSide();
+  }
+
+  function go(level, g, u) {
+    state.level = level; state.g = g; state.u = u; state.sel = -1; state.query = "";
+    state.zoom = 1; applyZoom();
+    try { history.pushState({ level, g, u }, ""); } catch (e) {}
+    show();
+    $("scroller").scrollTo?.(0, 0);
+  }
+
+  function open(k) {
+    if (k < 0) return;
+    if (state.level === "overview") go("group", k, -1);
+    else if (state.level === "group") go("unit", state.g, M.groups[state.g].units[k]);
+    else select(k);
+  }
+
+  function select(k) {
+    state.sel = state.sel === k ? -1 : k;
+    paint(); renderSide();
+    if (state.sel >= 0 && state.level === "unit") ensureXray();
+  }
+
+  function renderCrumbs() {
+    const c = $("crumbs"); c.innerHTML = "";
+    const parts = [{ text: `${M.mechId} 全体`, go: () => go("overview", -1, -1) }];
+    if (state.level !== "overview") {
+      const g = M.groups[state.g];
+      parts.push({ text: `${g.letter} グループ`, go: () => go("group", state.g, -1) });
+    }
+    if (state.level === "unit") parts.push({ text: M.units[state.u].name });
+    parts.forEach((p, i) => {
+      if (i) { const s = document.createElement("span"); s.className = "sep"; s.textContent = "›"; c.append(s); }
+      if (i === parts.length - 1) { const s = document.createElement("span"); s.className = "here"; s.textContent = p.text; c.append(s); }
+      else { const b = document.createElement("button"); b.type = "button"; b.textContent = p.text; b.onclick = p.go; c.append(b); }
+    });
+  }
+
+  function renderViews() {
+    const v = $("views"); v.innerHTML = "";
+    M.azimuths.forEach((az) => {
+      const b = document.createElement("button");
+      b.type = "button"; b.textContent = azName(az); b.setAttribute("aria-pressed", String(az === state.az));
+      b.onclick = () => setAz(az);
+      v.append(b);
+    });
+    const many = M.azimuths.length > 2;
+    $("turn-left").hidden = !many;
+    $("turn-right").hidden = !many;
+  }
+
+  function setAz(az) {
+    state.az = az;
+    try { localStorage.setItem("lineart-az", az); } catch (e) {}
+    show();
+  }
+
+  // 見る方向を角度の順に一つずつ回す（選んでいる物はそのまま）
+  function turn(step) {
+    const sorted = [...M.azimuths].sort((a, b) => Number(a) - Number(b));
+    const i = sorted.indexOf(state.az);
+    setAz(sorted[(i + step + sorted.length) % sorted.length]);
+  }
+
+  function renderTitle() {
+    const name = state.level === "overview" ? `${M.mechId}（全体）` : state.level === "group" ? M.groups[state.g].name : M.units[state.u].name;
+    const what = state.level === "overview" ? "グループ配置" : state.level === "group" ? "ユニット配置" : "部品配置";
+    $("titleblock").innerHTML =
+      `<div class="k">機番</div><div class="v">${esc(M.mechId)}</div><div class="k">図名</div><div>${esc(what)}</div>` +
+      `<div class="k">図番</div><div class="v">${esc(name)}</div><div class="k">投影</div><div>等角・方向 ${esc(azName(state.az))}</div>`;
+  }
+
+  function setHot(k) {
+    document.querySelectorAll("#side .list button[data-k]").forEach((b) => b.classList.toggle("hot", Number(b.dataset.k) === k));
+  }
+
+  function itemButton(k, html, meta, opts = {}) {
+    const li = document.createElement("li");
+    const b = document.createElement("button");
+    b.type = "button"; b.dataset.k = k; if (opts.cls) b.className = opts.cls;
+    b.innerHTML = html + (opts.unseen ? `<span class="unseen">隠れ</span>` : "") + `<span class="meta">${esc(meta)}</span>`;
+    b.onmouseenter = () => { if (state.sel < 0) { state.hover = k; paint(); } };
+    b.onmouseleave = () => { if (state.sel < 0) { state.hover = -1; paint(); } };
+    b.onclick = () => {
+      if (state.level === "unit") select(k);
+      else open(k);
+    };
+    li.append(b);
+    return li;
+  }
+
+  function renderSide() {
+    const side = $("side"); side.innerHTML = "";
+    const counts = current ? current.counts : new Map();
+    if (state.level !== "overview") side.append(backButton());
+    if (state.level === "unit" && state.sel >= 0) side.append(compCard(state.sel));
+
+    const box = document.createElement("div"); box.className = "box";
+    const ul = document.createElement("ul"); ul.className = "list";
+
+    if (state.level === "overview") {
+      box.innerHTML = `<h2>グループ（${M.groups.length}）</h2>`;
+      M.groups.forEach((g, i) => ul.append(itemButton(i,
+        `<span class="letter">${esc(g.letter)}</span><span class="nm code">${esc(g.name)}</span>`,
+        `ユニット ${g.units.length}`, { unseen: !counts.get(i) })));
+      box.append(ul); side.append(box);
+      side.append(hint("図か一覧でグループを選ぶと、その中の動くユニットに進みます。"));
+      return;
+    }
+
+    if (state.level === "group") {
+      const gr = M.groups[state.g];
+      box.innerHTML = `<h2>${esc(gr.letter)} グループの動くユニット（${gr.units.length}）</h2>`;
+      if (!gr.units.length) { box.append(hint("このグループには動くユニットの設定がありません。", true)); side.append(box); return; }
+      // 親子関係で並べる
+      const inG = new Set(gr.units), kOf = new Map(gr.units.map((u, k) => [u, k]));
+      const byName = new Map(M.units.map((u, i) => [u.name, i]));
+      const seen = new Set();
+      const walk = (u, depth) => {
+        if (seen.has(u)) return; seen.add(u);
+        const unit = M.units[u];
+        ul.append(itemButton(kOf.get(u), `<span class="nm">${esc(unit.name)}</span>`, `部品 ${unit.comps.length}`,
+          { cls: depth ? `indent${Math.min(depth, 3)}` : "", unseen: !counts.get(kOf.get(u)) }));
+        unit.children.forEach((cn) => { const c = byName.get(cn); if (c !== undefined && inG.has(c)) walk(c, depth + 1); });
+      };
+      gr.units.filter((u) => !(M.units[u].parent && inG.has(byName.get(M.units[u].parent)))).forEach((u) => walk(u, 0));
+      gr.units.forEach((u) => walk(u, 0));
+      box.append(ul); side.append(box);
+      side.append(hint("ユニットを選ぶと、その中の部品（シリンダ・センサ・モータなど）に進みます。「隠れ」はこの向きでは外から見えないユニットです。"));
+      return;
+    }
+
+    // ユニット：部品を種類ごとに
+    const unit = M.units[state.u];
+    box.innerHTML = `<h2>部品（${unit.comps.length}）</h2>`;
+    if (!unit.comps.length) { box.append(hint("このユニットでは購入部品を見つけられませんでした。", true)); side.append(box); return; }
+    const byType = new Map();
+    unit.comps.forEach((c, k) => { const t = M.comps[c].type; if (!byType.has(t)) byType.set(t, []); byType.get(t).push(k); });
+    const order = M.types.filter((t) => byType.has(t));
+
+    const filter = document.createElement("div"); filter.className = "filter";
+    filter.innerHTML = `<input type="search" id="comp-search" placeholder="型式・メーカーで絞り込む" aria-label="型式・メーカーで絞り込む">`;
+    box.append(filter);
+    const chips = document.createElement("div"); chips.className = "chips";
+    // 全部：押すたびに全選択と全解除を切り替える
+    const allOn = order.every((t) => state.types.has(t));
+    const all = document.createElement("button");
+    all.type = "button"; all.className = "all"; all.setAttribute("aria-pressed", String(allOn));
+    all.innerHTML = `全部<span class="n">${unit.comps.length}</span>`;
+    all.title = allOn ? "全部外す" : "全部選ぶ";
+    all.onclick = () => {
+      if (allOn) order.forEach((t) => state.types.delete(t)); else order.forEach((t) => state.types.add(t));
+      if (state.sel >= 0 && !selectable(state.sel)) state.sel = -1;
+      paint(); renderSide();
+    };
+    chips.append(all);
+    order.forEach((t) => {
+      const b = document.createElement("button");
+      b.type = "button"; b.setAttribute("aria-pressed", String(state.types.has(t)));
+      b.innerHTML = `${esc(t)}<span class="n">${byType.get(t).length}</span>`;
+      b.onclick = () => { if (state.types.has(t)) state.types.delete(t); else state.types.add(t); if (state.sel >= 0 && !selectable(state.sel)) state.sel = -1; paint(); renderSide(); };
+      chips.append(b);
+    });
+    box.append(chips);
+    box.append(ul); side.append(box);
+
+    const fill = () => {
+      ul.innerHTML = "";
+      const q = state.query.trim().toLowerCase();
+      // 同じ型式が複数あるときは「1/3」のように番号を付ける
+      const same = new Map(), nth = new Map();
+      unit.comps.forEach((c, k) => { const p = M.comps[c].partNo; same.set(p, (same.get(p) || 0) + 1); nth.set(k, same.get(p)); });
+      order.filter((t) => state.types.has(t)).forEach((t) => {
+        const ks = byType.get(t).filter((k) => { const c = M.comps[unit.comps[k]]; return !q || `${c.partNo} ${c.maker}`.toLowerCase().includes(q); });
+        if (!ks.length) return;
+        const head = document.createElement("li"); head.className = "head"; head.textContent = `${t}（${ks.length}）`; ul.append(head);
+        ks.forEach((k) => {
+          const c = M.comps[unit.comps[k]];
+          const n = same.get(c.partNo) > 1 ? ` <span class="meta">${nth.get(k)}/${same.get(c.partNo)}</span>` : "";
+          ul.append(itemButton(k, `<span class="nm code">${esc(c.partNo)}${n}</span>`, c.maker || "", { unseen: !counts.get(k) }));
+        });
+      });
+      setHot(state.sel);
+    };
+    const input = box.querySelector("#comp-search");
+    input.value = state.query;
+    input.oninput = () => { state.query = input.value; fill(); };
+    fill();
+    side.append(hint("図か一覧で部品を選ぶと赤く示します。種類のボタンで一覧と図の対象を切り替えられます（ねじ類と「その他」は最初は外しています）。"));
+  }
+
+  // 一つ上の階層へ戻るボタン
+  function backButton() {
+    const b = document.createElement("button");
+    b.type = "button"; b.className = "back";
+    const toGroup = state.level === "unit";
+    const label = toGroup ? `${M.groups[state.g].letter} グループ（ユニットの一覧）に戻る` : `${M.mechId} 全体（グループの一覧）に戻る`;
+    b.innerHTML = `<span class="arrow">↑</span><span>${esc(label)}</span>`;
+    b.onclick = () => toGroup ? go("group", state.g, -1) : go("overview", -1, -1);
+    return b;
+  }
+
+  // その向きのユニット図に部品 k が写っているか
+  function shownIn(az, k) {
+    const v = M.views[az] && M.views[az].units[state.u];
+    return !!(v && v.shown && v.shown.includes(k));
+  }
+
+  function compCard(k) {
+    const c = M.comps[M.units[state.u].comps[k]];
+    const hidden = current && !current.counts.get(k);
+    const seeAz = hidden ? M.azimuths.filter((az) => az !== state.az && shownIn(az, k)) : [];
+    const box = document.createElement("div"); box.className = "box card";
+    box.innerHTML = `<h2>${esc(c.type)}</h2><p class="title code">${esc(c.partNo)}</p>
+      <dl class="facts">
+        ${c.maker ? `<dt>メーカー</dt><dd>${esc(c.maker)}</dd>` : ""}
+        ${c.item ? `<dt>項番</dt><dd class="code">${esc(c.item)}</dd>` : ""}
+        ${c.code ? `<dt>図番コード</dt><dd class="code">${esc(c.code)}</dd>` : ""}
+        <dt>ユニット</dt><dd>${esc(M.units[state.u].name)}</dd>
+        ${hidden ? `<dt>見え方</dt><dd>${seeAz.length
+          ? `この向きでは他の部品に隠れています。${seeAz.map(azName).join("・")} から見えます`
+          : "どの向きからも見えません（小さいか、奥にある部品です）"}</dd>` : ""}
+      </dl>
+      ${seeAz.length ? `<div class="actions">${seeAz.map((az) => `<button type="button" data-az="${esc(az)}">${esc(azName(az))} で見る</button>`).join("")}</div>` : ""}
+      <div class="actions"><button type="button" id="copy-part">型式をコピー</button><button type="button" class="secondary" id="clear-sel">選択を外す</button></div>`;
+    box.querySelector("#copy-part").onclick = async (ev) => {
+      try { await navigator.clipboard.writeText(c.partNo); ev.target.textContent = "コピーしました"; }
+      catch (e) { const r = document.createRange(); r.selectNodeContents(box.querySelector(".title")); const s = getSelection(); s.removeAllRanges(); s.addRange(r); }
+    };
+    box.querySelector("#clear-sel").onclick = () => select(k);
+    // 見える向きへ切り替える（選んだ部品はそのまま赤く示す）
+    box.querySelectorAll("button[data-az]").forEach((b) => { b.onclick = () => setAz(b.dataset.az); });
+    return box;
+  }
+
+  function hint(text, inline) {
+    const p = document.createElement("p"); p.className = "hint"; p.textContent = text;
+    if (inline) return p;
+    const d = document.createElement("div"); d.className = "box"; d.append(p); return d;
+  }
+
+  // ---------- 操作 ----------
+  const cv = $("drawing");
+  const scroller = $("scroller");
+  const ZOOM_MIN = 0.5, ZOOM_MAX = 4;
+
+  // 拡大率を変える（clientX/Y の点が画面上で動かないようにスクロールを合わせる）
+  function zoomAt(z, clientX, clientY) {
+    z = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, z));
+    if (z === state.zoom) return;
+    const r0 = cv.getBoundingClientRect();
+    const fx = (clientX - r0.left) / r0.width, fy = (clientY - r0.top) / r0.height;
+    state.zoom = z; applyZoom();
+    const r1 = cv.getBoundingClientRect();
+    scroller.scrollLeft += (r1.left + fx * r1.width) - clientX;
+    scroller.scrollTop += (r1.top + fy * r1.height) - clientY;
+  }
+
+  // ホイール：拡大・縮小
+  cv.addEventListener("wheel", (ev) => {
+    ev.preventDefault();
+    zoomAt(state.zoom * Math.pow(1.0015, -ev.deltaY), ev.clientX, ev.clientY);
+  }, { passive: false });
+
+  // 左・中ドラッグ：移動、右ドラッグ：向きを回す（KMX のカメラ操作に合わせる）。少しでも動かしたらクリック扱いにしない
+  let drag = null, suppressClick = false;
+  const TURN_STEP = 90;   // 右ドラッグでこれだけ動かすと隣の向きへ
+  cv.addEventListener("pointerdown", (ev) => {
+    if (ev.pointerType === "touch") return;
+    drag = { button: ev.button, x: ev.clientX, y: ev.clientY, sl: scroller.scrollLeft, st: scroller.scrollTop, moved: false, turned: 0 };
+    if (ev.button === 1) ev.preventDefault();   // 中ボタンの自動スクロールを出さない
+  });
+  window.addEventListener("pointermove", (ev) => {
+    if (!drag) return;
+    const dx = ev.clientX - drag.x, dy = ev.clientY - drag.y;
+    if (!drag.moved && Math.hypot(dx, dy) < 5) return;
+    if (!drag.moved) { drag.moved = true; cv.setPointerCapture?.(ev.pointerId); cv.classList.add("dragging"); $("tip").hidden = true; }
+    if (drag.button === 2) {
+      const steps = Math.trunc(dx / TURN_STEP);
+      if (steps !== drag.turned) { turn(steps > drag.turned ? -1 : 1); drag.turned = steps; }
+    } else {
+      scroller.scrollLeft = drag.sl - dx;
+      scroller.scrollTop = drag.st - dy;
+    }
+  });
+  window.addEventListener("pointerup", () => {
+    if (!drag) return;
+    suppressClick = drag.moved;
+    drag = null;
+    cv.classList.remove("dragging");
+  });
+  cv.addEventListener("contextmenu", (ev) => ev.preventDefault());
+  cv.addEventListener("auxclick", (ev) => ev.preventDefault());
+  cv.addEventListener("pointermove", (ev) => {
+    if (ev.pointerType === "touch" || !current || (drag && drag.moved)) return;
+    const k = hitTest(ev);
+    cv.classList.toggle("can-open", k >= 0);
+    const tip = $("tip");
+    if (k >= 0) {
+      const it = itemsOfView()[k];
+      tip.innerHTML = `<b>${esc(it.name)}</b>${it.sub ? " " + esc(it.sub) : ""}`;
+      tip.style.left = `${Math.min(ev.clientX + 14, window.innerWidth - 220)}px`;
+      tip.style.top = `${ev.clientY + 14}px`;
+      tip.hidden = false;
+    } else tip.hidden = true;
+    if (state.sel < 0 && k !== state.hover) { state.hover = k; paint(); setHot(k); }
+  });
+  cv.addEventListener("pointerleave", () => {
+    $("tip").hidden = true;
+    if (state.sel < 0 && state.hover >= 0) { state.hover = -1; paint(); setHot(-1); }
+  });
+  cv.addEventListener("click", (ev) => {
+    if (suppressClick) { suppressClick = false; return; }
+    const k = hitTest(ev);
+    if (state.level === "unit") { if (k >= 0) select(k); return; }
+    // タッチは1回目で赤く示して名前を出し、同じ物の2回目で進む
+    if (ev.pointerType === "touch" || ev.pointerType === "pen") {
+      if (k >= 0 && k !== state.sel) { state.sel = k; paint(); renderSide(); setHot(k); showTouchCard(k); return; }
+    }
+    open(k);
+  });
+
+  // タッチで選んだときの「開く」カード（グループ・ユニット）
+  function showTouchCard(k) {
+    const it = itemsOfView()[k];
+    const box = document.createElement("div"); box.className = "box card";
+    box.innerHTML = `<h2>${state.level === "overview" ? "グループ" : "ユニット"}</h2><p class="title">${esc(it.name)}</p>
+      ${it.sub ? `<p class="hint code">${esc(it.sub)}</p>` : ""}
+      <div class="actions"><button type="button" id="open-sel">開く</button><button type="button" class="secondary" id="clear-sel">選択を外す</button></div>`;
+    box.querySelector("#open-sel").onclick = () => open(k);
+    box.querySelector("#clear-sel").onclick = () => { state.sel = -1; paint(); renderSide(); };
+    const back = $("side").querySelector(".back");
+    if (back) back.after(box); else $("side").prepend(box);
+    box.scrollIntoView?.({ block: "nearest" });
+  }
+
+  $("turn-left").onclick = () => turn(-1);
+  $("turn-right").onclick = () => turn(1);
+  const zoomCenter = (f) => { const r = scroller.getBoundingClientRect(); zoomAt(state.zoom * f, r.left + r.width / 2, r.top + r.height / 2); };
+  $("zoom-in").onclick = () => zoomCenter(1.5);
+  // 縮小は幅の 50% まで（全体を小さく見渡せるように）
+  $("zoom-out").onclick = () => zoomCenter(1 / 1.5);
+
+  window.addEventListener("popstate", (ev) => {
+    const s = ev.state; if (!s) return;
+    state.level = s.level; state.g = s.g; state.u = s.u; state.sel = -1; state.zoom = 1; applyZoom(); show();
+  });
+
+  loadData("manifest.js").then((m) => {
+    M = m;
+    document.title = `${M.mechId} 線画ナビ`;
+    state.types = new Set(M.types.filter((t) => !FOLDED.has(t)));
+    let saved = null; try { saved = localStorage.getItem("lineart-az"); } catch (e) {}
+    state.az = M.azimuths.includes(saved) ? saved : M.azimuths[0];
+    try { history.replaceState({ level: "overview", g: -1, u: -1 }, ""); } catch (e) {}
+    show();
+  }).catch((e) => {
+    $("loading").textContent = "";
+    $("side").innerHTML = `<div class="box"><p class="error">図のデータを読めませんでした: ${esc(e.message)}</p></div>`;
+  });
+})();
+</script>
