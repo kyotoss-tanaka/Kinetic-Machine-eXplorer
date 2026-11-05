@@ -62,6 +62,7 @@ public class MainProcess : KssBaseScript
             Application.targetFrameRate = 60;
             // ovr.gameObject.SetActive(false);
         }
+        RaiseProcessPriority();
 
         // データ初期化
         var cameraControllers = FindObjectsByType<CameraController>(FindObjectsSortMode.None).ToList();
@@ -80,6 +81,60 @@ public class MainProcess : KssBaseScript
             }
         }
     }
+
+#if UNITY_EDITOR_WIN
+    /// <summary>
+    /// 上げる前の優先度（エディタは実行を止めたら戻す）
+    /// </summary>
+    private System.Diagnostics.ProcessPriorityClass? orgPriority;
+#endif
+
+    /// <summary>
+    /// プロセスの優先度を「通常以上」にする（Windows のみ）。
+    /// 外部通信の応答（シリンダの完了IO 等）は描画と同じメインスレッドのフレームで作るため、
+    /// ウイルス対策等で CPU が詰まると後回しにされ、PLC 側の時間監視に間に合わなくなる
+    /// </summary>
+    private void RaiseProcessPriority()
+    {
+#if UNITY_STANDALONE_WIN || UNITY_EDITOR_WIN
+        try
+        {
+            using var process = System.Diagnostics.Process.GetCurrentProcess();
+#if UNITY_EDITOR_WIN
+            orgPriority ??= process.PriorityClass;
+#endif
+            if (process.PriorityClass == System.Diagnostics.ProcessPriorityClass.Normal)
+            {
+                process.PriorityClass = System.Diagnostics.ProcessPriorityClass.AboveNormal;
+                Debug.Log("[優先度] プロセスの優先度を「通常以上」にしました（外部通信の応答を遅らせないため）");
+            }
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning($"[優先度] プロセスの優先度を変えられませんでした: {ex.Message}");
+        }
+#endif
+    }
+
+#if UNITY_EDITOR_WIN
+    protected override void OnDestroy()
+    {
+        base.OnDestroy();
+        // エディタは実行を止めても残るので元に戻す
+        if (orgPriority.HasValue)
+        {
+            try
+            {
+                using var process = System.Diagnostics.Process.GetCurrentProcess();
+                process.PriorityClass = orgPriority.Value;
+            }
+            catch (Exception)
+            {
+            }
+            orgPriority = null;
+        }
+    }
+#endif
 
     protected override void OnEnable()
     {
