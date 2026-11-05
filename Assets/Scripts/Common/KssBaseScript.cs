@@ -429,7 +429,7 @@ public class KssBaseScript : BaseBehaviour
     /// "name:bit" 形式のタグを正規表現なしで解析する。bit指定があれば tag を基底名に書き換え true を返す。
     /// （毎フレーム多数呼ばれるため Regex を排除し、通常ケースのアロケーションをゼロにする）
     /// </summary>
-    private static bool TryParseBitTag(ref string tag, out int bitNo)
+    protected static bool TryParseBitTag(ref string tag, out int bitNo)
     {
         bitNo = 0;
         int colon = tag.LastIndexOf(':');
@@ -556,6 +556,24 @@ public class KssBaseScript : BaseBehaviour
     {
         SetTagValue(unitSetting.Database, unitSetting.mechId, tag, ref tagInfo, value, index);
     }
+    /// <summary>
+    /// タグの値の 1 ビットだけ書き換える。
+    /// 外部通信のシリンダは通信スレッドからも完了IOを書くため、読んでから書くまでの間に
+    /// 別のスレッドが同じ値の別のビットを書くと、その書き換えが消える。CompareExchange で書く
+    /// </summary>
+    protected static void SetTagBit(TagInfo tagInfo, int bitNo, bool on)
+    {
+        while (true)
+        {
+            var old = tagInfo.Value;
+            var value = on ? (old | (1 << bitNo)) : (old & ~(1 << bitNo));
+            if (System.Threading.Interlocked.CompareExchange(ref tagInfo.Value, value, old) == old)
+            {
+                return;
+            }
+        }
+    }
+
     protected void SetTagValue(string dbName, string mechId, string tag, ref TagInfo tagInfo, int value, int index = -1)
     {
         bool hasBit = TryParseBitTag(ref tag, out int bitNo);
@@ -563,14 +581,7 @@ public class KssBaseScript : BaseBehaviour
         {
             if (hasBit)
             {
-                if (value == 1)
-                {
-                    tagInfo.Value |= (1 << bitNo);
-                }
-                else
-                {
-                    tagInfo.Value &= ~(1 << bitNo);
-                }
+                SetTagBit(tagInfo, bitNo, value == 1);
             }
             else
             {
@@ -591,14 +602,7 @@ public class KssBaseScript : BaseBehaviour
         {
             if (hasBit)
             {
-                if (value == 1)
-                {
-                    tagInfo.Value |= (1 << bitNo);
-                }
-                else
-                {
-                    tagInfo.Value &= ~(1 << bitNo);
-                }
+                SetTagBit(tagInfo, bitNo, value == 1);
             }
             else
             {

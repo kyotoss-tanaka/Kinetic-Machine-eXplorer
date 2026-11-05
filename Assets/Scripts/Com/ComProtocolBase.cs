@@ -69,6 +69,39 @@ public class ComProtocolBase : ComBaseScript, ITagCom
     public string Name { get { return dbIpAddress + ":" + dbPort.ToString(); } }
 
     /// <summary>
+    /// 動いている外部通信（応答遅れの計測で、タグの通信先を探すため）
+    /// </summary>
+    private static readonly List<ComProtocolBase> instances = new();
+
+    /// <summary>
+    /// 最後に終わった受信を始めた時刻（Stopwatch.GetTimestamp）。この時点の PLC の値を取り込んでいる
+    /// </summary>
+    public long lastRecvStartTs { get; private set; }
+
+    /// <summary>
+    /// 最後に終わった送信を始めた時刻（Stopwatch.GetTimestamp）。この時点のタグの値を送っている
+    /// </summary>
+    public long lastSendStartTs { get; private set; }
+
+    /// <summary>
+    /// 最後に終わった送信の完了時刻（Stopwatch.GetTimestamp）
+    /// </summary>
+    public long lastSendDoneTs { get; private set; }
+
+    /// <summary>
+    /// サーバー名（タグの Database）から外部通信を探す
+    /// </summary>
+    public static ComProtocolBase FindByName(string name)
+    {
+        if (string.IsNullOrEmpty(name))
+        {
+            return null;
+        }
+        // 通信スレッドからも呼ぶので、Unity の == null は使わず参照で比べる
+        return instances.Find(d => !ReferenceEquals(d, null) && d.Name == name);
+    }
+
+    /// <summary>
     /// IPアドレス
     /// </summary>
     protected string dbIpAddress;
@@ -350,13 +383,114 @@ public class ComProtocolBase : ComBaseScript, ITagCom
         }
     }
 
+    /// <summary>
+    /// 通信スレッド（受信・送信・接続を描画のフレームと関係なく回す）
+    /// </summary>
+    private Thread comThread;
+
+    /// <summary>
+    /// 通信スレッドを続けるか
+    /// </summary>
+    private volatile bool isComThreadRunning;
+
+    /// <summary>
+    /// コンポーネントが有効か（enabled は Unity の API でメインスレッドからしか読めないため、コルーチンで写す）
+    /// </summary>
+    private volatile bool isComEnabled;
+
+    /// <summary>
+    /// 時間が止まっているか（Time.timeScale=0。履歴表示など）。
+    /// 止まっている間は描画側の動作も止まるので、通信スレッドの判定も止める（以前と同じく完了IOも進めない）
+    /// </summary>
+    public static volatile bool isTimeStopped;
+
+    /// <summary>
+    /// 通信スレッドで、受信の直後・送信の直前に呼ぶ判定（外部通信のシリンダの開始・完了IO）。引数は呼んだ時刻(Stopwatch.GetTimestamp)
+    /// </summary>
+    private readonly List<Action<long>> tickers = new();
+
+    /// <summary>
+    /// 判定の一覧の写し（通信スレッドはロックせずにこれを回す）
+    /// </summary>
+    private volatile Action<long>[] tickerArray = new Action<long>[0];
+
+    /// <summary>
+    /// 判定で例外が出た回数（ログを絞るため）
+    /// </summary>
+    private int tickerErrorCount;
+
+    /// <summary>
+    /// 判定を登録する
+    /// </summary>
+    public void AddTicker(Action<long> ticker)
+    {
+        lock (tickers)
+        {
+            if (!tickers.Contains(ticker))
+            {
+                tickers.Add(ticker);
+                tickerArray = tickers.ToArray();
+            }
+        }
+    }
+
+    /// <summary>
+    /// 判定の登録を外す
+    /// </summary>
+    public void RemoveTicker(Action<long> ticker)
+    {
+        lock (tickers)
+        {
+            if (tickers.Remove(ticker))
+            {
+                tickerArray = tickers.ToArray();
+            }
+        }
+    }
+
+    /// <summary>
+    /// 登録された判定を呼ぶ（通信スレッド）
+    /// </summary>
+    private void RunTickers()
+    {
+        if (isTimeStopped)
+        {
+            return;
+        }
+        var now = System.Diagnostics.Stopwatch.GetTimestamp();
+        foreach (var ticker in tickerArray)
+        {
+            try
+            {
+                ticker(now);
+            }
+            catch (Exception e)
+            {
+                // 1件の例外で他のユニットの判定まで止めない。ログは最初と一定回数ごとに絞る
+                tickerErrorCount++;
+                if ((tickerErrorCount == 1) || ((tickerErrorCount % 500) == 0))
+                {
+                    UnityEngine.Debug.LogError($"[通信スレッド] {GetType().Name} {Name}: 判定で例外（{tickerErrorCount}回目・処理は継続）: {e}");
+                }
+            }
+        }
+    }
+
+    protected override void Update()
+    {
+        base.Update();
+        isTimeStopped = Time.timeScale == 0f;
+    }
+
     // Start is called before the first frame update
     protected override void Start()
     {
         swRecieve = new();
         swSend = new();
+        instances.Add(this);
         StartCoroutine(DataUpdate());
         StartCoroutine(CheckPingLoop());
+        StartComThread();
     }
 
     /// <summary>
@@ -364,7 +498,141 @@ public class ComProtocolBase : ComBaseScript, ITagCom
     /// </summary>
     protected override void OnDestroy()
     {
+        instances.Remove(this);
+        isComThreadRunning = false;
         Disconnect();
+    }
+
+    protected override void OnEnable()
+    {
+        base.OnEnable();
+        isComEnabled = true;
+    }
+
+    protected override void OnDisable()
+    {
+        base.OnDisable();
+        // GameObject ごと無効になるとコルーチンが止まり isComEnabled を写せないので、ここで止める
+        isComEnabled = false;
+    }
+
+    /// <summary>
+    /// 通信スレッド開始。
+    /// 以前は受信・送信のきっかけをメインスレッドのコルーチンで作っていたため、PC が重く描画が遅れたり
+    /// 止まったりすると、その分 PLC とのやり取りも遅れた（シリンダの完了IOが間に合わず PLC 側で詰まり判定）
+    /// </summary>
+    private void StartComThread()
+    {
+        isComEnabled = enabled;
+        isComThreadRunning = true;
+        comThread = new Thread(ComThreadLoop)
+        {
+            IsBackground = true,
+            Name = $"Com {GetType().Name} {Name}",
+            Priority = System.Threading.ThreadPriority.AboveNormal,
+        };
+        comThread.Start();
+    }
+
+    /// <summary>
+    /// 通信スレッド本体：受信 → 送信 を Cycle の周期で回す（未接続なら接続）
+    /// </summary>
+    private void ComThreadLoop()
+    {
+        long prvLoopStartTs = 0;
+        long prvSleepMs = 0;
+        while (isComThreadRunning)
+        {
+            var loopStartTs = System.Diagnostics.Stopwatch.GetTimestamp();
+            // 周期の残りだけ待つ（Cycle が 30ms 未満は以前の FixedUpdate ごとと同じ 20ms）
+            var period = Cycle < 30 ? 20 : Cycle;
+            if (prvLoopStartTs != 0)
+            {
+                // 通信スレッド自体が止まっていないかの確認（描画が止まっても通信スレッドが動いているか）。
+                // 前の周の開始から、この周の開始までが周期より大きく空いたらログに出す
+                var gapMs = (loopStartTs - prvLoopStartTs) * 1000 / System.Diagnostics.Stopwatch.Frequency;
+                if (gapMs > period + ComGapLogThresholdMs)
+                {
+                    UnityEngine.Debug.Log($"[通信スレッド] {GetType().Name} {Name}: 周期 {period}ms のところ {gapMs}ms 空きました" +
+                        $"（前の周：受信 {swRecieve.laps}ms・送信 {swSend.laps}ms・待ち {prvSleepMs}ms）");
+                }
+            }
+            prvLoopStartTs = loopStartTs;
+            if (isComEnabled && GlobalScript.isLoaded && !GlobalScript.isSystemRecorder)
+            {
+                ExchangeOnce();
+            }
+            var elapsedMs = (System.Diagnostics.Stopwatch.GetTimestamp() - loopStartTs) * 1000 / System.Diagnostics.Stopwatch.Frequency;
+            prvSleepMs = Math.Max(1, period - elapsedMs);
+            Thread.Sleep((int)prvSleepMs);
+        }
+    }
+
+    /// <summary>
+    /// 通信スレッドの周期がこれ以上空いたらログに出す(ms)
+    /// </summary>
+    private const long ComGapLogThresholdMs = 100;
+
+    /// <summary>
+    /// 1回分のやり取り（受信 → 判定 → 送信。未接続なら接続 → 判定）
+    /// </summary>
+    private void ExchangeOnce()
+    {
+        if (!IsConnected)
+        {
+            try
+            {
+                // 接続処理
+                IsConnected = Connect();
+            }
+            catch (System.Exception e)
+            {
+                CommonFunction.DebugLog($"通信エラー(接続): {e.Message}");
+            }
+            // 未接続でも動作中のシリンダは時間で進める
+            RunTickers();
+            return;
+        }
+        try
+        {
+            // 受信処理
+            swRecieve.cycle = swRecieve.sw.ElapsedMilliseconds;
+            swRecieve.sw.Restart();
+            var recvStartTs = System.Diagnostics.Stopwatch.GetTimestamp();
+            if (Recieve())
+            {
+                swRecieve.laps = swRecieve.sw.ElapsedMilliseconds;
+                lastRecvStartTs = recvStartTs;
+                // DB登録済
+                isRcvDb = true;
+            }
+        }
+        catch (System.Exception e)
+        {
+            CommonFunction.DebugLog($"通信エラー(受信): {e.Message}");
+        }
+        // 受け取った開始IOで動作を始め、時間が来た完了IOを ON にする（この周の送信で PLC へ届く）
+        RunTickers();
+        if (!isFirst && IsConnected)
+        {
+            try
+            {
+                // 書き込み処理
+                swSend.cycle = swSend.sw.ElapsedMilliseconds;
+                swSend.sw.Restart();
+                var sendStartTs = System.Diagnostics.Stopwatch.GetTimestamp();
+                if (Send())
+                {
+                    swSend.laps = swSend.sw.ElapsedMilliseconds;
+                    lastSendStartTs = sendStartTs;
+                    lastSendDoneTs = System.Diagnostics.Stopwatch.GetTimestamp();
+                }
+            }
+            catch (System.Exception e)
+            {
+                CommonFunction.DebugLog($"通信エラー(送信): {e.Message}");
+            }
+        }
     }
 
     /// <summary>
@@ -374,6 +642,7 @@ public class ComProtocolBase : ComBaseScript, ITagCom
     {
         while (true)
         {
+            isComEnabled = this.enabled;
             if (this.enabled)
             {
                 if (GlobalScript.isLoaded && !GlobalScript.isSystemRecorder)
@@ -506,77 +775,8 @@ public class ComProtocolBase : ComBaseScript, ITagCom
     /// </summary>
     public override void RenewData()
     {
+        // サイクルの統計だけ。受信・送信・接続は通信スレッド（ComThreadLoop）で回す
         base.RenewData();
-        if (GlobalScript.isLoaded)
-        {
-            if (!IsProcessing)
-            {
-                IsProcessing = true;
-                if (IsConnected)
-                {
-                    // 接続済み
-                    _ = Task.Run(() =>
-                    {
-                        try
-                        {
-                            // 受信処理
-                            swRecieve.cycle = swRecieve.sw.ElapsedMilliseconds;
-                            swRecieve.sw.Restart();
-                            if (Recieve())
-                            {
-                                swRecieve.laps = swRecieve.sw.ElapsedMilliseconds;
-                                // DB登録済
-                                isRcvDb = true;
-                            }
-                        }
-                        catch (System.Exception e)
-                        {
-                            CommonFunction.DebugLog($"通信エラー(受信): {e.Message}");
-                        }
-                        IsProcessing = false;
-                    });
-                    if (!isFirst)
-                    {
-                        // 書き込み処理
-                        IsWriteProcessing = true;
-                        _ = Task.Run(() =>
-                        {
-                            try
-                            {
-                                swSend.cycle = swSend.sw.ElapsedMilliseconds;
-                                swSend.sw.Restart();
-                                if (Send())
-                                {
-                                    swSend.laps = swSend.sw.ElapsedMilliseconds;
-                                }
-                            }
-                            catch (System.Exception e)
-                            {
-                                CommonFunction.DebugLog($"通信エラー(送信): {e.Message}");
-                            }
-                            IsWriteProcessing = false;
-                        });
-                    }
-                }
-                else
-                {
-                    // 未接続
-                    _ = Task.Run(() =>
-                    {
-                        try
-                        {
-                            // 接続処理
-                            IsConnected = Connect();
-                        }
-                        catch (System.Exception e)
-                        {
-                            CommonFunction.DebugLog($"通信エラー(接続): {e.Message}");
-                        }
-                        IsProcessing = false;
-                    });
-                }
-            }
-        }
     }
 
     /// <summary>

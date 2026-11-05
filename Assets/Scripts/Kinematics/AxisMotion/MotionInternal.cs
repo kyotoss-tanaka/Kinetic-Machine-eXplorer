@@ -268,14 +268,99 @@ public class MotionInternal : AxisMotionBase
     private bool isMoving = false;
 
     /// <summary>
-    /// 経過タイマー
+    /// 動作を始めた時刻（Stopwatch.GetTimestamp）
     /// </summary>
-    private Stopwatch sw = new Stopwatch();
+    private long startTs;
+
+    /// <summary>
+    /// 判定（Tick）と状態を守るロック。外部通信のシリンダは通信スレッドからも判定するため
+    /// </summary>
+    private readonly object logicLock = new object();
+
+    /// <summary>
+    /// 最後の判定の始めに動作中だったか（バケットの見た目に使う）
+    /// </summary>
+    private bool tickWasMoving;
+
+    /// <summary>
+    /// 最後の判定の波形上の位置（バケットの見た目に使う）
+    /// </summary>
+    private float tickPos;
+
+    /// <summary>
+    /// バケットか（判定用。RenewMoveDir で決める）
+    /// </summary>
+    private bool isBacketLogic;
+
+    /// <summary>
+    /// 見た目に反映した位置（変わった時だけ Transform に書く）
+    /// </summary>
+    private Vector3 appliedPosition;
+
+    /// <summary>
+    /// 判定を登録した通信（外部通信のシリンダ）
+    /// </summary>
+    private ComProtocolBase comTickerCom;
+
+    /// <summary>
+    /// 通信へ登録した判定
+    /// </summary>
+    private Action<long> comTicker;
+
+    /// <summary>
+    /// 通信へ登録するかを確認済みか
+    /// </summary>
+    private bool comTickerChecked;
+
+    /// <summary>
+    /// 通信スレッドが最後に判定した時刻（Stopwatch.GetTimestamp）
+    /// </summary>
+    private long lastComTickTs;
 
     /// <summary>
     /// 通信遅れ時間
     /// </summary>
     private float delayTime;
+
+    /// <summary>
+    /// 外部通信の応答遅れの計測（開始IOを受けてから完了IOを送るまで）
+    /// </summary>
+    private class ResponseLog
+    {
+        /// <summary>開始IOの通信先</summary>
+        public ComProtocolBase startCom;
+        /// <summary>完了IOの通信先</summary>
+        public ComProtocolBase endCom;
+        /// <summary>開始IOを取り込んだ受信の開始時刻</summary>
+        public long recvTs;
+        /// <summary>開始IOに気づいた時刻</summary>
+        public long detectTs;
+        /// <summary>完了IOをONにした時刻（0=まだ）</summary>
+        public long onTs;
+        /// <summary>開始から完了IOをONにするまでの予定時間(ms)＝動作時間－通信遅れ時間</summary>
+        public float expectedMs;
+        /// <summary>計測中の FixedUpdate の最大間隔(ms)</summary>
+        public float maxGapMs;
+        /// <summary>開始IO名</summary>
+        public string start;
+        /// <summary>完了IO名</summary>
+        public string end;
+    }
+
+    /// <summary>
+    /// 計測中の応答遅れ
+    /// </summary>
+    private ResponseLog responseLog;
+
+    /// <summary>
+    /// 前回の FixedUpdate の時刻（Stopwatch.GetTimestamp）
+    /// </summary>
+    private long prvFixedTs;
+
+    /// <summary>
+    /// 応答遅れをログに出す閾値(ms)。予定より これ以上遅れた時だけ出す
+    /// </summary>
+    private const float ResponseLogThresholdMs = 100f;
 
     /// <summary>
     /// 現在位置
@@ -381,6 +466,22 @@ public class MotionInternal : AxisMotionBase
     /// ユニット設定から動作設定更新
     /// </summary>
     public override void RenewMoveDir()
+    {
+        // 通信スレッドの判定と重ならないようにロックし、登録は作り直してからやり直す（EnsureComTicker）
+        lock (logicLock)
+        {
+            RemoveComTicker();
+            RenewMoveDirCore();
+            appliedPosition = innerPosition;
+            // 判定は通信スレッドからも呼ぶので、Unity の比較を含む isBacket はここで決めておく
+            isBacketLogic = isBacket;
+        }
+    }
+
+    /// <summary>
+    /// ユニット設定から動作設定更新（本体）
+    /// </summary>
+    private void RenewMoveDirCore()
     {
         base.RenewMoveDir();
 
@@ -686,7 +787,9 @@ public class MotionInternal : AxisMotionBase
     }
 
     /// <summary>FixedUpdate
-    /// タイマー処理
+    /// タイマー処理。
+    /// 判定（開始・完了IO）は Tick にまとめ、外部通信のシリンダは通信スレッドから呼ぶ（描画が止まっても PLC への応答が遅れない）。
+    /// ここでは通信スレッドが動いていない時だけ Tick を呼び、判定が決めた位置を見た目に反映する
     /// </summary>
     // Update is called once per frame
 //    protected override void MyFixedUpdate()
@@ -710,172 +813,66 @@ public class MotionInternal : AxisMotionBase
             LoopAxisUpdate();
             return;
         }
-        if (!isMoving)
+        EnsureComTicker();
+        var now = Stopwatch.GetTimestamp();
+        bool wasMoving;
+        float pos;
+        Vector3 position;
+        lock (logicLock)
         {
-            // 経過時間クリア
-            nowTime = 0;
-            // トリガ更新
-            for (int i = 0; i < actionIos.Count; i++)
+            if (!IsComTickAlive(now))
             {
-                actionIos[i].RenewTrigger(GetTagValue(actionIos[i].start, ref actionIos[i]._StartInput));
+                // 内部通信・バケット・記録再生、または通信スレッドが動いていない時はここで判定する
+                Tick(now, false);
             }
-            // 入力I/Oチェック
-            for (int i = 0; i < actionIos.Count; i++)
-            {
-                if (actionIos[i].isTrigger)
-                {
-                    // 動作開始トリガ検出中
-                    sw.Reset();
-                    sw.Restart();
-                    // 目標座標と現在座標の距離をストロークとして動作曲線を作成する
-                    if (!Generate_ST_Curve(i))
-                    {
-                        // 到達済み
-                        continue;
-                    }
-                    isMoving = true;
-                    break;
-                }
-            }
-            timeOffset = GlobalScript.isSystemRecorder ? GlobalScript.sysRecMilliseconds : (cycleTag == null ? 0 : GlobalScript.GetTagData(cycleTag));
+            wasMoving = tickWasMoving;
+            pos = tickPos;
+            position = innerPosition;
+            TrackFrameGap(now);
         }
-        else
-        {
-            // 経過測定
-            nowTime = (GlobalScript.isSystemRecorder ? GlobalScript.sysRecMilliseconds : (cycleTag == null ? sw.ElapsedMilliseconds : GlobalScript.GetTagData(cycleTag))) - timeOffset;
-            // 通信遅れ時間込みで終了IOをON
-            if (nowTime >= actionCurve.actCurve.Count - delayTime)
-            {
-                // 進角指令
-                var campos = camPosInfos.Find(d => d.end == actionCurve.actionIo.end);
-                if (campos != null)
-                {
-                    campos.AdvanceAngle = true;
-                }
-            }
-            // 位置取得
-            float pos = 0;
-            if (actionCurve.getPosition(nowTime, ref pos))
-            {
-                // 動作終了
-                if (actionCurve.isContinue)
-                {
-                    // 継続動作ならインターロック
-                    isMoving = GetTagValue(actionCurve.actionIo.end, ref actionCurve.actionIo._StartInput) != 0;
-                }
-                else
-                {
-                    isMoving = false;
-                }
-                if (exModeChange)
-                {
-                    // 拡張機構モード変更時（ロード完了前はexScript未生成のためスキップ）
-                    innerPosition = isRotate ? actionCurve.targetPos * Thousand : actionCurve.targetPos;
-                    if (exScript != null)
-                    {
-                        exScript.SetExTarget(innerPosition);
-                    }
-                }
-                else
-                {
-                    if (isBacket)
-                    {
-                        MoveBacket(pos);
-                    }
-                    else
-                    {
-                        if (isRotate)
-                        {
-                            // 回転動作
-                            moveObject.transform.localEulerAngles = actionCurve.targetPos * Thousand;
-                            innerPosition = actionCurve.targetPos * Thousand;
-                            nowPos = Vector3.Distance(Vector3.zero, moveObject.transform.localEulerAngles);
-                        }
-                        else
-                        {
-                            // 直線動作
-                            var position = transform.TransformPoint(actionCurve.targetPos);
-                            //rb.MovePosition(position);
-                            moveObject.transform.localPosition = actionCurve.targetPos;
-                            innerPosition = actionCurve.targetPos;
-                            nowPos = Vector3.Distance(Vector3.zero, moveObject.transform.localPosition) * Thousand;
-                        }
-                    }
-                }
-            }
-            else
-            {
-                try
-                {
-                    if (exModeChange)
-                    {
-                        // 拡張機構モード変更時（ロード完了前はexScript未生成のためスキップ）
-                        innerPosition = isRotate ? actionCurve.startPos * Thousand + pos * moveDir : actionCurve.startPos + pos * moveDir / Thousand;
-                        if (exScript != null)
-                        {
-                            exScript.SetExTarget(innerPosition);
-                        }
-                    }
-                    else if (isBacket)
-                    {
-                        MoveBacket(pos);
-                    }
-                    else
-                    {
-                        if (isRotate)
-                        {
-                            // 回転動作
-                            moveObject.transform.localEulerAngles = actionCurve.startPos * Thousand + pos * moveDir;
-                            innerPosition = actionCurve.startPos * Thousand + pos * moveDir;
-                            nowPos = Vector3.Distance(Vector3.zero, moveObject.transform.localEulerAngles);
-                        }
-                        else
-                        {
-                            // 直線動作
-                            /*
-                            var position = transform.TransformPoint(actionCurve.startPos + pos * moveDir / Thousand);
-                            rb.MovePosition(position);
-                            */
-                            moveObject.transform.localPosition = actionCurve.startPos + pos * moveDir / Thousand;
-                            innerPosition = actionCurve.startPos + pos * moveDir / Thousand;
-                            nowPos = Vector3.Distance(Vector3.zero, moveObject.transform.localPosition) * Thousand;
-                        }
-                    }
-                }
-                catch (Exception ex)
-                {
-                    UnityEngine.Debug.Log($"エラー：ユニット名「{unitSetting.name}」: {ex.Message}");
-                }
-            }
 
-            if (chuckSetting != null)
+        // 見た目への反映
+        try
+        {
+            if (exModeChange)
             {
+                // 拡張機構モード変更時（ロード完了前はexScript未生成のためスキップ）
+                if ((exScript != null) && (position != appliedPosition))
+                {
+                    appliedPosition = position;
+                    exScript.SetExTarget(position);
+                    ApplyChuckChildren(position);
+                }
+            }
+            else if (isBacket)
+            {
+                // バケットは経路上の進みで動かす（判定もメインスレッド）
+                if (wasMoving)
+                {
+                    MoveBacket(pos);
+                    ApplyChuckChildren(position);
+                }
+            }
+            else if (position != appliedPosition)
+            {
+                appliedPosition = position;
                 if (isRotate)
                 {
                     // 回転動作
-                    foreach (var child in chuckSetting.children)
-                    {
-                        child.setting.moveObject.transform.localEulerAngles = (exModeChange ? innerPosition : moveObject.transform.localEulerAngles) * child.dir * child.rate + child.offset * moveDir;
-                    }
+                    moveObject.transform.localEulerAngles = position;
                 }
                 else
                 {
                     // 直線動作
-                    foreach (var child in chuckSetting.children)
-                    {
-                        child.setting.moveObject.transform.localPosition = (exModeChange ? innerPosition : moveObject.transform.localPosition) * child.dir * child.rate + child.offset * moveDir / Thousand;
-                    }
+                    moveObject.transform.localPosition = position;
                 }
+                ApplyChuckChildren(position);
             }
-
         }
-
-        /****************************************/
-        if (isBacket)
+        catch (Exception ex)
         {
-
+            UnityEngine.Debug.Log($"エラー：ユニット名「{unitSetting.name}」: {ex.Message}");
         }
-        /****************************************/
 
         // 位置取得
         if (isRotate)
@@ -894,6 +891,126 @@ public class MotionInternal : AxisMotionBase
             nowSpd = (nowPos - prvPos) / (nowTime - prvTime) * 1000;
         }
 
+        // 前回データ保持
+        prvTime = nowTime;
+        prvPos = nowPos;
+    }
+
+    /// <summary>
+    /// チャックの子ユニットを動かす
+    /// </summary>
+    private void ApplyChuckChildren(Vector3 position)
+    {
+        if (chuckSetting == null)
+        {
+            return;
+        }
+        if (isRotate)
+        {
+            // 回転動作
+            foreach (var child in chuckSetting.children)
+            {
+                child.setting.moveObject.transform.localEulerAngles = (exModeChange ? position : moveObject.transform.localEulerAngles) * child.dir * child.rate + child.offset * moveDir;
+            }
+        }
+        else
+        {
+            // 直線動作
+            foreach (var child in chuckSetting.children)
+            {
+                child.setting.moveObject.transform.localPosition = (exModeChange ? position : moveObject.transform.localPosition) * child.dir * child.rate + child.offset * moveDir / Thousand;
+            }
+        }
+    }
+
+    /// <summary>
+    /// 判定（開始・完了IO・位置）。logicLock の中で呼ぶ。
+    /// メインスレッド（FixedUpdate）と通信スレッドのどちらから呼ばれても同じ処理（内部と外部で処理をそろえる）。
+    /// 通信スレッドからは Unity の機能（Transform・タグの引き当て）を使わない
+    /// </summary>
+    /// <param name="now">呼んだ時刻（Stopwatch.GetTimestamp）</param>
+    /// <param name="onComThread">通信スレッドからか</param>
+    private void Tick(long now, bool onComThread)
+    {
+        tickWasMoving = isMoving;
+        if (!isMoving)
+        {
+            // 経過時間クリア
+            nowTime = 0;
+            // トリガ更新
+            for (int i = 0; i < actionIos.Count; i++)
+            {
+                actionIos[i].RenewTrigger(ReadTag(actionIos[i].start, ref actionIos[i]._StartInput, onComThread));
+            }
+            // 入力I/Oチェック
+            for (int i = 0; i < actionIos.Count; i++)
+            {
+                if (actionIos[i].isTrigger)
+                {
+                    // 動作開始トリガ検出中（開始時刻＝この判定の時刻。通信スレッドなら受信の直後）
+                    startTs = now;
+                    // 目標座標と現在座標の距離をストロークとして動作曲線を作成する
+                    if (!Generate_ST_Curve(i))
+                    {
+                        // 到達済み
+                        continue;
+                    }
+                    isMoving = true;
+                    BeginResponseLog(now);
+                    break;
+                }
+            }
+            timeOffset = GlobalScript.isSystemRecorder ? GlobalScript.sysRecMilliseconds : (cycleTag == null ? 0 : GlobalScript.GetTagData(cycleTag));
+        }
+        else
+        {
+            // 経過測定
+            nowTime = (GlobalScript.isSystemRecorder ? GlobalScript.sysRecMilliseconds : (cycleTag == null ? (now - startTs) * 1000 / Stopwatch.Frequency : GlobalScript.GetTagData(cycleTag))) - timeOffset;
+            // 通信遅れ時間込みで終了IOをON
+            if (nowTime >= actionCurve.actCurve.Count - delayTime)
+            {
+                // 進角指令
+                var campos = camPosInfos.Find(d => d.end == actionCurve.actionIo.end);
+                if (campos != null)
+                {
+                    campos.AdvanceAngle = true;
+                }
+                if ((responseLog != null) && (responseLog.onTs == 0))
+                {
+                    responseLog.onTs = now;
+                }
+            }
+            // 位置取得
+            float pos = 0;
+            var isEnd = actionCurve.getPosition(nowTime, ref pos);
+            if (isEnd)
+            {
+                // 動作終了
+                if (actionCurve.isContinue)
+                {
+                    // 継続動作ならインターロック
+                    isMoving = ReadTag(actionCurve.actionIo.end, ref actionCurve.actionIo._StartInput, onComThread) != 0;
+                }
+                else
+                {
+                    isMoving = false;
+                }
+            }
+            // バケットは innerPosition を使わない（経路上の進みで動かす。拡張機構モード変更時は使う）
+            if (exModeChange || !isBacketLogic)
+            {
+                if (isEnd)
+                {
+                    innerPosition = isRotate ? actionCurve.targetPos * Thousand : actionCurve.targetPos;
+                }
+                else
+                {
+                    innerPosition = isRotate ? actionCurve.startPos * Thousand + pos * moveDir : actionCurve.startPos + pos * moveDir / Thousand;
+                }
+            }
+            tickPos = pos;
+        }
+
         // 出力処理
         if (!GlobalScript.isSystemRecorder)
         {
@@ -908,14 +1025,233 @@ public class MotionInternal : AxisMotionBase
                 {
                     dist = Vector3.Distance(campos.Position, innerPosition) * Thousand;
                 }
-                SetTagValue(campos.end, ref campos._EndOutput, campos.AdvanceAngle ? 1 : (dist <= 1 ? 1 : 0));
+                WriteTag(campos.end, ref campos._EndOutput, campos.AdvanceAngle ? 1 : (dist <= 1 ? 1 : 0), onComThread);
                 campos.AdvanceAngle = false;
             }
         }
+        CheckResponseLog(now);
+    }
 
-        // 前回データ保持
-        prvTime = nowTime;
-        prvPos = nowPos;
+    /// <summary>
+    /// タグを読む。通信スレッドからは引き当て済みのタグの値だけを読む（引き当て・破棄の確認は Unity の機能のため）
+    /// </summary>
+    private int ReadTag(string tag, ref TagInfo tagInfo, bool onComThread)
+    {
+        if (!onComThread)
+        {
+            return GetTagValue(tag, ref tagInfo);
+        }
+        // KssBaseScript.GetTagValue の、引き当て済みの時と同じ読み方。
+        // TagInfo は ScriptableObject なので、== null（Unity の比較）は使わず参照で比べる
+        bool hasBit = TryParseBitTag(ref tag, out int bitNo);
+        if (!ReferenceEquals(tagInfo, null))
+        {
+            if (hasBit)
+            {
+                return (tagInfo.Value >> bitNo) & 1;
+            }
+            return tagInfo.isFloat ? (int)(tagInfo.fValue * 1000000f) : tagInfo.Value;
+        }
+        // 数値指定（常に ON 等）
+        return int.TryParse(tag, out var value) ? value : 0;
+    }
+
+    /// <summary>
+    /// タグに書く。通信スレッドからは引き当て済みのタグにだけ書く
+    /// </summary>
+    private void WriteTag(string tag, ref TagInfo tagInfo, int value, bool onComThread)
+    {
+        if (!onComThread)
+        {
+            SetTagValue(tag, ref tagInfo, value);
+            return;
+        }
+        // KssBaseScript.SetTagValue の、引き当て済みの時と同じ書き方
+        if (ReferenceEquals(tagInfo, null))
+        {
+            return;
+        }
+        if (TryParseBitTag(ref tag, out int bitNo))
+        {
+            SetTagBit(tagInfo, bitNo, value == 1);
+        }
+        else
+        {
+            tagInfo.Value = value;
+        }
+    }
+
+    /// <summary>
+    /// 外部通信のシリンダなら、判定を通信スレッドに登録する（メインスレッド）。
+    /// 回り続ける軸・バケット（経路上の進みを差分で積むため、描画と一緒に回す）・記録再生は登録しない
+    /// </summary>
+    private void EnsureComTicker()
+    {
+        if ((comTickerCom != null) || comTickerChecked || !GlobalScript.isLoaded)
+        {
+            return;
+        }
+        comTickerChecked = true;
+        if (isLoopAxis || (isBacket && !exModeChange) || GlobalScript.isSystemRecorder)
+        {
+            return;
+        }
+        lock (logicLock)
+        {
+            // 通信スレッドからはタグを引き当てられないので、ここで済ませておく（完了IOは RenewMoveDir で引き当て済み）
+            ComProtocolBase com = null;
+            foreach (var io in actionIos)
+            {
+                GetTagValue(io.start, ref io._StartInput);
+                if ((com == null) && (io._StartInput != null))
+                {
+                    com = ComProtocolBase.FindByName(io._StartInput.Database);
+                }
+            }
+            if (com == null)
+            {
+                // 内部通信（ComInner）等。今まで通り FixedUpdate で判定する
+                return;
+            }
+            comTicker ??= TickFromComThread;
+            comTickerCom = com;
+            lastComTickTs = 0;
+            com.AddTicker(comTicker);
+        }
+    }
+
+    /// <summary>
+    /// 通信スレッドへの登録を外す
+    /// </summary>
+    private void RemoveComTicker()
+    {
+        if ((comTickerCom != null) && (comTicker != null))
+        {
+            comTickerCom.RemoveTicker(comTicker);
+        }
+        comTickerCom = null;
+        comTickerChecked = false;
+        lastComTickTs = 0;
+    }
+
+    /// <summary>
+    /// 通信スレッドから呼ばれる判定
+    /// </summary>
+    private void TickFromComThread(long now)
+    {
+        lock (logicLock)
+        {
+            if (comTickerCom == null)
+            {
+                // 登録を外した後に呼ばれた
+                return;
+            }
+            lastComTickTs = now;
+            Tick(now, true);
+        }
+    }
+
+    /// <summary>
+    /// 通信スレッドが判定を回しているか（最後に回してから 0.5 秒以内）。
+    /// 未接続で接続待ちが長い時などは FixedUpdate 側で判定する（同じ判定なのでどちらが回しても結果は同じ）
+    /// </summary>
+    private bool IsComTickAlive(long now)
+    {
+        return (comTickerCom != null) && (lastComTickTs != 0) && ((now - lastComTickTs) < Stopwatch.Frequency / 2);
+    }
+
+    protected override void OnDestroy()
+    {
+        base.OnDestroy();
+        lock (logicLock)
+        {
+            RemoveComTicker();
+        }
+    }
+
+    /// <summary>
+    /// 応答遅れの計測開始（外部通信の開始IOで動き出した時。内部通信・記録再生では測らない）。logicLock の中で呼ぶ
+    /// </summary>
+    private void BeginResponseLog(long now)
+    {
+        responseLog = null;
+        if (GlobalScript.isSystemRecorder)
+        {
+            return;
+        }
+        // 完了IOは判定と同じく、作った波形の動作IOで見る
+        // 通信スレッドからも呼ぶので、Unity の == null は使わず参照で比べる
+        var io = actionCurve.actionIo;
+        if (io == null)
+        {
+            return;
+        }
+        var startCom = ReferenceEquals(io._StartInput, null) ? null : ComProtocolBase.FindByName(io._StartInput.Database);
+        var campos = camPosInfos.Find(d => d.end == io.end);
+        var endCom = ((campos == null) || ReferenceEquals(campos._EndOutput, null)) ? null : ComProtocolBase.FindByName(campos._EndOutput.Database);
+        if ((startCom == null) || (endCom == null) || (startCom.lastRecvStartTs == 0))
+        {
+            return;
+        }
+        responseLog = new ResponseLog
+        {
+            startCom = startCom,
+            endCom = endCom,
+            recvTs = startCom.lastRecvStartTs,
+            detectTs = now,
+            expectedMs = Math.Max(0f, actionCurve.actCurve.Count - delayTime),
+            start = io.start,
+            end = io.end,
+        };
+    }
+
+    /// <summary>
+    /// FixedUpdate の間隔を記録する（応答遅れのログに出す）。logicLock の中で呼ぶ
+    /// </summary>
+    private void TrackFrameGap(long now)
+    {
+        var gapMs = prvFixedTs == 0 ? 0f : (float)((now - prvFixedTs) * 1000.0 / Stopwatch.Frequency);
+        prvFixedTs = now;
+        if (responseLog != null)
+        {
+            responseLog.maxGapMs = Math.Max(responseLog.maxGapMs, gapMs);
+        }
+    }
+
+    /// <summary>
+    /// 応答遅れの計測。完了IOを ON にした後の送信が終わったら、予定より遅れた分をログに出す。logicLock の中で呼ぶ
+    /// </summary>
+    private void CheckResponseLog(long now)
+    {
+        if ((responseLog == null) || (responseLog.onTs == 0))
+        {
+            return;
+        }
+        var com = responseLog.endCom;
+        if (com.lastSendStartTs <= responseLog.onTs)
+        {
+            // まだ ON を送っていない（送信が無いまま 10 秒経ったらやめる）
+            if ((now - responseLog.onTs) > Stopwatch.Frequency * 10)
+            {
+                responseLog = null;
+            }
+            return;
+        }
+        var log = responseLog;
+        responseLog = null;
+        double ToMs(long ticks) => ticks * 1000.0 / Stopwatch.Frequency;
+        var totalMs = ToMs(com.lastSendDoneTs - log.recvTs);
+        var lateMs = totalMs - log.expectedMs;
+        if (lateMs < ResponseLogThresholdMs)
+        {
+            return;
+        }
+        var detectMs = ToMs(log.detectTs - log.recvTs);
+        var onLateMs = ToMs(log.onTs - log.detectTs) - log.expectedMs;
+        var sendMs = ToMs(com.lastSendDoneTs - log.onTs);
+        UnityEngine.Debug.Log($"[応答遅れ] {unitSetting.name}: 開始IO「{log.start}」を受けてから完了IO「{log.end}」を送るまで {totalMs:0}ms" +
+            $"（予定 {log.expectedMs:0}ms より {lateMs:0}ms 遅い。内訳：開始に気づくまで {detectMs:0}ms・完了ONの遅れ {onLateMs:0}ms・" +
+            $"ONから送信完了まで {sendMs:0}ms・フレームの最大間隔 {log.maxGapMs:0}ms・判定 {(comTickerCom != null ? "通信スレッド" : "フレーム")}）");
     }
 
     /// <summary>
@@ -955,7 +1291,7 @@ public class MotionInternal : AxisMotionBase
                     startPos = innerPosition;
                 }
                 st = Vector3.Distance(targetPos, startPos) * Thousand;
-                if (isBacket)
+                if (isBacketLogic)
                 {
                     // バケットは周回するので、目標位置の差ではなく各動作のストローク（進む量）で動かす
                     st = Math.Abs(action.stroke);
@@ -972,7 +1308,7 @@ public class MotionInternal : AxisMotionBase
                 startPos = targetPos;
                 targetPos = action.targetPos;
                 st = Vector3.Distance(targetPos, startPos) * Thousand;
-                if (isBacket)
+                if (isBacketLogic)
                 {
                     // バケットは周回するので各動作のストロークで動かす。
                     // （目標位置の差で測ると、同じ目標が続く連続動作（例：毎回 30mm 進む）が 0 になり、
@@ -986,7 +1322,7 @@ public class MotionInternal : AxisMotionBase
                 return false;
             }
             var direction = (action.targetPos - startPos).normalized;
-            if (isBacket)
+            if (isBacketLogic)
             {
                 // バケットの向きは外部動作と同じく dir を掛けない（基本が正転。ストロークの符号だけ見る）。
                 // 目標位置は dir 込みなので、dir=-1 だと値が減り続け、MoveBacket が毎フレーム「折り返し」と
