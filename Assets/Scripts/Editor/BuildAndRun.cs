@@ -399,15 +399,34 @@ public class BuildAndRun
     }
 
     /// <summary>
-    /// ビルド処理
+    /// 新しい製番を作る流れ（KmxNewProdPipeline）から呼ぶ：KMXTool の BuildConfig.json で Windows の実行ファイルを outDir に作る。
+    /// 起動・ダイアログ・エクスプローラーは出さない。失敗したら例外。戻り値は KMX.exe のあるフォルダ
     /// </summary>
-    private static string BuildAndRunProcess(Parameters.BuildConfig build, bool isRun, bool isProd = false, bool isWeb = false)
+    public static string BuildForPipeline(string outDir)
+    {
+        string configPath = Path.Combine("Assets/StreamingAssets/Datas", "BuildConfig.json");
+        if (!File.Exists(configPath))
+        {
+            throw new FileNotFoundException("設定ファイルが見つかりません: " + configPath);
+        }
+        var build = JsonSerializer.Deserialize<Parameters.BuildConfig>(File.ReadAllText(configPath, Encoding.UTF8));
+        build.isRelease = true;
+        build.isVR = false;
+        build.isMR = false;
+        build.isMaster = false;
+        return BuildAndRunProcess(build, false, true, false, outDir);
+    }
+
+    /// <summary>
+    /// ビルド処理（outDir を指定すると Builds の下ではなくそこに作る）
+    /// </summary>
+    private static string BuildAndRunProcess(Parameters.BuildConfig build, bool isRun, bool isProd = false, bool isWeb = false, string outDir = null)
     {
         var isAndroid = build.isVR || build.isMR;
         var platformDir = isWeb ? "Web" : (isAndroid ? "Android" : "Windows");
         var productName = build.isMaster ? "KMXMaster" : (build.isMR ? $"{build.mechId}_{build.name}(MR)" : build.isVR ? $"{build.mechId}_{build.name}(VR)" : $"{build.mechId}_{build.name}");
         productName = productName.Replace("/", " ");
-        var productDir = Path.Combine(Path.Combine(Path.Combine("Builds", platformDir), build.isRelease ? "Release" : "Debug"), productName);
+        var productDir = outDir ?? Path.Combine(Path.Combine(Path.Combine("Builds", platformDir), build.isRelease ? "Release" : "Debug"), productName);
 
         BuildConfig config = new BuildConfig
         {
@@ -433,6 +452,17 @@ public class BuildAndRun
 
         // プラットフォーム切り替え
         EditorUserBuildSettings.SwitchActiveBuildTarget(group, target);
+
+        // Windows の描画 API：DirectX 12 を優先し、使えない PC では DirectX 11 で動く（プロジェクト設定がどうなっていてもビルドはこれで作る）。
+        // DirectX 11 は描画の命令ごとのドライバの手間が大きく、Intel Arc 内蔵 GPU 機（R8120・2160x1440）では描画スレッドと
+        // ドライバのスレッドがほぼ1コアずつ使い切っていた。同じ視点（R キーの初期位置・Render Scale 100%）で
+        // DirectX 11 48fps → DirectX 12 57fps（2026-11-06 実測）。視点をそろえずに比べると逆の結果も出たので、比べる時は視点をそろえる。
+        // なお DirectX 11 だけで作ったビルドを -force-d3d12 で起動すると GPU Resident Drawer の計算シェーダーが無く真っ黒になる
+        if (target == BuildTarget.StandaloneWindows64)
+        {
+            PlayerSettings.SetUseDefaultGraphicsAPIs(target, false);
+            PlayerSettings.SetGraphicsAPIs(target, new[] { UnityEngine.Rendering.GraphicsDeviceType.Direct3D12, UnityEngine.Rendering.GraphicsDeviceType.Direct3D11 });
+        }
 
         // PlayerSettings
         PlayerSettings.companyName = "Kyoto Seisakusho Co., Ltd.";
@@ -475,38 +505,51 @@ public class BuildAndRun
 
         // Addressable設定
         AddressableAssetSettings settings = AddressableAssetSettingsDefaultObject.Settings;
-        settings.DefaultGroup.Settings.ActivePlayModeDataBuilderIndex = 1;
-        AddPrefabToAddressables("Assets/Resources/Prefabs/DummyPrefab.prefab");
-        AddressableAssetGroupSchema sc = settings.DefaultGroup.Schemas.Find(d => d.GetType() == typeof(BundledAssetGroupSchema));
-        var buildName = ((BundledAssetGroupSchema)sc).BuildPath.GetName(settings);
-        var loadName = ((BundledAssetGroupSchema)sc).LoadPath.GetName(settings);
-        // WebGL はサーバ配信不可のため、ローカル同梱（StreamingAssets）パスにする
-        var savePath = isWeb ? "[UnityEngine.AddressableAssets.Addressables.BuildPath]/[BuildTarget]" : $"{serverPath}/{bundlePath}";
-        var loadPath = isWeb ? "{UnityEngine.AddressableAssets.Addressables.RuntimePath}/[BuildTarget]" : $"{serverPath}/{bundlePath}";
-        settings.profileSettings.SetValue(settings.activeProfileId, buildName, savePath);
-        settings.profileSettings.SetValue(settings.activeProfileId, loadName, loadPath);
-
-        QualitySettings.SetQualityLevel(System.Array.IndexOf(QualitySettings.names, "High"), true);
-
-        // パス設定
+        // パス設定（ビルドの後でも使う）
         string projectPath = Directory.GetParent(Application.dataPath).FullName;
         string folderPath = Path.Combine(projectPath, productDir);
-        var jsonPath = Path.Combine(folderPath, "RuntimeActionBindings.json");
-        if (File.Exists(jsonPath))
+
+        // Play Mode は最後に戻す（ビルドが例外で止まっても戻す。途中で落ちても AddressablesPlayModeGuard が次の機会に戻す）
+        AddressablesPlayModeGuard.UseExistingBuild(settings);
+        try
         {
-            File.Delete(jsonPath);
+            AddPrefabToAddressables("Assets/Resources/Prefabs/DummyPrefab.prefab");
+            AddressableAssetGroupSchema sc = settings.DefaultGroup.Schemas.Find(d => d.GetType() == typeof(BundledAssetGroupSchema));
+            var buildName = ((BundledAssetGroupSchema)sc).BuildPath.GetName(settings);
+            var loadName = ((BundledAssetGroupSchema)sc).LoadPath.GetName(settings);
+            // WebGL はサーバ配信不可のため、ローカル同梱（StreamingAssets）パスにする
+            var savePath = isWeb ? "[UnityEngine.AddressableAssets.Addressables.BuildPath]/[BuildTarget]" : $"{serverPath}/{bundlePath}";
+            var loadPath = isWeb ? "{UnityEngine.AddressableAssets.Addressables.RuntimePath}/[BuildTarget]" : $"{serverPath}/{bundlePath}";
+            settings.profileSettings.SetValue(settings.activeProfileId, buildName, savePath);
+            settings.profileSettings.SetValue(settings.activeProfileId, loadName, loadPath);
+
+            QualitySettings.SetQualityLevel(System.Array.IndexOf(QualitySettings.names, "High"), true);
+
+            // パス設定
+            var jsonPath = Path.Combine(folderPath, "RuntimeActionBindings.json");
+            if (File.Exists(jsonPath))
+            {
+                File.Delete(jsonPath);
+            }
+
+            // 保存
+            AssetDatabase.SaveAssets();
+
+            // プログラム実行
+            var report = BuildPipeline.BuildPlayer(options);
+            if (report.summary.result != BuildResult.Succeeded)
+            {
+                // 失敗を「完了」と言わない（エラーの数はコンソールに出ている）
+                throw new Exception($"ビルドに失敗しました（{report.summary.result}・エラー {report.summary.totalErrors} 件）");
+            }
         }
-
-        // 保存
-        AssetDatabase.SaveAssets();
-
-        // プログラム実行
-        BuildPipeline.BuildPlayer(options);
-
-        // Addressable設定戻す
-        settings.DefaultGroup.Settings.ActivePlayModeDataBuilderIndex = 0;
-        // 保存
-        AssetDatabase.SaveAssets();
+        finally
+        {
+            // Addressable設定戻す
+            AddressablesPlayModeGuard.Restore(settings);
+            // 保存
+            AssetDatabase.SaveAssets();
+        }
 
         if (!isProd)
         {

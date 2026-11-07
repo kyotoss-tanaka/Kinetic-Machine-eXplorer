@@ -23,6 +23,44 @@ public class AddressablePrefabRegistrar
 
     private static string bundlePath = "StandaloneWindows64";
 
+    /// <summary>新しい製番を作る流れから呼ばれたときの終わりの知らせ（エラーの文。成功なら null）。null ならダイアログで知らせる</summary>
+    private static Action<string> onFinished;
+
+    /// <summary>ダイアログで知らせる（新しい製番を作る流れから呼ばれたときはログだけ）</summary>
+    private static void Notify(string title, string message)
+    {
+        if (onFinished == null)
+        {
+            EditorUtility.DisplayDialog(title, message, "OK");
+        }
+        else
+        {
+            UnityEngine.Debug.Log($"[Addressables] {title}: {message}");
+        }
+    }
+
+    /// <summary>終わりを知らせる（新しい製番を作る流れから呼ばれたときだけ）</summary>
+    private static void NotifyFinished(string error)
+    {
+        var done = onFinished;
+        onFinished = null;
+        done?.Invoke(error);
+    }
+
+    /// <summary>
+    /// 新しい製番を作る流れ（KmxNewProdPipeline）から呼ぶ：プレハブを登録してビルドする。画面は出さない。
+    /// prefabs を渡すとそのプレハブだけ、null ならフォルダのプレハブ全部。
+    /// ビルドは次の更新で行うので、終わったら done(エラーの文。成功なら null) を呼ぶ。
+    /// 出力は Library/com.unity.addressables/aa/製番（プレハブと Addressables）
+    /// </summary>
+    public static void RegisterForPipeline(List<string> folders, List<string> prefabs, string prodNo, Action<string> done)
+    {
+        isVR = false;
+        isProcessing = true;
+        onFinished = done;
+        RegisterProcess(folders, prodNo, prefabs);
+    }
+
     [MenuItem("Kyotoss/Register Prefab to Addressables", false , 15)]
     public static void RegisterPrefabToAddressables()
     {
@@ -162,7 +200,8 @@ public class AddressablePrefabRegistrar
     /// </summary>
     /// <param name="folders">プレハブのフォルダ</param>
     /// <param name="prodNo">製番（出力フォルダ名・ProdNo.txt）</param>
-    private static void RegisterProcess(List<string> folders, string prodNo)
+    /// <param name="onlyPrefabs">登録するプレハブ（null ならフォルダのプレハブ全部）</param>
+    private static void RegisterProcess(List<string> folders, string prodNo, List<string> onlyPrefabs = null)
     {
         try
         {
@@ -173,19 +212,22 @@ public class AddressablePrefabRegistrar
                 AddressableAssetSettings settings = AddressableAssetSettingsDefaultObject.Settings;
 
                 // プレハブファイル取得
-                var files = folders.SelectMany(folder => Directory.GetFiles(isVR ? Path.Combine(folder, "VR") : folder).ToList().FindAll(d => Path.GetExtension(d) == ".prefab")).ToList();
+                var files = onlyPrefabs != null
+                    ? onlyPrefabs.Select(d => Path.GetFullPath(d)).Where(File.Exists).ToList()
+                    : folders.SelectMany(folder => Directory.GetFiles(isVR ? Path.Combine(folder, "VR") : folder).ToList().FindAll(d => Path.GetExtension(d) == ".prefab")).ToList();
                 // アドレスはファイル名なので、同じ名前のプレハブが別のフォルダにあると取り違える
                 var dupNames = files.GroupBy(d => Path.GetFileName(d), StringComparer.OrdinalIgnoreCase).Where(g => g.Count() > 1).Select(g => g.Key).ToList();
                 if (dupNames.Count > 0)
                 {
-                    EditorUtility.DisplayDialog("エラー", "同じ名前のプレハブが複数のフォルダにあります：\n" + string.Join("\n", dupNames), "OK");
+                    Notify("エラー", "同じ名前のプレハブが複数のフォルダにあります：\n" + string.Join("\n", dupNames));
                     isProcessing = false;
+                    NotifyFinished("同じ名前のプレハブが複数のフォルダにあります：" + string.Join(", ", dupNames));
                     return;
                 }
                 if (files.Count > 0)
                 {
-                    // 設定作成
-                    settings.DefaultGroup.Settings.ActivePlayModeDataBuilderIndex = 1;
+                    // 設定作成（Play Mode は最後に戻す。途中で止まっても AddressablesPlayModeGuard が次の機会に戻す）
+                    AddressablesPlayModeGuard.UseExistingBuild(settings);
                     AddressableAssetGroupSchema sc = settings.DefaultGroup.Schemas.Find(d => d.GetType() == typeof(BundledAssetGroupSchema));
                     var buildName = ((BundledAssetGroupSchema)sc).BuildPath.GetName(settings);
                     var loadName = ((BundledAssetGroupSchema)sc).LoadPath.GetName(settings);
@@ -238,72 +280,92 @@ public class AddressablePrefabRegistrar
 
                     EditorApplication.delayCall += () =>
                     {
-                        EditorUtility.ClearProgressBar();
-                        AddressableAssetSettings.BuildPlayerContent();
-
-                        // フォルダ構成構築
-                        string projectPath = Directory.GetParent(Application.dataPath).FullName;
-                        string basePath = Path.Combine(Path.Combine(Path.Combine(projectPath, "Library"), "com.unity.addressables"), "aa");
-                        string dataPath = Path.Combine(projectPath, savePath);
-                        string folderPath = Path.Combine(basePath, prodNo);
-                        string addressablesPath = Path.Combine(basePath, "Windows");
-                        if (Directory.Exists(addressablesPath))
+                        string error = "Addressables のビルドの出力が見つかりません（Library/com.unity.addressables/aa/Windows）";
+                        try
                         {
-                            if (Directory.Exists(folderPath))
-                            {
-                                //　存在したら一度削除
-                                Directory.Delete(folderPath, true);
-                            }
-                            Directory.CreateDirectory(folderPath);
-                            foreach (var file in files)
-                            {
-                                // プレハブファイルをコピー
-                                var name = Path.GetFileName(file);
-                                File.Copy(file, Path.Combine(folderPath, name));
-                            }
-                            var targetPath = Path.Combine(folderPath, "Addressables");
-                            Directory.Move(addressablesPath, targetPath);
-                            File.WriteAllText(Path.Combine(targetPath, "ProdNo.txt"), prodNo);
+                            EditorUtility.ClearProgressBar();
+                            AddressableAssetSettings.BuildPlayerContent();
 
-                            targetPath = Path.Combine(targetPath, "StandaloneWindows64");
-                            Directory.CreateDirectory(targetPath);
-                            foreach (var file in Directory.GetFiles(dataPath))
+                            // フォルダ構成構築
+                            string projectPath = Directory.GetParent(Application.dataPath).FullName;
+                            string basePath = Path.Combine(Path.Combine(Path.Combine(projectPath, "Library"), "com.unity.addressables"), "aa");
+                            string dataPath = Path.Combine(projectPath, savePath);
+                            string folderPath = Path.Combine(basePath, prodNo);
+                            string addressablesPath = Path.Combine(basePath, "Windows");
+                            if (Directory.Exists(addressablesPath))
                             {
-                                File.Copy(file, Path.Combine(targetPath, Path.GetFileName(file)), true);
-                            }
-                            // タイトル、メッセージ、ボタン名
-                            EditorUtility.DisplayDialog("完了", "PrefabのAddressables登録が完了しました。", "OK");
+                                if (Directory.Exists(folderPath))
+                                {
+                                    //　存在したら一度削除
+                                    Directory.Delete(folderPath, true);
+                                }
+                                Directory.CreateDirectory(folderPath);
+                                foreach (var file in files)
+                                {
+                                    // プレハブファイルをコピー
+                                    var name = Path.GetFileName(file);
+                                    File.Copy(file, Path.Combine(folderPath, name));
+                                }
+                                var targetPath = Path.Combine(folderPath, "Addressables");
+                                Directory.Move(addressablesPath, targetPath);
+                                File.WriteAllText(Path.Combine(targetPath, "ProdNo.txt"), prodNo);
 
-                            // ビルドフォルダを開く
-                            Process.Start("explorer.exe", folderPath);
+                                targetPath = Path.Combine(targetPath, "StandaloneWindows64");
+                                Directory.CreateDirectory(targetPath);
+                                foreach (var file in Directory.GetFiles(dataPath))
+                                {
+                                    File.Copy(file, Path.Combine(targetPath, Path.GetFileName(file)), true);
+                                }
+                                error = null;
+                                if (onFinished == null)
+                                {
+                                    // タイトル、メッセージ、ボタン名
+                                    EditorUtility.DisplayDialog("完了", "PrefabのAddressables登録が完了しました。", "OK");
+
+                                    // ビルドフォルダを開く
+                                    Process.Start("explorer.exe", folderPath);
+                                }
+                            }
                         }
-                        // 設定を戻す
-                        settings.DefaultGroup.Settings.ActivePlayModeDataBuilderIndex = 0;
-
-                        // Prefab削除
-                        var entriesToRemove = settings.DefaultGroup.entries.ToList().FindAll(entry =>
+                        catch (Exception ex)
                         {
-                            string path = AssetDatabase.GUIDToAssetPath(entry.guid);
-                            return path.EndsWith(".prefab", StringComparison.OrdinalIgnoreCase);
-                        });
-                        foreach (var entry in entriesToRemove)
-                        {
-                            settings.DefaultGroup.RemoveAssetEntry(entry);
+                            error = ex.Message;
+                            Notify("エラー", ex.Message);
                         }
-                        // 保存
-                        AssetDatabase.SaveAssets();
+                        finally
+                        {
+                            // 設定を戻す（途中で例外になっても戻す。戻らないと再生が「Player content must be built…」で止まる）
+                            AddressablesPlayModeGuard.Restore(settings);
 
-                        isProcessing = false;
+                            // Prefab削除
+                            var entriesToRemove = settings.DefaultGroup.entries.ToList().FindAll(entry =>
+                            {
+                                string path = AssetDatabase.GUIDToAssetPath(entry.guid);
+                                return path.EndsWith(".prefab", StringComparison.OrdinalIgnoreCase);
+                            });
+                            foreach (var entry in entriesToRemove)
+                            {
+                                settings.DefaultGroup.RemoveAssetEntry(entry);
+                            }
+                            // 保存
+                            AssetDatabase.SaveAssets();
+
+                            EditorUtility.ClearProgressBar();
+                            isProcessing = false;
+                            NotifyFinished(error);
+                        }
                     };
                 }
                 else
                 {
                     isProcessing = false;
+                    NotifyFinished("プレハブがありません: " + string.Join(", ", folders));
                 }
             }
             else
             {
                 isProcessing = false;
+                NotifyFinished("フォルダがありません: " + string.Join(", ", folders));
             }
         }
         catch (Exception ex)
@@ -311,8 +373,11 @@ public class AddressablePrefabRegistrar
             EditorApplication.delayCall += () =>
             {
                 EditorUtility.ClearProgressBar();
-                EditorUtility.DisplayDialog("エラー", ex.Message, "OK");
+                // 切り替えた後で失敗していたら戻す（切り替え前なら何もしない）
+                AddressablesPlayModeGuard.RestoreIfBusy(AddressableAssetSettingsDefaultObject.Settings);
+                Notify("エラー", ex.Message);
                 isProcessing = false;
+                NotifyFinished(ex.Message);
             };
         }
     }

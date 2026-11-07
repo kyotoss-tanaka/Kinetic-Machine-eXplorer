@@ -64,6 +64,42 @@ public class PrefabImporter
 
     private static KssImporterScriptableObject m_Settings;
 
+    /// <summary>新しい製番を作る流れから呼ばれたときの終わりの知らせ（成功, 製番）。null なら今まで通りダイアログで知らせる</summary>
+    private static System.Action<bool, string> onFinished;
+
+    /// <summary>終わりを知らせる（新しい製番を作る流れから呼ばれたときだけ）</summary>
+    private static void NotifyFinished()
+    {
+        var done = onFinished;
+        onFinished = null;
+        done?.Invoke(isSuccess, m_ProdNo);
+    }
+
+    /// <summary>
+    /// 新しい製番を作る流れ（KmxNewProdPipeline）から呼ぶ：メニューの「Create Prefab Files」と同じ設定で、画面を出さずに変換する。
+    /// 変換は非同期で進むので、終わったら done(成功, 製番) を呼ぶ
+    /// </summary>
+    public static void ImportForPipeline(string source, System.Action<bool, string> done)
+    {
+        isProcessing = true;
+        isSuccess = false;
+        onFinished = done;
+        if (prefabImporter == null)
+        {
+            prefabImporter = new KssPrefabImport();
+        }
+        if (m_Settings == null)
+        {
+            m_Settings = ScriptableObject.CreateInstance<KssImporterScriptableObject>();
+        }
+        m_Settings.MeshQuality = Quality.Maximum;
+        m_Settings.ImportPatchBoundaries = true;
+        m_Settings.ImportLines = true;
+        isVR = false;
+        m_Settings.PrepareForImport(prefabImporter);
+        prefabImporter.Process(source);
+    }
+
     #region Pixyz interfaces
     protected static PiXYZAPI m_API;
     protected static CoreInterface Core => m_API.Core;
@@ -1018,6 +1054,7 @@ public class PrefabImporter
             catch
             {
                 isProcessing = false;
+                NotifyFinished();
                 return;
             }
             // 以降は例外が出ても必ず isProcessing を戻す（メニューが固着して消えるのを防ぐ）
@@ -1078,11 +1115,14 @@ public class PrefabImporter
                     // VR用データ作成
 //                    PrefabMeshMerger.MergePrefabProcess(folderPath);
                 }
-                EditorUtility.DisplayDialog("情報", "Prefab作成処理が完了しました。", "OK");
-                // エクスプローラーで開く
-                System.Diagnostics.Process.Start("explorer.exe", folderPath);
+                if (onFinished == null)
+                {
+                    EditorUtility.DisplayDialog("情報", "Prefab作成処理が完了しました。", "OK");
+                    // エクスプローラーで開く
+                    System.Diagnostics.Process.Start("explorer.exe", folderPath);
+                }
             }
-            else
+            else if (onFinished == null)
             {
                 // タイトル、メッセージ、ボタン名
                 EditorUtility.DisplayDialog("情報", "Prefab作成処理に失敗しました。", "OK");
@@ -1095,6 +1135,7 @@ public class PrefabImporter
             finally
             {
                 isProcessing = false;   // 例外でも必ずメニューを再有効化（固着防止）
+                NotifyFinished();
             }
         }
 
