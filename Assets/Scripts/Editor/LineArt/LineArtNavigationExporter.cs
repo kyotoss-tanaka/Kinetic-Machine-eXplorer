@@ -48,6 +48,8 @@ public static class LineArtNavigationExporter
         public int unit;
         public LineArtComponentClassifier.Info info;
         public List<int> parts = new List<int>();
+        /// <summary>部品のノード（「Copy of」で分かれた物は複数）</summary>
+        public List<Transform> nodes = new List<Transform>();
     }
 
     /// <summary>
@@ -150,6 +152,13 @@ public static class LineArtNavigationExporter
         var comps = ResolveComponents(units, parts);
         Debug.Log($"[LineArt] 部品 {comps.Count} 個: " +
             string.Join(" / ", comps.GroupBy(c => c.info.type).OrderByDescending(g => g.Count()).Select(g => $"{g.Key} {g.Count()}")));
+        // パスで一つに決まらない部品（同じ親の下に同じ名前のノードがある）
+        var samePath = comps.SelectMany(c => c.nodes).Distinct().GroupBy(CadPath).Where(g => g.Count() > 1).ToList();
+        if (samePath.Count > 0)
+        {
+            Debug.LogWarning($"[LineArt] パスが重なる部品 {samePath.Count} 件（パスでは一つに決まりません）: " +
+                string.Join(" / ", samePath.Take(10).Select(g => g.Key)));
+        }
 
         Directory.CreateDirectory(outDir);
         var viewsJson = new Dictionary<string, object>();
@@ -236,6 +245,8 @@ public static class LineArtNavigationExporter
                 ["maker"] = c.info.maker,
                 ["item"] = c.info.item,
                 ["code"] = c.info.code,
+                // CAD のツリーと同じパス（電気部品リスト等から、このパスで部品を開く）
+                ["paths"] = c.nodes.Select(CadPath).Distinct().ToList(),
             }).ToList(),
             ["views"] = viewsJson,
         };
@@ -329,13 +340,14 @@ public static class LineArtNavigationExporter
         }
         finally
         {
-            RenderTexture.ReleaseTemporary(scene);
+            PrefabLineArtRenderer.FreeRT(scene);
         }
     }
 
     /// <summary>
     /// 部品ごとの透かし：その部品だけを同じ向き・範囲で描き、線(2)と範囲(1)を部品の外接矩形の中で [値, 個数] にする
     /// 他の部品の陰に隠れている部品も、選んだときに形と位置を示せるようにするため
+    /// 部品の写る所だけを描く（図全体を部品の数だけ描くと、R8120 で 1 方向 9 分かかっていた）
     /// </summary>
     static List<object> RenderXray(PrefabLineArtRenderer.Context ctx, List<Part> parts, List<int> viewParts,
         PrefabLineArtRenderer.ViewFrame frame, RectInt rect, List<List<int>> items)
@@ -346,22 +358,29 @@ public static class LineArtNavigationExporter
         {
             var own = items[k].Where(inView.Contains).ToList();
             if (own.Count == 0) continue;
-            var gb = PrefabLineArtRenderer.RenderGBuffer(ctx, parts, own, frame);
-            var lines = PrefabLineArtRenderer.DrawLines(ctx, gb, frame);
-            var ids = PrefabLineArtRenderer.ReadIds(ctx, gb, frame);
-            RenderTexture.ReleaseTemporary(gb);
+            // 部品の写る範囲（余白付き）を図の切り抜き範囲に収める
+            var sub = PrefabLineArtRenderer.PixelBounds(parts, own, frame, 6);
+            int sx0 = Math.Max(sub.xMin, rect.xMin), sy0 = Math.Max(sub.yMin, rect.yMin);
+            int sx1 = Math.Min(sub.xMax, rect.xMax), sy1 = Math.Min(sub.yMax, rect.yMax);
+            if (sx1 <= sx0 || sy1 <= sy0) continue;
+            sub = new RectInt(sx0, sy0, sx1 - sx0, sy1 - sy0);
+            var subFrame = PrefabLineArtRenderer.SubFrame(frame, sub);
+            var gb = PrefabLineArtRenderer.RenderGBuffer(ctx, parts, own, subFrame);
+            var lines = PrefabLineArtRenderer.DrawLines(ctx, gb, subFrame);
+            var ids = PrefabLineArtRenderer.ReadIds(ctx, gb, subFrame);
+            PrefabLineArtRenderer.FreeRT(gb);
             var px = lines.GetPixelData<byte>(0);   // RGB24、下の行から
 
-            // 図の切り抜き範囲の中で、上の行から 0=なし 1=範囲 2=線
-            int w = rect.width, h = rect.height;
+            // 描いた範囲の中で、上の行から 0=なし 1=範囲 2=線
+            int w = sub.width, h = sub.height;
             var vals = new byte[w * h];
             int x0 = w, y0 = h, x1 = -1, y1 = -1;
             for (int y = 0; y < h; y++)
             {
-                int sy = rect.y + h - 1 - y;
+                int sy = h - 1 - y;
                 for (int x = 0; x < w; x++)
                 {
-                    int si = sy * frame.outWidth + rect.x + x;
+                    int si = sy * w + x;
                     byte v = px[si * 3] < 160 ? (byte)2 : (ids[si] > 0.5f ? (byte)1 : (byte)0);
                     if (v == 0) continue;
                     vals[y * w + x] = v;
@@ -377,9 +396,13 @@ public static class LineArtNavigationExporter
             {
                 for (int x = 0; x < bw; x++) box[y * bw + x] = vals[(y0 + y) * w + x0 + x];
             }
+            // 図の切り抜き範囲（上の行から）での位置に直す
             result.Add(new Dictionary<string, object>
             {
-                ["k"] = k, ["x"] = x0, ["y"] = y0, ["w"] = bw, ["h"] = bh, ["d"] = RunLengthBase64(box),
+                ["k"] = k,
+                ["x"] = sub.xMin - rect.xMin + x0,
+                ["y"] = rect.yMax - sub.yMax + y0,
+                ["w"] = bw, ["h"] = bh, ["d"] = RunLengthBase64(box),
             });
         }
         return result;
@@ -498,6 +521,19 @@ public static class LineArtNavigationExporter
             return v;
         }
         return "";
+    }
+
+    /// <summary>
+    /// CAD（SolidWorks）のツリーと同じパス：最上位アセンブリ/構成部品-n/…/部品-n
+    /// Pixyz が取り込みで足す「○○.sldasm/○○/ｺﾝﾌｨｷﾞｭﾚｰｼｮﾝ名」の 3 段は除く
+    /// </summary>
+    static string CadPath(Transform t)
+    {
+        var names = new List<string>();
+        for (; t != null; t = t.parent) names.Add(t.name);
+        names.Reverse();
+        if (names.Count >= 4 && names[1].EndsWith(".sldasm", StringComparison.OrdinalIgnoreCase)) names.RemoveRange(1, 3);
+        return string.Join("/", names);
     }
 
     /// <summary>自分か親のどれかがその名前か（KMX の GetScenePath(o).Contains と同じ）</summary>
@@ -624,6 +660,7 @@ public static class LineArtNavigationExporter
                     found = InfoOf(t);
                 }
                 if (found == null) continue;
+                var node = t;
                 // センサが本体・ナット・座金のように分かれているときは、上のセンサにまとめる
                 if (found.type == "センサ")
                 {
@@ -632,15 +669,20 @@ public static class LineArtNavigationExporter
                         var up = InfoOf(p);
                         if (up == null || up.type != "センサ") break;
                         found = up;
+                        node = p;
                     }
                 }
-                if (!byKey.TryGetValue(found.key, out var comp))
+                // 同じ型式でも別のサブアセンブリにある物は別の部品（機器番号と 1 対 1 にするため）。
+                // 「Copy of 部分^元の部品」のように同じ親の下で分かれた物は一つにまとめる
+                string key = found.key + "|" + (node.parent != null ? node.parent.GetInstanceID() : 0);
+                if (!byKey.TryGetValue(key, out var comp))
                 {
                     comp = new CompEntry { unit = u, info = found };
-                    byKey[found.key] = comp;
+                    byKey[key] = comp;
                     units[u].comps.Add(comps.Count);
                     comps.Add(comp);
                 }
+                if (!comp.nodes.Contains(node)) comp.nodes.Add(node);
                 comp.parts.Add(i);
             }
         }

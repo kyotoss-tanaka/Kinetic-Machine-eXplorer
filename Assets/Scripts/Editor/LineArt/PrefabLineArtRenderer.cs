@@ -160,7 +160,7 @@ public static class PrefabLineArtRenderer
                 var frame = Fit(parts, all, az, settings);
                 var gbuffer = RenderGBuffer(ctx, parts, all, frame);
                 var tex = DrawLines(ctx, gbuffer, frame);
-                RenderTexture.ReleaseTemporary(gbuffer);
+                FreeRT(gbuffer);
                 var cropped = Crop(tex, ContentRect(tex, 24));
                 string path = Path.Combine(outDir, $"{prefab.name}_{az:0}.png");
                 File.WriteAllBytes(path, cropped.EncodeToPNG());
@@ -304,12 +304,81 @@ public static class PrefabLineArtRenderer
     }
 
     /// <summary>
-    /// 下描き（rg=面の向き b=奥行き a=部品番号+1、背景 a=-1）を描く。呼び出し側で RenderTexture.ReleaseTemporary する
+    /// 部品の箱が図のどこに写るか（出力の画素・下の行から数える）。pad 画素の余白を付ける
+    /// </summary>
+    public static RectInt PixelBounds(List<Part> parts, IList<int> indices, ViewFrame f, int pad)
+    {
+        var vp = f.proj * f.view;
+        float x0 = float.MaxValue, y0 = float.MaxValue, x1 = float.MinValue, y1 = float.MinValue;
+        foreach (int idx in indices)
+        {
+            var p = parts[idx];
+            var b = p.mesh.bounds;
+            for (int i = 0; i < 8; i++)
+            {
+                var corner = new Vector3(
+                    (i & 1) == 0 ? b.min.x : b.max.x,
+                    (i & 2) == 0 ? b.min.y : b.max.y,
+                    (i & 4) == 0 ? b.min.z : b.max.z);
+                var ndc = vp.MultiplyPoint(p.matrix.MultiplyPoint3x4(corner));
+                float x = (ndc.x + 1) * 0.5f * f.outWidth, y = (ndc.y + 1) * 0.5f * f.outHeight;
+                x0 = Mathf.Min(x0, x); x1 = Mathf.Max(x1, x);
+                y0 = Mathf.Min(y0, y); y1 = Mathf.Max(y1, y);
+            }
+        }
+        int ix0 = Mathf.FloorToInt(x0) - pad, iy0 = Mathf.FloorToInt(y0) - pad;
+        return new RectInt(ix0, iy0, Mathf.CeilToInt(x1) + pad - ix0, Mathf.CeilToInt(y1) + pad - iy0);
+    }
+
+    /// <summary>
+    /// 図の一部（出力の画素の範囲 r・下の行から）だけを描く枠。画素の並びと 1 画素の長さは元の図と同じ
+    /// 部品ごとの透かしのように、小さい物を何度も描くときに図全体を描かずに済ませる
+    /// </summary>
+    public static ViewFrame SubFrame(ViewFrame f, RectInt r)
+    {
+        int ss = f.width / f.outWidth;
+        float nx0 = 2f * r.xMin / f.outWidth - 1, nx1 = 2f * r.xMax / f.outWidth - 1;
+        float ny0 = 2f * r.yMin / f.outHeight - 1, ny1 = 2f * r.yMax / f.outHeight - 1;
+        // 元の図の [nx0, nx1]×[ny0, ny1] を [-1, 1] に広げる
+        var crop = Matrix4x4.identity;
+        crop.m00 = 2 / (nx1 - nx0); crop.m03 = -(nx1 + nx0) / (nx1 - nx0);
+        crop.m11 = 2 / (ny1 - ny0); crop.m13 = -(ny1 + ny0) / (ny1 - ny0);
+        return new ViewFrame
+        {
+            view = f.view,
+            proj = crop * f.proj,
+            outWidth = r.width,
+            outHeight = r.height,
+            width = r.width * ss,
+            height = r.height * ss,
+            pixel = f.pixel,
+        };
+    }
+
+    /// <summary>
+    /// 描画先を作る。使い終わったら FreeRT で消す
+    /// （RenderTexture.GetTemporary は大きさが毎回違うと溜まる一方で、書き出しの間は解放されないため使わない）
+    /// </summary>
+    static RenderTexture NewRT(int width, int height, int depth, RenderTextureFormat format, FilterMode filter)
+    {
+        var rt = new RenderTexture(width, height, depth, format, RenderTextureReadWrite.Linear) { filterMode = filter, antiAliasing = 1 };
+        rt.Create();
+        return rt;
+    }
+
+    public static void FreeRT(RenderTexture rt)
+    {
+        if (rt == null) return;
+        rt.Release();
+        UnityEngine.Object.DestroyImmediate(rt);
+    }
+
+    /// <summary>
+    /// 下描き（rg=面の向き b=奥行き a=部品番号+1、背景 a=-1）を描く。呼び出し側で FreeRT する
     /// </summary>
     public static RenderTexture RenderGBuffer(Context ctx, List<Part> parts, IList<int> indices, ViewFrame f)
     {
-        var gbuffer = RenderTexture.GetTemporary(f.width, f.height, 24, RenderTextureFormat.ARGBFloat, RenderTextureReadWrite.Linear);
-        gbuffer.filterMode = FilterMode.Point;
+        var gbuffer = NewRT(f.width, f.height, 24, RenderTextureFormat.ARGBFloat, FilterMode.Point);
         using (var cmd = new CommandBuffer { name = "LineArtGBuffer" })
         {
             cmd.SetRenderTarget(gbuffer);
@@ -359,11 +428,10 @@ public static class PrefabLineArtRenderer
     /// <summary>各画素の部品番号+1（出力サイズ、背景は -1。下の行から順）</summary>
     public static float[] ReadIds(Context ctx, RenderTexture gbuffer, ViewFrame f)
     {
-        var rt = RenderTexture.GetTemporary(f.outWidth, f.outHeight, 0, RenderTextureFormat.RFloat, RenderTextureReadWrite.Linear);
-        rt.filterMode = FilterMode.Point;
+        var rt = NewRT(f.outWidth, f.outHeight, 0, RenderTextureFormat.RFloat, FilterMode.Point);
         Graphics.Blit(gbuffer, rt, ctx.idMat);
         var tex = ReadBack(rt, TextureFormat.RFloat);
-        RenderTexture.ReleaseTemporary(rt);
+        FreeRT(rt);
         var ids = tex.GetPixelData<float>(0).ToArray();
         UnityEngine.Object.DestroyImmediate(tex);
         return ids;
@@ -372,20 +440,18 @@ public static class PrefabLineArtRenderer
     /// <summary>内部サイズで描いて、半分ずつ縮小して（2x2 の平均で線をなめらかに）読み出す</summary>
     static Texture2D BlitAndRead(RenderTexture src, Material mat, ViewFrame f, TextureFormat format)
     {
-        var full = RenderTexture.GetTemporary(f.width, f.height, 0, RenderTextureFormat.ARGB32, RenderTextureReadWrite.Linear);
-        full.filterMode = FilterMode.Bilinear;
+        var full = NewRT(f.width, f.height, 0, RenderTextureFormat.ARGB32, FilterMode.Bilinear);
         Graphics.Blit(src, full, mat);
         var current = full;
         while (current.width > f.outWidth)
         {
-            var half = RenderTexture.GetTemporary(current.width / 2, current.height / 2, 0, RenderTextureFormat.ARGB32, RenderTextureReadWrite.Linear);
-            half.filterMode = FilterMode.Bilinear;
+            var half = NewRT(current.width / 2, current.height / 2, 0, RenderTextureFormat.ARGB32, FilterMode.Bilinear);
             Graphics.Blit(current, half);
-            RenderTexture.ReleaseTemporary(current);
+            FreeRT(current);
             current = half;
         }
         var tex = ReadBack(current, format);
-        RenderTexture.ReleaseTemporary(current);
+        FreeRT(current);
         return tex;
     }
 

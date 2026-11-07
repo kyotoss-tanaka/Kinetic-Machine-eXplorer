@@ -116,6 +116,8 @@ aside { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
 dl.facts { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; margin: 0; font-size: 14px; }
 dl.facts dt { color: var(--muted); }
 dl.facts dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+dl.facts dd.path { font-size: 12px; }
+.notice { border-color: var(--mark); }
 .code { font-family: var(--font-code); }
 
 .filter { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
@@ -366,7 +368,7 @@ dl.facts dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
   }
 
   function go(level, g, u) {
-    state.level = level; state.g = g; state.u = u; state.sel = -1; state.query = "";
+    state.level = level; state.g = g; state.u = u; state.sel = -1; state.query = ""; state.notice = "";
     state.zoom = 1; applyZoom();
     try { history.pushState({ level, g, u }, ""); } catch (e) {}
     show();
@@ -457,6 +459,11 @@ dl.facts dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
   function renderSide() {
     const side = $("side"); side.innerHTML = "";
     const counts = current ? current.counts : new Map();
+    if (state.notice) {
+      const n = document.createElement("div"); n.className = "box notice";
+      n.innerHTML = `<p class="error">${esc(state.notice)}</p>`;
+      side.append(n);
+    }
     if (state.level !== "overview") side.append(backButton());
     if (state.level === "unit" && state.sel >= 0) side.append(compCard(state.sel));
 
@@ -582,15 +589,21 @@ dl.facts dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
         ${c.item ? `<dt>項番</dt><dd class="code">${esc(c.item)}</dd>` : ""}
         ${c.code ? `<dt>図番コード</dt><dd class="code">${esc(c.code)}</dd>` : ""}
         <dt>ユニット</dt><dd>${esc(M.units[state.u].name)}</dd>
+        ${c.paths && c.paths.length ? `<dt>CADのパス</dt><dd class="code path">${c.paths.map(esc).join("<br>")}</dd>` : ""}
         ${hidden ? `<dt>見え方</dt><dd>${seeAz.length
           ? `この向きでは他の部品に隠れています。${seeAz.map(azName).join("・")} から見えます`
           : "どの向きからも見えません（小さいか、奥にある部品です）"}</dd>` : ""}
       </dl>
       ${seeAz.length ? `<div class="actions">${seeAz.map((az) => `<button type="button" data-az="${esc(az)}">${esc(azName(az))} で見る</button>`).join("")}</div>` : ""}
-      <div class="actions"><button type="button" id="copy-part">型式をコピー</button><button type="button" class="secondary" id="clear-sel">選択を外す</button></div>`;
+      <div class="actions"><button type="button" id="copy-part">型式をコピー</button>${c.paths && c.paths.length ? `<button type="button" class="secondary" id="copy-path">パスをコピー</button>` : ""}<button type="button" class="secondary" id="clear-sel">選択を外す</button></div>`;
     box.querySelector("#copy-part").onclick = async (ev) => {
       try { await navigator.clipboard.writeText(c.partNo); ev.target.textContent = "コピーしました"; }
       catch (e) { const r = document.createRange(); r.selectNodeContents(box.querySelector(".title")); const s = getSelection(); s.removeAllRanges(); s.addRange(r); }
+    };
+    const copyPath = box.querySelector("#copy-path");
+    if (copyPath) copyPath.onclick = async (ev) => {
+      try { await navigator.clipboard.writeText(c.paths[0]); ev.target.textContent = "コピーしました"; }
+      catch (e) { const r = document.createRange(); r.selectNodeContents(box.querySelector("dd.path")); const s = getSelection(); s.removeAllRanges(); s.addRange(r); }
     };
     box.querySelector("#clear-sel").onclick = () => select(k);
     // 見える向きへ切り替える（選んだ部品はそのまま赤く示す）
@@ -706,6 +719,43 @@ dl.facts dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
   // 縮小は幅の 50% まで（全体を小さく見渡せるように）
   $("zoom-out").onclick = () => zoomCenter(1 / 1.5);
 
+  // ---------- CAD のパスで部品を開く（電気部品リスト・HMX 等から） ----------
+  // 区切りは「/」か「\」、半角カナ・全角英数の違いと前後の空白は気にしない
+  const normPath = (s) => String(s).normalize("NFKC").replace(/\\/g, "/").split("/").map((x) => x.trim()).filter(Boolean).join("/");
+  let pathIndex = null;
+  function partsAt(path) {
+    if (!pathIndex) {
+      pathIndex = new Map();
+      M.units.forEach((unit, u) => unit.comps.forEach((c, k) => (M.comps[c].paths || []).forEach((p) => {
+        const key = normPath(p);
+        if (!pathIndex.has(key)) pathIndex.set(key, []);
+        pathIndex.get(key).push({ u, k });
+      })));
+    }
+    const want = normPath(path);
+    if (pathIndex.has(want)) return pathIndex.get(want);
+    // 部品の中の物（シリンダのモデルの中のオートスイッチ等）を指していたら、その部品
+    let best = null;
+    pathIndex.forEach((hits, key) => { if (want.startsWith(key + "/") && (!best || key.length > best.key.length)) best = { key, hits }; });
+    return best ? best.hits : [];
+  }
+
+  // 見つかったら true。いくつかのユニットに入っている部品は、一番小さいユニットで開く
+  function openPart(path, replace) {
+    const hits = partsAt(path);
+    if (!hits.length) return false;
+    const { u, k } = hits.reduce((a, b) => (M.units[b.u].comps.length < M.units[a.u].comps.length ? b : a));
+    state.level = "unit"; state.g = M.units[u].group; state.u = u; state.sel = k; state.query = ""; state.notice = "";
+    state.types.add(M.comps[M.units[u].comps[k]].type);
+    // 今の向きで隠れていたら、写っている向きにする
+    if (!shownIn(state.az, k)) state.az = M.azimuths.find((az) => shownIn(az, k)) || state.az;
+    state.zoom = 1; applyZoom();
+    try { history[replace ? "replaceState" : "pushState"]({ level: "unit", g: state.g, u }, ""); } catch (e) {}
+    show();
+    return true;
+  }
+  window.LineArtNav = { openPart: (path) => openPart(path, false) };
+
   window.addEventListener("popstate", (ev) => {
     const s = ev.state; if (!s) return;
     state.level = s.level; state.g = s.g; state.u = s.u; state.sel = -1; state.zoom = 1; applyZoom(); show();
@@ -718,6 +768,10 @@ dl.facts dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
     let saved = null; try { saved = localStorage.getItem("lineart-az"); } catch (e) {}
     state.az = M.azimuths.includes(saved) ? saved : M.azimuths[0];
     try { history.replaceState({ level: "overview", g: -1, u: -1 }, ""); } catch (e) {}
+    // index.html?part=<CAD のパス> で開いたときは、その部品を選んだユニット図から
+    let part = null; try { part = new URLSearchParams(location.search).get("part"); } catch (e) {}
+    if (part && openPart(part, true)) return;
+    if (part) state.notice = `指定の部品が見つかりません: ${part}`;
     show();
   }).catch((e) => {
     $("loading").textContent = "";
