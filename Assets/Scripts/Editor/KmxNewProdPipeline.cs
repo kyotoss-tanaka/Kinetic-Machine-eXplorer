@@ -6,6 +6,7 @@ using System.Linq;
 using System.Text;
 using System.Text.Json;
 using UnityEditor;
+using UnityEditor.SceneManagement;
 using UnityEngine;
 
 /// <summary>
@@ -13,7 +14,7 @@ using UnityEngine;
 ///   1. SolidWorks のデータをプレハブにする（Pixyz。ライセンスのある PC だけ）
 ///   2. Addressables を作る
 ///   ─ KMXTool がプロジェクトを作り、設定を Unity に出力するのを待つ ─
-///   3. 実行ファイルを作る
+///   3. 実行ファイルを作る（シーンの機械のプレハブを、この製番のプレハブに入れ替えて作る。作ったあとシーンは元に戻す）
 /// KMXTool とは作業フォルダ（-kmxWork）のファイルでやり取りする：
 ///   request.json（KMXTool → Unity）：取込元の種類（フォルダ／ファイル／作成済みのプレハブ）・取込元・製番
 ///   stage1.json （Unity → KMXTool）：製番・プレハブ・Addressables の出力
@@ -48,6 +49,11 @@ public static class KmxNewProdPipeline
     static DateTime waitStart;
     /// <summary>実行ファイルの出力先（go.json で受け取る）</summary>
     static string buildDir;
+    /// <summary>この製番のプレハブ（Assets の中のファイル）</summary>
+    static List<string> prodPrefabs = new();
+
+    /// <summary>KMX のシーン（ビルドで使う）</summary>
+    const string ScenePath = "Assets/Scenes/Simuration.unity";
 
     public static void RunFromCommandLine()
     {
@@ -106,6 +112,7 @@ public static class KmxNewProdPipeline
             prefabs = Directory.Exists(folder) ? Directory.GetFiles(folder, "*.prefab").ToList() : new List<string>();
         }
         prefabs = prefabs.Select(Path.GetFullPath).ToList();
+        prodPrefabs = prefabs;
         string assets = Path.GetFullPath(Application.dataPath) + Path.DirectorySeparatorChar;
         var outside = prefabs.Where(d => !d.StartsWith(assets, StringComparison.OrdinalIgnoreCase) || !File.Exists(d)).ToList();
         if (prefabs.Count == 0 || outside.Count > 0)
@@ -180,18 +187,84 @@ public static class KmxNewProdPipeline
     /// <summary>3. 実行ファイルを作る</summary>
     static void Build()
     {
+        // シーンは入れ替えてから作り、作ったあと（失敗しても）元のファイルに戻す
+        string backup = Path.Combine(workDir, "Simuration.unity.bak");
         try
         {
-            Log("実行ファイルを作っています…");
             AssetDatabase.Refresh();
+            File.Copy(ScenePath, backup, true);
+            ReplaceScenePrefabs();
+            Log("実行ファイルを作っています…");
             string exeDir = BuildAndRun.BuildForPipeline(buildDir);
+            RestoreScene(backup);
             WriteStage("stage2.json", new Dictionary<string, object> { ["ok"] = true, ["exeDir"] = Path.GetFullPath(exeDir) });
             Log("実行ファイルができました");
             EditorApplication.Exit(0);
         }
         catch (Exception e)
         {
+            RestoreScene(backup);
             Fail("stage2.json", e.Message);
+        }
+    }
+
+    /// <summary>
+    /// シーンの機械のプレハブ（一番上にある、Assets/3DModels から来た物と、元のプレハブが無くなった物）を消し、
+    /// この製番のプレハブを入れる。実行時はシーンにある同じ名前のプレハブを使う（ParameterLoader.LoadPrefabModel）。
+    /// 部屋のモデル等、ほかのプレハブは残す
+    /// </summary>
+    static void ReplaceScenePrefabs()
+    {
+        var scene = EditorSceneManager.OpenScene(ScenePath, OpenSceneMode.Single);
+        foreach (var go in scene.GetRootGameObjects())
+        {
+            bool missing = PrefabUtility.IsPrefabAssetMissing(go);
+            string source = PrefabUtility.IsAnyPrefabInstanceRoot(go) ? PrefabUtility.GetPrefabAssetPathOfNearestInstanceRoot(go) : "";
+            if (missing || source.StartsWith("Assets/3DModels", StringComparison.OrdinalIgnoreCase))
+            {
+                Log($"シーンから消します：{go.name}{(missing ? "（元のプレハブが無い）" : "")}");
+                UnityEngine.Object.DestroyImmediate(go);
+            }
+        }
+        string assets = Path.GetFullPath(Application.dataPath);
+        foreach (var path in prodPrefabs)
+        {
+            string assetPath = "Assets" + path.Substring(assets.Length).Replace('\\', '/');
+            var asset = AssetDatabase.LoadAssetAtPath<GameObject>(assetPath);
+            if (asset == null)
+            {
+                throw new Exception("プレハブを読めません: " + assetPath);
+            }
+            var instance = (GameObject)PrefabUtility.InstantiatePrefab(asset, scene);
+            // 実行時は PrefabInfo の名前（ファイル名）と同じ名前の物を使う
+            instance.name = asset.name;
+            Log($"シーンに入れます：{asset.name}");
+        }
+        if (!EditorSceneManager.SaveScene(scene))
+        {
+            throw new Exception("シーンを保存できません: " + ScenePath);
+        }
+    }
+
+    /// <summary>
+    /// シーンを元のファイルに戻す（開発で使っているシーンを変えたままにしない）
+    /// </summary>
+    static void RestoreScene(string backup)
+    {
+        try
+        {
+            if (File.Exists(backup))
+            {
+                // 開いたまま書き戻すと「外で変更された」の確認が出るので、先に空のシーンにする
+                EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+                File.Copy(backup, ScenePath, true);
+                AssetDatabase.ImportAsset(ScenePath, ImportAssetOptions.ForceUpdate);
+                Log("シーンを元に戻しました");
+            }
+        }
+        catch (Exception e)
+        {
+            Log($"シーンを元に戻せませんでした（{backup} に元のシーンがあります）: {e.Message}");
         }
     }
 
