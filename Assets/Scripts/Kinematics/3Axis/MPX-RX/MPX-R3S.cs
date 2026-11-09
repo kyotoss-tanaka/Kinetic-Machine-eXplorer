@@ -154,7 +154,7 @@ public class MPX_R3S : MPX_RX
             }
         }
         arm3 = finder.Find("アーム3", "parent:W0282428-");
-        var plateTmp = finder.Find("プレート", "parent:parent:W0282631-");
+        var plateTmp = finder.FindPlate("プレート", HeadObject, "parent:parent:W0282631-");
         finder.Log();
         baseObj.name += isFin ? "D" : "T";
 

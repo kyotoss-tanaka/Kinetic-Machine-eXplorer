@@ -237,7 +237,7 @@ public class MPX_R6 : MPX_RX
         arm3 = finder.Find("アーム3", "parent:W0578936-", "parent:W0652706-");
         arm4 = finder.Find("アーム4", "parent:W0578981-");
         // プレート：減速機の回転部
-        var plateTmp = finder.Find("プレート", "VRGF-45B60P-8AG8_2^88P3_VRGF-45B60P-8AG8");
+        var plateTmp = finder.FindPlate("プレート", HeadObject, "VRGF-45B60P-8AG8_2^88P3_VRGF-45B60P-8AG8");
         finder.Log();
 
         // 見つからない部品があれば組み立てない（途中で null に触って例外になり、毎フレーム例外を出していた）

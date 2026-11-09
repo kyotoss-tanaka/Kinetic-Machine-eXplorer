@@ -245,6 +245,39 @@ public class RobotArmFinder
     }
 
     /// <summary>
+    /// アーム先端のプレートを探す（全部の型で同じ作り）：定義の名前（定義に無ければ既定の名前）で探し、
+    /// 見つからなければ null を返し、登録したヘッドのユニットを使うことをログに残す（呼んだ側でヘッドをプレートとして回す）。
+    /// 名前の「ヘッド」では探さない（設計者が気軽に付ける名前で、別のヘッドの組立が当たることがあるため）。
+    /// 定義で役割を書いていない型は、名前で探さずにヘッドのユニットを使う
+    /// </summary>
+    public GameObject FindPlate(string role, GameObject head, params string[] defaults)
+    {
+        var found = IsOmitted(role) ? null : Find(role, defaults);
+        if ((found == null) && (head != null))
+        {
+            Record(role, head.name + "(登録したヘッドのユニット)");
+        }
+        return found;
+    }
+
+    /// <summary>
+    /// 型の定義があり、その役割の名前を定義していないか（定義で「名前では探さない」としている）
+    /// </summary>
+    public bool IsOmitted(string role)
+    {
+        return (definition != null) && !definition.HasArm(role);
+    }
+
+    /// <summary>
+    /// 名前で探さずに決めた物を、探した結果としてログに残す（名前で探して見つからなかった結果は置き換える）
+    /// </summary>
+    public void Record(string role, string found)
+    {
+        results.RemoveAll(r => (r.role == role) && (r.found == null));
+        results.Add((role, found, true));
+    }
+
+    /// <summary>
     /// 名前の一覧を先頭から順に試し、最初に見つかった物
     /// </summary>
     private static GameObject FindIn(List<Transform> list, List<string> patterns)

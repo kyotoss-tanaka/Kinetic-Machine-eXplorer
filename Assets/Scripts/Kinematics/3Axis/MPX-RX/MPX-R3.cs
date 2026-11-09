@@ -127,7 +127,7 @@ public class MPX_R3 : MPX_RX
             arm5 = finder.Find("アーム5", "parent:W0263937-");
         }
         arm3 = finder.Find("アーム3", "parent:W0262345-", "parent:W0250614-");
-        var plateTmp = finder.Find("プレート", "parent:W0370723-", "parent:W0250632-");
+        var plateTmp = finder.FindPlate("プレート", HeadObject, "parent:W0370723-", "parent:W0250632-");
         finder.Log();
         if (arm1 != null)
         {

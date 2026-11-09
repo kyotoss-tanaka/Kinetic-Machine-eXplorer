@@ -564,6 +564,11 @@ namespace Parameters
                                             var rObj = unitSetting.moveObject.AddComponent<MPX_R6>();
                                             rObj.SetParameter(unitSetting, robo);
                                         }
+                                        else if (roboType == RobotType.MPX_R2)
+                                        {
+                                            var rObj = unitSetting.moveObject.AddComponent<MPX_R2>();
+                                            rObj.SetParameter(unitSetting, robo);
+                                        }
                                         else if (roboType == RobotType.MPX_R3)
                                         {
                                             var rObj = unitSetting.moveObject.AddComponent<MPX_R3>();
@@ -1770,6 +1775,7 @@ namespace Parameters
                    children.Find(d => d.name.Contains("駆動部変則120度")) != null ? RobotType.MPX_PI :
                    children.Find(d => d.name.Contains("MPS2-3AS_")) != null ? RobotType.MPS2_3AS :
                    children.Find(d => d.name.Contains("MPS2-4AS_")) != null ? RobotType.MPS2_4AS : 
+                   children.Find(d => d.name.Contains("W0809410-")) != null ? RobotType.MPX_R2 :
                    children.Find(d => d.name.Contains("W0250623-")) != null ? RobotType.MPX_R3 :
                    children.Find(d => d.name.Contains("W0282303-")) != null ? RobotType.MPX_R3S : // 小型
                    children.Find(d => d.name.Contains("W0578936-")) != null ? RobotType.MPX_R6 :
