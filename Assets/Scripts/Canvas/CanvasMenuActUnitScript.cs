@@ -42,7 +42,7 @@ public class CanvasMenuActUnitScript : CanvasMenuBaseScript
         public TextMeshProUGUI txtProcess;
         public TextMeshProUGUI txtEnd;
         public TextMeshProUGUI txtCycle;
-        /// <summary>処理＋入れ替え（動作サイクルの右の列）</summary>
+        /// <summary>能力 個/分（動作サイクルの右の列）</summary>
         public TextMeshProUGUI txtCycleEx;
         public TagInfo tagStart;
         public TagInfo tagProcess;
