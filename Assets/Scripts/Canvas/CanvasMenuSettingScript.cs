@@ -23,6 +23,12 @@ public class CanvasMenuSettingScript : CanvasMenuBaseScript
     private List<float> fpss = new();
     private float fpsRefreshTimer;   // FPS表示の更新間引き用
 
+    /// <summary>
+    /// 3D表示の描画解像度の選択肢（URP の Render Scale）
+    /// </summary>
+    private static readonly float[] RenderScales = { 1f, 0.75f, 0.5f };
+    private readonly List<Button> renderScaleButtons = new();
+
     #region 初期化処理
     /// <summary>
     /// 開始処理
@@ -31,8 +37,13 @@ public class CanvasMenuSettingScript : CanvasMenuBaseScript
     {
         // 履歴のチェックを足す。枠の組み立て（base.Awake）より前に足し、色・フォント・余白を他のチェックとそろえる
         AddHistoryToggle();
+        // 描画解像度の行を履歴の下に足す（同じく枠の組み立て前）
+        AddRenderScaleRow();
 
         base.Awake();
+
+        // 枠の組み立てでボタンの色が通常の色にそろうので、選択中の色はその後に付ける
+        RenewRenderScaleButtons();
 
         fpsText = GetComponentsInChildren<TextMeshProUGUI>().Where(d => d.name == "FpsText").ToList()[0];
         timeText = GetComponentsInChildren<TextMeshProUGUI>().Where(d => d.name == "TimeText").ToList()[0];
@@ -87,6 +98,60 @@ public class CanvasMenuSettingScript : CanvasMenuBaseScript
             contents.sizeDelta += new Vector2(0f, srcRt.sizeDelta.y);
         }
         ((RectTransform)transform).sizeDelta += new Vector2(0f, srcRt.sizeDelta.y);
+    }
+
+    /// <summary>
+    /// 描画解像度（Render Scale）の行を足す（Prefab は変えず、最後の行の下に「ラベル＋選択肢のボタン」を1行足す）
+    /// </summary>
+    private void AddRenderScaleRow()
+    {
+        var last = GetComponentsInChildren<Toggle>(true).FirstOrDefault(d => d.name == "UseHistoryToggle")
+            ?? GetComponentsInChildren<Toggle>(true).FirstOrDefault(d => d.name == "UseColliderToggle");
+        if (last == null)
+        {
+            return;
+        }
+        var lastRt = (RectTransform)last.transform;
+        var contents = lastRt.parent as RectTransform;
+        var rowHeight = lastRt.sizeDelta.y;
+        var y = lastRt.anchoredPosition.y - rowHeight;
+        KmxUiStyle.AddText(contents, "RenderScaleLabel", new Vector2(KmxUiStyle.PanelPadding, y), new Vector2(105f, rowHeight), "Render Scale", TextAlignmentOptions.MidlineLeft);
+        const float buttonWidth = 48f;
+        const float gap = 4f;
+        for (int i = 0; i < RenderScales.Length; i++)
+        {
+            var scale = RenderScales[i];
+            var btn = KmxUiStyle.AddButton(contents, "BtnRenderScale" + i, new Vector2(115f + (buttonWidth + gap) * i, y - 3f), new Vector2(buttonWidth, rowHeight - 6f),
+                $"{scale * 100f:0}%", () =>
+                {
+                    AppSettings.RenderScale = scale;
+                    RenewRenderScaleButtons();
+                });
+            renderScaleButtons.Add(btn);
+        }
+        // 1行分、中身の入れ物とパネルを伸ばす
+        if (contents != null)
+        {
+            contents.sizeDelta += new Vector2(0f, rowHeight);
+        }
+        ((RectTransform)transform).sizeDelta += new Vector2(0f, rowHeight);
+    }
+
+    /// <summary>
+    /// 選択中の描画解像度のボタンだけ強調色にする
+    /// </summary>
+    private void RenewRenderScaleButtons()
+    {
+        var now = AppSettings.RenderScale;
+        for (int i = 0; i < renderScaleButtons.Count; i++)
+        {
+            // Image は using static MediaTypeNames の Image と重なるので名前空間を付ける
+            var img = renderScaleButtons[i].targetGraphic as UnityEngine.UI.Image;
+            if (img != null)
+            {
+                img.color = Mathf.Approximately(RenderScales[i], now) ? KmxUiStyle.ButtonActive : KmxUiStyle.Button;
+            }
+        }
     }
 
     /// <summary>

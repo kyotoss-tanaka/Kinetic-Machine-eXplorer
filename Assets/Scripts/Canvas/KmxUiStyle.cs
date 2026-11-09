@@ -432,6 +432,57 @@ public static class KmxUiStyle
     }
 
     /// <summary>
+    /// 文字を作る（親の左上から pos の位置・大きさ size。本文のフォントと大きさ・1行・はみ出しは…で切る）。
+    /// Prefab に無い欄をコードで足す時用（枠の組み立て後に足すので、ここでフォントと色をそろえる）
+    /// </summary>
+    public static TextMeshProUGUI AddText(RectTransform parent, string name, Vector2 pos, Vector2 size, string text, TextAlignmentOptions alignment)
+    {
+        var rt = new GameObject(name, typeof(RectTransform), typeof(TextMeshProUGUI)).GetComponent<RectTransform>();
+        rt.SetParent(parent, false);
+        rt.anchorMin = new Vector2(0f, 1f);
+        rt.anchorMax = new Vector2(0f, 1f);
+        rt.pivot = new Vector2(0f, 1f);
+        rt.anchoredPosition = pos;
+        rt.sizeDelta = size;
+        var tmp = rt.GetComponent<TextMeshProUGUI>();
+        tmp.font = BodyFont;
+        tmp.fontSize = BodyFontSize;
+        tmp.color = Text;
+        tmp.alignment = alignment;
+        tmp.textWrappingMode = TextWrappingModes.NoWrap;
+        tmp.overflowMode = TextOverflowModes.Ellipsis;
+        tmp.raycastTarget = false;
+        tmp.text = text;
+        return tmp;
+    }
+
+    /// <summary>
+    /// ボタンを作る（親の左上から pos の位置・大きさ size。平らな塗りに文字を載せる）
+    /// </summary>
+    public static Button AddButton(RectTransform parent, string name, Vector2 pos, Vector2 size, string label, UnityEngine.Events.UnityAction onClick)
+    {
+        var rt = new GameObject(name, typeof(RectTransform), typeof(Image), typeof(Button)).GetComponent<RectTransform>();
+        rt.SetParent(parent, false);
+        rt.anchorMin = new Vector2(0f, 1f);
+        rt.anchorMax = new Vector2(0f, 1f);
+        rt.pivot = new Vector2(0f, 1f);
+        rt.anchoredPosition = pos;
+        rt.sizeDelta = size;
+        var img = rt.GetComponent<Image>();
+        img.color = Button;
+        var btn = rt.GetComponent<Button>();
+        btn.targetGraphic = img;
+        btn.colors = ColorBlock.defaultColorBlock;
+        if (onClick != null)
+        {
+            btn.onClick.AddListener(onClick);
+        }
+        var text = AddText(rt, "Label", Vector2.zero, size, label, TextAlignmentOptions.Center);
+        text.overflowMode = TextOverflowModes.Overflow;
+        return btn;
+    }
+
+    /// <summary>
     /// 最小化アイコンの向きを状態に合わせる（▼=展開中、右向き=最小化中）
     /// </summary>
     public static void SetCollapseIcon(RectTransform icon, bool collapsed)

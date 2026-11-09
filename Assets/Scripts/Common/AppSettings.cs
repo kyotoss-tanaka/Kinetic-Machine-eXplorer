@@ -1,4 +1,6 @@
 ﻿using UnityEngine;
+using UnityEngine.Rendering;
+using UnityEngine.Rendering.Universal;
 
 /// <summary>
 /// Application Settings の設定値（PlayerPrefs に保存し、次の起動でも同じ値で始める）。
@@ -75,6 +77,59 @@ public static class AppSettings
     }
 
     /// <summary>
+    /// 3D表示の描画解像度の倍率（URP の Render Scale。1=画面と同じ）。
+    /// 塗り（画素数）が律速の内蔵GPU機で下げると軽くなる。外部GPU機もあるので機械ごとに選べるようにする。UI は等倍のまま
+    /// </summary>
+    public static float RenderScale
+    {
+        get => Mathf.Clamp(PlayerPrefs.GetFloat(KeyRenderScale, 1f), MinRenderScale, 1f);
+        set
+        {
+            value = Mathf.Clamp(value, MinRenderScale, 1f);
+            ApplyRenderScale(value);
+            PlayerPrefs.SetFloat(KeyRenderScale, value);
+            PlayerPrefs.Save();
+        }
+    }
+    private const string KeyRenderScale = "kmx.setting.renderScale";
+    private const float MinRenderScale = 0.5f;
+
+    /// <summary>
+    /// 起動時の Render Scale（エディタでは終了時にこの値へ戻す。URP の設定はアセットなので、変えたままだとファイルに残る）
+    /// </summary>
+    private static float orgRenderScale = -1f;
+
+    /// <summary>
+    /// 使っている URP の設定に Render Scale を入れる
+    /// </summary>
+    private static void ApplyRenderScale(float scale)
+    {
+        if (!(GraphicsSettings.currentRenderPipeline is UniversalRenderPipelineAsset urp))
+        {
+            return;
+        }
+        if (orgRenderScale < 0f)
+        {
+            orgRenderScale = urp.renderScale;
+#if UNITY_EDITOR
+            Application.quitting += () =>
+            {
+                if (GraphicsSettings.currentRenderPipeline is UniversalRenderPipelineAsset asset)
+                {
+                    asset.renderScale = orgRenderScale;
+                }
+                orgRenderScale = -1f;
+            };
+#endif
+        }
+        if (!Mathf.Approximately(urp.renderScale, scale))
+        {
+            urp.renderScale = scale;
+            Debug.Log($"[RenderScale] 3D表示の描画解像度 {scale * 100f:0}%");
+        }
+    }
+
+    /// <summary>
     /// 起動時に保存してある値を反映する（GlobalScript の初期化の後。メニューを開かなくても効くように）
     /// </summary>
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
@@ -84,6 +139,7 @@ public static class AppSettings
         GlobalScript.isLiens = UseLines;
         Physics.simulationMode = UsePhysics ? SimulationMode.FixedUpdate : SimulationMode.Script;
         GlobalScript.isCollision = UseCollision;
+        ApplyRenderScale(RenderScale);
     }
 
     private static bool Get(string key, bool defaultValue)
