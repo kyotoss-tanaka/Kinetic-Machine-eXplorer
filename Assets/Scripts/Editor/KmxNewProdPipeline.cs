@@ -14,7 +14,8 @@ using UnityEngine;
 ///   1. SolidWorks のデータをプレハブにする（Pixyz。ライセンスのある PC だけ）
 ///   2. Addressables を作る
 ///   ─ KMXTool がプロジェクトを作り、設定を Unity に出力するのを待つ ─
-///   3. 実行ファイルを作る（シーンの機械のプレハブを、この製番のプレハブに入れ替えて作る。作ったあとシーンは元に戻す）
+///   3. 実行ファイルを作る（Simuration を作成用シーンにコピーし、機械のプレハブをこの製番の物に入れ替えて作る。
+///      Simuration と、Unity で開いているシーンは変えない。作成用シーンは作ったあと消す）
 /// KMXTool とは作業フォルダ（-kmxWork）のファイルでやり取りする：
 ///   request.json（KMXTool → Unity）：取込元の種類（フォルダ／ファイル／作成済みのプレハブ）・取込元・製番
 ///   stage1.json （Unity → KMXTool）：製番・プレハブ・Addressables の出力
@@ -23,6 +24,8 @@ using UnityEngine;
 ///   unity.log   （Unity → KMXTool）：進み具合
 /// 起動：Unity.exe -projectPath &lt;KMX&gt; -executeMethod KmxNewProdPipeline.RunFromCommandLine -kmxWork &lt;作業フォルダ&gt;
 /// （-batchmode は付けない：起動時の Industry Toolkit の 401 を Continue で進めるため。Pixyz も画面ありで動かす）
+/// 終わったら Simuration のシーンを開いてから Unity を終える（次に開いたとき空のシーンにならないように）。
+/// Unity を開いているときは KmxToolBridge 経由で RunInEditor が呼ばれ、終わっても Unity は閉じない。
 /// </summary>
 public static class KmxNewProdPipeline
 {
@@ -53,13 +56,36 @@ public static class KmxNewProdPipeline
     static List<string> prodPrefabs = new();
 
     /// <summary>KMX のシーン（ビルドで使う）</summary>
-    const string ScenePath = "Assets/Scenes/Simuration.unity";
+    public const string ScenePath = "Assets/Scenes/Simuration.unity";
 
+    /// <summary>作成用シーン（Simuration のコピー。機械のプレハブをこの製番の物にして実行ファイルを作る。作ったあと消す）</summary>
+    const string BuildScenePath = "Assets/Scenes/SimurationBuild.unity";
+
+    /// <summary>開いている Unity で行っている（終わっても Unity を閉じない）</summary>
+    static bool inEditor;
+
+    /// <summary>Unity を起動して行う（-kmxWork）</summary>
     public static void RunFromCommandLine()
     {
+        inEditor = false;
+        Start(PrefabLineArtRenderer.GetArg(Environment.GetCommandLineArgs(), "-kmxWork"));
+    }
+
+    /// <summary>
+    /// 開いている Unity で行う（KmxToolBridge から）。開いているシーンには触らない
+    /// </summary>
+    public static void RunInEditor(string work)
+    {
+        inEditor = true;
+        Start(work);
+    }
+
+    static void Start(string work)
+    {
+        KmxToolBridge.busy = true;
         try
         {
-            workDir = PrefabLineArtRenderer.GetArg(Environment.GetCommandLineArgs(), "-kmxWork");
+            workDir = work;
             if (string.IsNullOrEmpty(workDir) || !File.Exists(Path.Combine(workDir, "request.json")))
             {
                 throw new Exception("作業フォルダ（-kmxWork）の request.json がありません");
@@ -170,7 +196,7 @@ public static class KmxNewProdPipeline
             if (!doc.RootElement.GetProperty("ok").GetBoolean())
             {
                 Log("KMXTool で止めたので、ビルドせずに終わります");
-                EditorApplication.Exit(1);
+                Finish(1);
                 return;
             }
             buildDir = doc.RootElement.GetProperty("buildDir").GetString();
@@ -187,84 +213,88 @@ public static class KmxNewProdPipeline
     /// <summary>3. 実行ファイルを作る</summary>
     static void Build()
     {
-        // シーンは入れ替えてから作り、作ったあと（失敗しても）元のファイルに戻す
-        string backup = Path.Combine(workDir, "Simuration.unity.bak");
         try
         {
             AssetDatabase.Refresh();
-            File.Copy(ScenePath, backup, true);
-            ReplaceScenePrefabs();
+            CreateBuildScene();
             Log("実行ファイルを作っています…");
-            string exeDir = BuildAndRun.BuildForPipeline(buildDir);
-            RestoreScene(backup);
+            string exeDir = BuildAndRun.BuildForPipeline(buildDir, BuildScenePath);
+            DeleteBuildScene();
             WriteStage("stage2.json", new Dictionary<string, object> { ["ok"] = true, ["exeDir"] = Path.GetFullPath(exeDir) });
             Log("実行ファイルができました");
-            EditorApplication.Exit(0);
+            Finish(0);
         }
         catch (Exception e)
         {
-            RestoreScene(backup);
+            DeleteBuildScene();
             Fail("stage2.json", e.Message);
         }
     }
 
     /// <summary>
-    /// シーンの機械のプレハブ（一番上にある、Assets/3DModels から来た物と、元のプレハブが無くなった物）を消し、
-    /// この製番のプレハブを入れる。実行時はシーンにある同じ名前のプレハブを使う（ParameterLoader.LoadPrefabModel）。
-    /// 部屋のモデル等、ほかのプレハブは残す
+    /// 作成用シーンを作る：Simuration をコピーし、機械のプレハブ（一番上にある、Assets/3DModels から来た物と、
+    /// 元のプレハブが無くなった物）を消して、この製番のプレハブを入れる。部屋のモデル等、ほかの物は残す。
+    /// 実行時はシーンにある同じ名前のプレハブを使う（ParameterLoader.LoadPrefabModel）。
+    /// 毎回 Simuration からコピーするので、Simuration に足した物も実行ファイルに入る。
+    /// 開いているシーンを閉じないよう、追加で開いて、保存したら閉じる
     /// </summary>
-    static void ReplaceScenePrefabs()
+    static void CreateBuildScene()
     {
-        var scene = EditorSceneManager.OpenScene(ScenePath, OpenSceneMode.Single);
-        foreach (var go in scene.GetRootGameObjects())
+        AssetDatabase.DeleteAsset(BuildScenePath);
+        if (!AssetDatabase.CopyAsset(ScenePath, BuildScenePath))
         {
-            bool missing = PrefabUtility.IsPrefabAssetMissing(go);
-            string source = PrefabUtility.IsAnyPrefabInstanceRoot(go) ? PrefabUtility.GetPrefabAssetPathOfNearestInstanceRoot(go) : "";
-            if (missing || source.StartsWith("Assets/3DModels", StringComparison.OrdinalIgnoreCase))
+            throw new Exception("作成用シーンを作れません: " + BuildScenePath);
+        }
+        var scene = EditorSceneManager.OpenScene(BuildScenePath, OpenSceneMode.Additive);
+        try
+        {
+            foreach (var go in scene.GetRootGameObjects())
             {
-                Log($"シーンから消します：{go.name}{(missing ? "（元のプレハブが無い）" : "")}");
-                UnityEngine.Object.DestroyImmediate(go);
+                bool missing = PrefabUtility.IsPrefabAssetMissing(go);
+                string source = PrefabUtility.IsAnyPrefabInstanceRoot(go) ? PrefabUtility.GetPrefabAssetPathOfNearestInstanceRoot(go) : "";
+                if (missing || source.StartsWith(PrefabRoot, StringComparison.OrdinalIgnoreCase))
+                {
+                    Log($"作成用シーンから消します：{go.name}{(missing ? "（元のプレハブが無い）" : "")}");
+                    UnityEngine.Object.DestroyImmediate(go);
+                }
+            }
+            string assets = Path.GetFullPath(Application.dataPath);
+            foreach (var path in prodPrefabs)
+            {
+                string assetPath = "Assets" + path.Substring(assets.Length).Replace('\\', '/');
+                var asset = AssetDatabase.LoadAssetAtPath<GameObject>(assetPath);
+                if (asset == null)
+                {
+                    throw new Exception("プレハブを読めません: " + assetPath);
+                }
+                var instance = (GameObject)PrefabUtility.InstantiatePrefab(asset, scene);
+                // 実行時は PrefabInfo の名前（ファイル名）と同じ名前の物を使う
+                instance.name = asset.name;
+                Log($"作成用シーンに入れます：{asset.name}");
+            }
+            if (!EditorSceneManager.SaveScene(scene))
+            {
+                throw new Exception("作成用シーンを保存できません: " + BuildScenePath);
             }
         }
-        string assets = Path.GetFullPath(Application.dataPath);
-        foreach (var path in prodPrefabs)
+        finally
         {
-            string assetPath = "Assets" + path.Substring(assets.Length).Replace('\\', '/');
-            var asset = AssetDatabase.LoadAssetAtPath<GameObject>(assetPath);
-            if (asset == null)
-            {
-                throw new Exception("プレハブを読めません: " + assetPath);
-            }
-            var instance = (GameObject)PrefabUtility.InstantiatePrefab(asset, scene);
-            // 実行時は PrefabInfo の名前（ファイル名）と同じ名前の物を使う
-            instance.name = asset.name;
-            Log($"シーンに入れます：{asset.name}");
-        }
-        if (!EditorSceneManager.SaveScene(scene))
-        {
-            throw new Exception("シーンを保存できません: " + ScenePath);
+            EditorSceneManager.CloseScene(scene, true);
         }
     }
 
     /// <summary>
-    /// シーンを元のファイルに戻す（開発で使っているシーンを変えたままにしない）
+    /// 作成用シーンを消す（作ったあと残さない）
     /// </summary>
-    static void RestoreScene(string backup)
+    static void DeleteBuildScene()
     {
         try
         {
-            if (File.Exists(backup))
-            {
-                // 開いたまま書き戻すと「外で変更された」の確認が出るので、先に空のシーンにする
-                EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
-                File.Copy(backup, ScenePath, true);
-                AssetDatabase.ImportAsset(ScenePath, ImportAssetOptions.ForceUpdate);
-                Log("シーンを元に戻しました");
-            }
+            AssetDatabase.DeleteAsset(BuildScenePath);
         }
         catch (Exception e)
         {
-            Log($"シーンを元に戻せませんでした（{backup} に元のシーンがあります）: {e.Message}");
+            Log($"作成用シーンを消せませんでした（{BuildScenePath}）: {e.Message}");
         }
     }
 
@@ -276,7 +306,34 @@ public static class KmxNewProdPipeline
         {
             WriteStage(stage, new Dictionary<string, object> { ["ok"] = false, ["error"] = message });
         }
-        EditorApplication.Exit(1);
+        Finish(1);
+    }
+
+    /// <summary>
+    /// 終わる。Unity を起動して行ったときは Simuration のシーンを開いてから Unity を終える
+    /// （次に開いたときも Simuration になる）。開いている Unity で行ったときは閉じない
+    /// </summary>
+    static void Finish(int code)
+    {
+        EditorApplication.update -= WaitForGo;
+        KmxToolBridge.busy = false;
+        if (inEditor)
+        {
+            inEditor = false;
+            return;
+        }
+        try
+        {
+            if (EditorSceneManager.GetActiveScene().path != ScenePath)
+            {
+                EditorSceneManager.OpenScene(ScenePath, OpenSceneMode.Single);
+            }
+        }
+        catch (Exception e)
+        {
+            Debug.LogWarning("[NewProd] Simuration のシーンを開けませんでした: " + e.Message);
+        }
+        EditorApplication.Exit(code);
     }
 
     /// <summary>途中のファイルを読まれないよう、別名で書いてから置き換える</summary>

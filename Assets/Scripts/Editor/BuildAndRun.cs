@@ -400,9 +400,10 @@ public class BuildAndRun
 
     /// <summary>
     /// 新しい製番を作る流れ（KmxNewProdPipeline）から呼ぶ：KMXTool の BuildConfig.json で Windows の実行ファイルを outDir に作る。
-    /// 起動・ダイアログ・エクスプローラーは出さない。失敗したら例外。戻り値は KMX.exe のあるフォルダ
+    /// 起動・ダイアログ・エクスプローラーは出さない。失敗したら例外。戻り値は KMX.exe のあるフォルダ。
+    /// scene を渡すとそのシーンで作る（作成用シーン。省くと Simuration）
     /// </summary>
-    public static string BuildForPipeline(string outDir)
+    public static string BuildForPipeline(string outDir, string scene = null)
     {
         string configPath = Path.Combine("Assets/StreamingAssets/Datas", "BuildConfig.json");
         if (!File.Exists(configPath))
@@ -414,13 +415,13 @@ public class BuildAndRun
         build.isVR = false;
         build.isMR = false;
         build.isMaster = false;
-        return BuildAndRunProcess(build, false, true, false, outDir);
+        return BuildAndRunProcess(build, false, true, false, outDir, scene);
     }
 
     /// <summary>
     /// ビルド処理（outDir を指定すると Builds の下ではなくそこに作る）
     /// </summary>
-    private static string BuildAndRunProcess(Parameters.BuildConfig build, bool isRun, bool isProd = false, bool isWeb = false, string outDir = null)
+    private static string BuildAndRunProcess(Parameters.BuildConfig build, bool isRun, bool isProd = false, bool isWeb = false, string outDir = null, string scene = null)
     {
         var isAndroid = build.isVR || build.isMR;
         var platformDir = isWeb ? "Web" : (isAndroid ? "Android" : "Windows");
@@ -433,7 +434,7 @@ public class BuildAndRun
             target = isWeb ? "webgl" : (isAndroid ? "Android" : "Windows"),
             // WebGLは単一ファイルではなくフォルダ出力（index.html 一式）
             outputPath = isWeb ? productDir : (isAndroid ? $"{productDir}.apk" : $"{productDir}/KMX.exe"),
-            scenes = new List<string> { scenePath },
+            scenes = new List<string> { scene ?? scenePath },
             buildOptions = build.isRelease ? BuildOptions.None : BuildOptions.Development | BuildOptions.ConnectWithProfiler | BuildOptions.AllowDebugging// | BuildOptions.EnableDeepProfilingSupport
         };
 
@@ -551,6 +552,11 @@ public class BuildAndRun
             AssetDatabase.SaveAssets();
         }
 
+        if (target == BuildTarget.StandaloneWindows64)
+        {
+            CopyLauncher(projectPath, folderPath);
+        }
+
         if (!isProd)
         {
             // 製番情報のデータを削除
@@ -571,6 +577,22 @@ public class BuildAndRun
         return folderPath;
     }
 
+
+    /// <summary>
+    /// 起動用ランチャー（Tools/KMXLauncher.exe）を KMX.exe の横に置く（Windows 版だけ）。
+    /// KMX は DLL を読み終わるまで画面を出せないので、利用者はランチャーを押す。押すとすぐに起動中の画面が出る。
+    /// ランチャーの作り直しは Tools/KMXLauncher で dotnet build -c Release（Tools/KMXLauncher.exe が更新される）
+    /// </summary>
+    private static void CopyLauncher(string projectPath, string folderPath)
+    {
+        var launcher = Path.Combine(projectPath, "Tools", "KMXLauncher.exe");
+        if (!File.Exists(launcher))
+        {
+            Debug.LogWarning("起動用ランチャーがありません（実行環境には入れません）: " + launcher);
+            return;
+        }
+        File.Copy(launcher, Path.Combine(folderPath, "KMXLauncher.exe"), true);
+    }
 
     [MenuItem("Kyotoss/Switch to Normal Config", false, 101)]
     public static void SwitchToWindowsConfig()
