@@ -21,6 +21,8 @@ public class BacketPathOverlay : MonoBehaviour
     private static readonly Dictionary<string, Entry> entries = new();
     /// <summary>経路確認ライン（Ctrl+Shift押下中のみアクティブ化する）</summary>
     private static readonly Dictionary<string, GameObject> lines = new();
+    /// <summary>3D の位置に添える文字（ユニット名→印と文字の一覧）</summary>
+    private static readonly Dictionary<string, List<(Transform anchor, System.Func<string> text, Color color)>> labels = new();
     /// <summary>Prefab非表示時にも表示を維持するモデル（経路のスプロケット/経由点で参照しているモデル）</summary>
     public static readonly HashSet<Transform> KeepVisibleModels = new();
     /// <summary>
@@ -29,6 +31,7 @@ public class BacketPathOverlay : MonoBehaviour
     /// </summary>
     public static bool ForceShow;
     private GUIStyle style;
+    private GUIStyle labelStyle;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     private static void Bootstrap()
@@ -56,11 +59,21 @@ public class BacketPathOverlay : MonoBehaviour
         lines[unitName] = line;
     }
 
+    /// <summary>
+    /// 3D の位置に添える文字（リニアの PP の名前と位置など）を登録する（同名ユニットは上書き）。
+    /// 印の物（anchor）が表示されている間だけ、その画面位置に描く
+    /// </summary>
+    public static void RegisterLabels(string unitName, List<(Transform anchor, System.Func<string> text, Color color)> list)
+    {
+        labels[unitName] = list;
+    }
+
     /// <summary>再ロード時に全エントリを消す（機番構成が変わっても古い表示が残らないように）</summary>
     public static void Clear()
     {
         entries.Clear();
         lines.Clear();
+        labels.Clear();
         KeepVisibleModels.Clear();
     }
 
@@ -85,7 +98,7 @@ public class BacketPathOverlay : MonoBehaviour
 
     private void OnGUI()
     {
-        if (entries.Count == 0)
+        if (entries.Count == 0 && labels.Count == 0)
         {
             return;
         }
@@ -105,6 +118,18 @@ public class BacketPathOverlay : MonoBehaviour
                 alignment = TextAnchor.UpperLeft,
             };
         }
+        if (labelStyle == null)
+        {
+            labelStyle = new GUIStyle(GUI.skin.label)
+            {
+                fontSize = 14,
+                fontStyle = FontStyle.Bold,
+                alignment = TextAnchor.LowerLeft,
+                wordWrap = false,
+            };
+        }
+
+        DrawLabels();
 
         var y = 8f;
         foreach (var e in entries.Values.OrderBy(d => d.unitName))
@@ -122,6 +147,40 @@ public class BacketPathOverlay : MonoBehaviour
             style.normal.textColor = new Color(0.4f, 0.9f, 1f, 1f);   // 水色
             GUI.Label(rect, text, style);
             y += 24f;
+        }
+    }
+
+    /// <summary>
+    /// 3D の印の横に文字を描く（印の右上。カメラの後ろと、印が表示されていない物は描かない）
+    /// </summary>
+    private void DrawLabels()
+    {
+        var cam = CommonFunction.MainCamera;
+        if (cam == null || labels.Count == 0)
+        {
+            return;
+        }
+        foreach (var list in labels.Values)
+        {
+            foreach (var (anchor, text, color) in list)
+            {
+                if (anchor == null || !anchor.gameObject.activeInHierarchy)
+                {
+                    continue;
+                }
+                var sp = cam.WorldToScreenPoint(anchor.position);
+                if (sp.z <= 0f)
+                {
+                    continue;
+                }
+                // 画面座標は下が 0、GUI は上が 0。下揃えなので、2 行目以降は上へ積む（処理中のタイマー等）
+                var s = text();
+                var rect = new Rect(sp.x + 8f, Screen.height - sp.y - 62f, 400f, 60f);
+                labelStyle.normal.textColor = Color.black;
+                GUI.Label(new Rect(rect.x + 1f, rect.y + 1f, rect.width, rect.height), s, labelStyle);
+                labelStyle.normal.textColor = color;
+                GUI.Label(rect, s, labelStyle);
+            }
         }
     }
 }

@@ -635,17 +635,18 @@ public class MotionLinear : AxisMotionBase
         /// </summary>
         public PointType type;
         /// <summary>
-        /// 動作タグ
+        /// 動作タグ（未設定は ""。null だとタグの読み取りで落ちる）
         /// </summary>
-        public string actTag;
+        public string actTag = "";
         /// <summary>
-        /// 処理開始タグ
+        /// 処理開始タグ（未設定は ""。通過区間の終わり TPE/MTPE は設定しないので、初期値が無いと null になり、
+        /// ユニット情報の画面がポイント一覧を作る途中で落ちて、何も出なくなっていた）
         /// </summary>
-        public string processTag;
+        public string processTag = "";
         /// <summary>
-        /// 完了タグ
+        /// 完了タグ（未設定は ""）
         /// </summary>
-        public string finTag;
+        public string finTag = "";
         /// <summary>
         /// 処理時間
         /// </summary>
@@ -1341,7 +1342,17 @@ public class MotionLinear : AxisMotionBase
                                         if (p.isMTP || p.isTP)
                                         {
                                             // 前のポイントに空きがあるかチェック
-                                            var endPPId = point.nextPP.nextPP.nextPP.next.id;
+                                            // 探す範囲は、通過ポイントの先の最初の PP まで。通過ポイント（TP/TPE/MTP/MTPE）が続くとき
+                                            // （例：TP の通過区間の終わりのすぐ先に次の TP）も、全部を越えた先の PP まで見る。
+                                            // 通過ポイントが一つなら、以前の point.nextPP.nextPP.nextPP.next と同じ
+                                            var pass = points.Find(d => d.id == p.pointId);
+                                            var after = pass.nextPP;
+                                            for (var i = 0; (i < points.Count) && (after != null) &&
+                                                 (after.isTP || after.isTPE || after.isMTP || after.isMTPE); i++)
+                                            {
+                                                after = after.nextPP;
+                                            }
+                                            var endPPId = (after ?? point.nextPP.nextPP.nextPP).next.id;
                                             StopPoint esp = null;
                                             var start = false;
                                             for (var e = p.next; e.pointId != endPPId; e = e.next)
@@ -1367,10 +1378,13 @@ public class MotionLinear : AxisMotionBase
                                                 target = esp;
                                                 break;
                                             }
-                                            else
+                                            if (esp == null)
                                             {
-                                                p = esp;
+                                                // 通過の先に空きが無いので、まだ通過ポイントへは入らない
+                                                // （以前は p が null のまま次へ進み、NullReferenceException で毎フレーム止まっていた）
+                                                break;
                                             }
+                                            p = esp;
                                         }
                                         target = p;
                                     }
@@ -1467,6 +1481,9 @@ public class MotionLinear : AxisMotionBase
 
             // ポイント作成
             CreatePointInfo();
+
+            // PP の位置（Ctrl+Shift押下中のみ表示）。経路ラインの子にするので、ラインと一緒に出し入れされる
+            CreatePointMarkers();
 
             // 処理タイマー開始
             sw.Restart();
@@ -1776,6 +1793,84 @@ public class MotionLinear : AxisMotionBase
         // 周長オーバーレイ（幾何周長と周長設定の差。オフセット調整の目安）
         BacketPathOverlay.Register(name, linearSetting.pathName, pathLength * linearScale * 1000f, linearSetting.loopLength);
     }
+
+    /// <summary>
+    /// 名前の入ったポイントの位置の確認表示（Ctrl+Shift押下中のみ）：球と「ポイント名 位置mm」の文字。
+    /// 色は種類別：PP=水色、BUFF=緑、TP/MTP=オレンジ（文字も同じ色）。
+    /// PP は停止数が複数なら、ピッチで並ぶ停止位置ごとに出す（名前の後ろに -1, -2 …）。
+    /// BUFF は全ムーバー分の停止位置があり得るので、先頭の位置だけ出して台数を添える。
+    /// PP が処理中のときは、文字の上に「処理中 経過 / 処理時間 s」を出す（ポイント単位なので先頭の停止位置にだけ）。
+    /// 出さない物：名前が空、自動で足した init（設定に無い物）、通過区間の終わり（TPE/MTPE。設定の 1 行ではない）。
+    /// 球は経路ライン上（ムーバーが止まるときの経路上の基準点）。経路ラインの子なので表示の切替もラインと同じ
+    /// </summary>
+    private void CreatePointMarkers()
+    {
+        var labels = new List<(Transform anchor, Func<string> text, UnityEngine.Color color)>();
+        if (pathLineObj != null)
+        {
+            var orange = new UnityEngine.Color(1f, 0.55f, 0f);
+            var mats = new Dictionary<UnityEngine.Color, Material>();
+            // 直径はワールド実寸で約20mm（親のスケールを打ち消す）
+            var ls = pathLineObj.transform.lossyScale;
+            var size = new Vector3(
+                0.02f / Mathf.Max(Mathf.Abs(ls.x), 1e-6f),
+                0.02f / Mathf.Max(Mathf.Abs(ls.y), 1e-6f),
+                0.02f / Mathf.Max(Mathf.Abs(ls.z), 1e-6f));
+            var named = new HashSet<string>(linearSetting.points.Select(d => d.name ?? ""));
+            foreach (var point in points)
+            {
+                if (string.IsNullOrWhiteSpace(point.name) || !named.Contains(point.name) ||
+                    (point.type == PointType.TPE) || (point.type == PointType.MTPE) || (point.stopPoints.Count == 0))
+                {
+                    continue;
+                }
+                var color = point.type == PointType.PP ? UnityEngine.Color.cyan
+                          : point.type == PointType.BUFF ? UnityEngine.Color.green
+                          : orange;
+                if (!mats.TryGetValue(color, out var mat))
+                {
+                    mat = MakePathLineMaterial(color);
+                    mats[color] = mat;
+                }
+                var isBuff = point.type == PointType.BUFF;
+                var count = isBuff ? 1 : point.stopPoints.Count;
+                for (var j = 0; j < count; j++)
+                {
+                    var target = point.stopPoints[j].target;
+                    // ムーバーの配置（GetMoverPose）と同じく、開始オフセットを足して経路上の点を出す
+                    GetPositionOnLoop(target + moverOffsetPos, out var p, out _);
+                    var marker = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+                    marker.name = $"PointMarker_{point.name}_{j + 1}";
+                    Destroy(marker.GetComponent<Collider>());
+                    marker.transform.SetParent(pathLineObj.transform, false);
+                    marker.transform.localPosition = p;
+                    marker.transform.localScale = size;
+                    if (mat != null)
+                    {
+                        marker.GetComponent<Renderer>().sharedMaterial = mat;
+                    }
+                    var label = isBuff
+                        ? (point.stopPoints.Count > 1 ? $"{point.name}（{point.stopPoints.Count}台）" : point.name)
+                        : (count > 1 ? $"{point.name}-{j + 1}" : point.name);
+                    var text = $"{label}\n{target * 1000f:0.#}mm";
+                    if ((point.type == PointType.PP) && (j == 0))
+                    {
+                        // 処理中は、名前の上に経過時間 / 処理時間（秒）を出す（RenewProcess と同じ数え方）。
+                        // 処理時間はポイント単位で一括なので、先頭の停止位置（-1）にだけ出す
+                        var pp = point;
+                        labels.Add((marker.transform, () => pp.isProcess
+                            ? $"処理中 {Mathf.Clamp(pp.cycle - pp.lapsOffset, 0, pp.processTime) / 1000f:0.0} / {pp.processTime / 1000f:0.0}s\n{text}"
+                            : text, color));
+                    }
+                    else
+                    {
+                        labels.Add((marker.transform, () => text, color));
+                    }
+                }
+            }
+        }
+        BacketPathOverlay.RegisterLabels(name, labels);
+    }
     #endregion ムーバー作成
 
     #region ポイント作成
@@ -1892,6 +1987,12 @@ public class MotionLinear : AxisMotionBase
             // ポイントタイプ別処理
             if ((point.type == PointType.TP) || (point.type == PointType.MTP))
             {
+                // 通過区間はその速度設定の終速（ve）で進む。0 だと通過ポイントで止まったまま進まない
+                if (spd.ve <= 0f)
+                {
+                    Debug.LogWarning($"リニア: {name} 通過ポイント「{points[i].name}」の速度（速度{points[i].spd + 1}）の終速が 0 です。" +
+                                     "通過区間は終速で進むので、通過ポイントから先へ進みません。通過する速さを終速に入れた速度を選んでください");
+                }
                 // 通過ポイントならポイント到着後の終了ポイント作成
                 point = new PointInfo
                 {
