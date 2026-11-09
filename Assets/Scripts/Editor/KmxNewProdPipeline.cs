@@ -26,6 +26,8 @@ using UnityEngine;
 /// （-batchmode は付けない：起動時の Industry Toolkit の 401 を Continue で進めるため。Pixyz も画面ありで動かす）
 /// 終わったら Simuration のシーンを開いてから Unity を終える（次に開いたとき空のシーンにならないように）。
 /// Unity を開いているときは KmxToolBridge 経由で RunInEditor が呼ばれ、終わっても Unity は閉じない。
+/// KMXTool の「アプリケーション書き出し」（今のプロジェクトで作り直す）も同じ流れ（request の mode = update）。
+/// 図面が変わったプレハブだけを変換し直し、プロジェクトのプレハブ全部で Addressables と実行ファイルを作る。
 /// </summary>
 public static class KmxNewProdPipeline
 {
@@ -37,14 +39,19 @@ public static class KmxNewProdPipeline
 
     class Request
     {
-        /// <summary>取込元の種類：folder＝フォルダを変換、file＝ファイル（.sldasm）を変換、prefabs＝作成済みのプレハブを使う</summary>
+        /// <summary>
+        /// 取込元の種類：folder＝フォルダを変換、file＝ファイル（.sldasm）を変換、prefabs＝作成済みのプレハブを使う、
+        /// update＝今のプロジェクトで作り直す（files の図面だけ変換し直してから、prefabs 全部で作る。KMXTool の「アプリケーション書き出し」）
+        /// </summary>
         public string mode { get; set; } = "folder";
         /// <summary>変換するフォルダかファイル（folder・file）</summary>
         public string source { get; set; } = "";
-        /// <summary>使うプレハブ（prefabs。Assets の中のファイル）</summary>
+        /// <summary>使うプレハブ（prefabs・update。Assets の中のファイル）</summary>
         public List<string> prefabs { get; set; } = new();
-        /// <summary>製番（prefabs のとき。変換するときは Pixyz の変換が決める）</summary>
+        /// <summary>製番（prefabs・update のとき。変換するときは Pixyz の変換が決める）</summary>
         public string prodNo { get; set; } = "";
+        /// <summary>変換し直す図面（update。.sldasm。空なら変換しない）</summary>
+        public List<string> files { get; set; } = new();
     }
 
     static string workDir;
@@ -96,6 +103,18 @@ public static class KmxNewProdPipeline
                 Log($"開始：作成済みのプレハブ {request.prefabs.Count} 個を使います（SolidWorks からの変換は省く）");
                 Register(request.prodNo, request.prefabs);
             }
+            else if (request.mode == "update")
+            {
+                Log($"開始：今の設定で作り直します（プレハブ {request.prefabs.Count} 個、そのうち図面から変換し直す物 {request.files.Count} 個）");
+                if (request.files.Count == 0)
+                {
+                    Register(request.prodNo, request.prefabs);
+                }
+                else
+                {
+                    ImportFiles(0);
+                }
+            }
             else
             {
                 Log($"開始：取込元 {request.source}");
@@ -125,6 +144,41 @@ public static class KmxNewProdPipeline
         });
 #else
         Fail("stage1.json", "この PC の Unity では SolidWorks のデータを変換できません（Pixyz を使うスクリプトが無効：DEV_PC）。ライセンスのある PC で行うか、変換を省いてください");
+#endif
+    }
+
+    /// <summary>
+    /// 1'. 図面（.sldasm）を一つずつプレハブに変換し直す（update）。変換したプレハブは Assets/3DModels/製番/ に上書きされる。
+    /// 全部終わったら、プロジェクトのプレハブ全部で Addressables を作る
+    /// </summary>
+    static void ImportFiles(int index)
+    {
+#if DEV_PC
+        if (index >= request.files.Count)
+        {
+            Register(request.prodNo, request.prefabs);
+            return;
+        }
+        string file = request.files[index];
+        Log($"図面をプレハブに変換し直しています（{index + 1}/{request.files.Count}）：{Path.GetFileName(file)}");
+        PrefabImporter.ImportForPipeline(file, (ok, prodNo) =>
+        {
+            if (!ok)
+            {
+                Fail("stage1.json", "プレハブへの変換に失敗しました（Unity のコンソールを見てください）: " + file);
+                return;
+            }
+            if (!string.Equals(prodNo, request.prodNo, StringComparison.OrdinalIgnoreCase))
+            {
+                // 変換の出力先は図面の 2 つ上のフォルダ名で決まる。違うと、使うプレハブが置き換わらない
+                Fail("stage1.json", $"変換したプレハブが別の製番のフォルダ（{PrefabRoot}/{prodNo}）に入りました。図面の 2 つ上のフォルダ名を製番（{request.prodNo}）にしてください: {file}");
+                return;
+            }
+            // 変換の後始末が済んでから次へ
+            EditorApplication.delayCall += () => ImportFiles(index + 1);
+        });
+#else
+        Fail("stage1.json", "この PC の Unity では SolidWorks のデータを変換できません（Pixyz を使うスクリプトが無効：DEV_PC）。ライセンスのある PC で行うか、図面からの変換を外してください");
 #endif
     }
 
