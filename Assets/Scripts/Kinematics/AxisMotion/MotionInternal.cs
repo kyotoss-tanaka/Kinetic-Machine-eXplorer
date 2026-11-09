@@ -360,7 +360,7 @@ public class MotionInternal : AxisMotionBase
     /// <summary>
     /// 応答遅れをログに出す閾値(ms)。予定より これ以上遅れた時だけ出す
     /// </summary>
-    private const float ResponseLogThresholdMs = 100f;
+    private const float ResponseLogThresholdMs = ResponseStats.LateThresholdMs;
 
     /// <summary>
     /// 現在位置
@@ -1237,11 +1237,18 @@ public class MotionInternal : AxisMotionBase
             }
             return;
         }
+        if (com.lastSendDoneTs < com.lastSendStartTs)
+        {
+            // 別の通信スレッドが送信の時刻を書き換えている途中（開始だけ新しい）。次の判定で測る
+            return;
+        }
         var log = responseLog;
         responseLog = null;
         double ToMs(long ticks) => ticks * 1000.0 / Stopwatch.Frequency;
         var totalMs = ToMs(com.lastSendDoneTs - log.recvTs);
         var lateMs = totalMs - log.expectedMs;
+        // 画面（Direct Com Info）用に毎回足す。ログは遅れた時だけ
+        ResponseStats.Add(unitSetting.name, log.end, log.expectedMs, (float)totalMs);
         if (lateMs < ResponseLogThresholdMs)
         {
             return;
