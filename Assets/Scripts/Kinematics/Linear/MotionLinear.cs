@@ -606,6 +606,14 @@ public class MotionLinear : AxisMotionBase
     }
 
     /// <summary>
+    /// 目標を通り過ぎていても「着いた」扱いにする距離（m）。
+    /// 等速で通る TP は入口に着いても止まらずに進み続けるので、通過距離（待機時間の欄）が 1 フレームの移動
+    /// （1000mm/s × 1/60 秒 ≒ 17mm）より短いと、出口を目標にした時にはもう通り過ぎていて、前にしか進めないため 1 周しに行っていた
+    /// （S1820 ﾈｰﾑﾗﾍﾞﾙ貼付検査：通過距離 10mm）。前にしか進まないので、目標がすぐ後ろにあるのは行き過ぎの時だけ。KMXTool の計算も同じ
+    /// </summary>
+    private const float OvershootTolerance = 0.2f;
+
+    /// <summary>
     /// ポイント情報
     /// </summary>
     public class PointInfo
@@ -934,6 +942,21 @@ public class MotionLinear : AxisMotionBase
             }
         }
         /// <summary>
+        /// 能力の表示（個/分＝停止数×60000÷動作サイクル。今回 / 直近 10 回の平均）
+        /// </summary>
+        public string txtCycleEx
+        {
+            get
+            {
+                if ((type == PointType.PP) && (cycleTimes.Count > 0) && (cycleTime > 0) && (stopPoints.Count > 0))
+                {
+                    var avg = cycleTimes.Average();
+                    return $"{stopPoints.Count * 60000.0 / cycleTime:0.0} / {(avg > 0 ? stopPoints.Count * 60000.0 / avg : 0):0.0}";
+                }
+                return "---";
+            }
+        }
+        /// <summary>
         /// ムーバーをセットする
         /// </summary>
         /// <param name="mover"></param>
@@ -943,6 +966,11 @@ public class MotionLinear : AxisMotionBase
             if (next != null)
             {
                 var dist = (next.target + totalLength - mover.pos) % totalLength;
+                // 初期位置に置いたムーバーは、計算の誤差でほんの少し先にいても 1 周させない
+                if (totalLength - dist < OvershootTolerance)
+                {
+                    dist = 0f;
+                }
                 next.mover = mover;
                 mover.SetMotion(next.target, dist, spdInfo);
                 mover.motion.processed = true;
@@ -959,6 +987,11 @@ public class MotionLinear : AxisMotionBase
             if (next != null)
             {
                 var dist = (next.target + totalLength - mover.pos) % totalLength;
+                // 目標を少し通り過ぎている時は着いている扱い（1 周しに行かない）
+                if (totalLength - dist < OvershootTolerance)
+                {
+                    dist = 0f;
+                }
                 next.mover = mover;
                 mover.SetMotion(next.target, dist, spdInfo);
                 if (next.isPP)
@@ -1295,6 +1328,10 @@ public class MotionLinear : AxisMotionBase
                             }
                         }
                     }
+                    else if (IsWaitingGroupMove(point))
+                    {
+                        // 次の PP に組の全員分の空きができるまで、処理済みの組のまま待つ
+                    }
                     else
                     {
                         foreach (var sp in point.stopPoints)
@@ -1309,8 +1346,10 @@ public class MotionLinear : AxisMotionBase
                             }
                             else if (sp.isMoving)
                             {
-                                // 動作中
-                                endId = !sp.mover.motion.processed ? (isPP ? point.nextPP.next.id : point.nextPP.id) : point.next.id;
+                                // 動作中。PP へ処理しに向かっている（まだ処理していない）ムーバーは、その PP の中でだけ行き先を決め直す
+                                // （PP の先まで探すと、同じ PP の別の停止位置に先に着いたムーバーがいる時に、PP を飛ばして先へ行っていた。
+                                //   組のまま次の PP へ移す IsWaitingGroupMove で、奥の停止位置へ向かうムーバーが後から着いて起きた）
+                                endId = (!sp.mover.motion.processed && (point.type != PointType.PP)) ? (isPP ? point.nextPP.next.id : point.nextPP.id) : point.next.id;
                             }
                             if (endId >= 0)
                             {
@@ -1435,6 +1474,40 @@ public class MotionLinear : AxisMotionBase
             }
         }
         prvCycle = cycle;
+    }
+
+    /// <summary>
+    /// PP の処理済みの組を、次の PP へまとめて移すために待たせるか。
+    /// すぐ次のポイントが PP の時、処理済みで止まっているムーバーは、次の PP に全員分（次の PP の停止数まで）の空きができてから移る。
+    /// （1 台ずつ空きへ移すと組が分かれ、処理済みの 1 台が残った PP は、次の組が着いても処理を始められなかった。
+    ///   S1820 ﾈｰﾑﾗﾍﾞﾙ貼付→ﾈｰﾑﾗﾍﾞﾙ圧着：貼付は圧着の 1.4 秒を毎回待っていた。組のまま移ると、圧着の処理中に貼付が次の組を処理できる）
+    /// あいだにバッファや TP がある時・処理中や移動中のムーバーがいる時は待たない（今までどおり 1 台ずつ）。
+    /// KMXTool の計算（LinearSimulator）も同じにしている
+    /// </summary>
+    private static bool IsWaitingGroupMove(PointInfo point)
+    {
+        if ((point.type != PointType.PP) || (point.next == null) || (point.next == point) || (point.next.type != PointType.PP))
+        {
+            return false;
+        }
+        var count = 0;
+        foreach (var sp in point.stopPoints)
+        {
+            if (sp.mover == null)
+            {
+                continue;
+            }
+            if (!sp.isReady || !sp.mover.motion.processed)
+            {
+                return false;
+            }
+            count++;
+        }
+        if (count == 0)
+        {
+            return false;
+        }
+        return point.next.restCount < Mathf.Min(count, point.next.stopPoints.Count);
     }
 
     /// <summary>
@@ -1684,7 +1757,9 @@ public class MotionLinear : AxisMotionBase
         {
             moverPitch = linearSetting.pitch / 1000f;
             moverOffsetPos = linearSetting.offset / 1000f;
-            // 初期位置から
+            // 初期位置（init）の先頭から後ろへピッチずつ並べる。init はムーバーが最初に並ぶバッファなので、最初からそこに置く。
+            // （0mm から並べていた時は、init を 0mm より後ろ（例 -40 → 12960mm）にすると、前にしか進めないので 1 周回って init へ行っていた）
+            var initPos = InitPosition();
             for (var i = 0; i < linearSetting.count; i++)
             {
                 var mover = new MoverInfo
@@ -1693,7 +1768,7 @@ public class MotionLinear : AxisMotionBase
                     // 親を指定して複製する（親なし複製だと祖先のスケールが失われる）
                     obj = Instantiate(moveObject, moveObject.transform.parent),
                     pointno = -1,
-                    pos = (totalLength - moverPitch * i) % totalLength,
+                    pos = (totalLength + (initPos - moverPitch * i)) % totalLength,
                     size = moverPitch,
                     length = totalLength
                 };
@@ -1855,12 +1930,14 @@ public class MotionLinear : AxisMotionBase
                     var text = $"{label}\n{target * 1000f:0.#}mm";
                     if ((point.type == PointType.PP) && (j == 0))
                     {
-                        // 処理中は、名前の上に経過時間 / 処理時間（秒）を出す（RenewProcess と同じ数え方）。
+                        // 名前の上に経過時間 / 処理時間（秒）を常に出す（RenewProcess と同じ数え方）。処理していない時は「--- / 2.0s」。
+                        // 行数を変えないので、処理の始め・終わりで文字が上下に動かない。
                         // 処理時間はポイント単位で一括なので、先頭の停止位置（-1）にだけ出す
                         var pp = point;
+                        var total = $"{pp.processTime / 1000f:0.0}s";
                         labels.Add((marker.transform, () => pp.isProcess
-                            ? $"処理中 {Mathf.Clamp(pp.cycle - pp.lapsOffset, 0, pp.processTime) / 1000f:0.0} / {pp.processTime / 1000f:0.0}s\n{text}"
-                            : text, color));
+                            ? $"処理中 {Mathf.Clamp(pp.cycle - pp.lapsOffset, 0, pp.processTime) / 1000f:0.0} / {total}\n{text}"
+                            : $"--- / {total}\n{text}", color));
                     }
                     else
                     {
@@ -1875,10 +1952,32 @@ public class MotionLinear : AxisMotionBase
 
     #region ポイント作成
     /// <summary>
+    /// 初期位置（init）の位置（m。0～全周の手前）。init が無ければ 0（CreatePointInfo が 0mm に足すのと同じ）
+    /// </summary>
+    private float InitPosition()
+    {
+        var init = linearSetting.points.Find(d => d.name == "init");
+        if ((init == null) || (totalLength <= 0f))
+        {
+            return 0f;
+        }
+        var pos = (init.pos / 1000f) % totalLength;
+        return pos < 0f ? pos + totalLength : pos;
+    }
+
+    /// <summary>
     /// ポイント作成
     /// </summary>
     private void CreatePointInfo()
     {
+        // 位置がマイナスなら全周を足した位置にする（位置の順に並べるので、マイナスのままだと先頭に来てしまう）
+        foreach (var p in linearSetting.points)
+        {
+            while ((totalLength > 0f) && (p.pos < 0f))
+            {
+                p.pos += totalLength * 1000f;
+            }
+        }
         var points = linearSetting.points.OrderBy(d => d.pos).ToList();
         var init = points.Find(d => d.name == "init");
         if (init == null)

@@ -42,6 +42,8 @@ public class CanvasMenuActUnitScript : CanvasMenuBaseScript
         public TextMeshProUGUI txtProcess;
         public TextMeshProUGUI txtEnd;
         public TextMeshProUGUI txtCycle;
+        /// <summary>処理＋入れ替え（動作サイクルの右の列）</summary>
+        public TextMeshProUGUI txtCycleEx;
         public TagInfo tagStart;
         public TagInfo tagProcess;
         public TagInfo tagEnd;
@@ -398,6 +400,10 @@ public class CanvasMenuActUnitScript : CanvasMenuBaseScript
                     pointsInfos[i].txtProcess.color = GetTagValue(pointsInfos[i].devProcess, ref pointsInfos[i].tagProcess) == 1 ? Color.blue : Color.red;
                     pointsInfos[i].txtEnd.color = GetTagValue(pointsInfos[i].devEnd, ref pointsInfos[i].tagEnd) == 1 ? Color.blue : Color.red;
                     pointsInfos[i].txtCycle.text = motionLinear.points[i].txtCycle;
+                    if (pointsInfos[i].txtCycleEx != null)
+                    {
+                        pointsInfos[i].txtCycleEx.text = motionLinear.points[i].txtCycleEx;
+                    }
                 }
             }
             else
@@ -1054,6 +1060,7 @@ public class CanvasMenuActUnitScript : CanvasMenuBaseScript
                             txtProcess = p.GetComponentsInChildren<TextMeshProUGUI>().ToList().Find(d => d.name == "TxtProcessTag"),
                             txtEnd = p.GetComponentsInChildren<TextMeshProUGUI>().ToList().Find(d => d.name == "TxtEndTag"),
                             txtCycle = p.GetComponentsInChildren<TextMeshProUGUI>().ToList().Find(d => d.name == "TxtCycle"),
+                            txtCycleEx = p.GetComponentsInChildren<TextMeshProUGUI>().ToList().Find(d => d.name == "TxtCycleEx"),
                             devStart = point.actTag,
                             devProcess = point.processTag,
                             devEnd = point.finTag,
